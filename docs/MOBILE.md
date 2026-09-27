@@ -35,3 +35,18 @@ Service Worker 只预缓存公开离线提示、manifest 和图标；私人 API 
 `npm run build:pages` 生成静态资源与 `_worker.js`；`wrangler.jsonc` 绑定独立 KV。发布复用 FBT pages-site，配置在 `config/pages-site.json`。DNS 只新增 x 的 CNAME，不变更 fangs.cc 的 nameserver。
 
 本机服务和连接器分别由 `config/local-service.json`、`config/tunnel-service.json` 管理。只重启 Node 不会改变隧道地址；连接器重启会生成新地址并重新登记。网页壳可打开不代表 Mac 在线，API 会返回明确的连接错误。
+
+### 当前发布与排障
+
+2026-09-27 固定入口已上线：Pages 项目 `codex-navigator`，DNS `x CNAME codex-navigator.pages.dev`，TTL 600 秒，域名 Active，正常 HTTPS 及逐文件校验通过。源码版本和验收事实以 `CURRENT.md`、`docs/QA.md` 为准。当前 Wrangler 创建步骤通过官方 Pages API 预建 Direct Upload 项目，再由 FBT 发布已有项目；没有更改 fangs.cc 的 nameserver。
+
+```sh
+/Users/fangs/workspace/fbt/bin/fbt local status --config config/local-service.json --json
+/Users/fangs/workspace/fbt/bin/fbt local status --config config/tunnel-service.json --json
+node bin/navigator.mjs connection --json
+node bin/verify-public.mjs https://x.fangs.cc
+```
+
+连接状态中 `connected` 表示隧道已建立，`published` 与 `publishedAt` 表示固定入口地址登记成功。首次登记可能因网络失败重试；2026-09-27 重启验收实际先返回服务未就绪，随后连接成功，自动登记重试成功。不要把启动命令退出码等同于最终状态。等待约一分钟后回读，再按配置重启具体服务；不重传未变化的前端。
+
+口令文件直接在 Mac 本地打开后输入手机。请勿将口令放进 URL、仓库或分享截图。手机安装须用正式固定地址；旧 trycloudflare 地址会在连接器重启后失效。

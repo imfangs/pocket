@@ -2,6 +2,19 @@
 
 日期：2026-09-27。真实 Codex 来源只读；合成测试与隔离实例只写自己的数据。没有向原会话发送测试消息、改写原数据库或修改原版标题/置顶/归档。
 
+## 手机固定入口验收（2026-09-27）
+
+- `https://x.fangs.cc`：Pages 域名 Active；权威 DNS 与普通 DNS 的 CNAME 均为 `codex-navigator.pages.dev`；正常 TLS 无绕过；10 个公开文件逐个哈希一致。FBT `resume --publish` 回执 `ready: true`，没有重复上传。
+- 16 项自动测试通过：在原 9 项基础上增加认证、Cookie 持久化/撤销、失败限流、远程 bearer 拒绝、Worker 转发边界、PWA 文件与真实执行的 Service Worker fetch/install 合成测试。
+- 正式 URL 未登录 `/api/catalog`、`/api/export` 返回 401；浏览器口令登录后显示 20 条原版置顶和原有 `side / 游戏` 三条任务。口令与 Cookie 未写入公开制品。
+- 登录 Cookie 的 Secure、HttpOnly、SameSite=Strict 均独立回读；同源 `/api/sync` 200，跨站请求 403，远程本机 bearer 401；退出后旧会话 401。浏览器退出并刷新回到口令页。
+- 浏览器从重启前的页面保存临时接续说明，本机 API 独立回读成功，再清空并回读恢复。一次公网请求经历 HTTP/3 连接关闭与较长等待后成功，不能把本次通过外推为低延迟或长期连接可靠。
+- Node 重启前后整理数据规范化 SHA-256 为 `d95e27a87137a97182c0de326e6740eca52f305d3d395225b6378ac953b15b22`，会话保持有效。连接器重启更换 Quick Tunnel 地址后自动重试登记成功，x.fangs.cc 使用新连接恢复，无需重部署静态页面。
+- 390×844 下 scrollWidth=390；触控模拟时说明输入 font-size=16px。受控视觉预览显示详情的固定顶栏/保存栏及居中安装说明可见，截图时详情内容处于滚动位置。安装指引包含 Safari 与 Android 步骤。
+- Chrome `Page.getInstallabilityErrors` 为 `[]`，manifest 解析无错误，Service Worker 状态 ready。**未验证真实手机安装、独立窗口登录、键盘/安全区/触摸体验。** 两次桌面断网模拟未得到可靠离线提示，网络均已恢复；离线合成测试通过与真实断网表现分别记录，不宣称真机离线通过。
+
+发布回执 `.local/pages-site.json`，链路回读 `.local/qa/mobile-live.json`，截图 `.local/qa/mobile-*.png`，全部仅保留本机，不进入 Git。测试会话已撤销，临时含 Cookie 文件已删除。完整聊天内容、发指令与新建原任务不在这次 PWA 交付中。
+
 ## 自动检查
 
 TypeScript + Vite 构建通过；`npm test` 9 项通过：只读导入及源哈希不变、标题/项目/pin 映射、子代理过滤、同步保留和来源暂缺、revision 冲突、无项目与手动分组、层级循环、删除保留、批量回滚、备份恢复、Host/Origin/token、准确原 ID 交接、中文多词搜索、原版归档后仍可发现明确标记的稍后任务。

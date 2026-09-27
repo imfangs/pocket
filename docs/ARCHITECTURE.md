@@ -6,7 +6,7 @@
 
 已核验来源：ChatGPT App 26.903.71938 (8576)、内置 Core 0.153.4。原 `state_5.sqlite` 的 `name` 优先于初始提示词形式的 title；项目和 pin 顺序以桌面 global state 的明确映射为准，兼容 app-server project ID 到旧 saved-project ID 的迁移映射。cwd 只作为来源说明，不自动覆盖明确项目归属。
 
-源 SQLite 用 `readOnly:true` 和 query_only，global state 仅 readFile。扫描本机 CLI/桌面/独立执行来源，排除标明 subagent 的记录；不用 `has_user_event` 推断有效任务，因为本机该字段不具备筛选效力。此版不导入完整 transcript、不提取模型总结，不连接云端或 remote hosts。
+源 SQLite 用 `readOnly:true` 和 query_only，global state 仅 readFile。扫描本机 CLI/桌面/独立执行来源，排除标明 subagent 的记录；不用 `has_user_event` 推断有效任务，因为本机该字段不具备筛选效力。此版不导入完整 transcript、不提取模型总结，不读取云端或其他 remote host 的任务。手机访问通过口令保护的 HTTPS 转发，见 `docs/MOBILE.md`。
 
 `source_threads` 缓存来源元数据；`annotations` 存意图、备注、回顾日期、组 ID、最后打开时间和编辑 revision；`groups` 存独立树。默认继承来源分组只在 sourceProjectId 非空时成立，手动分组不会捕获全部无项目任务。用户明确的空组数组表示取消归组，以后同步不重新附加。
 
@@ -20,7 +20,9 @@
 
 ## HTTP
 
-- `GET /api/health`：服务身份和来源读取状态。
+- `GET /api/health`：公开服务身份，不含来源与任务数据。
+- `GET /api/auth/status`、`POST /api/auth/login`、`POST /api/auth/logout`：口令与浏览器会话。
+- `GET /api/connection`：认证后查看 Mac 隧道与固定入口登记状态。
 - `GET /api/catalog`：任务、分组、项目、来源时间/错误、当前会话 CSRF token。
 - `POST /api/sync`：只读刷新来源。
 - `PATCH /api/tasks/:id`：intent、note、reviewAt、groupIds、expectedRevision；拒绝其他字段。
@@ -29,7 +31,7 @@
 - `POST /api/open/:id`：只接受已导入原 ID，调用系统 `open codex://threads/:id`，返回 `handoff_requested`，不发送消息或新建会话。
 - `GET /api/export`、`POST /api/import`：仅任务架元数据备份。
 
-所有状态变更需相同 Origin 和从 catalog 取得的 `X-Navigator-Token`。允许 loopback 和 threads.local Host；Caddy 在 loopback 转发 HTTPS，服务校验 forwarded proto 并按实际 Host 重建 Origin。无 CORS、无遥测，响应 no-store，静态资源和 CSP 限定本站。
+所有私人 API 需通过 Cookie 认证；本机 CLI 的独立 bearer 仅直连 loopback 有效。状态变更需相同 Origin 和从 catalog 取得的 `X-Navigator-Token`，登录/退出只要求同源。允许 loopback、threads.local 和本机已登记的精确 tunnel Host；Caddy/cloudflared 在 loopback 转发 HTTPS，服务校验 forwarded proto 并按实际 Host 重建 Origin。无 CORS、无遥测，API 响应 no-store，静态资源和 CSP 限定本站。Pages 只持久保存公开前端与连接地址，私人 API 经 Worker 转发，口令哈希与浏览器会话保存在 Mac。
 
 ## 原 App 接续边界
 
