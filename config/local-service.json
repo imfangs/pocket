@@ -1,0 +1,14 @@
+{
+  "name": "codex-navigator",
+  "working_directory": "..",
+  "command": ["/opt/homebrew/bin/node", "{cwd}/server/index.mjs"],
+  "port": 4397,
+  "domain": "threads.local",
+  "https": true,
+  "environment": { "PORT": "4397" },
+  "health": {
+    "path": "/api/health",
+    "status": 200,
+    "expected": { "ok": true, "app": "codex-navigator" }
+  }
+}
