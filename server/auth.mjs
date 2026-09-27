@@ -52,10 +52,10 @@ export class AccessControl {
   setPassphrase(passphrase) {
     if (
       typeof passphrase !== "string" ||
-      passphrase.trim().length < 10 ||
+      passphrase.trim().length < 4 ||
       passphrase.length > 128
     )
-      throw new AppError("口令需为 10–128 个字符");
+      throw new AppError("口令需为 4–128 个字符");
     const value = passphrase.trim(),
       salt = randomBytes(16).toString("hex");
     const old = existsSync(this.configPath) ? this.config() : null;

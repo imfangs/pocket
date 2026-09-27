@@ -40,8 +40,12 @@ test("password config is private and hashed; sessions survive process restart an
   s = new NavigatorStore(p);
   a = new AccessControl(p, s.db);
   assert.ok(a.authenticate(req));
-  a.setPassphrase("new-test-passphrase");
+  assert.throws(() => a.setPassphrase("123"), /4–128/);
+  assert.ok(a.authenticate(req));
+  a.setPassphrase("4826");
   assert.equal(a.authenticate(req), false);
+  assert.throws(() => a.login(pass, "test"), (e) => e.status === 401);
+  assert.ok(a.login("4826", "test").token);
   s.close();
 });
 test("login limits repeated guesses and validates session expiry", (t) => {

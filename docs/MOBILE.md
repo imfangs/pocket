@@ -14,6 +14,8 @@ Mac 的 `bin/tunnel.mjs` 由 FBT local 常驻。启动前匿名探测目录必�
 
 首次生成随机口令，文件：`~/Library/Application Support/CodexNavigator/initial-passphrase.txt`，权限 0600。`access.json` 只保存 scrypt 校验值、salt 和本机 CLI 凭据。口令不会写进 Git、URL 或客户端代码。
 
+自定义口令支持 4–128 个字符；2026-09-27 按用户指定的四位试用口令调整下限。实际口令仅在本机私有文件保存，默认生成方式仍为随机口令。
+
 登录后使用 Host-only、HttpOnly、SameSite=Strict 的 Cookie，HTTPS 加 Secure，七天到期。服务端存 token 的 SHA-256；退出或轮换口令可撤销。重复失败有单 IP 与全局限流。本机 CLI 使用私人文件里的独立 token，仅直连 loopback 有效，经过远程转发不可使用。
 
 ```sh
