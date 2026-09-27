@@ -4,3 +4,7 @@ dist/
 *.sqlite*
 *.log
 .DS_Store
+.wrangler/
+.env
+.env.*
+.dev.vars*

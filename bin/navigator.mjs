@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { homedir } from "node:os";
 const help = `任务架 CLI（服务需已运行）
   node bin/navigator.mjs list [--query 游戏] [--intent later] [--archived] [--json]
   node bin/navigator.mjs groups [--json]
@@ -10,6 +11,7 @@ const help = `任务架 CLI（服务需已运行）
   node bin/navigator.mjs open 会话ID [--json]
   node bin/navigator.mjs sync [--json]
   node bin/navigator.mjs backup /绝对路径/backup.json [--json]
+  node bin/navigator.mjs connection [--json]
 
 list/search 只读。分组与 annotate 仅写任务架自己的数据。open 使用原会话 ID。
 `;
@@ -39,12 +41,23 @@ async function main() {
   )
     throw new Error("仅支持本机任务架地址");
   let token = "";
+  const access = JSON.parse(
+    readFileSync(
+      join(
+        process.env.NAVIGATOR_DATA_DIR ||
+          join(homedir(), "Library/Application Support/CodexNavigator"),
+        "access.json",
+      ),
+      "utf8",
+    ),
+  );
   async function call(path, method = "GET", data) {
     const response = await fetch(new URL(path, base), {
       method,
       headers: {
         "Content-Type": "application/json",
         Origin: base.origin,
+        Authorization: `Bearer ${access.localToken}`,
         ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
       },
       ...(data === undefined ? {} : { body: JSON.stringify(data) }),
@@ -57,6 +70,9 @@ async function main() {
   token = catalog.csrfToken;
   let result;
   switch (p[0]) {
+    case "connection":
+      result = await call("/api/connection");
+      break;
     case "list": {
       const terms = (v.query || "")
         .toLocaleLowerCase()

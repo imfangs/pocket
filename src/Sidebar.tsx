@@ -19,6 +19,7 @@ import { useState, useEffect, useRef } from "react";
 import type { Catalog, Group, View } from "./types";
 import { descendantIds } from "./model";
 interface Props {
+  footerActions?: React.ReactNode;
   catalog: Catalog;
   view: View;
   groupId: string | null;
@@ -250,6 +251,7 @@ export default function Sidebar(p: Props) {
           </button>
         </div>
         <div className="sidebar-bottom">
+          {p.footerActions}
           <button
             className={`nav-item ${p.view === "archived" ? "selected" : ""}`}
             onClick={() => p.onView("archived")}

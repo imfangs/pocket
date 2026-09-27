@@ -281,28 +281,28 @@ export default function Inspector(p: Props) {
           </button>
         </details>
       </div>
-        <div className="save-row inspector-savebar">
-          <span aria-live="polite">
-            {saving ? (
-              "正在保存…"
-            ) : dirty ? (
-              "有未保存的修改"
-            ) : (
-              <>
-                <Check size={13} />
-                已保存
-              </>
-            )}
-          </span>
-          <button
-            className="primary"
-            onClick={() => void save().catch(() => {})}
-            disabled={!dirty || saving}
-          >
-            <Save size={14} />
-            {saving ? "保存中" : "保存"}
-          </button>
-        </div>
+      <div className="save-row inspector-savebar">
+        <span aria-live="polite">
+          {saving ? (
+            "正在保存…"
+          ) : dirty ? (
+            "有未保存的修改"
+          ) : (
+            <>
+              <Check size={13} />
+              已保存
+            </>
+          )}
+        </span>
+        <button
+          className="primary"
+          onClick={() => void save().catch(() => {})}
+          disabled={!dirty || saving}
+        >
+          <Save size={14} />
+          {saving ? "保存中" : "保存"}
+        </button>
+      </div>
     </aside>
   );
 }

@@ -53,7 +53,11 @@ const subtitles: Record<View, string> = {
   unassigned: "还没有放入分组的会话。",
   group: "这里聚合分组和子分组里的原会话。",
 };
-export default function App() {
+export default function App({
+  footerActions,
+}: {
+  footerActions?: React.ReactNode;
+}) {
   const [prefs] = useState(readPrefs);
   const [catalog, setCatalog] = useState<Catalog>(empty),
     [loading, setLoading] = useState(true),
@@ -226,6 +230,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <Sidebar
+        footerActions={footerActions}
         catalog={catalog}
         view={view}
         groupId={groupId}
@@ -348,7 +353,13 @@ export default function App() {
             <button
               className="icon-button"
               aria-label={error ? "关闭提示" : "重新读取来源"}
-              onClick={() => { if(error) setError(""); else void guard(async () => { await refresh(true); }); }}
+              onClick={() => {
+                if (error) setError("");
+                else
+                  void guard(async () => {
+                    await refresh(true);
+                  });
+              }}
             >
               {error ? <X size={15} /> : <RefreshCw size={15} />}
             </button>

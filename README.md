@@ -2,6 +2,8 @@
 
 为大量已有 Codex 会话保留归属和接续入口。本机使用：**https://threads.local**。
 
+手机 PWA 与 `x.fangs.cc` 固定入口的实现、口令文件、连接器和发布方式见 [docs/MOBILE.md](docs/MOBILE.md)，实际就绪状态以 [CURRENT.md](CURRENT.md) 为准。
+
 ## 使用
 
 - 在「原版置顶」找到熟悉的任务，或搜索标题、来源项目、目录和自己的接续说明。

@@ -1,0 +1,12 @@
+{
+  "name": "codex-navigator",
+  "pages_build_output_dir": "dist",
+  "compatibility_date": "2026-09-27",
+  "send_metrics": false,
+  "kv_namespaces": [
+    {
+      "binding": "NAVIGATOR_CONNECTION",
+      "id": "8510c0e63c1041f2b55e870725033fe8",
+    },
+  ],
+}

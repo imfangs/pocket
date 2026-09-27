@@ -205,7 +205,7 @@ test("HTTP requires same origin and token, opens the exact known original id, ne
   mkdirSync(join(p, "dist"));
   writeFileSync(join(p, "dist/index.html"), "<html>synthetic</html>");
   const opens = [];
-  const { server, store } = makeApp({
+  const { server, store, auth } = makeApp({
     dataDir: join(p, "data"),
     dist: join(p, "dist"),
     readSource: source,
@@ -215,7 +215,10 @@ test("HTTP requires same origin and token, opens the exact known original id, ne
   await once(server, "listening");
   t.after(() => new Promise((r) => server.close(r)));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const c = await fetch(origin + "/api/catalog").then((r) => r.json());
+  const localAuthorization = { Authorization: `Bearer ${auth.localToken}` };
+  const c = await fetch(origin + "/api/catalog", {
+    headers: localAuthorization,
+  }).then((r) => r.json());
   let r = await fetch(origin + `/api/tasks/${id1}`, {
     method: "PATCH",
     headers: {
@@ -233,6 +236,7 @@ test("HTTP requires same origin and token, opens the exact known original id, ne
   });
   assert.equal(r.status, 403);
   const headers = {
+    ...localAuthorization,
     Origin: origin,
     "Content-Type": "application/json",
     "X-Navigator-Token": c.csrfToken,

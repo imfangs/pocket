@@ -8,6 +8,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { NavigatorStore, AppError } from "./store.mjs";
 import { readCodexSource } from "./source.mjs";
+import { AccessControl, readConnection } from "./auth.mjs";
+import { isIP } from "node:net";
 
 const exec = promisify(execFile);
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -18,10 +20,11 @@ const mime = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json",
 };
 const safeEqual = (a, b) =>
   typeof a === "string" &&
-  a.length === b.length &&
+  Buffer.byteLength(a) === Buffer.byteLength(b) &&
   timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export function makeApp(options = {}) {
   const store = new NavigatorStore(
@@ -33,6 +36,7 @@ export function makeApp(options = {}) {
     options.codexHome ||
     process.env.NAVIGATOR_CODEX_HOME ||
     join(homedir(), ".codex");
+  const auth = new AccessControl(store.directory, store.db);
   const readSource = options.readSource || (() => readCodexSource(codexHome));
   const openThread =
     options.openThread ||
@@ -70,7 +74,7 @@ export function makeApp(options = {}) {
     });
     res.end(JSON.stringify(data));
   };
-  async function body(req) {
+  async function body(req, maxBytes = 4 * 1024 * 1024) {
     if (
       !String(req.headers["content-type"] || "").startsWith("application/json")
     )
@@ -79,7 +83,7 @@ export function makeApp(options = {}) {
     let n = 0;
     for await (const chunk of req) {
       n += chunk.length;
-      if (n > 4 * 1024 * 1024) throw new AppError("请求过大", 413);
+      if (n > maxBytes) throw new AppError("请求过大", 413);
       chunks.push(chunk);
     }
     try {
@@ -101,21 +105,35 @@ export function makeApp(options = {}) {
       if (!host || !/^([a-z0-9.-]+|\[::1\])(:\d+)?$/i.test(host))
         throw new AppError("不允许的 Host", 403);
       const url = new URL(req.url, `http://${host}`);
-      if (!hosts.has(url.hostname)) throw new AppError("不允许的 Host", 403);
+      const connection = options.connection || readConnection(store.directory);
+      const publicHost = connection.publicOrigin
+        ? new URL(connection.publicOrigin).hostname
+        : null;
+      if (!hosts.has(url.hostname) && url.hostname !== publicHost)
+        throw new AppError("不允许的 Host", 403);
       const forwarded = req.headers["x-forwarded-proto"];
       if (forwarded && !["http", "https"].includes(forwarded))
         throw new AppError("无效的转发协议", 403);
       const origin = `${forwarded || "http"}://${host}`;
-      if (req.headers.origin && req.headers.origin !== origin)
+      const protectedRequest =
+        url.pathname.startsWith("/api/") ||
+        !["GET", "HEAD"].includes(req.method);
+      if (
+        protectedRequest &&
+        req.headers.origin &&
+        req.headers.origin !== origin
+      )
         throw new AppError("拒绝跨站请求", 403);
-      if (req.headers["sec-fetch-site"] === "cross-site")
+      if (protectedRequest && req.headers["sec-fetch-site"] === "cross-site")
         throw new AppError("拒绝跨站请求", 403);
       const path = url.pathname,
         method = req.method;
+      const authAction =
+        path === "/api/auth/login" || path === "/api/auth/logout";
       if (!["GET", "HEAD"].includes(method)) {
         if (
           req.headers.origin !== origin ||
-          !safeEqual(req.headers["x-navigator-token"], csrf)
+          (!authAction && !safeEqual(req.headers["x-navigator-token"], csrf))
         )
           throw new AppError("请求已过期，请刷新页面", 403);
       }
@@ -123,9 +141,48 @@ export function makeApp(options = {}) {
         return json(res, 200, {
           ok: true,
           app: "codex-navigator",
-          sourceReady: !!store.setting("sourceInfo"),
-          sourceError: !!store.lastError,
         });
+      const localBearerAllowed =
+        ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
+        !req.headers["cf-connecting-ip"] &&
+        !forwarded;
+      if (method === "GET" && path === "/api/auth/status")
+        return json(res, 200, {
+          authenticated: auth.authenticate(req, localBearerAllowed),
+        });
+      if (method === "POST" && path === "/api/auth/login") {
+        const input = await body(req, 2048);
+        const cfIp =
+          url.hostname === publicHost ? req.headers["cf-connecting-ip"] : null;
+        const ip =
+          typeof cfIp === "string" && isIP(cfIp)
+            ? cfIp
+            : req.socket.remoteAddress;
+        const result = auth.login(input?.passphrase, ip);
+        res.setHeader(
+          "Set-Cookie",
+          auth.cookie(result.token, origin.startsWith("https:")),
+        );
+        return json(res, 200, {
+          authenticated: true,
+          expiresAt: result.expiresAt,
+        });
+      }
+      if (method === "POST" && path === "/api/auth/logout") {
+        auth.logout(req);
+        res.setHeader(
+          "Set-Cookie",
+          auth.cookie("", origin.startsWith("https:")),
+        );
+        return json(res, 200, { authenticated: false });
+      }
+      if (
+        path.startsWith("/api/") &&
+        !auth.authenticate(req, localBearerAllowed)
+      )
+        throw new AppError("请先输入口令", 401);
+      if (method === "GET" && path === "/api/connection")
+        return json(res, 200, connection);
       if (method === "GET" && path === "/api/catalog")
         return json(res, 200, { ...store.catalog(), csrfToken: csrf });
       if (method === "POST" && path === "/api/sync") {
@@ -178,11 +235,13 @@ export function makeApp(options = {}) {
       if (!existsSync(file))
         throw new AppError("页面不存在，请先构建项目", 404);
       const content = readFileSync(file);
+      if (path === "/sw.js") res.setHeader("Service-Worker-Allowed", "/");
       res.writeHead(200, {
         "Content-Type": mime[extname(file)] || "application/octet-stream",
       });
       res.end(method === "HEAD" ? undefined : content);
     } catch (e) {
+      if (e.status === 429) res.setHeader("Retry-After", "900");
       json(res, e.status || 500, {
         error: e.status ? e.message : "操作未完成，请刷新后重试",
         ...(e.status ? {} : { detail: String(e.message).slice(0, 250) }),
@@ -194,7 +253,7 @@ export function makeApp(options = {}) {
     store.close();
   };
   server.on("close", close);
-  return { server, store, sync };
+  return { server, store, sync, auth };
 }
 if (
   process.argv[1] &&
