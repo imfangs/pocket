@@ -2,6 +2,24 @@
 
 日期：2026-09-27。真实 Codex 来源只读；合成测试与隔离实例只写自己的数据。没有向原会话发送测试消息、改写原数据库或修改原版标题/置顶/归档。
 
+## 2026-09-28：固定入口误报 Mac 离线
+
+故障回路：`curl https://x.fangs.cc/api/auth/status` 返回 503“Mac 暂时离线”；直连本机后端与当时的 tunnel 分别返回 auth/status 200、catalog 401。FBT 两服务显示运行，连接文件却为 `connected:true,published:false`。原登记程序使用 Wrangler OAuth，凭据已过期；日志证实 refresh endpoint 返回 HTTP 400，非交互 CLI 退出 1。不能由此推断 refresh 被拒绝的上游原因，但已证实后台对该登录态的依赖导致 KV 15 分钟记录过期。
+
+修复由 `4732c11` 发布：后台以本机专用 256-bit 随机 key 向 Worker 登记；Worker 仅持有其 SHA-256 verifier，固定更新项目 KV 的 origin。不会用网页访问口令或浏览器会话授权登记。连接器健康同时检查隧道与有效登记，错误只显示分类码。
+
+验证：
+
+- 修改前登记测试返回 403 而非预期 200；修改后整套 20 项测试通过，包含续登记、错误 key、Cookie 不能登记、跨站/任意上游/超大 body 拒绝、HTTP 与网络错误、错误回执、健康状态过期检查。
+- 正式登记在 `env -i` 的最小 PATH、无有效 Cloudflare 管理凭据且显式设置无效管理 token 时返回 200；该进程没有调用 Wrangler 或读取其配置。
+- Pages 新部署 `d4cc76a0-42ef-4c82-8d7f-77e327903b7a`，正式域名 Active、TLS 与 10 个公开文件哈希一致。匿名目录与导出保持 401；登记匿名/错误 bearer/伪造 Cookie 均 401。
+- 连接器重启改变 tunnel URL，自动登记于 02:46:15 UTC 完成；FBT `ready:true`。正式域名真实登录、目录/导出、同源 sync 均 200；浏览器显示原有分组和任务列表，重新同步可操作。
+- 02:52:08 UTC 后台按定时器自动续登记成功，有效期延长至 03:07:08 UTC，期间没有手动发布地址。实际间隔约 5 分 53 秒，符合每分钟检查且距上次成功至少五分钟的调度方式。
+- 12 个分组与接续元数据规范化哈希与修复前一致；没有修改网页口令或撤销用户会话。API 验收创建的独立会话已退出。
+- 本机专用凭据文件 0600；实际 key 与 verifier 均未出现在 tracked source 或 dist。原始登录恢复日志只用于临时排障，不进入 Git。
+
+公网请求与进程健康分别回读；一次恢复不证明隔夜、休眠、所有网络条件或真机体验稳定。私有证据 `.local/qa/connection-repair-baseline.json`、`.local/qa/connection-repair-live.json`。
+
 ## 手机固定入口验收（2026-09-27）
 
 - `https://x.fangs.cc`：Pages 域名 Active；权威 DNS 与普通 DNS 的 CNAME 均为 `codex-navigator.pages.dev`；正常 TLS 无绕过；10 个公开文件逐个哈希一致。FBT `resume --publish` 回执 `ready: true`，没有重复上传。

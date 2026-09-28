@@ -33,6 +33,8 @@
 
 所有私人 API 需通过 Cookie 认证；本机 CLI 的独立 bearer 仅直连 loopback 有效。状态变更需相同 Origin 和从 catalog 取得的 `X-Navigator-Token`，登录/退出只要求同源。允许 loopback、threads.local 和本机已登记的精确 tunnel Host；Caddy/cloudflared 在 loopback 转发 HTTPS，服务校验 forwarded proto 并按实际 Host 重建 Origin。无 CORS、无遥测，API 响应 no-store，静态资源和 CSP 限定本站。Pages 只持久保存公开前端与连接地址，私人 API 经 Worker 转发，口令哈希与浏览器会话保存在 Mac。
 
+边缘专用 `POST /api/relay/register` 由 Worker 自己处理，使用独立机器 key 的 SHA-256 verifier，只能续登记当前项目的连接地址。它不转发到 Mac，也不授予任务读取/编辑权限。自 2026-09-28 起，常驻连接器直接调用此接口，不依赖 Wrangler OAuth；只有发布代码时需要 Cloudflare 管理凭据。详细配对和恢复见 `docs/MOBILE.md`。
+
 ## 原 App 接续边界
 
 使用官方文档列出的 `codex://threads/<id>`，实际请求含原 ID。系统 `open` 成功只表明交接已受理；独立验证通过原生 Codex 任务接口核对目标由 notLoaded 变为 idle。原 App 的 GUI 自动化读取被工具安全限制，因此未自动确认具体窗口视觉布局。
