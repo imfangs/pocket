@@ -10,7 +10,9 @@
 
 移动会话页改为紧凑任务标题、标签栏和单行状态/停止/上下文入口。大块 Mac 打开按钮移到整理页可用位置，普通技术说明、底栏重复文字、桌面快捷键和列表逐行 Mac 箭头不占手机视线。上下文数值保留，压缩与详细说明点开查看。390×844 的可用对话区域由 373px 增至 566px；错误、审批、停止状态和来源限制仍显示。`/tmp/pocket-mobile-density-before.json`、`/tmp/pocket-mobile-density-after.json`。
 
-87 项自动测试通过（停止竞态/防重/重启、暂停与恢复、异步问题格式/回答去重、现有消息与审批回归）。PWA 真机仍待验。左滑归档尚未实现：当前原 owner IPC 无归档调用，桌面管理管道受签名限制，运行中 Core 仅有 stdio transport。已询问归档需同步 Codex 还是仅在 Pocket 收起，等待用户选择；没有将本地收起冒充原版归档。
+87 项自动测试通过（停止竞态/防重/重启、暂停与恢复、异步问题格式/回答去重、现有消息与审批回归）。PWA 真机仍待验。左滑归档尚未实现：当前原 owner IPC 无归档调用，桌面管理管道受签名限制，运行中 Core 仅有 stdio transport。用户已明确选择同步 Codex 原任务，接口接通前暂缓；不做仅在 Pocket 内收起的独立归档。
+
+用户随后通过 Pocket 提交了归档范围的选项回答：发送账本 accepted，准确 requestId 与答案已在原 App 历史回读，该问题已不再待答。真实回答链路验证完成，证据 `.local/qa/async-question-live-answer.json`。
 
 源码 `ce11eeb` 已发布为 Pages `4a3f4c5d-2c46-49ca-a378-9f4f2e748784`；域名 Active、普通 DNS/TLS、10 个文件哈希与匿名保护通过。正式站回读当前任务的可用停止按钮、准确的待答归档问题与两个选项，未选择前提交禁用；390px 无横向溢出，大摘要隐藏，控制台无 warn/error。测试登录已退出。证据 `.local/qa/stop-questions-public.json`；真实中断回执 `.local/qa/execution-stop-live.json`。
 

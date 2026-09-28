@@ -189,3 +189,5 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 异步回答补充验收：选项回答和自由文本各提交一次，均退出待答卡片。iOS Safari 第一次提交曾仅收起键盘；修复为键盘实际收起前保持布局，并记录题卡编辑状态，复测单次点击即提交。输入底部 338px、提交按钮底部 390px，均高于键盘；回执 `/tmp/pocket-question-ui.json`，截图 `/tmp/pocket-question-ios.png`。新增焦点移出但键盘仍遮挡时保持布局的回归。
 
 - 正式发布：源码 ce11eeb / 部署 4a3f4c5d-2c46-49ca-a378-9f4f2e748784，10 文件哈希、DNS/TLS 与匿名保护通过；正式当前任务可见停止按钮及原生异步问题，未选答案前提交禁用，390px 无溢出、无 console warn/error。未点击真实停止或代选归档偏好。`.local/qa/stop-questions-public.json`。
+
+- 2026-09-28 用户从 Pocket 回答归档范围问题，发送账本 accepted；在原 App 精确回读对应 clientMessageId 与答案，待答问题消失。真实网页 → 原任务回答链路通过，证据 `.local/qa/async-question-live-answer.json`。
