@@ -169,3 +169,8 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 新建任务按钮探测：App Tools 原生管道 tools/list 即被关闭，桌面日志确认 missing-code-signing-identity；该路径未实施绕过。newThread deep link 仅预填 Mac composer，不算手机端创建成功。
 
 - 正式发布源码 21e75a1 / 部署 a3160d47-8973-4a9d-a388-13326c7c7177：10 文件哈希、DNS/TLS、匿名保护通过。两个真实研究任务在网页分别展示 Apple 登录态检查和 GitHub 查询审批，按钮可用、高 44px，390px 无横向溢出，浏览器无 warn/error；未点击真实允许/拒绝。`.local/qa/approval-public-browser.json`、`approval-public-mobile.json`、`approval-happy-public.json`。验收登录已退出。
+
+
+## 2026-09-28 消息视觉区分
+
+用户气泡靠右、过程采用灰色虚线时间线、最终回复为白色卡片与绿色侧线，文字和图标共同区分。对 7 条合成消息回读确认 user/commentary/final_answer/final/无 phase 均按预期呈现，旧无阶段消息没有误标成最终。390×844 与 1280×800 无横向溢出，表格可读、代码可独立横向滚动，控制台无 warn/error。构建及 8 项 Markdown/刷新回归通过；没有新增镜像样式实现的测试，没有发送真实 query。证据为 `/tmp/pocket-message-qa.json` 与同目录 `pocket-messages-mobile.png`、`pocket-messages-desktop.png`，这些临时截图不进 Git。

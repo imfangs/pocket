@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { ArrowDown, RefreshCw, Send, Monitor } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
-import MessageMarkdown from "./MessageMarkdown";
+import ConversationMessage from "./ConversationMessage";
 import { rememberHistory, startConversationFeed } from "./conversationFeed";
 import type { History, HistoryCache } from "./conversationFeed";
 import Outbox from "./Outbox";
@@ -208,33 +208,8 @@ export default function Conversation({
             暂时没有可显示的消息。可以连接原任务后刷新。
           </p>
         )}
-        {history?.messages.map((m) => (
-          <article
-            className={`conversation-message ${m.role}`}
-            key={m.id}
-          >
-            <div className="message-label">
-              <strong>
-                {m.role === "user"
-                  ? "你"
-                  : m.phase === "commentary"
-                    ? "Codex · 进展"
-                    : "Codex"}
-              </strong>
-              {m.timestamp && (
-                <time>
-                  {new Date(m.timestamp).toLocaleString("zh-CN", {
-                    month: "numeric",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </time>
-              )}
-            </div>
-            <MessageMarkdown text={m.text} />
-            {m.truncated && <small>内容较长，此处已截取。</small>}
-          </article>
+        {history?.messages.map((message) => (
+          <ConversationMessage key={message.id} message={message} />
         ))}
       </div>
       <div className="conversation-status">
