@@ -301,3 +301,28 @@ test("in-progress native compaction blocks sends, queue drain and duplicate comp
   assert.equal(r.compaction.active, true);
   assert.equal(r.canSend, false); assert.equal(r.queueReady, false); assert.equal(r.canCompact, false);
 });
+
+const approval = { method:'item/commandExecution/requestApproval',id:0,params:{threadId:id,turnId:'t',itemId:'command-1',command:'git status',cwd:'/fixture',reason:'Read repository state',availableDecisions:['accept',{acceptWithExecpolicyAmendment:{execpolicy_amendment:['git']}},'cancel']} };
+test('approval display includes the full command and offers only one-time decisions', async t => {
+  const f = await fakeDesktop(t,[{...idle,requests:[approval]}]);
+  const h = await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+  assert.deepEqual(h.pendingRequests[0].choices,['accept','cancel']);
+  assert.equal(h.pendingRequests[0].command,'git status');
+  assert.equal(h.canSend,false);
+  const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,decision:'accept'});
+  assert.equal(r.status,'accepted');
+  const call=f.calls.find(c=>c.method==='thread-follower-command-approval-decision');
+  assert.deepEqual(call.params,{conversationId:id,requestId:0,decision:'accept'});assert.equal(call.version,1);
+});
+test('a reused request id with a changed command cannot receive an old approval',async t=>{
+ const f=await fakeDesktop(t,[{...idle,requests:[approval]},{...idle,requests:[{...approval,params:{...approval.params,command:'git push'}}]}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,decision:'accept'});
+ assert.equal(r.sent,false);assert.equal(r.code,'request_changed');
+ assert.equal(f.calls.some(c=>c.method==='thread-follower-command-approval-decision'),false);
+});
+test('native approval rejects persistent permission changes',async t=>{
+ const f=await fakeDesktop(t,[{...idle,requests:[approval]}]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,decision:'acceptForSession'});
+ assert.equal(r.sent,false);assert.equal(r.code,'invalid_decision');
+});

@@ -1871,3 +1871,14 @@ hr {
 .context-compact:disabled { opacity: .45; cursor: default; }
 .context-operation, .context-status > .inline-error { flex-basis: 100%; margin: 0; }
 @media (pointer: coarse) { .context-compact, .context-status summary { min-height: 36px; touch-action: manipulation; } }
+
+.request-actions { flex-shrink: 1; min-height: 80px; max-height: 48%; overflow: auto; overscroll-behavior: contain; padding: 8px 0; font-size: 12px; }
+.request-actions > strong { color: #745e30; }
+.approval-card { margin-top: 8px; padding: 12px; border: 1px solid #e5dac1; background: #fffbf0; border-radius: 9px; }
+.approval-card p { margin: 0 0 8px; line-height: 1.6; overflow-wrap: anywhere; }
+.approval-card small { color: #7a705b; font-size: 10px; }
+.approval-cwd { font-size: 11px; margin: 3px 0 8px; overflow-wrap: anywhere; }
+.approval-card pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; margin: 4px 0 10px; user-select: text; }
+.approval-buttons { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.approval-buttons button { min-height: 44px; padding: 8px 12px; border: 1px solid #d9d4c8; border-radius: 7px; touch-action: manipulation; }
+.approval-buttons button:disabled { opacity: .5; }

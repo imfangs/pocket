@@ -1,0 +1,26 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
+import {NavigatorStore} from '../server/store.mjs';import {DesktopService} from '../server/desktop.mjs';
+const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',rid='bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',key='a'.repeat(64);
+function fixture(t){const dir=mkdtempSync(join(tmpdir(),'pocket-approval-'));const store=new NavigatorStore(dir);store.sync({threads:[{id,title:'Fixture',archived:false}],projects:[],sourceInfo:{}});
+ const state={calls:[],result:{ok:true},requests:[{key,kind:'command',command:'git status',choices:['accept','cancel']}]};
+ const request=async p=>{if(p.operation==='history')return {ok:true,source:'desktop',canSend:false,pendingRequests:state.requests,messages:[]};state.calls.push(p);return state.result;};const service=new DesktopService(store,'/fixture',request);
+ t.after(()=>{service.stopQueue();store.close();rmSync(dir,{recursive:true,force:true});});return {state,service,store,request};}
+test('an approval is submitted once and exact duplicate receipt lookup never resends',async t=>{const {service:s,state}=fixture(t);
+ assert.equal((await s.respond(id,key,{responseId:rid,decision:'accept'})).status,'accepted');
+ assert.equal((await s.respond(id,key,{responseId:rid,decision:'accept'})).status,'accepted');assert.equal(state.calls.length,1);
+ await assert.rejects(s.respond(id,key,{responseId:rid,decision:'cancel'}),e=>e.status===409);
+ state.requests=[];await s.history(id);assert.equal(s.getResponseReceipt(id,rid).status,'resolved');
+});
+test('unknown approvals remain held across restart until the request disappears',async t=>{const {service:s,state,store,request}=fixture(t);state.result={ok:false,sent:null};
+ assert.equal((await s.respond(id,key,{responseId:rid,decision:'cancel'})).status,'unknown');
+ const next=new DesktopService(store,'/fixture',request);next.startQueue();next.stopQueue();
+ await assert.rejects(next.respond(id,key,{responseId:'cccccccc-cccc-7ccc-8ccc-cccccccccccc',decision:'accept'}),e=>e.status===409);
+ assert.equal(state.calls.length,1);
+ state.requests=[];next.cache.clear();await next.history(id);assert.equal(next.getResponseReceipt(id,rid).status,'resolved');
+});
+test('approval API rejects session-wide permission values and undeclared fields',async t=>{const {service:s,state}=fixture(t);
+ await assert.rejects(s.respond(id,key,{responseId:rid,decision:'acceptForSession'}),e=>e.status===400);
+ await assert.rejects(s.respond(id,key,{responseId:rid,decision:'accept',permissions:'full'}),e=>e.status===400);
+ assert.equal(state.calls.length,0);
+});

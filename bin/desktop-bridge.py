@@ -4,6 +4,7 @@ import plistlib
 import sys
 import time
 import math
+import hashlib
 from pathlib import Path
 
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
@@ -96,6 +97,27 @@ def context_usage(state):
             "percent": used/window*100}
 
 
+def request_key(request):
+    return hashlib.sha256(json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
+def pending_requests(state):
+    result = []
+    for request in state.get("requests", []):
+        params = request.get("params") or {}
+        if request.get("method") != "item/commandExecution/requestApproval":
+            continue
+        command = params.get("command")
+        decisions = params.get("availableDecisions") or []
+        if not isinstance(command, str) or not command or len(command) > 32000:
+            continue
+        result.append({"key": request_key(request), "kind": "command", "command": command,
+                       "reason": params.get("reason") or "Codex 请求你确认这次命令执行。",
+                       "cwd": params.get("cwd") or "", "turnId": params.get("turnId"),
+                       "choices": [d for d in decisions if d in ("accept", "cancel")]})
+    return result
+
+
 def can_compact(state):
     return writable(state)[0] and state.get("threadRuntimeStatus", {}).get("type") == "idle"
 
@@ -145,8 +167,12 @@ def history(state):
         budget -= len(message["text"])
     messages = [m for m in messages if m["text"]]
     allowed, hint = writable(state)
+    requests = pending_requests(state)
+    if requests:
+        hint = "任务正在等待你确认操作，可在下方查看并响应。"
     return {"source": "desktop", "messages": messages, "runtime": state.get("threadRuntimeStatus", {}).get("type"),
             "contextUsage": context_usage(state), "compaction": compaction_state(state), "canCompact": can_compact(state),
+            "pendingRequests": requests,
             "canSend": allowed, "hint": hint, "hasMore": not state.get("turnsPagination", {}).get("hasLoadedOldest", False) or len(turns) > 30,
             "queueReady": allowed and state.get("threadRuntimeStatus", {}).get("type") == "idle" and
                           (not turns or turns[-1].get("status") == "completed"),
@@ -168,6 +194,19 @@ def main():
             owner, state = client.snapshot(thread_id)
             if data["operation"] == "history":
                 return {"ok": True, **history(state)}
+            if data["operation"] == "respond":
+                fresh_owner, fresh = client.snapshot(thread_id)
+                shown = next((r for r in pending_requests(fresh) if r["key"] == data.get("requestKey")), None)
+                if fresh_owner != owner or fresh.get("resumeState") != "resumed" or not shown:
+                    return {"ok": False, "code": "request_changed", "sent": False}
+                decision = data.get("decision")
+                if decision not in shown["choices"]:
+                    return {"ok": False, "code": "invalid_decision", "sent": False}
+                original = next(r for r in fresh["requests"] if request_key(r) == shown["key"])
+                dispatched = True
+                client.request("thread-follower-command-approval-decision", {"conversationId": thread_id,
+                    "requestId": original["id"], "decision": decision}, 1, owner)
+                return {"ok": True, "status": "accepted"}
             if data["operation"] == "compact":
                 if not can_compact(state):
                     return {"ok": False, "code": "thread_not_ready", "sent": False}

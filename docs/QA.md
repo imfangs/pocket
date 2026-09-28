@@ -160,3 +160,10 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 - PWA 主屏幕真机和长期恢复仍保留验证边界。部署身份以 CURRENT.md 为准。
 
 - iOS Safari 8 行长输入的初版曾将发送按钮挤出可见区。修复按实际剩余空间扣除其他控件后，输入框 110px、底部 396px，发送按钮底部 444px；受控截图确认位于地址栏和键盘上方。`.local/qa/input-autogrow-ios-after.json`。
+
+
+## 2026-09-28 网页命令审批
+
+73 项测试通过，新增一次性审批原生参数、id=0、请求复用/命令变化拒绝、会话级放权拒绝、回执防重、未知结果恢复。隔离浏览器 390px 测到按钮高 44px、完整 git status --short 可见，点击后只有一个 accept，卡片消失，无 console warn/error。`.local/qa/approval-ui-browser.json`。真实两个研究任务的审批内容已从原 owner 只读回读；未代用户批准，生产执行回执留待用户真实点击验证。
+
+新建任务按钮探测：App Tools 原生管道 tools/list 即被关闭，桌面日志确认 missing-code-signing-identity；该路径未实施绕过。newThread deep link 仅预填 Mac composer，不算手机端创建成功。

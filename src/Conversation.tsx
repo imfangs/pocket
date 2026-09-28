@@ -1,5 +1,6 @@
 import AutoTextarea from "./AutoTextarea";
 import ContextStatus from "./ContextStatus";
+import RequestActions from "./RequestActions";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown, RefreshCw, Send, Monitor } from "lucide-react";
 import { api } from "./api";
@@ -155,10 +156,10 @@ export default function Conversation({
   return (
     <section className="conversation" aria-label="会话历史与发送">
       <div className="conversation-toolbar">
-        <span className={!loading && !historyError && history?.runtime === "active" ? "runtime-active" : ""}>
+        <span className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>
           {loading
             ? history ? "正在更新…" : "正在读取历史…"
-            : historyError ? "等待重连" : statuses[history?.runtime || ""] || "任务状态"}
+            : historyError ? "等待重连" : history?.pendingRequests?.length ? "等待确认" : statuses[history?.runtime || ""] || "任务状态"}
         </span>
         <div>
           <button
@@ -270,6 +271,7 @@ export default function Conversation({
           </p>
         )}
       </div>
+      <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
       <ContextStatus threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
       <Outbox threadId={thread.id} items={history?.outbox ?? []} disabled={loading || !!historyError} allowSend={!thread.archived && !thread.missing && !!history?.canSend} refresh={load} drafts={drafts} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>

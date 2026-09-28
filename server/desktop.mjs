@@ -77,6 +77,7 @@ export class DesktopService {
     );
     store.db.exec("CREATE TABLE IF NOT EXISTS outgoing_messages(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,text TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0)");
     store.db.exec("CREATE TABLE IF NOT EXISTS compactions(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,status TEXT NOT NULL,baseline_id TEXT,code TEXT,created_at INTEGER NOT NULL)");
+    store.db.exec("CREATE TABLE IF NOT EXISTS request_responses(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,request_key TEXT NOT NULL,decision TEXT NOT NULL,status TEXT NOT NULL,code TEXT,created_at INTEGER NOT NULL)");
   }
   async history(id) {
     this.store.thread(id);
@@ -133,6 +134,12 @@ export class DesktopService {
       this.store.db.prepare("UPDATE compactions SET status=?,code=NULL WHERE id=?")
         .run(["failed", "interrupted"].includes(compact.turnStatus) ? "failed" : "completed", action.id);
     }
+    if (data.source === "desktop" && Array.isArray(data.pendingRequests)) {
+      const keys = new Set(data.pendingRequests.map(r => r.key));
+      const responses = this.store.db.prepare("SELECT id,request_key FROM request_responses WHERE thread_id=? AND status IN('pending','accepted','unknown')").all(id);
+      for (const response of responses) if (!keys.has(response.request_key))
+        this.store.db.prepare("UPDATE request_responses SET status='resolved',code=NULL WHERE id=?").run(response.id);
+    }
     for (const message of data.messages || []) {
       if (message.clientMessageId)
         this.store.db
@@ -161,9 +168,41 @@ export class DesktopService {
     const action = this.compactionRequest(id);
     const blocked = this.compactionPending(id);
     const outbox = this.outbox(id);
-    return { ...data, outbox, canCompact: !!data.canCompact && !blocked && !outbox.length && !this.sending.has(id),
+    const pendingRequests = (data.pendingRequests || []).map(request => ({ ...request,
+      response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
+    return { ...data, outbox, pendingRequests, canCompact: !!data.canCompact && !blocked && !outbox.length && !this.sending.has(id),
       canSend: data.canSend && !blocked, queueReady: data.queueReady && !blocked,
       compactionRequest: action ? { requestId: action.id, status: action.status, code: action.code } : null };
+  }
+  getResponseReceipt(id, responseId) {
+    this.store.thread(id);
+    const row = this.store.db.prepare("SELECT id AS responseId,status,code FROM request_responses WHERE id=? AND thread_id=?").get(responseId, id);
+    return row || { responseId, status: "not_found" };
+  }
+  async respond(id, requestKey, input) {
+    const thread = this.store.thread(id);
+    if (!input || Object.keys(input).some(k => !["responseId", "decision"].includes(k)) ||
+        !["accept", "cancel"].includes(input.decision) || typeof input.responseId !== "string" ||
+        !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.responseId) || !/^[a-f0-9]{64}$/.test(requestKey))
+      throw new AppError("审批响应参数无效", 400);
+    const old = this.store.db.prepare("SELECT * FROM request_responses WHERE id=?").get(input.responseId);
+    if (old) {
+      if (old.thread_id !== id || old.request_key !== requestKey || old.decision !== input.decision) throw new AppError("响应编号已用于其他操作", 409);
+      return this.getResponseReceipt(id, input.responseId);
+    }
+    if (thread.archived || thread.missing) throw new AppError("请先恢复原任务", 409);
+    const prior = this.store.db.prepare("SELECT id FROM request_responses WHERE thread_id=? AND request_key=? AND status IN('pending','accepted','unknown')").get(id, requestKey);
+    if (prior) throw new AppError("这个请求已经响应，请先刷新核对", 409);
+    this.store.db.prepare("INSERT INTO request_responses VALUES(?,?,?,?,'pending',NULL,?)")
+      .run(input.responseId, id, requestKey, input.decision, Date.now());
+    let result;
+    try { result = await this.request({ operation: "respond", threadId: id, codexHome: this.codexHome, requestKey, decision: input.decision }); }
+    catch { result = { ok: false, sent: null, code: "dispatch_unknown" }; }
+    const status = result.ok ? "accepted" : result.sent === false ? "rejected" : "unknown";
+    this.store.db.prepare("UPDATE request_responses SET status=?,code=? WHERE id=? AND status='pending'")
+      .run(status, result.code || null, input.responseId);
+    this.cache.delete(id);
+    return this.getResponseReceipt(id, input.responseId);
   }
   async compact(id, input) {
     const thread = this.store.thread(id);
@@ -310,6 +349,7 @@ export class DesktopService {
     this.queueStarted = true;
     this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending' AND id IN(SELECT id FROM outgoing_messages)");
     this.store.db.exec("UPDATE compactions SET status='unknown',code='submission_interrupted' WHERE status='pending'");
+    this.store.db.exec("UPDATE request_responses SET status='unknown',code='submission_interrupted' WHERE status='pending'");
     const tick = async () => {
       try { await this.processQueue(); } catch { /* Retry reads; never replay unknown submissions. */ }
       if (this.queueStarted) { this.queueTimer = setTimeout(tick, 2000); this.queueTimer.unref?.(); }

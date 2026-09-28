@@ -16,6 +16,7 @@ export type History = {
   hasMore?: boolean;
   checkedAt: number;
   outbox?: QueuedMessage[];
+  pendingRequests?: PendingRequest[];
   contextUsage?: { usedTokens: number; contextWindow: number; remainingTokens: number; percent: number } | null;
   canCompact?: boolean;
   compaction?: { active: boolean; latestId: string | null; completed?: boolean };
@@ -120,3 +121,13 @@ export function startConversationFeed(options: FeedOptions) {
     },
   };
 }
+
+export type PendingRequest = {
+  key: string;
+  kind: "command";
+  command: string;
+  reason: string;
+  cwd: string;
+  choices: ("accept" | "cancel")[];
+  response?: { responseId: string; status: string } | null;
+};
