@@ -219,3 +219,13 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 用户真实反馈指出上次时长验收中被当作回复的 0:55 实为内部压缩摘要。本轮复现并修复 response_item.role 误分类：按内容 provenance 与 compacted 的 response ID 过滤，保留作者真实消息；消息自身 turn_id 恢复截断历史里的时长归属。97 项测试通过，覆盖混合指令/用户正文、真实 AGENTS 引用、旧完整封装、任意摘要文本、超长摘要、原生可见回复优先和历史截断。
 
 Mac 服务重启成功。真实公网浏览器 390×844 中，AGENTS 注入与内部摘要均消失，原用时请求和正常最终回复保留，正确总用时为 26:21；无横向溢出、无控制台错误。前端版本不变，没有重发 Pages。证据 `.local/qa/history-provenance/`，测试登录退出，临时标签页与测试服务均关闭。
+
+## 2026-09-28 队列按钮与重连
+
+原症状：真实活动任务的 5 次历史读取中 3 次约 2.05 秒返回 desktop_unavailable；分阶段探测 owner discovery 可达 3.589 秒。原 Conversation SSR 中已保存历史让加入队列/直接发送禁用，两项回归先红后绿。103 项测试与构建通过，覆盖慢 owner 重连、首读快速回退、存储独立于执行、已知审批与归档禁止、未知结果不重放、有限快速恢复。
+
+隔离 Browser 390×844 / 320×740：回退时加入队列可用；直接发送调用一次；切到 desktop/idle 后自动队首调用一次；模拟离线禁用，恢复后草稿不丢且可用；明确未发送的失败保留正文和可手动重试按钮。无页面溢出和控制台错误。
+
+公网受控原任务从 rollout 回退状态入队并主动派发成功，准确 marker 和 userMessage 回读，completed 用时 7780ms，0 工具调用；公网 history 也确认回复，outbox=0，原归档恢复。当前真实任务连续四次读取均 desktop/active，canSend/canQueue/canAttemptSend 全 true，分别 3046/4950/1053/4085ms。正式 390px 浏览器加入队列按钮可用、上下文正常、无控制台错误；未向当前人类任务提交测试文字。
+
+源码 41a0a39，Pages 9f08577f-3090-4044-a18f-316dfce6c855，11 文件哈希、DNS/TLS、域名与匿名保护通过。一次上传后资源切换暂不匹配，沿用同一部署 resume 成功，无重复上传。证据 `.local/qa/queue-connection-live.json`、`.local/qa/queue-connection/`。测试登录退出；PWA 真机手感、长时间网络波动不计本次已验。
