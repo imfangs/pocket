@@ -174,3 +174,5 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 ## 2026-09-28 消息视觉区分
 
 用户气泡靠右、过程采用灰色虚线时间线、最终回复为白色卡片与绿色侧线，文字和图标共同区分。对 7 条合成消息回读确认 user/commentary/final_answer/final/无 phase 均按预期呈现，旧无阶段消息没有误标成最终。390×844 与 1280×800 无横向溢出，表格可读、代码可独立横向滚动，控制台无 warn/error。构建及 8 项 Markdown/刷新回归通过；没有新增镜像样式实现的测试，没有发送真实 query。证据为 `/tmp/pocket-message-qa.json` 与同目录 `pocket-messages-mobile.png`、`pocket-messages-desktop.png`，这些临时截图不进 Git。
+
+- 正式发布源码 3838ed8 / 部署 69e3de36-48c8-45fd-96ac-32639e1080f9，10 文件哈希、DNS/TLS 与匿名保护通过。正式页面 80 条消息显示用户 15、过程 55、最终回复 10；390px 无溢出，输入区可见，无 console warn/error，测试登录退出。轮询曾使一个 waitFor 定位器失效，后续直接 DOM 回读正常，不视作产品报错。`/tmp/pocket-message-live.json`。
