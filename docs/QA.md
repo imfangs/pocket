@@ -167,3 +167,5 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 73 项测试通过，新增一次性审批原生参数、id=0、请求复用/命令变化拒绝、会话级放权拒绝、回执防重、未知结果恢复。隔离浏览器 390px 测到按钮高 44px、完整 git status --short 可见，点击后只有一个 accept，卡片消失，无 console warn/error。`.local/qa/approval-ui-browser.json`。真实两个研究任务的审批内容已从原 owner 只读回读；未代用户批准，生产执行回执留待用户真实点击验证。
 
 新建任务按钮探测：App Tools 原生管道 tools/list 即被关闭，桌面日志确认 missing-code-signing-identity；该路径未实施绕过。newThread deep link 仅预填 Mac composer，不算手机端创建成功。
+
+- 正式发布源码 21e75a1 / 部署 a3160d47-8973-4a9d-a388-13326c7c7177：10 文件哈希、DNS/TLS、匿名保护通过。两个真实研究任务在网页分别展示 Apple 登录态检查和 GitHub 查询审批，按钮可用、高 44px，390px 无横向溢出，浏览器无 warn/error；未点击真实允许/拒绝。`.local/qa/approval-public-browser.json`、`approval-public-mobile.json`、`approval-happy-public.json`。验收登录已退出。
