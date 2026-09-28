@@ -50,7 +50,11 @@ input::placeholder, textarea::placeholder { color: #92929f; }
 .inspector-tabs button[aria-selected="true"] { color: var(--ink); background: #f0f0f4; }
 .inspector-conversation .open-primary { background: transparent; color: var(--text-secondary); border: 1px solid var(--line); }
 .conversation-toolbar { border-bottom: 0; color: #737381; font-size: 11px; }
-.conversation-overview > span { display: flex; align-items: center; gap: 5px; }
+.runtime-summary { display: flex; flex-direction: column; gap: 2px; }
+.runtime-summary > span:first-child { display: flex; align-items: center; gap: 5px; }
+.turn-duration, .message-duration { color: #85808e; font-size: 10px; white-space: nowrap; }
+.turn-duration time, .message-duration time { font-variant-numeric: tabular-nums; }
+.message-duration { margin-top: 12px; font-size: 11px; }
 .conversation-toolbar .runtime-active { color: #338365; }
 .runtime-active::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #4a9b79; }
 .conversation-messages { padding: 8px 2px 20px; scrollbar-color: #dedee7 transparent; }
@@ -103,7 +107,14 @@ input::placeholder, textarea::placeholder { color: #92929f; }
 .question-option input { accent-color: var(--accent); }
 .question-custom, .outbox-actions button { color: var(--accent); }
 .approval-card { border-radius: 13px; }
-.stop-execution { border: 0; background: #fff1ee; color: #a45348; border-radius: 9px; min-width: 58px; }
+.stop-execution { border: 0; background: transparent; color: white; border-radius: 50%; width: 44px; height: 44px; min-height: 44px; min-width: 44px; padding: 6px; margin: 0; flex-shrink: 0; }
+.stop-execution-disc { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ink); transition: background-color 140ms var(--ease), scale 140ms var(--ease); }
+.stop-execution[data-waiting] .stop-execution-disc { background: #f0eef5; color: #777080; }
+.stop-execution:active:not(:disabled) { background: transparent; }
+.stop-execution:active:not(:disabled) .stop-execution-disc { scale: .9; }
+.stop-spinner { animation: stop-spin 1s linear infinite; }
+@keyframes stop-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .stop-spinner { animation: none; } .stop-execution-disc { transition: none; } }
 .resume-queue { border-color: #e0d9ec; background: #f8f6fb; color: var(--accent); }
 .outbox-actions { gap: 6px; }
 dialog { border: 1px solid #e6e3ed; border-radius: 20px; box-shadow: 0 24px 90px #25203026; animation: popover-in 180ms var(--ease); }

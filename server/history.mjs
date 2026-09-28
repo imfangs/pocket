@@ -10,12 +10,37 @@ import { join, isAbsolute, sep } from "node:path";
 import { AppError } from "./store.mjs";
 
 export function parseHistoryLines(text, startOffset = 0) {
+  return parseHistory(text, startOffset).messages;
+}
+
+export function parseHistory(text, startOffset = 0) {
   const messages = [];
+  const turns = new Map();
+  let currentTurnId = null, latestTurnId = null, observedAt = null;
+  const number = value => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
   let offset = startOffset;
   for (const line of text.split("\n")) {
     try {
       const record = JSON.parse(line),
         item = record.payload;
+      const timestamp = Date.parse(record.timestamp);
+      if (Number.isFinite(timestamp)) observedAt = timestamp;
+      if (record.type === "turn_context" && item?.turn_id) currentTurnId = item.turn_id;
+      if (record.type === "event_msg" && ["task_started", "task_complete", "turn_aborted"].includes(item?.type)) {
+        const id = item.turn_id || (item.type === "turn_aborted" ? currentTurnId : null);
+        if (id && Number.isFinite(timestamp)) {
+          const turn = turns.get(id) || { turnId: id, startedAt: null, durationMs: null };
+          if (item.type === "task_started") {
+            Object.assign(turn, { startedAt: timestamp, status: "inProgress", durationMs: null });
+            currentTurnId = latestTurnId = id;
+          } else {
+            turn.status = item.type === "turn_aborted" ? "interrupted" : "completed";
+            turn.durationMs = number(item.duration_ms) ?? (turn.startedAt == null ? null : number(timestamp - turn.startedAt));
+            if (!latestTurnId || currentTurnId === id) latestTurnId = id;
+          }
+          turns.set(id, turn);
+        }
+      }
       if (
         record.type === "response_item" &&
         item?.type === "message" &&
@@ -30,6 +55,7 @@ export function parseHistoryLines(text, startOffset = 0) {
           messages.push({
             id: item.id || `rollout:${offset}`,
             role: item.role,
+            turnId: currentTurnId,
             text: value.slice(0, 24000),
             phase: item.phase,
             timestamp: Date.parse(record.timestamp) || null,
@@ -41,8 +67,16 @@ export function parseHistoryLines(text, startOffset = 0) {
     }
     offset += Buffer.byteLength(line) + 1;
   }
+  const marked = new Set();
+  for (const message of [...messages].reverse()) {
+    const duration = turns.get(message.turnId)?.durationMs;
+    if (message.role === "assistant" && ["final", "final_answer"].includes(message.phase) && duration != null && !marked.has(message.turnId)) {
+      message.turnDurationMs = duration;
+      marked.add(message.turnId);
+    }
+  }
   let budget = 160000;
-  return messages
+  const visible = messages
     .slice(-80)
     .reverse()
     .map((message) => {
@@ -56,6 +90,7 @@ export function parseHistoryLines(text, startOffset = 0) {
     })
     .filter((m) => m.text)
     .reverse();
+  return { messages: visible, turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
 }
 
 export function readPersistedHistory(codexHome, threadId) {
@@ -103,7 +138,7 @@ export function readPersistedHistory(codexHome, threadId) {
     }
     return {
       source: "rollout",
-      messages: parseHistoryLines(text, offset),
+      ...parseHistory(text, offset),
       hasMore: start > 0,
       runtime: "unavailable",
       canSend: false,

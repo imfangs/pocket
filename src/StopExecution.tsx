@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Square, RefreshCw } from "lucide-react";
+import { Square, RefreshCw, LoaderCircle } from "lucide-react";
 import { api } from "./api";
 import type { History, StopReceipt } from "./conversationFeed";
 
@@ -46,9 +46,11 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
   };
   if (!history?.canStop && !waiting && !busy) return null;
   return <button type="button" className="stop-execution" disabled={disabled || busy}
-    aria-label={waiting ? "核对停止状态" : "停止当前执行"}
+    aria-label={busy ? "正在停止执行" : waiting ? "核对停止状态" : "停止当前执行"}
+    aria-busy={busy} data-waiting={waiting || busy || undefined}
     title="中断当前执行，保留会话和待发消息" onClick={() => void stop()}>
-    {waiting ? <RefreshCw size={14} aria-hidden="true" /> : <Square size={12} fill="currentColor" aria-hidden="true" />}
-    {busy ? "停止中…" : waiting ? "核对停止" : "停止"}
+    <span className="stop-execution-disc">
+      {busy ? <LoaderCircle className="stop-spinner" size={16} aria-hidden="true" /> : waiting ? <RefreshCw size={15} aria-hidden="true" /> : <Square size={11} strokeWidth={0} fill="currentColor" aria-hidden="true" />}
+    </span>
   </button>;
 }

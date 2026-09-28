@@ -2,6 +2,7 @@ import AutoTextarea from "./AutoTextarea";
 import ContextStatus from "./ContextStatus";
 import RequestActions from "./RequestActions";
 import StopExecution from "./StopExecution";
+import TurnDuration from "./TurnDuration";
 import QuestionPrompts from "./QuestionPrompts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown, RefreshCw, Send, Monitor } from "lucide-react";
@@ -164,11 +165,14 @@ export default function Conversation({
     <section className="conversation" aria-label="会话历史与发送">
       <div className="conversation-toolbar">
         <div className="conversation-overview">
+        <div className="runtime-summary">
         <span className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>
           {loading
             ? history ? "正在更新…" : "正在读取历史…"
             : historyError ? "等待重连" : history?.pendingRequests?.length ? "等待确认" : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断" : statuses[history?.runtime || ""] || "任务状态"}
         </span>
+          <TurnDuration timing={history?.turnTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
+        </div>
           <ContextStatus threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
         </div>
         <div className="conversation-controls">

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { parseHistoryLines, readPersistedHistory } from "../server/history.mjs";
+import { parseHistory, parseHistoryLines, readPersistedHistory } from "../server/history.mjs";
 import { NavigatorStore } from "../server/store.mjs";
 import { DesktopService } from "../server/desktop.mjs";
 const id = "aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa";
@@ -20,6 +20,33 @@ const line = (role, text, phase) =>
       content: [{ type: "output_text", text }],
     },
   });
+const event = (at, type, fields = {}) => JSON.stringify({ timestamp: at, type: "event_msg", payload: { type, ...fields } });
+test("saved turn durations exclude idle gaps and survive a missing start record", () => {
+  const data = parseHistory([
+    event("2026-09-28T00:00:00Z", "task_started", { turn_id: "one" }),
+    line("assistant", "First", "final"),
+    event("2026-09-28T00:02:00Z", "task_complete", { turn_id: "one", duration_ms: 119500 }),
+    event("2026-09-28T01:00:00Z", "task_started", { turn_id: "two" }),
+    line("assistant", "Second", "final_answer"),
+    event("2026-09-28T01:00:20Z", "task_complete", { turn_id: "two", duration_ms: 20000 }),
+  ].join("\n"));
+  assert.deepEqual(data.messages.map(m => m.turnDurationMs), [119500, 20000]);
+  assert.equal(data.turnTiming.durationMs, 20000);
+  const clipped = parseHistory(event("2026-09-28T01:00:20Z", "task_complete", { turn_id: "two", duration_ms: 20000 }));
+  assert.equal(clipped.turnTiming.durationMs, 20000);
+  assert.equal(clipped.turnTiming.startedAt, null);
+});
+test("saved active timing ends at the last recorded activity, and abort freezes it", () => {
+  const start = event("2026-09-28T01:00:00Z", "task_started", { turn_id: "one" });
+  const activity = event("2026-09-28T01:00:10Z", "agent_message");
+  const active = parseHistory(`${start}\n${activity}`).turnTiming;
+  assert.equal(active.observedAt - active.startedAt, 10000);
+  assert.equal(active.durationMs, null);
+  const stopped = parseHistory(`${start}\n${activity}\n${event("2026-09-28T01:00:12Z", "turn_aborted")}`).turnTiming;
+  assert.equal(stopped.status, "interrupted");
+  assert.equal(stopped.durationMs, 12000);
+  assert.equal(parseHistory(line("assistant", "Old answer", "final")).turnTiming, null);
+});
 function temporary(t) {
   const p = mkdtempSync(join(tmpdir(), "navigator-history-"));
   t.after(() => rmSync(p, { recursive: true, force: true }));

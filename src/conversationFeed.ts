@@ -7,6 +7,14 @@ export type Message = {
   timestamp?: number;
   truncated?: boolean;
   clientMessageId?: string;
+  turnDurationMs?: number;
+};
+export type TurnTiming = {
+  turnId: string | null;
+  status: string;
+  startedAt: number | null;
+  durationMs: number | null;
+  observedAt: number;
 };
 export type History = {
   source: string;
@@ -21,6 +29,7 @@ export type History = {
   canStop?: boolean;
   activeTurnId?: string | null;
   latestTurnStatus?: string;
+  turnTiming?: TurnTiming | null;
   stopRequest?: StopReceipt | null;
   queuePaused?: { stopId: string } | null;
   pendingRequests?: PendingRequest[];

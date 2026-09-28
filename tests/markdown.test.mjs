@@ -14,6 +14,8 @@ const vite = await createServer({
   appType: "custom",
 });
 after(() => vite.close());
+
+
 const { default: MessageMarkdown } = await vite.ssrLoadModule("/src/MessageMarkdown.tsx");
 const render = (text) => renderToStaticMarkup(createElement(MessageMarkdown, { text }));
 
@@ -53,4 +55,17 @@ test("conversation image Markdown offers a link without requesting the image", (
   assert.ok(html.includes('href="https://example.com/diagram.png"'));
   assert.ok(html.includes("查看图片"));
   assert.ok(html.includes("本地图"));
+});
+
+test("turn elapsed rendering handles hours, frozen completion and missing times", async () => {
+  const { default: TurnDuration, elapsedDuration, formatDuration } = await vite.ssrLoadModule("/src/TurnDuration.tsx");
+  assert.equal(formatDuration(0), "0:00");
+  assert.equal(formatDuration(3599999), "59:59");
+  assert.equal(formatDuration(3661000), "1:01:01");
+  const timing = { turnId: "a", status: "inProgress", startedAt: 1000, observedAt: 9000, durationMs: null };
+  assert.equal(elapsedDuration(timing, 2000), 10000);
+  assert.equal(elapsedDuration({ ...timing, status: "completed", durationMs: 1234 }, 99999), 1234);
+  assert.equal(elapsedDuration({ ...timing, startedAt: null }), null);
+  assert.match(renderToStaticMarkup(createElement(TurnDuration, { timing, live: false })), /已记录/);
+  assert.equal(renderToStaticMarkup(createElement(TurnDuration, { timing: { ...timing, status: "completed" }, live: false })), "");
 });

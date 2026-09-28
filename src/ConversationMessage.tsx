@@ -3,6 +3,7 @@ import CopyButton from "./CopyButton";
 import MessageMarkdown from "./MessageMarkdown";
 import { readableQuestionReply } from "./questionReply";
 import type { Message } from "./conversationFeed";
+import { formatDuration } from "./TurnDuration";
 
 export default function ConversationMessage({ message }: { message: Message }) {
   const progress =
@@ -55,6 +56,9 @@ export default function ConversationMessage({ message }: { message: Message }) {
             : message.text
         }
       />
+      {final && message.turnDurationMs != null && (
+        <div className="message-duration">总用时 <time>{formatDuration(message.turnDurationMs)}</time></div>
+      )}
       {message.truncated && <small>内容较长，此处已截取。</small>}
     </article>
   );

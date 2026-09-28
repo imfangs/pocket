@@ -86,6 +86,26 @@ async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0 } = {}
   });
   return { home, calls };
 }
+test("desktop timing uses native duration for completed turns and start time for active turns", async (t) => {
+  const turns = [
+    { turnId: "old", status: "completed", turnStartedAtMs: 1000, durationMs: 12345, items: [{ type: "agentMessage", id: "a", phase: "final_answer", text: "Done" }] },
+    { turnId: "new", status: "inProgress", turnStartedAtMs: 900000, durationMs: 123, items: [] },
+  ];
+  const f = await fakeDesktop(t, [{ ...idle, threadRuntimeStatus: { type: "active" }, turns }]);
+  const data = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.equal(data.messages[0].turnDurationMs, 12345);
+  assert.equal(data.turnTiming.startedAt, 900000);
+  assert.equal(data.turnTiming.durationMs, null);
+  assert.equal(data.turnTiming.turnId, "new");
+});
+
+test("missing or invalid desktop timing is never invented from message timestamps", async (t) => {
+  const f = await fakeDesktop(t, [{ ...idle, turns: [{ turnId: "old", status: "completed", durationMs: -1, finalAssistantStartedAtMs: 900, items: [] }] }]);
+  const data = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.equal(data.turnTiming.durationMs, null);
+  assert.equal(data.turnTiming.startedAt, null);
+});
+
 test("history bounds owner lookup without waiting for the desktop default", async (t) => {
   const f = await fakeDesktop(t, [idle], { ownerDelay: 2500 });
   const started = performance.now();

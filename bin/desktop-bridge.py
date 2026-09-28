@@ -184,8 +184,18 @@ def active_turn_id(state):
     return turns[-1]["turnId"] if turns and turns[-1].get("status") == "inProgress" else None
 
 
+def turn_timing(turn, observed_at):
+    def number(value):
+        return value if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0 else None
+    return {"turnId": turn.get("turnId"), "status": turn.get("status"),
+            "startedAt": number(turn.get("turnStartedAtMs")),
+            "durationMs": number(turn.get("durationMs")) if turn.get("status") != "inProgress" else None,
+            "observedAt": observed_at}
+
+
 def history(state):
     turns = ordered_turns(state)
+    observed_at = int(time.time() * 1000)
     messages = []
     for turn in turns[-30:]:
         tid = turn.get("turnId")
@@ -221,6 +231,12 @@ def history(state):
                 continue
             if text:
                 messages.append({**common, **msg, "id": message_id, "text": text})
+        timing = turn_timing(turn, observed_at)
+        if timing["durationMs"] is not None:
+            final = next((m for m in reversed(messages) if m.get("turnId") == tid and
+                          m["role"] == "assistant" and m.get("phase") in ("final", "final_answer")), None)
+            if final is not None:
+                final["turnDurationMs"] = timing["durationMs"]
     messages = messages[-80:]
     budget = 160000
     for message in reversed(messages):
@@ -240,6 +256,7 @@ def history(state):
             "activeTurnId": active_turn_id(state), "canStop": active_turn_id(state) is not None,
             "recentTurns": [{"id": t.get("turnId"), "status": t.get("status")} for t in turns[-30:] if t.get("turnId")],
             "latestTurnStatus": turns[-1].get("status") if turns else None,
+            "turnTiming": turn_timing(turns[-1], observed_at) if turns else None,
             "canSend": allowed, "hint": hint, "hasMore": not state.get("turnsPagination", {}).get("hasLoadedOldest", False) or len(turns) > 30,
             "queueReady": allowed and state.get("threadRuntimeStatus", {}).get("type") == "idle" and
                           (not turns or turns[-1].get("status") == "completed"),
