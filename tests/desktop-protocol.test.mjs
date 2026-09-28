@@ -15,14 +15,19 @@ const idle = {
   requests: [],
   turns: [],
 };
-async function fakeDesktop(t, states) {
+async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0 } = {}) {
   const home = mkdtempSync("/tmp/navigator-ipc-");
   mkdirSync(join(home, "ipc"), { mode: 0o700 });
   const calls = [];
   let snapshots = 0;
   const server = net.createServer((socket) => {
     let pending = Buffer.alloc(0);
-    const send = (object) => {
+    const send = (object, delay = 0) => {
+      if (delay) {
+        const timer = setTimeout(() => send(object), delay);
+        socket.once("close", () => clearTimeout(timer));
+        return;
+      }
       const body = Buffer.from(JSON.stringify(object)),
         header = Buffer.alloc(4);
       header.writeUInt32LE(body.length);
@@ -38,8 +43,8 @@ async function fakeDesktop(t, states) {
           m = JSON.parse(pending.subarray(4, 4 + size));
         pending = pending.subarray(4 + size);
         calls.push(m);
-        if (m.type === "request")
-          send({
+        if (m.type === "request") {
+          const answer = () => send({
             type: "response",
             requestId: m.requestId,
             resultType: "success",
@@ -49,6 +54,11 @@ async function fakeDesktop(t, states) {
                 ? { clientId: "navigator-fixture" }
                 : {},
           });
+          if (m.method === "thread-owner-discovery" && ownerDelay) {
+            const timer = setTimeout(answer, ownerDelay);
+            socket.once("close", () => clearTimeout(timer));
+          } else answer();
+        }
         if (m.type === "broadcast" && m.params?.following)
           send({
             type: "broadcast",
@@ -63,7 +73,7 @@ async function fakeDesktop(t, states) {
                   states[Math.min(snapshots++, states.length - 1)],
               },
             },
-          });
+          }, snapshotDelay);
       }
     });
   });
@@ -76,6 +86,34 @@ async function fakeDesktop(t, states) {
   });
   return { home, calls };
 }
+test("history bounds owner lookup without waiting for the desktop default", async (t) => {
+  const f = await fakeDesktop(t, [idle], { ownerDelay: 2500 });
+  const started = performance.now();
+  const result = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.equal(result.ok, false);
+  assert.equal(result.sent, false);
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed >= 1800 && elapsed < 3500);
+  assert.equal(f.calls.some(c => c.method === "thread-follower-start-turn"), false);
+});
+
+test("query submission keeps the longer owner lookup budget", async (t) => {
+  const f = await fakeDesktop(t, [idle], { ownerDelay: 2100 });
+  const result = await desktopRequest({
+    operation: "send", threadId: id, codexHome: f.home,
+    text: "Fixture query", requestId,
+  });
+  assert.equal(result.status, "accepted");
+  assert.equal(f.calls.filter(c => c.method === "thread-follower-start-turn").length, 1);
+});
+
+test("a discovered owner's full snapshot keeps its normal read budget", async (t) => {
+  const f = await fakeDesktop(t, [idle], { snapshotDelay: 2500 });
+  const result = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.equal(result.ok, true);
+  assert.equal(result.source, "desktop");
+  assert.equal(result.runtime, "idle");
+});
 test("desktop bridge sends text to the existing owner with inherited settings only", async (t) => {
   const f = await fakeDesktop(t, [idle]);
   const r = await desktopRequest({

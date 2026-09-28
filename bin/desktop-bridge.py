@@ -2,6 +2,7 @@
 import json
 import plistlib
 import sys
+import time
 from pathlib import Path
 
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
@@ -10,6 +11,17 @@ from app_ipc import AppIPC
 
 
 class NavigatorIPC(AppIPC):
+    owner_lookup_timeout = None
+
+    def receive(self):
+        deadline = getattr(self, "_owner_deadline", None)
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("owner_lookup_timeout")
+            self.socket.settimeout(remaining)
+        return super().receive()
+
     def send(self, message):
         if message.get("type") == "request" and message.get("method") == "thread-owner-discovery":
             message = {**message, "timeoutMs": 2000}
@@ -18,7 +30,17 @@ class NavigatorIPC(AppIPC):
     def request(self, method, params, version, owner=None):
         if method == "initialize":
             params = {**params, "clientType": "codex-navigator"}
-        return super().request(method, params, version, owner)
+        if method != "thread-owner-discovery" or self.owner_lookup_timeout is None:
+            return super().request(method, params, version, owner)
+        # The desktop does not honor the shorter timeoutMs for discovery.
+        # Bound only read-side discovery; full snapshots and sends keep their budget.
+        previous_timeout = self.socket.gettimeout()
+        self._owner_deadline = time.monotonic() + self.owner_lookup_timeout
+        try:
+            return super().request(method, params, version, owner)
+        finally:
+            self._owner_deadline = None
+            self.socket.settimeout(previous_timeout)
 
 
 def ordered_turns(state):
@@ -108,6 +130,8 @@ def main():
     dispatched = False
     try:
         with NavigatorIPC(Path(data["codexHome"]) / "ipc/ipc.sock") as client:
+            if data["operation"] == "history":
+                client.owner_lookup_timeout = 2.0
             owner, state = client.snapshot(thread_id)
             if data["operation"] == "history":
                 return {"ok": True, **history(state)}
