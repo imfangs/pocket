@@ -8,6 +8,7 @@ import {
   Folder,
   FolderOpen,
   Layers3,
+  Pocket,
   MoreHorizontal,
   Pin,
   Plus,
@@ -199,7 +200,7 @@ export default function Sidebar(p: Props) {
       >
         <div className="brand">
           <div className="brand-mark">
-            <Layers3 size={22} />
+            <Pocket size={22} />
           </div>
           <div>
             <strong>Pocket</strong>

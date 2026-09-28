@@ -1,11 +1,34 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { Toaster } from "sonner";
 import AccessGate from "./AccessGate";
 import "./styles.css";
 import "./pwa.css";
+import "./polish.css";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AccessGate />
+    <Toaster
+      position="top-center"
+      duration={2800}
+      visibleToasts={1}
+      offset={20}
+      mobileOffset={{
+        top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+        left: 16,
+        right: 16,
+      }}
+      toastOptions={{
+        style: {
+          fontFamily: "inherit",
+          fontSize: 13,
+          borderRadius: 14,
+          background: "var(--ink)",
+          color: "white",
+          border: "none",
+        },
+      }}
+    />
   </React.StrictMode>,
 );
 if ("serviceWorker" in navigator) {

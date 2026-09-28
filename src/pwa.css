@@ -29,7 +29,7 @@ button:not(:disabled):active,
   place-items: center;
   padding: calc(32px + env(safe-area-inset-top, 0px)) 24px
     calc(32px + env(safe-area-inset-bottom, 0px));
-  background: #f3f5f1;
+  background: #f5f5f7;
 }
 .access-card {
   width: 100%;
@@ -39,7 +39,7 @@ button:not(:disabled):active,
   display: flex;
   align-items: center;
   gap: 11px;
-  color: #365e4c;
+  color: #292933;
   font-size: 18px;
   font-weight: 600;
   margin-bottom: 44px;
@@ -53,13 +53,13 @@ button:not(:disabled):active,
 }
 .access-intro {
   font-size: 14px;
-  color: #85907d;
+  color: #737381;
   line-height: 1.9;
   margin-bottom: 34px;
 }
 .access-card form > label {
   font-size: 12px;
-  color: #65765b;
+  color: #575764;
   display: block;
   margin-bottom: 10px;
 }
@@ -67,15 +67,15 @@ button:not(:disabled):active,
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #dce4d6;
+  border: 1px solid #e2e2e9;
   border-radius: 8px;
   padding: 0 12px;
   background: #fff;
   height: 48px;
-  color: #8a9980;
+  color: #737381;
 }
 .passphrase-input:focus-within {
-  border-color: #7f9b71;
+  border-color: #737381;
 }
 .passphrase-input input {
   font-size: 16px;
@@ -92,7 +92,7 @@ button:not(:disabled):active,
 .passphrase-input button {
   padding: 5px;
   display: flex;
-  color: #829275;
+  color: #737381;
 }
 .access-submit {
   width: 100%;
@@ -105,42 +105,42 @@ button:not(:disabled):active,
   display: block;
   font-size: 11px;
   line-height: 1.8;
-  color: #9aa68f;
+  color: #737381;
   margin-top: 12px;
 }
 .access-install {
   margin-top: 38px;
   padding-top: 21px;
-  border-top: 1px solid #e1e7db;
+  border-top: 1px solid #e2e2e9;
 }
 .pwa-install {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #6e835f;
+  color: #575764;
   font-size: 12px;
   padding: 9px 2px;
 }
 .access-privacy {
   font-size: 10px;
-  color: #a4af9a;
+  color: #92929f;
   margin-top: 28px;
 }
 .access-status {
   font-size: 13px;
-  color: #718768;
+  color: #575764;
 }
 .access-offline {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  color: #6e835f;
+  color: #575764;
 }
 .access-offline p {
   margin: 14px 0 5px;
 }
 .access-offline small {
-  color: #99a68d;
+  color: #737381;
 }
 .access-offline button {
   margin-top: 20px;
@@ -149,7 +149,7 @@ button:not(:disabled):active,
   display: flex;
   gap: 7px;
   padding: 0 8px 7px;
-  border-bottom: 1px solid #e3e8df;
+  border-bottom: 1px solid #e2e2e9;
   margin-bottom: 7px;
 }
 .access-actions .pwa-install {
@@ -168,7 +168,7 @@ button:not(:disabled):active,
   bottom: calc(25px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
-  background: #365e4c;
+  background: #292933;
   color: white;
   padding: 12px 18px;
   border-radius: 7px;
@@ -177,7 +177,7 @@ button:not(:disabled):active,
 }
 .install-guide {
   padding: 25px;
-  color: #728367;
+  color: #575764;
 }
 .install-guide > p {
   font-size: 14px;
@@ -193,7 +193,7 @@ button:not(:disabled):active,
   display: block;
   font-size: 11px;
   line-height: 1.9;
-  color: #94a289;
+  color: #737381;
   margin-top: 23px;
 }
 @media (pointer: coarse) {

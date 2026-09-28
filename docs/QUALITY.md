@@ -8,7 +8,7 @@
 
 持续改善现有读取、发送、恢复和移动交互；新建任务、另起 app-server、自动审批和扩大访问权限仍按 AGENTS.md 的边界处理。任务数据、历史和草稿不进入公开构建、Git 或第三方模型。每次发布保持可回退并保留源码/部署身份。
 
-UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-elements-fit.md)：当前建议仅做 MessageResponse 隔离验证，输入、队列和原生任务控制继续由现有适配层负责；尚未安装。
+UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-elements-fit.md)：研究阶段建议先隔离验证 MessageResponse；本轮视觉打磨采用 Radix Popover + Sonner，保留现有 Markdown / 输入 / 队列，具体取舍见 [视觉系统](design/2026-09-28-pocket-polish.md)。
 
 ## 下一步队列
 

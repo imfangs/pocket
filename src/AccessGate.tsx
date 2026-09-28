@@ -1,5 +1,5 @@
 import {
-  Layers3,
+  Pocket,
   LockKeyhole,
   ArrowRight,
   WifiOff,
@@ -7,9 +7,10 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import App from "./App";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import PwaInstall from "./PwaInstall";
+
+const App = lazy(() => import("./App"));
 export default function AccessGate() {
   const [state, setState] = useState<
       "loading" | "locked" | "authenticated" | "offline"
@@ -88,21 +89,31 @@ export default function AccessGate() {
   if (state === "authenticated")
     return (
       <>
-        <App
-          footerActions={
-            <div className="access-actions">
-              <PwaInstall />
-              <button
-                className="pwa-install"
-                onClick={() => void logout()}
-                disabled={busy}
-              >
-                <LogOut size={16} />
-                <span>{busy ? "正在退出…" : "退出登录"}</span>
-              </button>
-            </div>
+        <Suspense
+          fallback={
+            <main className="access-screen">
+              <p role="status" className="access-status">
+                正在读取任务…
+              </p>
+            </main>
           }
-        />
+        >
+          <App
+            footerActions={
+              <div className="access-actions">
+                <PwaInstall />
+                <button
+                  className="pwa-install"
+                  onClick={() => void logout()}
+                  disabled={busy}
+                >
+                  <LogOut size={16} />
+                  <span>{busy ? "正在退出…" : "退出登录"}</span>
+                </button>
+              </div>
+            }
+          />
+        </Suspense>
         {error && (
           <div className="access-toast" role="alert">
             {error}
@@ -114,7 +125,7 @@ export default function AccessGate() {
     <main className="access-screen">
       <section className="access-card">
         <div className="access-brand">
-          <Layers3 size={25} />
+          <Pocket size={25} />
           <span>Pocket</span>
         </div>
         <h1>

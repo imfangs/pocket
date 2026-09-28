@@ -28,9 +28,12 @@ interface Props {
 }
 export default function TaskList(p: Props) {
   const [limit, setLimit] = useState(80);
+  const [selecting, setSelecting] = useState(false);
   useEffect(() => setLimit(80), [p.threads.length, p.query, p.view]);
   return (
-    <>
+    <div
+      className={`task-list-surface ${selecting || p.checked.size ? "is-selecting" : ""}`}
+    >
       {p.checked.size > 0 ? (
         <div className="batch-bar">
           <span>已选 {p.checked.size} 条</span>
@@ -59,7 +62,10 @@ export default function TaskList(p: Props) {
           <button
             className="icon-button"
             aria-label="清除选择"
-            onClick={p.onClear}
+            onClick={() => {
+              p.onClear();
+              setSelecting(false);
+            }}
           >
             <X size={15} />
           </button>
@@ -78,7 +84,13 @@ export default function TaskList(p: Props) {
             />
             任务
           </label>
-          <span>最近活动</span>
+          <button
+            className="mobile-selection-toggle"
+            aria-pressed={selecting}
+            onClick={() => setSelecting(!selecting)}
+          >
+            {selecting ? "完成" : "选择"}
+          </button>
         </div>
       )}
       {p.threads.length === 0 ? (
@@ -187,6 +199,6 @@ export default function TaskList(p: Props) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

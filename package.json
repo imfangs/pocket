@@ -11,11 +11,13 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.15",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",

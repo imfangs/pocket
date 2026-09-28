@@ -1,3 +1,4 @@
+import MarkdownCode from "./MarkdownCode";
 import { memo } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -45,7 +46,7 @@ const components: Components = {
     );
   },
   pre({ children }) {
-    return <pre tabIndex={0}>{children}</pre>;
+    return <MarkdownCode>{children}</MarkdownCode>;
   },
 };
 

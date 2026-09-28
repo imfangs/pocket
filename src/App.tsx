@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
 import TaskListPanel from "./TaskListPanel";
@@ -45,17 +46,6 @@ const titles: Record<View, string> = {
   unassigned: "未分组",
   group: "",
 };
-const subtitles: Record<View, string> = {
-  all: "每段讨论，都留有再接上的入口。",
-  pinned: "熟悉的置顶任务，换一种更从容的整理方式。",
-  active: "把注意力留给正在向前走的事。",
-  later: "先放在这里，想继续时随时接上。",
-  reference: "值得留下的讨论，不必都变成待办。",
-  recent: "从 Pocket 打开过的原会话。",
-  archived: "原版归档记录仍可检索，整理说明会一直保留。",
-  unassigned: "还没有放入分组的会话。",
-  group: "这里聚合分组和子分组里的原会话。",
-};
 export default function App({
   footerActions,
 }: {
@@ -81,7 +71,6 @@ export default function App({
     ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [toast, setToast] = useState(""),
     [mobile, setMobile] = useState(false),
     [checked, setChecked] = useState<Set<string>>(new Set()),
     [groupDialog, setGroupDialog] = useState<Group | null | undefined>(
@@ -94,13 +83,10 @@ export default function App({
   const search = useRef<HTMLInputElement>(null),
     conversationDrafts = useRef(new Map<string, QueryDraft>()),
     conversationHistory = useRef<HistoryCache>(new Map()),
-    flushRef = useRef<(() => Promise<void>) | null>(null),
-    toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    flushRef = useRef<(() => Promise<void>) | null>(null);
   const syncing = useRef<Promise<void> | null>(null);
   const notify = useCallback((s: string) => {
-    setToast(s);
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 3500);
+    toast.success(s, { id: "pocket-feedback" });
   }, []);
   const refresh = useCallback(async (sync = false) => {
     const c = await api<Catalog>(
@@ -116,7 +102,7 @@ export default function App({
     setBusy(true);
     setError("");
     const operation = refresh(true).then(() => {
-      notify("已同步原版任务，整理结果已保留");
+      notify("任务已刷新");
     }).catch((error: Error) => {
       setError(error.message);
       throw error;
@@ -288,7 +274,6 @@ export default function App({
                 {title}
                 <span>{threads.length}</span>
               </h1>
-              <p>{subtitles[view]}</p>
             </div>
             <button
               className={`sync-button ${busy ? "spinning" : ""}`}
@@ -447,11 +432,9 @@ export default function App({
               <div className="placeholder-symbol">
                 <PanelRightOpen size={30} />
               </div>
-              <h2>从一段讨论，接着往前</h2>
+              <h2>继续一段对话</h2>
               <p>
-                选中任务，留下一句接续说明，
-                <br />
-                或直接回到 Codex 继续。
+                选择左侧任务，查看进展或发一条新消息。
               </p>
               <div>
                 <Folder size={15} />
@@ -474,11 +457,6 @@ export default function App({
           <span>沿用原任务 · 整理独立保存</span>
         </footer>
       </main>
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      )}
       {groupDialog !== undefined && (
         <GroupDialog
           group={groupDialog || undefined}

@@ -1,5 +1,6 @@
 import {
   ArrowUpRight,
+  ChevronLeft,
   CalendarDays,
   Check,
   Clipboard,
@@ -142,7 +143,8 @@ export default function Inspector(p: Props) {
           aria-label="关闭详情"
           onClick={p.onClose}
         >
-          <X size={18} />
+          <ChevronLeft size={23} className="inspector-back-icon" />
+          <X size={18} className="inspector-close-icon" />
         </button>
       </div>
       <div className="inspector-tabs" role="tablist" aria-label="任务详情视图">

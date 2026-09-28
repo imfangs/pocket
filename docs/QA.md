@@ -191,3 +191,13 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 - 正式发布：源码 ce11eeb / 部署 4a3f4c5d-2c46-49ca-a378-9f4f2e748784，10 文件哈希、DNS/TLS 与匿名保护通过；正式当前任务可见停止按钮及原生异步问题，未选答案前提交禁用，390px 无溢出、无 console warn/error。未点击真实停止或代选归档偏好。`.local/qa/stop-questions-public.json`。
 
 - 2026-09-28 用户从 Pocket 回答归档范围问题，发送账本 accepted；在原 App 精确回读对应 clientMessageId 与答案，待答问题消失。真实网页 → 原任务回答链路通过，证据 `.local/qa/async-question-live-answer.json`。
+
+## 2026-09-28 · Pocket 界面打磨
+
+- 87 项回归测试通过，原生控制/队列/Markdown/移动 viewport 测试未变；最终构建分为入口与 App 两个 JS 块，登录入口 gzip 约 86KB，App 约 90KB。
+- 内置浏览器 390×844、320×740、1280×900；任务选择和清除、回到任务保留五行草稿、输入从 58px 增到 134px、上下文 340px 浮层在 390px 内、Escape 关闭与复制成功状态通过。
+- 隔离运行任务入队→编辑保存→停止后显示已中断/自动发送暂停→删除通过；独立读取 adapter 调用只有一次 stop，未自动发送已暂停消息。
+- 隔离异步选项回答“会话阅读”和自由回答“保持简洁，方便单手操作”均从表单进入 answer adapter，问题列表清空。
+- 原生新建分组 dialog 在手机视口 360×438px，焦点位于 group-name，未提交分组。
+- iPhone 16 / iOS 18.2 Safari 模拟器，首次点击输入框，输入 y=340/h=51、发送 y=392/h=45；受控截图确认键盘上方可见。没有主屏幕独立窗口真机验收。
+- 原始合成截图、测试日志、iOS 坐标见 `.local/qa/polish/`；视觉对照与文案变化见 `docs/design/2026-09-28-pocket-polish.md`。
