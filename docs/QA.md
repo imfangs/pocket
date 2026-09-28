@@ -229,3 +229,9 @@ Mac 服务重启成功。真实公网浏览器 390×844 中，AGENTS 注入与�
 公网受控原任务从 rollout 回退状态入队并主动派发成功，准确 marker 和 userMessage 回读，completed 用时 7780ms，0 工具调用；公网 history 也确认回复，outbox=0，原归档恢复。当前真实任务连续四次读取均 desktop/active，canSend/canQueue/canAttemptSend 全 true，分别 3046/4950/1053/4085ms。正式 390px 浏览器加入队列按钮可用、上下文正常、无控制台错误；未向当前人类任务提交测试文字。
 
 源码 41a0a39，Pages 9f08577f-3090-4044-a18f-316dfce6c855，11 文件哈希、DNS/TLS、域名与匿名保护通过。一次上传后资源切换暂不匹配，沿用同一部署 resume 成功，无重复上传。证据 `.local/qa/queue-connection-live.json`、`.local/qa/queue-connection/`。测试登录退出；PWA 真机手感、长时间网络波动不计本次已验。
+
+## 2026-09-29 打开原任务的文案
+
+构建及 3 项会话操作回归通过。隔离 Browser 390×844 在已保存历史状态点击“在 Mac 中打开”，open adapter 仅调用一次，后续变为“可继续”且按钮消失，无旧文案、横向溢出或控制台错误。此次保留已有深链接语义，只澄清按钮文案并使用已有离线状态禁用它；没有触发真实模型或修改原任务名称。
+
+Pages 源码 b9f0ac8，部署 54b30845-f144-4ff8-a389-82aeba0a2427；11 文件哈希、域名、DNS/TLS 与匿名保护通过，公网独立读取 App 资源确认新文案存在且旧文案消失。证据 `.local/qa/open-label/`。未重新验证 PWA 真机手感或真实打开链路；既有链路证据与本次文案验证分开。
