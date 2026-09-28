@@ -5,10 +5,11 @@ import type { Thread } from "./types";
 import MessageMarkdown from "./MessageMarkdown";
 import { rememberHistory, startConversationFeed } from "./conversationFeed";
 import type { History, HistoryCache } from "./conversationFeed";
-export type QueryDraft = { text: string; requestId?: string };
+import Outbox from "./Outbox";
+export type QueryDraft = { text: string; requestId?: string; revision?: number };
 type Receipt = {
   requestId: string;
-  status: "accepted" | "pending" | "unknown" | "rejected" | "not_found";
+  status: "accepted" | "queued" | "pending" | "unknown" | "rejected" | "not_found";
   code?: string;
 };
 const statuses: Record<string, string> = {
@@ -97,9 +98,9 @@ export default function Conversation({
     return () => window.removeEventListener("beforeunload", warn);
   }, [draft.text]);
   const receive = (receipt: Receipt) => {
-    if (receipt.status === "accepted") {
+    if (receipt.status === "accepted" || receipt.status === "queued") {
       updateDraft({ text: "" });
-      setNotice("消息已交给 Mac 中的原任务。");
+      setNotice(receipt.status === "queued" ? "已加入待发列表，当前轮完成后发送。" : "消息已交给 Mac 中的原任务。");
       nearBottom.current = true;
     } else if (
       receipt.status === "rejected" ||
@@ -133,6 +134,7 @@ export default function Conversation({
           await api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
             text: draft.text,
             requestId,
+            ...(history?.runtime === "active" || history?.outbox?.length ? { enqueue: true } : {}),
           }),
         );
       }
@@ -266,6 +268,7 @@ export default function Conversation({
           </p>
         )}
       </div>
+      <Outbox threadId={thread.id} items={history?.outbox ?? []} disabled={loading || !!historyError} allowSend={!thread.archived && !thread.missing && !!history?.canSend} refresh={load} drafts={drafts} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
           发送给原任务的消息
@@ -273,7 +276,7 @@ export default function Conversation({
         <textarea
           id="user-query"
           aria-label="发送给原任务的消息"
-          placeholder="在原任务中继续问…"
+          placeholder={history?.runtime === "active" ? "写下下一步，完成当前轮后发送…" : "在原任务中继续问…"}
           value={draft.text}
           maxLength={16000}
           disabled={sending}
@@ -293,7 +296,7 @@ export default function Conversation({
             }
           >
             <Send size={15} />
-            {sending ? "提交中…" : draft.requestId ? "核对发送状态" : "发送"}
+            {sending ? "提交中…" : draft.requestId ? "核对发送状态" : history?.runtime === "active" || history?.outbox?.length ? "加入队列" : "发送"}
           </button>
         </div>
       </form>

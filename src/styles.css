@@ -437,11 +437,35 @@ button:disabled svg {
   flex: 1;
 }
 .list-panel {
+  position: relative;
   flex: 1;
   min-width: 0;
   overflow: auto;
   scrollbar-width: thin;
   overscroll-behavior: contain;
+}
+.pull-refresh-content {
+  min-height: 100%;
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.pull-refresh-content[data-dragging] { transition: none; }
+.pull-refresh-indicator {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  color: #60745e;
+  font-size: 12px;
+  pointer-events: none;
+}
+.pull-refresh-indicator[data-loading] svg { animation: spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pull-refresh-content { transition: none; }
+  .pull-refresh-indicator svg { animation: none; }
 }
 .list-caption {
   height: 44px;
@@ -1741,6 +1765,32 @@ hr {
   border-top: 1px solid var(--line);
   padding: 10px 0 max(12px, env(safe-area-inset-bottom));
 }
+.outbox {
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 220px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--line);
+  padding: 8px 0;
+}
+.outbox-heading { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #64725e; }
+.outbox-heading span { font-size: 10px; }
+.outbox-item { padding: 8px 10px; margin-top: 6px; border: 1px solid #dce4d7; border-radius: 8px; background: #f4f7f0; }
+.outbox-text { margin: 0 0 6px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 80px; overflow: auto; }
+.outbox-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.outbox-actions small { margin-right: auto; color: #6f7c67; font-size: 10px; }
+.outbox-actions button { padding: 5px 2px; border: 0; background: none; font-size: 11px; color: #365e4c; }
+.outbox-actions button:disabled { opacity: 0.45; }
+@media (pointer: coarse) {
+  .outbox-actions button { min-height: 44px; min-width: 44px; font-size: 12px; touch-action: manipulation; }
+}
+.inspector .outbox textarea { width: 100%; min-height: 70px; height: 80px; font-size: 16px; margin-bottom: 6px; }
+@media (max-width: 760px) {
+  .inspector[data-keyboard-open] .outbox { max-height: 110px; }
+  .inspector[data-keyboard-open] .conversation:has(.outbox textarea) .outbox { max-height: 200px; }
+}
+.conversation:has(.outbox textarea) .conversation-composer { display: none; }
 .inspector .conversation-composer textarea {
   display: block;
   width: 100%;

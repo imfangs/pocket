@@ -227,6 +227,17 @@ export function makeApp(options = {}) {
       );
       if (receipt && method === "GET")
         return json(res, 200, desktop.getReceipt(receipt[1], receipt[2]));
+      const outbox = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/outbox\/([a-f0-9-]{36})(\/(?:send|edit|resume))?$/i);
+      if (outbox) {
+        if (method === "PATCH" && !outbox[3])
+          return json(res, 200, desktop.editQueued(outbox[1], outbox[2], await body(req, 70000)));
+        if (method === "DELETE" && !outbox[3])
+          return json(res, 200, desktop.cancelQueued(outbox[1], outbox[2], await body(req)));
+        if (method === "POST" && outbox[3] === "/send")
+          return json(res, 200, await desktop.dispatchQueued(outbox[1], outbox[2], await body(req)));
+        if (method === "POST" && ["/edit", "/resume"].includes(outbox[3]))
+          return json(res, 200, desktop.pauseQueued(outbox[1], outbox[2], await body(req), outbox[3] === "/resume"));
+      }
       if (task && method === "PATCH")
         return json(res, 200, store.patchThread(task[1], await body(req)));
       const open = path.match(/^\/api\/open\/([a-f0-9-]{36})$/i);
@@ -272,8 +283,10 @@ export function makeApp(options = {}) {
   });
   const close = () => {
     clearInterval(interval);
+    desktop.stopQueue();
     store.close();
   };
+  server.on("listening", () => desktop.startQueue());
   server.on("close", close);
   return { server, store, sync, auth };
 }

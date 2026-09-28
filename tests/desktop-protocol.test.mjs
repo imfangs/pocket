@@ -141,7 +141,7 @@ test("desktop bridge sends text to the existing owner with inherited settings on
     "codex-navigator",
   );
 });
-test("desktop bridge refuses a task that starts running before submission", async (t) => {
+test("desktop bridge defers a task that starts running before submission", async (t) => {
   const f = await fakeDesktop(t, [
     idle,
     { ...idle, threadRuntimeStatus: { type: "active" } },
@@ -154,7 +154,7 @@ test("desktop bridge refuses a task that starts running before submission", asyn
     requestId,
   });
   assert.equal(r.sent, false);
-  assert.equal(r.code, "thread_changed");
+  assert.equal(r.code, "thread_active");
   assert.equal(
     f.calls.filter((c) => c.method === "thread-follower-start-turn").length,
     0,
@@ -196,6 +196,14 @@ test("desktop history contains only visible messages and reports approvals as no
   );
   assert.equal(r.messages[0].clientMessageId, requestId);
 });
+test("automatic queue delivery rechecks completion after a concurrent interruption", async (t) => {
+  const f = await fakeDesktop(t, [idle, { ...idle, turns: [{ turnId: "stopped", status: "interrupted", items: [] }] }]);
+  const r = await desktopRequest({ operation: "send", delivery: "auto", threadId: id,
+    codexHome: f.home, text: "Wait for completion", requestId });
+  assert.equal(r.sent, false);
+  assert.equal(r.code, "thread_not_ready");
+  assert.equal(f.calls.some(c => c.method === "thread-follower-start-turn"), false);
+});
 
 test("desktop history includes accepted user input added during an active turn", async (t) => {
   const f = await fakeDesktop(t, [{
@@ -226,8 +234,27 @@ test("desktop history includes accepted user input added during an active turn",
   assert.equal(r.messages[2].id, "followup");
   assert.equal(r.messages[2].clientMessageId, requestId);
   assert.equal(r.messages[2].timestamp, 1234);
-  assert.equal(r.canSend, false);
+  assert.equal(r.canSend, true);
+  assert.equal(r.queueReady, false);
   assert.equal(JSON.stringify(r).includes("DO_NOT_EXPOSE"), false);
+});
+
+test("send now steers the existing active turn without model or permission overrides", async (t) => {
+  const f = await fakeDesktop(t, [{ ...idle, cwd: "/fixture", threadRuntimeStatus: { type: "active" },
+    turns: [{ turnId: "running", status: "inProgress", items: [] }] }]);
+  const r = await desktopRequest({ operation: "send", delivery: "now", threadId: id,
+    codexHome: f.home, text: "A correction", requestId });
+  assert.equal(r.status, "accepted");
+  assert.equal(r.turnId, "running");
+  const call = f.calls.find(c => c.method === "thread-follower-steer-turn");
+  assert.equal(call.version, 1);
+  assert.equal(call.targetClientId, "desktop-fixture");
+  assert.deepEqual(call.params.input, [{ type: "text", text: "A correction", text_elements: [] }]);
+  assert.equal(call.params.clientUserMessageId, requestId);
+  assert.equal(call.params.restoreMessage.context.prompt, "A correction");
+  assert.equal("model" in call.params, false);
+  assert.equal("permissions" in call.params, false);
+  assert.equal(f.calls.some(c => c.method === "thread-follower-start-turn"), false);
 });
 
 test("desktop history does not duplicate steering input materialized as a user message", async (t) => {

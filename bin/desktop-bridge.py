@@ -61,12 +61,12 @@ def writable(state):
     runtime = state.get("threadRuntimeStatus", {}).get("type")
     if state.get("requests") or state.get("unconfirmedTurnSubmissions"):
         return False, "任务正在等待审批或输入，请在 Mac 的 Codex 中处理。"
-    if runtime == "active":
-        return False, "任务正在运行，完成后可以发送下一条消息。"
-    if runtime not in ("idle", "systemError") or state.get("resumeState") != "resumed":
+    if runtime not in ("idle", "systemError", "active") or state.get("resumeState") != "resumed":
         return False, "先连接 Mac 中的原任务，再发送消息。"
     if state.get("threadSource") == "subagent" or state.get("parentThreadId"):
         return False, "子任务请通过其原任务继续。"
+    if runtime == "active":
+        return True, "正在运行，新消息默认进入 Pocket 待发列表。"
     return True, "消息会在 Mac 的原任务中运行，沿用原模型与权限。"
 
 
@@ -117,6 +117,8 @@ def history(state):
     allowed, hint = writable(state)
     return {"source": "desktop", "messages": messages, "runtime": state.get("threadRuntimeStatus", {}).get("type"),
             "canSend": allowed, "hint": hint, "hasMore": not state.get("turnsPagination", {}).get("hasLoadedOldest", False) or len(turns) > 30,
+            "queueReady": allowed and state.get("threadRuntimeStatus", {}).get("type") == "idle" and
+                          (not turns or turns[-1].get("status") == "completed"),
             "latestTurnId": turns[-1].get("turnId") if turns else None}
 
 
@@ -141,16 +143,39 @@ def main():
             for turn in ordered_turns(state):
                 if (turn.get("params") or {}).get("clientUserMessageId") == message_id:
                     return {"ok": True, "status": "accepted", "turnId": turn.get("turnId")}
+                if any(i.get("type") == "steeringUserMessage" and i.get("clientUserMessageId") == message_id and
+                       i.get("status") in ("accepted", "pending") for i in turn.get("items", [])):
+                    return {"ok": True, "status": "accepted", "turnId": turn.get("turnId")}
             allowed, _ = writable(state)
             if not allowed:
                 return {"ok": False, "code": "thread_not_ready", "sent": False}
+            if data.get("delivery") != "now" and state.get("threadRuntimeStatus", {}).get("type") == "active":
+                return {"ok": False, "code": "thread_active", "sent": False}
             # A second owner/state read narrows the race with another desktop client.
             fresh_owner, fresh = client.snapshot(thread_id)
             if fresh_owner != owner or not writable(fresh)[0]:
                 return {"ok": False, "code": "thread_changed", "sent": False}
+            active = fresh.get("threadRuntimeStatus", {}).get("type") == "active"
+            if active and data.get("delivery") != "now":
+                return {"ok": False, "code": "thread_active", "sent": False}
+            turns = ordered_turns(fresh)
+            if data.get("delivery") == "auto" and (
+                fresh.get("threadRuntimeStatus", {}).get("type") != "idle" or
+                (turns and turns[-1].get("status") != "completed")
+            ):
+                return {"ok": False, "code": "thread_not_ready", "sent": False}
             dispatched = True
-            client.start(thread_id, owner, message_id, data["text"])
-            return {"ok": True, "status": "accepted", "turnId": None}
+            if active:
+                cwd = fresh.get("cwd") or "/"
+                restore = {"id": message_id, "text": data["text"], "cwd": cwd, "createdAt": int(time.time()*1000),
+                           "context": {"prompt": data["text"], "addedFiles": [], "fileAttachments": [],
+                                       "ideContext": None, "imageAttachments": [], "workspaceRoots": [cwd]}}
+                client.request("thread-follower-steer-turn", {"conversationId": thread_id,
+                    "clientUserMessageId": message_id, "input": [{"type": "text", "text": data["text"], "text_elements": []}],
+                    "restoreMessage": restore, "attachments": []}, 1, owner)
+            else:
+                client.start(thread_id, owner, message_id, data["text"])
+            return {"ok": True, "status": "accepted", "turnId": turns[-1].get("turnId") if active and turns else None}
     except Exception:
         return {"ok": False, "code": "dispatch_unknown" if dispatched else "desktop_unavailable", "sent": None if dispatched else False}
 

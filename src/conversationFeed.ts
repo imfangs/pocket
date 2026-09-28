@@ -15,6 +15,15 @@ export type History = {
   hint: string;
   hasMore?: boolean;
   checkedAt: number;
+  outbox?: QueuedMessage[];
+};
+export type QueuedMessage = {
+  id: string;
+  text: string;
+  revision: number;
+  status: "queued" | "editing" | "pending" | "accepted" | "rejected" | "unknown";
+  code?: string;
+  createdAt: number;
 };
 export type HistoryCache = Map<string, {
   history: History;

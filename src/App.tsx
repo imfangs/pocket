@@ -12,6 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
+import TaskListPanel from "./TaskListPanel";
 import Inspector from "./Inspector";
 import type { QueryDraft } from "./Conversation";
 import type { HistoryCache } from "./conversationFeed";
@@ -95,6 +96,7 @@ export default function App({
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null),
     toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const syncing = useRef<Promise<void> | null>(null);
   const notify = useCallback((s: string) => {
     setToast(s);
     clearTimeout(toastTimer.current);
@@ -109,6 +111,22 @@ export default function App({
     setCatalog(c);
     return c;
   }, []);
+  const syncTasks = useCallback(() => {
+    if (syncing.current) return syncing.current;
+    setBusy(true);
+    setError("");
+    const operation = refresh(true).then(() => {
+      notify("已同步原版任务，整理结果已保留");
+    }).catch((error: Error) => {
+      setError(error.message);
+      throw error;
+    }).finally(() => {
+      syncing.current = null;
+      setBusy(false);
+    });
+    syncing.current = operation;
+    return operation;
+  }, [refresh, notify]);
   useEffect(() => {
     refresh()
       .catch((e) => setError(e.message))
@@ -274,17 +292,7 @@ export default function App({
             </div>
             <button
               className={`sync-button ${busy ? "spinning" : ""}`}
-              onClick={() =>
-                void guard(async () => {
-                  setBusy(true);
-                  try {
-                    await refresh(true);
-                    notify("已同步原版任务，整理结果已保留");
-                  } finally {
-                    setBusy(false);
-                  }
-                })
-              }
+              onClick={() => { void syncTasks().catch(() => {}); }}
               disabled={busy || loading}
               aria-label="同步原版任务"
             >
@@ -370,7 +378,7 @@ export default function App({
           </div>
         )}
         <div className="content">
-          <section className="list-panel">
+          <TaskListPanel busy={busy || loading} onRefresh={syncTasks}>
             {loading ? (
               <div className="loading">正在读取本机任务…</div>
             ) : (
@@ -415,7 +423,7 @@ export default function App({
                 onClearQuery={() => setQuery("")}
               />
             )}
-          </section>
+          </TaskListPanel>
           {current ? (
             <Inspector
               key={current.id}

@@ -75,12 +75,13 @@ export class DesktopService {
     store.db.exec(
       "CREATE TABLE IF NOT EXISTS dispatches(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,text_hash TEXT NOT NULL,status TEXT NOT NULL,turn_id TEXT,code TEXT,created_at INTEGER NOT NULL)",
     );
+    store.db.exec("CREATE TABLE IF NOT EXISTS outgoing_messages(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,text TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0)");
   }
   async history(id) {
     this.store.thread(id);
     const cached = this.cache.get(id);
     if (cached && (cached.pending || Date.now() - cached.at < (cached.runtime === "active" ? 750 : 3000)))
-      return cached.promise;
+      return { ...await cached.promise, outbox: this.outbox(id) };
     const promise = this.loadHistory(id);
     const entry = { at: Date.now(), promise, pending: true, runtime: null };
     this.cache.set(id, entry);
@@ -90,7 +91,7 @@ export class DesktopService {
       entry.at = Date.now();
       entry.pending = false;
       entry.runtime = data.runtime;
-      return data;
+      return { ...data, outbox: this.outbox(id) };
     } catch (e) {
       if (this.cache.get(id) === entry) this.cache.delete(id);
       throw e;
@@ -130,6 +131,9 @@ export class DesktopService {
             "UPDATE dispatches SET status='accepted',turn_id=?,code=NULL WHERE id=? AND thread_id=?",
           )
           .run(message.turnId || null, message.clientMessageId, id);
+      if (message.clientMessageId)
+        this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=? AND thread_id=? AND EXISTS(SELECT 1 FROM dispatches WHERE id=? AND status='accepted')")
+          .run(message.clientMessageId, id, message.clientMessageId);
     }
     return { ...data, checkedAt: Date.now() };
   }
@@ -148,13 +152,119 @@ export class DesktopService {
       .get(requestId, id);
     return row ? this.receipt(row) : { requestId, status: "not_found" };
   }
+  outbox(id) {
+    return this.store.db.prepare("SELECT o.id,o.text,o.revision,d.status,d.code,d.created_at AS createdAt FROM outgoing_messages o JOIN dispatches d ON d.id=o.id WHERE o.thread_id=? ORDER BY d.created_at,o.rowid").all(id);
+  }
+  queue(id, requestId, text) {
+    if (this.outbox(id).length >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
+    this.transaction(() => {
+      this.store.db.prepare("INSERT INTO outgoing_messages(id,thread_id,text) VALUES(?,?,?)").run(requestId, id, text);
+      this.store.db.prepare("UPDATE dispatches SET status='queued',code=NULL WHERE id=?").run(requestId);
+    });
+    this.cache.delete(id);
+  }
+  transaction(action) {
+    this.store.db.exec("BEGIN IMMEDIATE");
+    try { const result = action(); this.store.db.exec("COMMIT"); return result; }
+    catch (error) { this.store.db.exec("ROLLBACK"); throw error; }
+  }
+  queued(id, requestId, revision, allowed = ["queued", "rejected"]) {
+    this.store.thread(id);
+    const row = this.outbox(id).find(r => r.id === requestId);
+    if (!row) throw new AppError("待发消息已发送或移除", 404);
+    if (!Number.isInteger(revision) || row.revision !== revision) throw new AppError("待发消息已变化，请刷新后再操作", 409);
+    if (!allowed.includes(row.status)) throw new AppError("消息正在提交或结果待确认，请先核对发送状态", 409);
+    return row;
+  }
+  editQueued(id, requestId, input) {
+    if (!input || Object.keys(input).some(k => !["text", "expectedRevision"].includes(k)) ||
+        typeof input.text !== "string" || !input.text.trim() || input.text.length > 16000)
+      throw new AppError("消息需为 1–16000 字", 400);
+    const text = input.text.trim();
+    this.transaction(() => {
+      this.queued(id, requestId, input.expectedRevision, ["queued", "rejected", "editing"]);
+      this.store.db.prepare("UPDATE outgoing_messages SET text=?,revision=revision+1 WHERE id=?").run(text, requestId);
+      this.store.db.prepare("UPDATE dispatches SET text_hash=?,status='queued',code=NULL WHERE id=?")
+        .run(createHash("sha256").update(text).digest("hex"), requestId);
+    });
+    return { outbox: this.outbox(id) };
+  }
+  cancelQueued(id, requestId, input) {
+    if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("取消参数无效", 400);
+    this.transaction(() => {
+      this.queued(id, requestId, input.expectedRevision, ["queued", "rejected", "editing"]);
+      this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(requestId);
+      this.store.db.prepare("UPDATE dispatches SET status='cancelled',code=NULL WHERE id=?").run(requestId);
+    });
+    return { outbox: this.outbox(id) };
+  }
+  pauseQueued(id, requestId, input, resume = false) {
+    if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("编辑参数无效", 400);
+    this.transaction(() => {
+      this.queued(id, requestId, input.expectedRevision, resume ? ["editing"] : ["queued", "rejected"]);
+      this.store.db.prepare("UPDATE dispatches SET status=?,code=NULL WHERE id=?").run(resume ? "queued" : "editing", requestId);
+      this.store.db.prepare("UPDATE outgoing_messages SET revision=revision+1 WHERE id=?").run(requestId);
+    });
+    return { outbox: this.outbox(id) };
+  }
+  async dispatchQueued(id, requestId, input, delivery = "now") {
+    const thread = this.store.thread(id);
+    if (thread.archived || thread.missing) throw new AppError("请先在 Mac 中恢复原任务", 409);
+    if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("发送参数无效", 400);
+    const row = this.queued(id, requestId, input.expectedRevision);
+    if (this.sending.has(id)) throw new AppError("原任务正在提交另一条消息", 409);
+    this.sending.add(id);
+    const claim = this.store.db.prepare("UPDATE dispatches SET status='pending',code=NULL WHERE id=? AND status IN('queued','rejected') AND EXISTS(SELECT 1 FROM outgoing_messages WHERE id=? AND revision=?)")
+      .run(requestId, requestId, input.expectedRevision);
+    if (!claim.changes) { this.sending.delete(id); throw new AppError("待发消息已变化，请刷新", 409); }
+    let result;
+    try {
+      result = await this.request({ operation: "send", threadId: id, codexHome: this.codexHome,
+        text: row.text, requestId, delivery });
+    } catch { result = { ok: false, code: "dispatch_unknown", sent: null }; }
+    finally { this.sending.delete(id); }
+    const observed = this.getReceipt(id, requestId);
+    const status = observed.status === "accepted" || result.ok ? "accepted"
+      : result.code === "thread_active" && result.sent === false ? "queued"
+      : result.sent === false ? "rejected" : "unknown";
+    this.store.db.prepare("UPDATE dispatches SET status=?,turn_id=COALESCE(?,turn_id),code=? WHERE id=?")
+      .run(status, result.turnId || null, result.code || null, requestId);
+    if (status === "accepted") this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(requestId);
+    this.cache.delete(id);
+    return this.getReceipt(id, requestId);
+  }
+  async processQueue() {
+    const ids = this.store.db.prepare("SELECT DISTINCT thread_id FROM outgoing_messages").all().map(r => r.thread_id);
+    for (const id of ids) {
+      const thread = this.store.thread(id);
+      if (thread.archived || thread.missing || this.sending.has(id)) continue;
+      const head = this.outbox(id)[0];
+      if (!head || head.status !== "queued") continue;
+      const history = await this.history(id);
+      if (!history.queueReady) continue;
+      try { await this.dispatchQueued(id, head.id, { expectedRevision: head.revision }, "auto"); }
+      catch { /* A concurrent edit/cancel is resolved by the next read. */ }
+    }
+  }
+  startQueue() {
+    if (this.queueStarted) return;
+    this.queueStarted = true;
+    this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending' AND id IN(SELECT id FROM outgoing_messages)");
+    const tick = async () => {
+      try { await this.processQueue(); } catch { /* Retry reads; never replay unknown submissions. */ }
+      if (this.queueStarted) { this.queueTimer = setTimeout(tick, 2000); this.queueTimer.unref?.(); }
+    };
+    this.queueTimer = setTimeout(tick, 100); this.queueTimer.unref?.();
+  }
+  stopQueue() { this.queueStarted = false; clearTimeout(this.queueTimer); }
   async send(id, input) {
     const thread = this.store.thread(id);
     if (thread.missing || thread.archived)
       throw new AppError("请先在 Mac 中恢复这条原任务", 409);
     if (
       !input ||
-      Object.keys(input).some((k) => !["text", "requestId"].includes(k)) ||
+      Object.keys(input).some((k) => !["text", "requestId", "enqueue"].includes(k)) ||
+      (input.enqueue !== undefined && input.enqueue !== true) ||
       typeof input.text !== "string" ||
       !input.text.trim() ||
       input.text.length > 16000 ||
@@ -174,13 +284,18 @@ export class DesktopService {
         throw new AppError("请求编号已用于另一条消息", 409);
       return this.receipt(old);
     }
-    if (this.sending.has(id))
+    if (this.sending.has(id) && !input.enqueue && !this.outbox(id).length)
       throw new AppError("这条任务正在提交消息，请稍后再试", 409);
+    if (this.outbox(id).length >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
     this.store.db
       .prepare(
         "INSERT INTO dispatches(id,thread_id,text_hash,status,created_at) VALUES(?,?,?,'pending',?)",
       )
       .run(input.requestId, id, hash, Date.now());
+    if (input.enqueue || this.outbox(id).length) {
+      this.queue(id, input.requestId, text);
+      return this.getReceipt(id, input.requestId);
+    }
     let result;
     this.sending.add(id);
     try {
@@ -195,6 +310,10 @@ export class DesktopService {
       result = { ok: false, code: "dispatch_unknown", sent: null };
     } finally {
       this.sending.delete(id);
+    }
+    if (result.code === "thread_active" && result.sent === false) {
+      this.queue(id, input.requestId, text);
+      return this.getReceipt(id, input.requestId);
     }
     const status = result.ok
       ? "accepted"

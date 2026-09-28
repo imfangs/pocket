@@ -23,6 +23,9 @@
 
 ## 已建立的验收基线
 
+- 队列与直接发送：公网受控任务实测运行中添加/编辑/删除；直接发送留在同一 turn，排队消息在 completed 后开启下一 turn，准确回显、0 工具调用、取消消息未执行、原归档已恢复。证据 `.local/qa/queue-live.json`。Pocket 与桌面待发列表独立；PWA 真机交互仍待验。
+
+
 - 受控回显：公网 messages → 现有桌面 owner → 模型 → 公网 history，准确 requestId 与指定回复均回读；回合 completed，仅 userMessage/agentMessage，0 工具调用；测试前后的归档状态一致。证据 `.local/qa/remote-echo.json`。
 - 切换/离线：本次登录内最多保留 10 个已读任务及阅读位置。断网后切回仍有 48 条消息，scrollTop=9812 不变，发送禁用；联网后状态恢复，新增消息不抢阅读位置。证据 `.local/qa/feed-browser.json`。
 - 读取调度：单路请求；运行中完成读取后 2 秒、空闲 8 秒再读；后台停止，前台/联网/pageshow 立即重读，18 秒超时后有界退避。缓存内容不会直接恢复发送许可。
