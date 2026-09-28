@@ -1,3 +1,5 @@
+import AutoTextarea from "./AutoTextarea";
+import ContextStatus from "./ContextStatus";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown, RefreshCw, Send, Monitor } from "lucide-react";
 import { api } from "./api";
@@ -268,12 +270,13 @@ export default function Conversation({
           </p>
         )}
       </div>
+      <ContextStatus threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
       <Outbox threadId={thread.id} items={history?.outbox ?? []} disabled={loading || !!historyError} allowSend={!thread.archived && !thread.missing && !!history?.canSend} refresh={load} drafts={drafts} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
           发送给原任务的消息
         </label>
-        <textarea
+        <AutoTextarea
           id="user-query"
           aria-label="发送给原任务的消息"
           placeholder={history?.runtime === "active" ? "写下下一步，完成当前轮后发送…" : "在原任务中继续问…"}

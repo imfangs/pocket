@@ -1785,7 +1785,7 @@ hr {
 @media (pointer: coarse) {
   .outbox-actions button { min-height: 44px; min-width: 44px; font-size: 12px; touch-action: manipulation; }
 }
-.inspector .outbox textarea { width: 100%; min-height: 70px; height: 80px; font-size: 16px; margin-bottom: 6px; }
+.inspector .outbox textarea { width: 100%; min-height: 70px; max-height: 240px; resize: none; font-size: 16px; margin-bottom: 6px; }
 @media (max-width: 760px) {
   .inspector[data-keyboard-open] .outbox { max-height: 110px; }
   .inspector[data-keyboard-open] .conversation:has(.outbox textarea) .outbox { max-height: 200px; }
@@ -1794,11 +1794,10 @@ hr {
 .inspector .conversation-composer textarea {
   display: block;
   width: 100%;
-  min-height: 76px;
-  height: 88px;
-  max-height: 160px;
+  min-height: 70px;
+  max-height: 240px;
   padding: 10px 12px;
-  resize: vertical;
+  resize: none;
   border: 1px solid #d9e0d4;
   border-radius: 9px;
   font: inherit;
@@ -1850,13 +1849,25 @@ hr {
     max-height: 40px;
     padding: 4px 0;
   }
+  .inspector[data-keyboard-open] .conversation-status > p:first-child:not(.inline-error):not(.message-notice) {
+    display: none;
+  }
+  .inspector[data-keyboard-open] .conversation-messages { padding-top: 0; padding-bottom: 0; }
   .inspector[data-keyboard-open] .conversation-composer {
     padding-top: 6px;
     padding-bottom: 6px;
   }
   .inspector[data-keyboard-open] .conversation-composer textarea {
     min-height: 56px;
-    height: 64px;
-    max-height: 100px;
+    max-height: 160px;
   }
 }
+
+.context-status { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; flex-shrink: 0; padding: 3px 0; font-size: 11px; color: #64725e; }
+.context-status summary { cursor: pointer; padding: 6px 0; }
+.context-status details[open] { position: absolute; bottom: 100%; left: 0; right: 0; z-index: 3; background: #f7f9f4; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; box-shadow: 0 4px 20px #0001; }
+.context-status details p { line-height: 1.6; margin: 6px 0; }
+.context-compact { border: 0; background: none; padding: 6px 2px; color: #365e4c; font-size: 11px; }
+.context-compact:disabled { opacity: .45; cursor: default; }
+.context-operation, .context-status > .inline-error { flex-basis: 100%; margin: 0; }
+@media (pointer: coarse) { .context-compact, .context-status summary { min-height: 36px; touch-action: manipulation; } }

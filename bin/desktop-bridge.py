@@ -3,6 +3,7 @@ import json
 import plistlib
 import sys
 import time
+import math
 from pathlib import Path
 
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
@@ -65,9 +66,38 @@ def writable(state):
         return False, "先连接 Mac 中的原任务，再发送消息。"
     if state.get("threadSource") == "subagent" or state.get("parentThreadId"):
         return False, "子任务请通过其原任务继续。"
+    if compaction_state(state)["active"]:
+        return False, "正在压缩上下文，完成后可继续。"
     if runtime == "active":
         return True, "正在运行，新消息默认进入 Pocket 待发列表。"
     return True, "消息会在 Mac 的原任务中运行，沿用原模型与权限。"
+
+
+def compaction_state(state):
+    items = [(t, i) for t in ordered_turns(state) for i in t.get("items", [])
+             if i.get("type") == "contextCompaction"]
+    if not items:
+        return {"active": False, "latestId": None}
+    turn, item = items[-1]
+    completed = turn.get("status") != "inProgress" or item.get("completed", True)
+    return {"active": not completed, "latestId": item.get("id"), "completed": completed,
+            "turnStatus": turn.get("status"), "turnId": turn.get("turnId")}
+
+
+def context_usage(state):
+    usage = state.get("latestTokenUsageInfo") or {}
+    window, used = usage.get("modelContextWindow"), (usage.get("last") or {}).get("totalTokens")
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in (window, used)):
+        return None
+    if window <= 0 or used < 0:
+        return None
+    used = min(used, window)
+    return {"usedTokens": used, "contextWindow": window, "remainingTokens": window-used,
+            "percent": used/window*100}
+
+
+def can_compact(state):
+    return writable(state)[0] and state.get("threadRuntimeStatus", {}).get("type") == "idle"
 
 
 def history(state):
@@ -116,6 +146,7 @@ def history(state):
     messages = [m for m in messages if m["text"]]
     allowed, hint = writable(state)
     return {"source": "desktop", "messages": messages, "runtime": state.get("threadRuntimeStatus", {}).get("type"),
+            "contextUsage": context_usage(state), "compaction": compaction_state(state), "canCompact": can_compact(state),
             "canSend": allowed, "hint": hint, "hasMore": not state.get("turnsPagination", {}).get("hasLoadedOldest", False) or len(turns) > 30,
             "queueReady": allowed and state.get("threadRuntimeStatus", {}).get("type") == "idle" and
                           (not turns or turns[-1].get("status") == "completed"),
@@ -137,6 +168,15 @@ def main():
             owner, state = client.snapshot(thread_id)
             if data["operation"] == "history":
                 return {"ok": True, **history(state)}
+            if data["operation"] == "compact":
+                if not can_compact(state):
+                    return {"ok": False, "code": "thread_not_ready", "sent": False}
+                fresh_owner, fresh = client.snapshot(thread_id)
+                if fresh_owner != owner or not can_compact(fresh) or compaction_state(fresh)["latestId"] != data.get("expectedCompactionId"):
+                    return {"ok": False, "code": "thread_changed", "sent": False}
+                dispatched = True
+                client.request("thread-follower-compact-thread", {"conversationId": thread_id}, 1, owner)
+                return {"ok": True, "status": "accepted"}
             if data["operation"] != "send":
                 return {"ok": False, "code": "unsupported_operation", "sent": False}
             message_id = data["requestId"]

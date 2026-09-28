@@ -30,10 +30,10 @@ export function desktopRequest(payload) {
     const uncertain = () => ({
       ok: false,
       code:
-        payload.operation === "send"
+        payload.operation !== "history"
           ? "dispatch_unknown"
           : "desktop_unavailable",
-      sent: payload.operation === "send" ? null : false,
+      sent: payload.operation !== "history" ? null : false,
     });
     const timer = setTimeout(() => {
       child.kill();
@@ -76,12 +76,13 @@ export class DesktopService {
       "CREATE TABLE IF NOT EXISTS dispatches(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,text_hash TEXT NOT NULL,status TEXT NOT NULL,turn_id TEXT,code TEXT,created_at INTEGER NOT NULL)",
     );
     store.db.exec("CREATE TABLE IF NOT EXISTS outgoing_messages(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,text TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0)");
+    store.db.exec("CREATE TABLE IF NOT EXISTS compactions(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,status TEXT NOT NULL,baseline_id TEXT,code TEXT,created_at INTEGER NOT NULL)");
   }
   async history(id) {
     this.store.thread(id);
     const cached = this.cache.get(id);
     if (cached && (cached.pending || Date.now() - cached.at < (cached.runtime === "active" ? 750 : 3000)))
-      return { ...await cached.promise, outbox: this.outbox(id) };
+      return this.withActions(id, await cached.promise);
     const promise = this.loadHistory(id);
     const entry = { at: Date.now(), promise, pending: true, runtime: null };
     this.cache.set(id, entry);
@@ -91,7 +92,7 @@ export class DesktopService {
       entry.at = Date.now();
       entry.pending = false;
       entry.runtime = data.runtime;
-      return { ...data, outbox: this.outbox(id) };
+      return this.withActions(id, data);
     } catch (e) {
       if (this.cache.get(id) === entry) this.cache.delete(id);
       throw e;
@@ -122,7 +123,15 @@ export class DesktopService {
     }
     if (this.store.thread(id).archived) {
       data.canSend = false;
+      data.canCompact = false;
       data.hint = "已归档任务可查看历史；请先在 Codex 中取消归档再继续。";
+    }
+    const action = this.compactionRequest(id);
+    const compact = data.compaction;
+    if (action && ["pending", "accepted", "unknown"].includes(action.status) &&
+        data.source === "desktop" && compact?.latestId && compact.latestId !== action.baseline_id && compact.completed) {
+      this.store.db.prepare("UPDATE compactions SET status=?,code=NULL WHERE id=?")
+        .run(["failed", "interrupted"].includes(compact.turnStatus) ? "failed" : "completed", action.id);
     }
     for (const message of data.messages || []) {
       if (message.clientMessageId)
@@ -136,6 +145,55 @@ export class DesktopService {
           .run(message.clientMessageId, id, message.clientMessageId);
     }
     return { ...data, checkedAt: Date.now() };
+  }
+  compactionRequest(id) {
+    return this.store.db.prepare("SELECT * FROM compactions WHERE thread_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id);
+  }
+  compactionPending(id) {
+    return ["pending", "accepted", "unknown"].includes(this.compactionRequest(id)?.status);
+  }
+  getCompactionReceipt(id, requestId) {
+    this.store.thread(id);
+    const row = this.store.db.prepare("SELECT * FROM compactions WHERE id=? AND thread_id=?").get(requestId, id);
+    return { requestId, status: row?.status || "not_found", code: row?.code || null };
+  }
+  withActions(id, data) {
+    const action = this.compactionRequest(id);
+    const blocked = this.compactionPending(id);
+    const outbox = this.outbox(id);
+    return { ...data, outbox, canCompact: !!data.canCompact && !blocked && !outbox.length && !this.sending.has(id),
+      canSend: data.canSend && !blocked, queueReady: data.queueReady && !blocked,
+      compactionRequest: action ? { requestId: action.id, status: action.status, code: action.code } : null };
+  }
+  async compact(id, input) {
+    const thread = this.store.thread(id);
+    if (!input || Object.keys(input).some(k => k !== "requestId") ||
+        typeof input.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestId))
+      throw new AppError("需要有效的压缩请求编号", 400);
+    const old = this.store.db.prepare("SELECT * FROM compactions WHERE id=?").get(input.requestId);
+    if (old) {
+      if (old.thread_id !== id) throw new AppError("请求编号已用于其他任务", 409);
+      return { requestId: old.id, status: old.status, code: old.code };
+    }
+    if (thread.archived || thread.missing || this.sending.has(id) || this.outbox(id).length || this.compactionPending(id))
+      throw new AppError("请等当前操作和待发消息完成后再压缩", 409);
+    this.sending.add(id);
+    try {
+      const state = await this.loadHistory(id);
+      if (!state.canCompact || state.source !== "desktop" || this.outbox(id).length) throw new AppError("请在任务空闲且待发列表为空时压缩", 409);
+      this.store.db.prepare("INSERT INTO compactions VALUES(?,?,'pending',?,NULL,?)")
+        .run(input.requestId, id, state.compaction?.latestId || null, Date.now());
+      let result;
+      try { result = await this.request({ operation: "compact", threadId: id, codexHome: this.codexHome,
+        expectedCompactionId: state.compaction?.latestId || null }); }
+      catch { result = { ok: false, sent: null, code: "dispatch_unknown" }; }
+      const status = result.ok ? "accepted" : result.sent === false ? "rejected" : "unknown";
+      // A parallel history read can observe completion before the RPC returns.
+      this.store.db.prepare("UPDATE compactions SET status=?,code=? WHERE id=? AND status='pending'")
+        .run(status, result.code || null, input.requestId);
+      const row = this.store.db.prepare("SELECT * FROM compactions WHERE id=?").get(input.requestId);
+      return { requestId: row.id, status: row.status, code: row.code };
+    } finally { this.sending.delete(id); this.cache.delete(id); }
   }
   receipt(row) {
     return {
@@ -210,6 +268,7 @@ export class DesktopService {
   async dispatchQueued(id, requestId, input, delivery = "now") {
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing) throw new AppError("请先在 Mac 中恢复原任务", 409);
+    if (this.compactionPending(id)) throw new AppError("请先核对上下文压缩状态", 409);
     if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("发送参数无效", 400);
     const row = this.queued(id, requestId, input.expectedRevision);
     if (this.sending.has(id)) throw new AppError("原任务正在提交另一条消息", 409);
@@ -250,6 +309,7 @@ export class DesktopService {
     if (this.queueStarted) return;
     this.queueStarted = true;
     this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending' AND id IN(SELECT id FROM outgoing_messages)");
+    this.store.db.exec("UPDATE compactions SET status='unknown',code='submission_interrupted' WHERE status='pending'");
     const tick = async () => {
       try { await this.processQueue(); } catch { /* Retry reads; never replay unknown submissions. */ }
       if (this.queueStarted) { this.queueTimer = setTimeout(tick, 2000); this.queueTimer.unref?.(); }
@@ -284,7 +344,7 @@ export class DesktopService {
         throw new AppError("请求编号已用于另一条消息", 409);
       return this.receipt(old);
     }
-    if (this.sending.has(id) && !input.enqueue && !this.outbox(id).length)
+    if ((this.sending.has(id) || this.compactionPending(id)) && !input.enqueue && !this.outbox(id).length)
       throw new AppError("这条任务正在提交消息，请稍后再试", 409);
     if (this.outbox(id).length >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
     this.store.db

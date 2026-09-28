@@ -16,6 +16,10 @@ export type History = {
   hasMore?: boolean;
   checkedAt: number;
   outbox?: QueuedMessage[];
+  contextUsage?: { usedTokens: number; contextWindow: number; remainingTokens: number; percent: number } | null;
+  canCompact?: boolean;
+  compaction?: { active: boolean; latestId: string | null; completed?: boolean };
+  compactionRequest?: { requestId: string; status: string; code?: string } | null;
 };
 export type QueuedMessage = {
   id: string;

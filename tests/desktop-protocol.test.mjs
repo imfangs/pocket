@@ -266,3 +266,38 @@ test("desktop history does not duplicate steering input materialized as a user m
   const r = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
   assert.deepEqual(r.messages.map(m => m.text), ["Follow up"]);
 });
+
+test("context usage follows the desktop last-request budget, never cumulative billing", async t => {
+  const f = await fakeDesktop(t, [{ ...idle, latestTokenUsageInfo: {
+    total: { totalTokens: 9000000 }, last: { totalTokens: 25000 }, modelContextWindow: 100000,
+  } }]);
+  const r = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.deepEqual(r.contextUsage, { usedTokens: 25000, contextWindow: 100000, remainingTokens: 75000, percent: 25 });
+  assert.equal(r.canCompact, true);
+});
+test("missing context metrics remain unknown instead of reporting zero", async t => {
+  const f = await fakeDesktop(t, [idle]);
+  const r = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.equal(r.contextUsage, null);
+});
+test("manual compaction uses the original idle owner and only the conversation id", async t => {
+  const f = await fakeDesktop(t, [idle]);
+  const r = await desktopRequest({ operation: "compact", threadId: id, codexHome: f.home, expectedCompactionId: null });
+  assert.equal(r.status, "accepted");
+  const call = f.calls.find(c => c.method === "thread-follower-compact-thread");
+  assert.equal(call.version, 1); assert.equal(call.targetClientId, "desktop-fixture");
+  assert.deepEqual(call.params, { conversationId: id });
+  assert.equal(f.calls.some(c => c.method === "thread-follower-start-turn"), false);
+});
+test("compaction refuses a task that starts running between its two reads", async t => {
+  const f = await fakeDesktop(t, [idle, {...idle, threadRuntimeStatus: {type:"active"}}]);
+  const r = await desktopRequest({ operation: "compact", threadId: id, codexHome: f.home });
+  assert.equal(r.sent, false);
+  assert.equal(f.calls.some(c => c.method === "thread-follower-compact-thread"), false);
+});
+test("in-progress native compaction blocks sends, queue drain and duplicate compaction", async t => {
+  const f = await fakeDesktop(t, [{...idle, turns:[{turnId:"compact",status:"inProgress",items:[{type:"contextCompaction",id:"c1",completed:false}]}]}]);
+  const r = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.equal(r.compaction.active, true);
+  assert.equal(r.canSend, false); assert.equal(r.queueReady, false); assert.equal(r.canCompact, false);
+});

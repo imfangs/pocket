@@ -228,6 +228,12 @@ export function makeApp(options = {}) {
       if (receipt && method === "GET")
         return json(res, 200, desktop.getReceipt(receipt[1], receipt[2]));
       const outbox = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/outbox\/([a-f0-9-]{36})(\/(?:send|edit|resume))?$/i);
+      const compact = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/compact$/i);
+      if (compact && method === "POST")
+        return json(res, 200, await desktop.compact(compact[1], await body(req)));
+      const compactReceipt = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/compact\/([a-f0-9-]{36})$/i);
+      if (compactReceipt && method === "GET")
+        return json(res, 200, desktop.getCompactionReceipt(compactReceipt[1], compactReceipt[2]));
       if (outbox) {
         if (method === "PATCH" && !outbox[3])
           return json(res, 200, desktop.editQueued(outbox[1], outbox[2], await body(req, 70000)));

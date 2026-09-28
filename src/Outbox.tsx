@@ -1,3 +1,4 @@
+import AutoTextarea from "./AutoTextarea";
 import { useEffect, useState } from "react";
 import type { QueuedMessage } from "./conversationFeed";
 import type { QueryDraft } from "./Conversation";
@@ -54,7 +55,7 @@ export default function Outbox({ threadId, items, disabled, allowSend, refresh, 
       {items.map(item => {
         const mutable = ["queued", "rejected", "editing"].includes(item.status);
         return <div className="outbox-item" key={item.id}>
-          {editing?.id === item.id ? <textarea aria-label="编辑待发消息" value={text} maxLength={16000}
+          {editing?.id === item.id ? <AutoTextarea aria-label="编辑待发消息" value={text} maxLength={16000}
             onChange={e => { setText(e.target.value); drafts.set(key(item.id), { text: e.target.value, revision: editing.revision }); }} />
             : <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
           <div className="outbox-actions">
