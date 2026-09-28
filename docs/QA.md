@@ -9,6 +9,7 @@
 - 改为监听 visualViewport.resize/scroll 及 focus/窗口变化，更新详情 height 和 offsetTop；收起键盘期间的顶部摘要并缩小 composer。相同刷新→打开详情→首次输入流程中，输入框底部 396px，断言通过，受控截图确认发送按钮也完整可见。缩放时不应用键盘布局，退出详情移除监听。
 - 原生 pan 从 (20,86) 向右 180px、280ms，详情关闭并返回列表；重新打开同一任务保留测试草稿。原生垂直滚动不关闭详情。自动测试覆盖首次 focus 后延迟到达的 viewport resize、Safari 平移、缩放/宽屏/清理以及手势方向、边缘范围、阈值和取消条件。
 - 模拟器添加了仅供验证的本机网页主屏幕图标，但启动提示 “In your region, web apps now open in your default browser.”；不能把 Safari 结果写成 PWA 独立窗口或真机通过。物理 iPhone 的 PWA 和 Android 仍待实际反馈。
+- `fc6cb66` 发布为 Pages 部署 `4f572bbd-12d2-4253-9d43-2a312fcd715c`，正常 DNS/TLS、域名 Active、10/10 公开文件哈希与匿名保护通过。主屏幕 App 需要重新加载页面才能使用新 JS；本次没有宣称模拟器或文件一致性已证明用户的 PWA 真机问题解决。
 
 本次无测试 query 发送。私有证据 `.local/qa/keyboard-baseline.json`、`keyboard-after.json`、`swipe-edge-back.json`，受控前后对照 `/tmp/navigator-keyboard-comparison.jpg`。
 
