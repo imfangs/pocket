@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, RefreshCw, Send, Monitor } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
+import MessageMarkdown from "./MessageMarkdown";
 export type QueryDraft = { text: string; requestId?: string };
 type Message = {
   id: string;
@@ -241,7 +242,7 @@ export default function Conversation({
                 </time>
               )}
             </div>
-            <div className="message-text">{m.text}</div>
+            <MessageMarkdown text={m.text} />
             {m.truncated && <small>内容较长，此处已截取。</small>}
           </article>
         ))}
