@@ -10,6 +10,8 @@
 
 UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-elements-fit.md)：研究阶段建议先隔离验证 MessageResponse；本轮视觉打磨采用 Radix Popover + Sonner，保留现有 Markdown / 输入 / 队列，具体取舍见 [视觉系统](design/2026-09-28-pocket-polish.md)。
 
+两项已完成外部调研的采用判断见 [2026-09-29 调研输入](research/2026-09-29-external-research-intake.md)。研究基线中的停止、异步问题和恢复已有增量实现；下一次大规模补功能前，先比较官方 Remote 的实际账号可用性与现有任务覆盖，不能仅凭官方说明判定替代效果。
+
 ## 下一步队列
 
 按新证据调整顺序，不把表中推断写成已发生的问题。

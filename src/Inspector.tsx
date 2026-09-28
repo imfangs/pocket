@@ -42,6 +42,7 @@ interface Props {
   ) => Promise<Thread>;
   onOpen: (t: Thread) => Promise<void>;
   onClose: () => void;
+  onActivity?: () => void;
   flushRef: MutableRefObject<(() => Promise<void>) | null>;
   onToast: (s: string) => void;
 }
@@ -191,6 +192,7 @@ export default function Inspector(p: Props) {
             thread={p.thread}
             drafts={p.queryDrafts}
             historyCache={p.historyCache}
+            onActivity={p.onActivity}
             onConnect={async () => {
               await save();
               await p.onOpen(p.thread);

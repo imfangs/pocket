@@ -5,13 +5,14 @@ import type { QueryDraft } from "./Conversation";
 import { api } from "./api";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
-export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, onActivity }: {
   threadId: string;
   items: QueuedMessage[];
   paused?: { stopId: string } | null;
   disabled: boolean;
   allowSend: boolean;
   connectionPending?: boolean;
+  onActivity?: () => void;
   refresh: () => Promise<void> | undefined;
   drafts: Map<string, QueryDraft>;
 }) {
@@ -41,9 +42,10 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         drafts.set(key(item.id), { text: value, revision: updated.revision });
         await refresh();
       } else {
-        await api(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
+        const result = await api<{status?: string}>(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
           action === "save" ? "PATCH" : action === "cancel" ? "DELETE" : "POST",
           { expectedRevision, ...(action === "save" ? { text } : {}) });
+        if (action === "send" && result.status === "accepted") onActivity?.();
         drafts.delete(key(item.id)); setEditing(null);
         await refresh();
       }

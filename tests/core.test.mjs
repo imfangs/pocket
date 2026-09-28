@@ -114,7 +114,24 @@ test("source import resolves desktop identity and pins, prefers renamed title, n
   assert.equal(s.threads[0].pinned, true);
   assert.equal(s.threads[0].projectId, "project");
   assert.equal(s.threads[0].cwd, "/different");
+  assert.equal(s.threads[0].updatedAt, 2000);
   assert.equal(hash(), before);
+});
+test("recent activity follows updated timestamps even when native recency stays hours behind", t => {
+  const home=temp(t), db=new DatabaseSync(join(home,'state_5.sqlite'));
+  t.after(()=>db.close());
+  db.exec('CREATE TABLE threads(id TEXT PRIMARY KEY,title TEXT,cwd TEXT,archived INTEGER,created_at INTEGER,updated_at INTEGER,source TEXT,recency_at_ms INTEGER,updated_at_ms INTEGER)');
+  const insert=db.prepare('INSERT INTO threads VALUES(?,?,?,?,?,?,?,?,?)');
+  insert.run(id1,'Active task','/sample',0,1,100,'app',1000,100500);
+  insert.run(id2,'Legacy task','/sample',0,1,200,'app',1000,null);
+  writeFileSync(join(home,'.codex-global-state.json'),JSON.stringify({'pinned-thread-ids':[]}));
+  const read=()=>readCodexSource(home).threads;
+  assert.equal(read().find(t=>t.id===id1).updatedAt,100500);
+  assert.equal(read().find(t=>t.id===id2).updatedAt,200000);
+  db.prepare('UPDATE threads SET updated_at_ms=? WHERE id=?').run(500000,id1);
+  const store=new NavigatorStore(temp(t));t.after(()=>store.close());
+  store.sync(readCodexSource(home));
+  assert.equal(store.catalog().threads.find(t=>t.id===id1).updatedAt,500000);
 });
 test("sync preserves user intent and notes, retains absent source and restores it on reappearance", (t) => {
   const s = storeFor(t);

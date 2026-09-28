@@ -33,7 +33,7 @@ export function readCodexSource(codexHome) {
     const rows = db
       .prepare(
         `SELECT id, title, cwd, archived, created_at, updated_at, source,
-      ${["name", "thread_source", "agent_path", "project_id", "recency_at_ms", "updated_at_ms", "git_branch"].map((f) => optional(f)).join(", ")}
+      ${["name", "thread_source", "agent_path", "project_id", "updated_at_ms", "git_branch"].map((f) => optional(f)).join(", ")}
       FROM threads WHERE source IN ('vscode', 'cli', 'exec', 'app')`,
       )
       .all();
@@ -92,7 +92,9 @@ export function readCodexSource(codexHome) {
           separator: separator(title),
           source: r.source,
           createdAt: r.created_at * 1000,
-          updatedAt: r.recency_at_ms || r.updated_at_ms || r.updated_at * 1000,
+          // Native recency is a list-order anchor and may stay fixed mid-turn.
+          // Pocket labels this as activity, so use the actual update timestamp.
+          updatedAt: r.updated_at_ms || r.updated_at * 1000,
           branch: r.git_branch || null,
         };
       });

@@ -29,11 +29,13 @@ export default function Conversation({
   drafts,
   historyCache,
   onConnect,
+  onActivity,
 }: {
   thread: Thread;
   drafts: Map<string, QueryDraft>;
   historyCache: HistoryCache;
   onConnect: () => Promise<void>;
+  onActivity?: () => void;
 }) {
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
     [loading, setLoading] = useState(true),
@@ -123,6 +125,7 @@ export default function Conversation({
   }, [notice]);
   const receive = (receipt: Receipt) => {
     if (receipt.status === "accepted" || receipt.status === "queued") {
+      if (receipt.status === "accepted") onActivity?.();
       updateDraft({ text: "" });
       setNotice(receipt.status === "queued" ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入待发列表，连接恢复后发送。" : "消息已交给 Mac 中的原任务。");
       nearBottom.current = true;
@@ -277,7 +280,7 @@ export default function Conversation({
       </div>
       <QuestionPrompts threadId={thread.id} questions={history?.asyncQuestions ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || !history?.canSend} drafts={drafts} refresh={load} />
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
-      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} />
+      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
           发送给原任务的消息

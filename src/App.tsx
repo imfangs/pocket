@@ -97,31 +97,51 @@ export default function App({
     setCatalog(c);
     return c;
   }, []);
-  const syncTasks = useCallback(() => {
-    if (syncing.current) return syncing.current;
+  const syncTasks = useCallback((silent = false) => {
+    if (!syncing.current) {
+      const operation = refresh(true).then(() => {}).finally(() => {
+        if (syncing.current === operation) syncing.current = null;
+      });
+      syncing.current = operation;
+    }
+    if (silent) return syncing.current;
     setBusy(true);
     setError("");
-    const operation = refresh(true).then(() => {
+    return syncing.current.then(() => {
       notify("任务已刷新");
     }).catch((error: Error) => {
       setError(error.message);
       throw error;
     }).finally(() => {
-      syncing.current = null;
       setBusy(false);
     });
-    syncing.current = operation;
-    return operation;
   }, [refresh, notify]);
+  const refreshAfterActivity = useCallback(() => {
+    if (navigator.onLine === false) return;
+    // If an older catalog read is already in flight, start a fresh one after
+    // it settles so a send acknowledged during that read is not missed.
+    void (syncing.current ?? Promise.resolve()).catch(() => {}).then(() => syncTasks(true)).catch(() => {});
+  }, [syncTasks]);
   useEffect(() => {
+    const syncIfVisible = () => {
+      if (document.visibilityState === "visible" && navigator.onLine !== false)
+        void syncTasks(true).catch(() => {});
+    };
     refresh()
+      .then(syncIfVisible)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-    const timer = setInterval(() => {
-      refresh().catch(() => {});
-    }, 45000);
-    return () => clearInterval(timer);
-  }, [refresh]);
+    const timer = setInterval(syncIfVisible, 45000);
+    document.addEventListener("visibilitychange", syncIfVisible);
+    window.addEventListener("online", syncIfVisible);
+    window.addEventListener("pageshow", syncIfVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", syncIfVisible);
+      window.removeEventListener("online", syncIfVisible);
+      window.removeEventListener("pageshow", syncIfVisible);
+    };
+  }, [refresh, syncTasks]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -189,6 +209,7 @@ export default function App({
       setChecked(new Set());
       setSelected(null);
       setMobile(false);
+      refreshAfterActivity();
     });
   const saveTask = useCallback(
     async (id: string, patch: unknown) => {
@@ -418,10 +439,12 @@ export default function App({
               groups={catalog.groups}
               onSave={saveTask}
               onOpen={open}
+              onActivity={refreshAfterActivity}
               onClose={() =>
                 void guard(async () => {
                   await flush();
                   setSelected(null);
+                  refreshAfterActivity();
                 })
               }
               flushRef={flushRef}
