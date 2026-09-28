@@ -20,7 +20,7 @@ query 会在原任务的工作目录和权限中执行，模型/推理设置由�
 
 官方 [App Server 文档](https://learn.chatgpt.com/docs/app-server) 已核对 `thread/read`、`turn/start`、`turn/steer` 与审批生命周期。本项目使用现有桌面 owner 的 IPC，不启动另一个 app-server 读写同一任务。
 
-有 owner 时读取原 App 的 canonical turnHistory，提取 userMessage 与非 analysis 的 agentMessage。无 owner 时通过只读 SQLite 定位 rollout，校验真实路径必须在 Codex home 的 sessions/archived_sessions 内且 session_meta ID 相同，再读取文件尾部至多 4 MiB。只保留 user/assistant 可见文本，单消息至多 24000 字，总量至多 160000 字。页面标明“已保存的历史”或实时状态，不把落盘副本当成实时运行状态。
+有 owner 时读取原 App 的 canonical turnHistory，提取 userMessage、已接受的 steeringUserMessage 与非 analysis 的 agentMessage。运行中追加的用户文本单独显示；其 serverUserMessageId 已成为普通 userMessage 时去重。只读取追加消息的输入、标识和时间，不暴露 restoreMessage 中的上下文。这里支持查看桌面追加消息，网页发送仍不支持 steer。无 owner 时通过只读 SQLite 定位 rollout，校验真实路径必须在 Codex home 的 sessions/archived_sessions 内且 session_meta ID 相同，再读取文件尾部至多 4 MiB。只保留 user/assistant 可见文本，单消息至多 24000 字，总量至多 160000 字。页面标明“已保存的历史”或实时状态，不把落盘副本当成实时运行状态。
 
 历史只在请求内存中短时复用，最多 10 条任务、3 秒复用窗口，不保存到任务架数据库、KV、浏览器持久存储或 Service Worker cache。分组/说明仍独立存储。未发送的 query 草稿只保留在当前登录页面内存中，可在任务与标签切换后取回；刷新前提示未发送文本。
 
@@ -40,6 +40,6 @@ accepted 表示原桌面接口接收，不表示模型执行完成；运行进�
 
 ## 验证状态
 
-真实原 App 历史读取及手机尺寸布局通过；隔离 HTTP 实例中的表单提交/回显通过，真实协议客户端在合成 Unix socket 上的发送结构、模型/权限继承、状态竞态拒绝通过。实际模型执行的一条新 query 仍待用户指定任务与内容验证；不能将合成回显当作真实 Codex 回复。
+2026-09-28 新前端已发布到 x.fangs.cc，正式登录、历史读取及 390×844 布局通过。运行中追加消息漏显已在 Mac 桥接修复，原始复现、回归测试和正式网页回读通过；30 项测试通过。隔离 HTTP 实例中的表单提交/回显通过，真实协议客户端在合成 Unix socket 上的发送结构、模型/权限继承、状态竞态拒绝通过。实际模型执行的一条新 query 仍未验证；不能将合成回显当作真实 Codex 回复。部署身份与回执以 `CURRENT.md` 为准。
 
 排序不再被 pinned/recent 视图强制覆盖。偏好版本升级为 2，旧默认迁移为 updated；之后保留用户的显式选择。原版置顶顺序仍可通过「置顶优先」查看。

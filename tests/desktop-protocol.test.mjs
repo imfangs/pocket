@@ -158,3 +158,46 @@ test("desktop history contains only visible messages and reports approvals as no
   );
   assert.equal(r.messages[0].clientMessageId, requestId);
 });
+
+test("desktop history includes accepted user input added during an active turn", async (t) => {
+  const f = await fakeDesktop(t, [{
+    ...idle,
+    threadRuntimeStatus: { type: "active" },
+    turns: [{
+      turnId: "running-turn",
+      params: { clientUserMessageId: "initial-client" },
+      items: [
+        { type: "userMessage", id: "initial", content: [{ type: "text", text: "Explain the connection" }] },
+        { type: "agentMessage", id: "explanation", text: "The Mac connects outward.", phase: "final" },
+        { type: "steeringUserMessage", id: "pending-ui-id", status: "accepted",
+          serverUserMessageId: "followup", clientUserMessageId: requestId,
+          input: [{ type: "text", text: "Publish the site" }],
+          restoreMessage: { createdAt: 1234, context: { private: "DO_NOT_EXPOSE" } } },
+        { type: "steered", id: "followup" },
+        { type: "steeringUserMessage", id: "rejected", status: "rejected",
+          input: [{ type: "text", text: "Not accepted" }] },
+        { type: "agentMessage", id: "progress", text: "Publishing.", phase: "commentary" },
+      ],
+    }],
+  }]);
+  const r = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.deepEqual(r.messages.map(m => [m.role, m.text]), [
+    ["user", "Explain the connection"], ["assistant", "The Mac connects outward."],
+    ["user", "Publish the site"], ["assistant", "Publishing."],
+  ]);
+  assert.equal(r.messages[2].id, "followup");
+  assert.equal(r.messages[2].clientMessageId, requestId);
+  assert.equal(r.messages[2].timestamp, 1234);
+  assert.equal(r.canSend, false);
+  assert.equal(JSON.stringify(r).includes("DO_NOT_EXPOSE"), false);
+});
+
+test("desktop history does not duplicate steering input materialized as a user message", async (t) => {
+  const f = await fakeDesktop(t, [{ ...idle, turns: [{ turnId: "t", items: [
+    { type: "steeringUserMessage", id: "ui-id", status: "accepted", serverUserMessageId: "u",
+      input: [{ type: "text", text: "Follow up" }] },
+    { type: "userMessage", id: "u", content: [{ type: "text", text: "Follow up" }] },
+  ] }] }]);
+  const r = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.deepEqual(r.messages.map(m => m.text), ["Follow up"]);
+});

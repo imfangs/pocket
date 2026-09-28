@@ -55,6 +55,7 @@ def history(state):
         tid = turn.get("turnId")
         params = turn.get("params") or {}
         items = turn.get("items") or []
+        user_item_ids = {i.get("id") for i in items if i.get("type") == "userMessage"}
         common = {"turnId": tid, "timestamp": turn.get("turnStartedAtMs"), "turnStatus": turn.get("status")}
         if not any(i.get("type") == "userMessage" for i in items):
             text = input_text(params.get("input"))
@@ -62,9 +63,19 @@ def history(state):
                 messages.append({**common, "id": str(tid)+":user", "role": "user", "text": text,
                                  "clientMessageId": params.get("clientUserMessageId")})
         for item in items:
+            message_id = item.get("id") or str(tid)+":"+str(len(messages))
             if item.get("type") == "userMessage":
                 text = input_text(item.get("content"))
                 msg = {"role": "user", "clientMessageId": params.get("clientUserMessageId") or item.get("clientId")}
+            elif item.get("type") == "steeringUserMessage" and item.get("status") == "accepted":
+                # Input added mid-turn remains a distinct visible user message.
+                # The desktop may later materialize it as a regular userMessage.
+                if item.get("serverUserMessageId") in user_item_ids:
+                    continue
+                text = input_text(item.get("input"))
+                message_id = item.get("serverUserMessageId") or message_id
+                msg = {"role": "user", "clientMessageId": item.get("clientUserMessageId"),
+                       "timestamp": (item.get("restoreMessage") or {}).get("createdAt") or common["timestamp"]}
             elif item.get("type") == "agentMessage" and item.get("phase") != "analysis":
                 text = item.get("text", "")
                 msg = {"role": "assistant", "phase": item.get("phase"),
@@ -72,7 +83,7 @@ def history(state):
             else:
                 continue
             if text:
-                messages.append({**common, **msg, "id": item.get("id") or str(tid)+":"+str(len(messages)), "text": text})
+                messages.append({**common, **msg, "id": message_id, "text": text})
     messages = messages[-80:]
     budget = 160000
     for message in reversed(messages):

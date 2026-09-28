@@ -2,6 +2,17 @@
 
 日期：2026-09-27。真实 Codex 来源只读；合成测试与隔离实例只写自己的数据。没有向原会话发送测试消息、改写原数据库或修改原版标题/置顶/归档。
 
+## 2026-09-28：会话界面正式发布
+
+- 新前端源码 `a6f8ed6`，Pages 部署 `22c85d18-38d5-449d-a8bd-a6818aeedf6a`。预检查管理 API 401 发生在上传之前，`wrangler whoami` 刷新登录后恢复。上传成功后首次核验主脚本暂时得到旧版 SPA 页面；`resume --publish` 沿用同一部署重新核对全部资源，域名 Active、CNAME/TLS、10/10 文件哈希与匿名保护均通过，未重复上传。
+- 正式域名登录/目录/历史/导出 200；匿名目录、导出、历史 401；Cookie 的 Secure/HttpOnly/SameSite=Strict 保持有效，退出后测试会话 401。带有效登录和 CSRF 的空消息返回 400，没有实际提交新指令。
+- 最新用户指令最初在 canonical 历史中缺失。只读桌面快照确认该文本为已接受的 `steeringUserMessage`，原解析器仅处理 `userMessage`，并非 Cloudflare 缓存问题。先添加回归复现失败，再修复读取 input、消息标识与时间；排除 rejected 追加消息，并在 serverUserMessageId 已物化成普通消息时去重，不返回恢复上下文。
+- 修改后 30 项自动测试通过；正式历史接口返回最新追加文本恰好一次，真实来源仍为 desktop。Mac 桥接按请求启动，修复立即生效；前端构建没有变化。
+- CUA 正式站点 390×844：口令登录、选择原任务、会话详情与手动刷新通过；最新追加消息可见。运行状态为 active，发送按钮禁用；输入区位于视口内、字号 16px，scrollWidth=390；浏览器 error 日志为空。分组与说明导出哈希前后一致。测试登录已退出。
+- 真实文本 query 的模型执行、手机主屏幕安装、键盘与触摸仍未验收。本次不把消息入口上线或空输入拒绝当作真实发送成功。
+
+私有回执：`.local/pages-site.json`、`.local/pages-site.integrity.json`、`.local/qa/conversation-release-live.json`、`.local/qa/conversation-release-browser.json`。初始漏显证据保留在 `conversation-release-live-initial.json`；回执不包含口令、Cookie 或聊天正文。
+
 ## 2026-09-28：固定入口误报 Mac 离线
 
 故障回路：`curl https://x.fangs.cc/api/auth/status` 返回 503“Mac 暂时离线”；直连本机后端与当时的 tunnel 分别返回 auth/status 200、catalog 401。FBT 两服务显示运行，连接文件却为 `connected:true,published:false`。原登记程序使用 Wrangler OAuth，凭据已过期；日志证实 refresh endpoint 返回 HTTP 400，非交互 CLI 退出 1。不能由此推断 refresh 被拒绝的上游原因，但已证实后台对该登录态的依赖导致 KV 15 分钟记录过期。
