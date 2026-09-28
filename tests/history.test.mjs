@@ -21,6 +21,65 @@ const line = (role, text, phase) =>
     },
   });
 const event = (at, type, fields = {}) => JSON.stringify({ timestamp: at, type: "event_msg", payload: { type, ...fields } });
+const message = (id, role, texts, kinds, extra = {}) => JSON.stringify({
+  timestamp: "2026-09-28T00:00:05Z", type: "response_item", payload: {
+    id, type: "message", role, phase: role === "assistant" ? "final_answer" : undefined,
+    content: texts.map(text => ({ type: "input_text", text })),
+    ...(kinds ? { internal_chat_message_metadata_passthrough: { content_item_kinds: kinds, ...extra } } : {}),
+  },
+});
+test("provenance separates injected instructions from authored user text, including mixed content", () => {
+  const data = parseHistoryLines([
+    message("injected", "user", ["Repository rules", "Environment"], ["agents_md.instructions", "environments.environment_context"]),
+    message("hooks", "user", ["Internal hook guidance"], ["hooks.additional_context"]),
+    message("real", "user", ["Please explain AGENTS.md and memory"], ["user.text"]),
+    message("mixed", "user", ["Environment", "Real question"], ["environments.environment_context", "user.text"]),
+  ].join("\n"));
+  assert.deepEqual(data.map(m => m.text), ["Please explain AGENTS.md and memory", "Real question"]);
+});
+test("legacy envelopes are hidden but explicit user quotations retain their original text", () => {
+  const envelope = "# AGENTS.md instructions for /sample\n\n<INSTRUCTIONS>\nRules\n</INSTRUCTIONS>";
+  const data = parseHistoryLines([
+    message("old", "user", [envelope]),
+    message("quoted", "user", [envelope], ["user.text"]),
+    message("discussion", "user", ["Could you improve the AGENTS.md instructions for this project?"]),
+  ].join("\n"));
+  assert.deepEqual(data.map(m => m.id), ["quoted", "discussion"]);
+});
+test("compaction response identity removes internal summaries without hiding the preceding real answer", () => {
+  const text = [
+    event("2026-09-28T00:00:00Z", "task_started", { turn_id: "real" }),
+    message("answer", "assistant", ["The real final answer"], ["unknown"], { turn_id: "real" }),
+    event("2026-09-28T00:00:10Z", "task_complete", { turn_id: "real", duration_ms: 10000 }),
+    event("2026-09-28T00:00:20Z", "task_started", { turn_id: "internal" }),
+    message("summary", "assistant", ["Any arbitrary summary wording"], ["unknown"], { turn_id: "internal" }),
+    JSON.stringify({ type: "token_usage_record", payload: { response_id: "compaction-response" } }),
+    JSON.stringify({ type: "compacted", payload: { compaction_response_id: "compaction-response", message: "Wrapped context" } }),
+    event("2026-09-28T00:00:30Z", "task_complete", { turn_id: "internal", duration_ms: 10000 }),
+  ].join("\n");
+  const data = parseHistory(text);
+  assert.deepEqual(data.messages.map(m => m.id), ["answer"]);
+  assert.equal(data.turnTiming.turnId, "real");
+  assert.equal(data.messages[0].turnDurationMs, 10000);
+});
+test("compaction envelope matches an untruncated summary and native visible events take precedence", () => {
+  const summary = "S".repeat(25000);
+  const data = parseHistoryLines([
+    message("summary", "assistant", [summary]),
+    JSON.stringify({ type: "compacted", payload: { message: "Runtime wrapper\n" + summary } }),
+    message("visible", "assistant", ["A real summary requested by the user"]),
+    event("2026-09-28T00:00:10Z", "item_completed", { item: { id: "visible", type: "AgentMessage" } }),
+    JSON.stringify({ type: "compacted", payload: { message: "A real summary requested by the user" } }),
+  ].join("\n"));
+  assert.deepEqual(data.map(m => m.id), ["visible"]);
+});
+test("message provenance recovers native turn timing when the tail omits task_started", () => {
+  const data = parseHistory([
+    message("answer", "assistant", ["Answer"], ["unknown"], { turn_id: "clipped-turn" }),
+    event("2026-09-28T00:00:10Z", "task_complete", { turn_id: "clipped-turn", duration_ms: 61000 }),
+  ].join("\n"));
+  assert.equal(data.messages[0].turnDurationMs, 61000);
+});
 test("saved turn durations exclude idle gaps and survive a missing start record", () => {
   const data = parseHistory([
     event("2026-09-28T00:00:00Z", "task_started", { turn_id: "one" }),

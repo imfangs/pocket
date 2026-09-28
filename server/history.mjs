@@ -9,6 +9,33 @@ import {
 import { join, isAbsolute, sep } from "node:path";
 import { AppError } from "./store.mjs";
 
+const injectedKinds = new Set([
+  "agents_md.instructions", "environments.environment_context", "hooks.additional_context",
+  "generic.developer_instructions", "memories.instructions", "host_skills.instructions",
+  "permissions.instructions", "collaboration_mode.instructions",
+  "multi_agent.role_instructions", "multi_agent.mode_instructions",
+]);
+
+function visibleText(item) {
+  const content = item.content || [];
+  const kinds = item.internal_chat_message_metadata_passthrough?.content_item_kinds;
+  const value = content
+    .filter((c, index) => ["input_text", "output_text", "text"].includes(c.type) &&
+      !(Array.isArray(kinds) && kinds.length === content.length && injectedKinds.has(kinds[index])))
+    .map(c => c.text || "").join("\n");
+  if (Array.isArray(kinds)) {
+    if (kinds.length && kinds.every(kind => injectedKinds.has(kind))) return "";
+    return value;
+  }
+  // Legacy records lack provenance. Recognize only full runtime envelopes;
+  // ordinary discussion of AGENTS or memory remains a user message.
+  if (item.role === "user" && (
+    /^# AGENTS\.md instructions for [^\n]+\n+<INSTRUCTIONS>[\s\S]*<\/INSTRUCTIONS>(?:\s*<environment_context>[\s\S]*<\/environment_context>)?\s*$/.test(value) ||
+    /^<environment_context>[\s\S]*<\/environment_context>\s*$/.test(value)
+  )) return "";
+  return value;
+}
+
 export function parseHistoryLines(text, startOffset = 0) {
   return parseHistory(text, startOffset).messages;
 }
@@ -16,6 +43,8 @@ export function parseHistoryLines(text, startOffset = 0) {
 export function parseHistory(text, startOffset = 0) {
   const messages = [];
   const turns = new Map();
+  const responseMessages = new Map(), summaryIds = new Set(), nativeMessageIds = new Set();
+  let lastAssistant = null;
   let currentTurnId = null, latestTurnId = null, observedAt = null;
   const number = value => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
   let offset = startOffset;
@@ -25,6 +54,18 @@ export function parseHistory(text, startOffset = 0) {
         item = record.payload;
       const timestamp = Date.parse(record.timestamp);
       if (Number.isFinite(timestamp)) observedAt = timestamp;
+      if (record.type === "event_msg" && item?.type === "item_completed" && item.item?.type === "AgentMessage")
+        nativeMessageIds.add(item.item.id);
+      if (record.type === "token_usage_record" && item?.response_id && lastAssistant)
+        responseMessages.set(item.response_id, lastAssistant);
+      if (record.type === "compacted") {
+        const summary = responseMessages.get(item?.compaction_response_id);
+        if (summary) summaryIds.add(summary.id);
+        else if (lastAssistant && typeof item?.message === "string" && (
+          item.message.trim() === lastAssistant.fullText.trim() ||
+          item.message.trimEnd().endsWith("\n" + lastAssistant.fullText.trim())
+        )) summaryIds.add(lastAssistant.id);
+      }
       if (record.type === "turn_context" && item?.turn_id) currentTurnId = item.turn_id;
       if (record.type === "event_msg" && ["task_started", "task_complete", "turn_aborted"].includes(item?.type)) {
         const id = item.turn_id || (item.type === "turn_aborted" ? currentTurnId : null);
@@ -33,6 +74,7 @@ export function parseHistory(text, startOffset = 0) {
           if (item.type === "task_started") {
             Object.assign(turn, { startedAt: timestamp, status: "inProgress", durationMs: null });
             currentTurnId = latestTurnId = id;
+            lastAssistant = null;
           } else {
             turn.status = item.type === "turn_aborted" ? "interrupted" : "completed";
             turn.durationMs = number(item.duration_ms) ?? (turn.startedAt == null ? null : number(timestamp - turn.startedAt));
@@ -47,28 +89,33 @@ export function parseHistory(text, startOffset = 0) {
         ["user", "assistant"].includes(item.role) &&
         item.phase !== "analysis"
       ) {
-        const value = (item.content || [])
-          .filter((c) => ["input_text", "output_text", "text"].includes(c.type))
-          .map((c) => c.text || "")
-          .join("\n");
-        if (value)
+        const value = visibleText(item);
+        if (value) {
+          const id = item.id || `rollout:${offset}`;
           messages.push({
-            id: item.id || `rollout:${offset}`,
+            id,
             role: item.role,
-            turnId: currentTurnId,
+            turnId: item.internal_chat_message_metadata_passthrough?.turn_id || currentTurnId,
             text: value.slice(0, 24000),
             phase: item.phase,
             timestamp: Date.parse(record.timestamp) || null,
             truncated: value.length > 24000,
           });
+          if (item.role === "assistant") lastAssistant = { id, fullText: value };
+        }
       }
     } catch {
       /* An active append may end with an incomplete JSON record. */
     }
     offset += Buffer.byteLength(line) + 1;
   }
+  const visibleMessages = messages.filter(m => !summaryIds.has(m.id) || nativeMessageIds.has(m.id));
+  const hiddenTurns = new Set(messages.filter(m => summaryIds.has(m.id) && !nativeMessageIds.has(m.id)).map(m => m.turnId));
+  const visibleTurns = new Set(visibleMessages.map(m => m.turnId));
+  if (hiddenTurns.has(latestTurnId) && !visibleTurns.has(latestTurnId))
+    latestTurnId = [...turns.keys()].reverse().find(id => !hiddenTurns.has(id) || visibleTurns.has(id)) || null;
   const marked = new Set();
-  for (const message of [...messages].reverse()) {
+  for (const message of [...visibleMessages].reverse()) {
     const duration = turns.get(message.turnId)?.durationMs;
     if (message.role === "assistant" && ["final", "final_answer"].includes(message.phase) && duration != null && !marked.has(message.turnId)) {
       message.turnDurationMs = duration;
@@ -76,7 +123,7 @@ export function parseHistory(text, startOffset = 0) {
     }
   }
   let budget = 160000;
-  const visible = messages
+  const visible = visibleMessages
     .slice(-80)
     .reverse()
     .map((message) => {

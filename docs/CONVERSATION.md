@@ -109,3 +109,7 @@ Pocket 与 Codex 桌面的待发列表独立。已安装桌面版本的队列 IP
 历史接口新增 `turnTiming: { turnId, status, startedAt, durationMs, observedAt } | null`，完成回复可带 `turnDurationMs`，单位均为毫秒。桌面字段回源当前安装版本的 `turnStartedAtMs` / `durationMs`；不拿最终回复开始时间当结束时间。落盘回退优先采用 `task_complete.duration_ms`，没有原生时长时仅在同轮开始/结束事件齐全时相减；截断且缺失数据不补猜。落盘运行轮的 observedAt 是最后保存记录的时间，仅显示“已记录”；不会因轮询把旧任务一直计时。
 
 会话顶部表示最近一轮，完成回复下方表示各自轮次；不是全部历史累加（当前历史有数量和字节上限）。运行中每秒仅更新计时组件，网络错误/只读回退停止实时外推，完成后固定为原生总耗时。
+
+## 保存历史的可见性（2026-09-28）
+
+`response_item.role` 是模型输入输出角色，不能单独证明用户发言或用户可见回复。回退读取使用 `internal_chat_message_metadata_passthrough.content_item_kinds` 过滤自动上下文，保留 `user.text`；混合条目按内容项过滤。`compacted.compaction_response_id` 经 `token_usage_record.response_id` 定位内部摘要消息；缺少该关系时仅按 compacted 精确引用的正文匹配。原生 `item_completed` 的 AgentMessage 具有可见性优先权，避免把用户真正请求的总结当内部摘要。没有来源标记的旧记录只识别完整运行时封装，不用 AGENTS、memory 等关键词删除普通讨论。过滤在消息数量/字数截断之前，不修改 Codex 原文件。
