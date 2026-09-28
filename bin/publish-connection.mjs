@@ -1,71 +1,55 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-const exec = promisify(execFile);
-export async function publishConnection(connection) {
+
+const failure = (code) => Object.assign(new Error(code), { code });
+export async function publishConnection(connection, options = {}) {
   if (!connection.connected || !connection.publicOrigin)
-    throw new Error("Tunnel must be connected before publishing");
-  const config = JSON.parse(
-    readFileSync(new URL("../config/relay.json", import.meta.url), "utf8"),
-  );
-  await exec(
-    config.wrangler[0],
-    [
-      ...config.wrangler.slice(1),
-      "kv",
-      "key",
-      "put",
-      "origin",
-      JSON.stringify({
-        publicOrigin: connection.publicOrigin,
-        connected: true,
-        updatedAt: new Date().toISOString(),
-      }),
-      "--namespace-id",
-      config.namespaceId,
-      "--remote",
-      "--ttl",
-      "900",
-    ],
-    {
-      cwd: fileURLToPath(new URL("..", import.meta.url)),
-      env: {
-        ...process.env,
-        CLOUDFLARE_ACCOUNT_ID: config.accountId,
-        WRANGLER_SEND_METRICS: "false",
-      },
-      timeout: 60000,
-      maxBuffer: 200000,
-    },
-  );
-  return {
-    entryOrigin: config.publicOrigin,
-    publishedAt: new Date().toISOString(),
-  };
-}
-if (
-  process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
-  const directory =
-    process.env.NAVIGATOR_DATA_DIR ||
+    throw failure("tunnel_not_connected");
+  const config = options.config || JSON.parse(readFileSync(new URL("../config/relay.json", import.meta.url), "utf8"));
+  const directory = options.dataDir || process.env.NAVIGATOR_DATA_DIR ||
     join(homedir(), "Library/Application Support/CodexNavigator");
-  const c = JSON.parse(
-    readFileSync(join(directory, "connection.json"), "utf8"),
-  );
+  let token;
   try {
-    console.log(JSON.stringify({ ok: true, ...(await publishConnection(c)) }));
+    ({ token } = JSON.parse(readFileSync(join(directory, "relay-registration.json"), "utf8")));
+    if (!/^[a-f0-9]{64}$/.test(token || "")) throw new Error();
+  } catch {
+    throw failure("registration_credential_missing");
+  }
+  const entry = new URL(config.publicOrigin);
+  if (entry.protocol !== "https:" || entry.username || entry.password || entry.pathname !== "/" || entry.search || entry.hash)
+    throw failure("registration_endpoint_invalid");
+  try {
+    const response = await (options.fetch || fetch)(new URL("/api/relay/register", entry), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ connected: true, publicOrigin: connection.publicOrigin }),
+      redirect: "error",
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok) throw failure(`registration_http_${response.status}`);
+    const receipt = await response.json();
+    if (receipt.ok !== true || receipt.entryOrigin !== entry.origin ||
+        receipt.publicOrigin !== connection.publicOrigin ||
+        !Number.isFinite(Date.parse(receipt.publishedAt)) || Date.parse(receipt.expiresAt) <= Date.now() ||
+        !Number.isFinite(Date.parse(receipt.expiresAt)))
+      throw failure("registration_receipt_invalid");
+    return { entryOrigin: receipt.entryOrigin, publishedAt: receipt.publishedAt, expiresAt: receipt.expiresAt };
   } catch (e) {
-    console.error(
-      JSON.stringify({
-        ok: false,
-        error: "Failed to publish Mac route",
-        code: e.code || null,
-      }),
-    );
+    // Never include raw request/response bodies or credentials in service logs.
+    if (typeof e.code === "string" && e.code.startsWith("registration_")) throw e;
+    throw failure(e.name === "TimeoutError" ? "registration_timeout" : "registration_network_error");
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const directory = process.env.NAVIGATOR_DATA_DIR || join(homedir(), "Library/Application Support/CodexNavigator");
+  try {
+    const connection = JSON.parse(readFileSync(join(directory, "connection.json"), "utf8"));
+    console.log(JSON.stringify({ ok: true, ...(await publishConnection(connection)) }));
+  } catch (e) {
+    console.error(JSON.stringify({ ok: false, error: "Failed to publish Mac route", code: e.code || "registration_failed" }));
     process.exitCode = 1;
   }
 }

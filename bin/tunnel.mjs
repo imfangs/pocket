@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { publishConnection } from "./publish-connection.mjs";
+import { connectionHealth } from "./connection-state.mjs";
 const directory =
   process.env.NAVIGATOR_DATA_DIR ||
   join(homedir(), "Library/Application Support/CodexNavigator");
@@ -36,15 +37,16 @@ if (status.authenticated !== false)
   throw new Error("Unexpected authentication state; tunnel remains closed");
 persist();
 const server = http.createServer((req, res) => {
-  res.writeHead(state.connected ? 200 : 503, {
+  const health = connectionHealth(state);
+  res.writeHead(health.ok ? 200 : 503, {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
   });
   res.end(
     JSON.stringify({
-      ok: state.connected,
       app: "codex-navigator-tunnel",
       ...state,
+      ...health,
     }),
   );
 });
@@ -105,13 +107,14 @@ async function publish() {
     const receipt = await publishConnection({ ...state });
     publishedOrigin = state.publicOrigin;
     lastPublishedAt = Date.now();
-    Object.assign(state, receipt, { published: true });
+    Object.assign(state, receipt, { published: true, registrationError: null });
     persist();
-  } catch {
+  } catch (error) {
     state.published = false;
+    state.registrationError = error.code || "registration_failed";
     persist();
     console.error(
-      "Mac route registration failed; will retry without changing the entry URL",
+      `Mac route registration failed (${state.registrationError}); will retry without changing the entry URL`,
     );
   } finally {
     publishing = false;

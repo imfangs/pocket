@@ -8,7 +8,9 @@
 
 Cloudflare KV 只保存接入地址、连接标记和时间，不保存任务、备注、口令或会话 Cookie。API 响应经 Cloudflare 转发到手机；持久任务数据与口令校验留在 Mac。Pages Worker 检查客户端 Origin，删除远程 Authorization 头，再向已验证的 HTTPS Tunnel 地址转发必要 Cookie/CSRF/JSON。关闭上游重定向跟随，API 始终 no-store。
 
-Mac 的 `bin/tunnel.mjs` 由 FBT local 常驻。启动前匿名探测目录必须为 401 才开放隧道；连接后把地址登记到独立 KV。每五分钟续登记，记录十五分钟过期，避免 Mac 停止后永久保留旧地址。KV 传播可能有短暂延迟；本阶段仍依赖开发用途的 Quick Tunnel，不承诺生产 SLA。即使底层地址更新，主屏幕入口保持 x.fangs.cc。
+Mac 的 `bin/tunnel.mjs` 由 FBT local 常驻。启动前匿名探测目录必须为 401 才开放隧道；连接后通过 `POST /api/relay/register` 把地址登记到独立 KV。每五分钟续登记，失败时每分钟重试，记录十五分钟过期，避免 Mac 停止后永久保留旧地址。KV 传播可能有短暂延迟；本阶段仍依赖开发用途的 Quick Tunnel，不承诺生产 SLA。即使底层地址更新，主屏幕入口保持 x.fangs.cc。
+
+2026-09-28 修复：后台登记不再调用 Wrangler，不依赖人的 Cloudflare OAuth 登录。专用 256-bit 随机 token 存本机私有 `relay-registration.json`（0600），云端只配置其 SHA-256 校验值 `NAVIGATOR_REGISTRATION_SHA256`。登记接口不接受浏览器 Origin/Cookie 作为授权，只允许此 key 更新固定 `origin` 记录；不提供任务读取权限，不接收口令或任务内容。URL 必须是无路径、无凭据、无查询参数的 HTTPS Quick Tunnel 地址，请求体最多 2 KiB。
 
 ## 登录
 
@@ -49,6 +51,8 @@ node bin/navigator.mjs connection --json
 node bin/verify-public.mjs https://x.fangs.cc
 ```
 
-连接状态中 `connected` 表示隧道已建立，`published` 与 `publishedAt` 表示固定入口地址登记成功。首次登记可能因网络失败重试；2026-09-27 重启验收实际先返回服务未就绪，随后连接成功，自动登记重试成功。不要把启动命令退出码等同于最终状态。等待约一分钟后回读，再按配置重启具体服务；不重传未变化的前端。
+连接状态中 `connected` 表示隧道已建立，`published`、`publishedAt` 与 `expiresAt` 表示固定入口登记状态。连接器健康检查同时要求隧道连接、登记成功且未过期；登记失败会返回 503 与不含凭据的 `registrationError`。首次登记可能因网络失败重试；不要把进程 running 等同于公网可用。等待约一分钟后回读，再按配置重启具体服务；不重传未变化的前端。
+
+登记凭据的恢复：保留本机私有 `relay-registration.json`，不要用网站四位访问口令替代它。`node bin/registration-key.mjs` 会复用已有 key 并生成私有 `relay-registration.sha256` 文件，stdout 只显示路径。初次配置或丢失 key 后重新配对时，将 verifier 文件通过 stdin 配置为 Pages 生产环境的 `NAVIGATOR_REGISTRATION_SHA256` secret，再发布 Worker。发布操作仍使用管理凭据，运行时续登记不需要管理凭据。不要误轮换现有 key；换 key 必须同步云端 verifier。
 
 口令文件直接在 Mac 本地打开后输入手机。请勿将口令放进 URL、仓库或分享截图。手机安装须用正式固定地址；旧 trycloudflare 地址会在连接器重启后失效。
