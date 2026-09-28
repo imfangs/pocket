@@ -2,6 +2,16 @@
 
 日期：2026-09-27。真实 Codex 来源只读；合成测试与隔离实例只写自己的数据。没有向原会话发送测试消息、改写原数据库或修改原版标题/置顶/归档。
 
+## 2026-09-28：边缘返回与首次键盘遮挡
+
+- 用户澄清手势为从左边缘向右滑，键盘遮挡发生于 iPhone 主屏幕 Web App。实现只在窄屏详情左侧 32px 接受起点，72px 以上向右位移触发已有关闭动作；保留编辑冲突处理和未发送 query 草稿。输入控件、按钮/链接、表格/代码、选中文字、多指与垂直滚动不触发返回，事件监听不阻止原生滚动或缩放。
+- iPhone 16 / iOS 18.2 Simulator Safari 实际软件键盘复现：原详情按布局视口 fixed top/bottom 定位，键盘和页面平移后输入框底部位于 501px，超出 Safari 内容区域底部约 449.7px，发送按钮被挡。截图和 `.local/qa/check-keyboard.py` 断言为失败，不用桌面缩小窗口替代键盘。
+- 改为监听 visualViewport.resize/scroll 及 focus/窗口变化，更新详情 height 和 offsetTop；收起键盘期间的顶部摘要并缩小 composer。相同刷新→打开详情→首次输入流程中，输入框底部 396px，断言通过，受控截图确认发送按钮也完整可见。缩放时不应用键盘布局，退出详情移除监听。
+- 原生 pan 从 (20,86) 向右 180px、280ms，详情关闭并返回列表；重新打开同一任务保留测试草稿。原生垂直滚动不关闭详情。自动测试覆盖首次 focus 后延迟到达的 viewport resize、Safari 平移、缩放/宽屏/清理以及手势方向、边缘范围、阈值和取消条件。
+- 模拟器添加了仅供验证的本机网页主屏幕图标，但启动提示 “In your region, web apps now open in your default browser.”；不能把 Safari 结果写成 PWA 独立窗口或真机通过。物理 iPhone 的 PWA 和 Android 仍待实际反馈。
+
+本次无测试 query 发送。私有证据 `.local/qa/keyboard-baseline.json`、`keyboard-after.json`、`swipe-edge-back.json`，受控前后对照 `/tmp/navigator-keyboard-comparison.jpg`。
+
 ## 2026-09-28：Markdown 渲染发布
 
 - 实际用户流：登录 → 选择原任务 → 会话历史 → 阅读表格和代码。两类消息均渲染 CommonMark/GFM，正文原文及 API 不变。使用 memo 避免每次历史轮询和编辑 query 时重新解析未变文本。

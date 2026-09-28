@@ -2,11 +2,11 @@
 
 ## 移动端返回与键盘（2026-09-28，本地已验，待发布）
 
-详情页支持手指向左滑回列表，沿用原关闭/保存流程，未发送 query 草稿保留。输入框、按钮/链接、代码块和表格上的横向操作、垂直滚动、文本选择与多指手势不会触发返回。
+按用户澄清，详情页支持从左边缘向右滑回列表，沿用原关闭/保存流程，未发送 query 草稿保留。输入框、按钮/链接、代码块和表格上的横向操作、垂直滚动、文本选择与多指手势不会触发返回。键盘问题的用户场景是 iPhone 添加到主屏幕后的独立窗口。
 
 修复 Safari 软件键盘遮挡输入框：窄屏详情使用 visualViewport 的 height/offsetTop，持续监听首次聚焦后的 resize/scroll；键盘打开时收起任务摘要、压缩输入区，保留历史和发送按钮。页面缩放时不强制套用键盘布局，不关闭 pinch zoom。
 
-构建与 37 项测试通过。iPhone 16 / iOS 18.2 Simulator 的 Safari 复现旧版输入底部 501px 超出可见区域约 450px；同一流程刷新后首次聚焦，新版输入底部 396px，输入框和发送按钮完整可见。原生触摸左滑返回、重新打开草稿保留、垂直滚动不返回均通过。用户真机、PWA 独立窗口和 Android 仍待验。私有证据 `.local/qa/keyboard-baseline.json`、`keyboard-after.json`、`swipe-back.json`；受控对照 `/tmp/navigator-keyboard-comparison.jpg`。
+构建与 37 项测试通过。iPhone 16 / iOS 18.2 Simulator 的 Safari 复现旧版输入底部 501px 超出可见区域约 450px；同一流程刷新后首次聚焦，新版输入底部 396px，输入框和发送按钮完整可见。左侧 20px 起点向右滑返回、重新打开草稿保留、垂直滚动不返回均通过。模拟器添加主屏幕后提示当前区域将 Web App 转到 Safari，未获得独立窗口验证；用户 PWA 真机与 Android 仍待验。私有证据 `.local/qa/keyboard-baseline.json`、`keyboard-after.json`、`swipe-edge-back.json`；受控对照 `/tmp/navigator-keyboard-comparison.jpg`。
 
 ## 实现原理分享（2026-09-28）
 

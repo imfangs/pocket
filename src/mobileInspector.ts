@@ -57,6 +57,8 @@ export function bindInspectorSwipe(panel: HTMLElement, close: () => void, browse
     const target = event.target as Element | null;
     if (target?.closest("input, textarea, select, button, a, pre, .markdown-table, [contenteditable='true']")) return;
     const touch = event.touches[0];
+    const edgeDistance = touch.clientX - panel.getBoundingClientRect().left;
+    if (edgeDistance < 0 || edgeDistance > 32) return;
     start = { x: touch.clientX, y: touch.clientY, time: event.timeStamp };
   };
   const move = (event: TouchEvent) => {
@@ -72,7 +74,7 @@ export function bindInspectorSwipe(panel: HTMLElement, close: () => void, browse
     if (!origin || event.touches.length || !event.changedTouches.length || hasSelection()) return;
     const touch = event.changedTouches[0];
     const dx = touch.clientX - origin.x, dy = touch.clientY - origin.y;
-    if (narrow.matches && dx <= -72 && Math.abs(dy) < Math.abs(dx) * 0.4 &&
+    if (narrow.matches && dx >= 72 && Math.abs(dy) < Math.abs(dx) * 0.4 &&
         event.timeStamp - origin.time <= 650) close();
   };
   // Passive touch listeners preserve native vertical scroll and pinch zoom.

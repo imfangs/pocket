@@ -12,6 +12,7 @@ function fixture() {
   panel.style = { setProperty: (key, value) => properties.set(key, value), removeProperty: key => properties.delete(key) };
   panel.toggleAttribute = (key, value) => value ? attributes.add(key) : attributes.delete(key);
   panel.removeAttribute = key => attributes.delete(key);
+  panel.getBoundingClientRect = () => ({ left: 0 });
   const input = { matches: () => true };
   panel.contains = target => target === input;
   Object.assign(browser, {
@@ -87,18 +88,18 @@ function touch(panel, type, x, y, time, { ignored = false, fingers = 1 } = {}) {
   assert.equal(event.defaultPrevented, false);
 }
 
-test("a deliberate left swipe returns once using the existing close action", () => {
+test("a deliberate right swipe from the left edge returns once using the existing close action", () => {
   const f = fixture(); let closes = 0;
   const cleanup = bindInspectorSwipe(f.panel, () => closes++, f.browser);
-  touch(f.panel, "touchstart", 300, 250, 0);
-  touch(f.panel, "touchmove", 200, 254, 100);
-  touch(f.panel, "touchend", 150, 260, 220);
+  touch(f.panel, "touchstart", 20, 250, 0);
+  touch(f.panel, "touchmove", 120, 254, 100);
+  touch(f.panel, "touchend", 170, 260, 220);
   assert.equal(closes, 1);
   touch(f.panel, "touchend", 100, 260, 250);
   assert.equal(closes, 1);
   cleanup();
-  touch(f.panel, "touchstart", 300, 250, 0);
-  touch(f.panel, "touchend", 100, 250, 200);
+  touch(f.panel, "touchstart", 20, 250, 0);
+  touch(f.panel, "touchend", 170, 250, 200);
   assert.equal(closes, 1);
 });
 
@@ -106,21 +107,22 @@ test("scrolling, code/table/input gestures, selection and multitouch never close
   const f = fixture(); let closes = 0;
   const cleanup = bindInspectorSwipe(f.panel, () => closes++, f.browser);
   for (const scenario of [
-    { x: 270, y: 250, time: 200 },
-    { x: 390, y: 250, time: 200 },
-    { x: 100, y: 250, time: 1000 },
-    { x: 100, y: 250, time: 200, ignored: true },
-    { x: 100, y: 250, time: 200, fingers: 2 },
+    { x: 50, y: 250, time: 200 },
+    { x: -90, y: 250, time: 200 },
+    { x: 390, y: 250, time: 200, startX: 200 },
+    { x: 170, y: 250, time: 1000 },
+    { x: 170, y: 250, time: 200, ignored: true },
+    { x: 170, y: 250, time: 200, fingers: 2 },
   ]) {
-    touch(f.panel, "touchstart", 300, 250, 0, scenario);
+    touch(f.panel, "touchstart", scenario.startX ?? 20, 250, 0, scenario);
     touch(f.panel, "touchend", scenario.x, scenario.y, scenario.time);
   }
-  touch(f.panel, "touchstart", 300, 250, 0);
-  touch(f.panel, "touchmove", 298, 290, 100);
-  touch(f.panel, "touchend", 100, 280, 200);
+  touch(f.panel, "touchstart", 20, 250, 0);
+  touch(f.panel, "touchmove", 22, 290, 100);
+  touch(f.panel, "touchend", 170, 280, 200);
   f.browser.getSelection = () => ({ isCollapsed: false });
-  touch(f.panel, "touchstart", 300, 250, 0);
-  touch(f.panel, "touchend", 100, 250, 200);
+  touch(f.panel, "touchstart", 20, 250, 0);
+  touch(f.panel, "touchend", 170, 250, 200);
   assert.equal(closes, 0);
   cleanup();
 });
