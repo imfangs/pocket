@@ -245,7 +245,8 @@ export default function Conversation({
         {!loading && history && history.source !== "desktop" && !thread.archived && (
           <button
             className="secondary"
-            disabled={connecting}
+            disabled={connecting || !online}
+            title="在 Mac 的 Codex 中打开这条原会话，随后重试读取实时状态"
             onClick={async () => {
               setConnecting(true);
               setError("");
@@ -260,7 +261,7 @@ export default function Conversation({
             }}
           >
             <Monitor size={15} />
-            {connecting ? "正在连接…" : "连接 Mac 中的原任务"}
+            {connecting ? "正在打开…" : "在 Mac 中打开"}
           </button>
         )}
         {(error || historyError) && (
