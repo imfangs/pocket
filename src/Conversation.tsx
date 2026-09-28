@@ -1,6 +1,8 @@
 import AutoTextarea from "./AutoTextarea";
 import ContextStatus from "./ContextStatus";
 import RequestActions from "./RequestActions";
+import StopExecution from "./StopExecution";
+import QuestionPrompts from "./QuestionPrompts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown, RefreshCw, Send, Monitor } from "lucide-react";
 import { api } from "./api";
@@ -100,6 +102,11 @@ export default function Conversation({
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [draft.text]);
+  useEffect(() => {
+    if (!/^(消息已交给|已加入待发|已在原任务历史|当前执行已中断|这一轮已经结束)/.test(notice)) return;
+    const timer = setTimeout(() => setNotice(""), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   const receive = (receipt: Receipt) => {
     if (receipt.status === "accepted" || receipt.status === "queued") {
       updateDraft({ text: "" });
@@ -156,12 +163,16 @@ export default function Conversation({
   return (
     <section className="conversation" aria-label="会话历史与发送">
       <div className="conversation-toolbar">
+        <div className="conversation-overview">
         <span className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>
           {loading
             ? history ? "正在更新…" : "正在读取历史…"
-            : historyError ? "等待重连" : history?.pendingRequests?.length ? "等待确认" : statuses[history?.runtime || ""] || "任务状态"}
+            : historyError ? "等待重连" : history?.pendingRequests?.length ? "等待确认" : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断" : statuses[history?.runtime || ""] || "任务状态"}
         </span>
-        <div>
+          <ContextStatus threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
+        </div>
+        <div className="conversation-controls">
+          <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} notify={setNotice} />
           <button
             className="icon-button"
             aria-label="跳到最新消息"
@@ -208,12 +219,12 @@ export default function Conversation({
             暂时没有可显示的消息。可以连接原任务后刷新。
           </p>
         )}
-        {history?.messages.map((message) => (
+        {history?.messages.filter(message => !message.isQuestion || !history.asyncQuestions?.some(q => q.sourceMessageId === message.id)).map((message) => (
           <ConversationMessage key={message.id} message={message} />
         ))}
       </div>
       <div className="conversation-status">
-        <p>{history?.hint}</p>
+        <p className={history?.canSend || history?.pendingRequests?.length ? "routine-hint" : undefined}>{history?.hint}</p>
         {!loading && history && history.source !== "desktop" && !thread.archived && (
           <button
             className="secondary"
@@ -246,9 +257,9 @@ export default function Conversation({
           </p>
         )}
       </div>
+      <QuestionPrompts threadId={thread.id} questions={history?.asyncQuestions ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || !history?.canSend} drafts={drafts} refresh={load} />
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
-      <ContextStatus threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
-      <Outbox threadId={thread.id} items={history?.outbox ?? []} disabled={loading || !!historyError} allowSend={!thread.archived && !thread.missing && !!history?.canSend} refresh={load} drafts={drafts} />
+      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={loading || !!historyError} allowSend={!thread.archived && !thread.missing && !!history?.canSend} refresh={load} drafts={drafts} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
           发送给原任务的消息

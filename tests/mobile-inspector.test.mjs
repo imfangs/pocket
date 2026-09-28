@@ -126,3 +126,13 @@ test("scrolling, code/table/input gestures, selection and multitouch never close
   assert.equal(closes, 0);
   cleanup();
 });
+
+test("submitting from the keyboard keeps its layout until the viewport recovers", () => {
+  const f = fixture();const cleanup = bindInspectorViewport(f.panel,f.browser);
+  f.document.activeElement=f.input;f.viewport.height=390;f.document.dispatchEvent(new Event('focusin'));f.flush();
+  assert.equal(f.attributes.has('data-keyboard-open'),true);
+  f.document.activeElement=null;f.document.dispatchEvent(new Event('focusout'));f.flush();
+  assert.equal(f.attributes.has('data-keyboard-open'),true);
+  f.viewport.height=780;f.viewport.dispatchEvent(new Event('resize'));f.flush();
+  assert.equal(f.attributes.has('data-keyboard-open'),false);cleanup();
+});

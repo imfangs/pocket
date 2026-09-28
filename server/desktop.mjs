@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { AppError } from "./store.mjs";
 import { readPersistedHistory } from "./history.mjs";
+import { ExecutionStops } from "./execution-stops.mjs";
 
 export function desktopRequest(payload) {
   const config = JSON.parse(
@@ -72,12 +73,14 @@ export class DesktopService {
     Object.assign(this, { store, codexHome, request, readHistory });
     this.cache = new Map();
     this.sending = new Set();
+    this.stops = new ExecutionStops(store, payload => this.request({ ...payload, codexHome: this.codexHome }));
     store.db.exec(
       "CREATE TABLE IF NOT EXISTS dispatches(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,text_hash TEXT NOT NULL,status TEXT NOT NULL,turn_id TEXT,code TEXT,created_at INTEGER NOT NULL)",
     );
     store.db.exec("CREATE TABLE IF NOT EXISTS outgoing_messages(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,text TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0)");
     store.db.exec("CREATE TABLE IF NOT EXISTS compactions(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,status TEXT NOT NULL,baseline_id TEXT,code TEXT,created_at INTEGER NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS request_responses(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,request_key TEXT NOT NULL,decision TEXT NOT NULL,status TEXT NOT NULL,code TEXT,created_at INTEGER NOT NULL)");
+    store.db.exec("CREATE TABLE IF NOT EXISTS question_answers(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,question_key TEXT NOT NULL)");
   }
   async history(id) {
     this.store.thread(id);
@@ -125,8 +128,10 @@ export class DesktopService {
     if (this.store.thread(id).archived) {
       data.canSend = false;
       data.canCompact = false;
+      data.canStop = false;
       data.hint = "已归档任务可查看历史；请先在 Codex 中取消归档再继续。";
     }
+    this.stops.reconcile(id, data);
     const action = this.compactionRequest(id);
     const compact = data.compaction;
     if (action && ["pending", "accepted", "unknown"].includes(action.status) &&
@@ -166,13 +171,60 @@ export class DesktopService {
   }
   withActions(id, data) {
     const action = this.compactionRequest(id);
-    const blocked = this.compactionPending(id);
+    const blocked = this.compactionPending(id) || this.stops.pending(id);
+    const queuePaused = this.stops.pause(id);
     const outbox = this.outbox(id);
     const pendingRequests = (data.pendingRequests || []).map(request => ({ ...request,
       response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
+    const asyncQuestions = (data.asyncQuestions || []).map(question => ({ ...question,
+      response: this.store.db.prepare("SELECT d.id AS requestId,d.status FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? ORDER BY d.created_at DESC LIMIT 1").get(id, question.key) || null }));
     return { ...data, outbox, pendingRequests, canCompact: !!data.canCompact && !blocked && !outbox.length && !this.sending.has(id),
-      canSend: data.canSend && !blocked, queueReady: data.queueReady && !blocked,
+      asyncQuestions,
+      canSend: data.canSend && !blocked, queueReady: data.queueReady && !blocked && !queuePaused,
+      canStop: !!data.canStop && !this.stops.pending(id), activeTurnId: data.activeTurnId || null,
+      queuePaused, stopRequest: this.stops.latest(id),
       compactionRequest: action ? { requestId: action.id, status: action.status, code: action.code } : null };
+  }
+  async answer(id, questionKey, input) {
+    const thread = this.store.thread(id);
+    if (!input || Object.keys(input).some(k => !["requestId", "text"].includes(k)) ||
+        typeof input.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestId) ||
+        typeof input.text !== "string" || !input.text.trim() || input.text.length > 16000 || !/^[a-f0-9]{64}$/.test(questionKey))
+      throw new AppError("回答需为 1–16000 字，并带有效请求编号", 400);
+    const text = input.text.trim();
+    const hash = createHash("sha256").update(questionKey + "\0" + text).digest("hex");
+    const old = this.store.db.prepare("SELECT * FROM dispatches WHERE id=?").get(input.requestId);
+    if (old) {
+      if (old.thread_id !== id || old.text_hash !== hash) throw new AppError("请求编号已用于另一条回答", 409);
+      return this.receipt(old);
+    }
+    if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pending(id) || this.compactionPending(id))
+      throw new AppError("原任务暂时无法接收回答，请刷新状态", 409);
+    const prior = this.store.db.prepare("SELECT d.id FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? AND d.status IN('pending','accepted','unknown')").get(id, questionKey);
+    if (prior) throw new AppError("这道问题已有回答，请先核对状态", 409);
+    this.transaction(() => {
+      this.store.db.prepare("INSERT INTO dispatches(id,thread_id,text_hash,status,created_at) VALUES(?,?,?,'pending',?)").run(input.requestId, id, hash, Date.now());
+      this.store.db.prepare("INSERT INTO question_answers VALUES(?,?,?)").run(input.requestId, id, questionKey);
+    });
+    this.sending.add(id);
+    let result;
+    try { result = await this.request({ operation: "answer", threadId: id, codexHome: this.codexHome, questionKey, text, requestId: input.requestId, delivery: "now" }); }
+    catch { result = { ok: false, sent: null, code: "dispatch_unknown" }; }
+    finally { this.sending.delete(id); }
+    const status = result.ok ? "accepted" : result.sent === false ? "rejected" : "unknown";
+    this.store.db.prepare("UPDATE dispatches SET status=?,code=? WHERE id=? AND status='pending'").run(status, result.code || null, input.requestId);
+    this.cache.delete(id);
+    return this.getReceipt(id, input.requestId);
+  }
+  async stop(id, input) {
+    try { return await this.stops.stop(id, input); }
+    finally { this.cache.delete(id); }
+  }
+  async resumeQueue(id, input) {
+    this.stops.resume(id, input);
+    this.cache.delete(id);
+    await this.processQueueForThread(id);
+    return { outbox: this.outbox(id), queuePaused: this.stops.pause(id) };
   }
   getResponseReceipt(id, responseId) {
     this.store.thread(id);
@@ -214,7 +266,7 @@ export class DesktopService {
       if (old.thread_id !== id) throw new AppError("请求编号已用于其他任务", 409);
       return { requestId: old.id, status: old.status, code: old.code };
     }
-    if (thread.archived || thread.missing || this.sending.has(id) || this.outbox(id).length || this.compactionPending(id))
+    if (thread.archived || thread.missing || this.sending.has(id) || this.outbox(id).length || this.compactionPending(id) || this.stops.pending(id))
       throw new AppError("请等当前操作和待发消息完成后再压缩", 409);
     this.sending.add(id);
     try {
@@ -304,10 +356,11 @@ export class DesktopService {
     });
     return { outbox: this.outbox(id) };
   }
-  async dispatchQueued(id, requestId, input, delivery = "now") {
+  async dispatchQueued(id, requestId, input, delivery = "now", resumeAfterTurnId = null) {
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing) throw new AppError("请先在 Mac 中恢复原任务", 409);
     if (this.compactionPending(id)) throw new AppError("请先核对上下文压缩状态", 409);
+    if (this.stops.pending(id) || (delivery !== "now" && this.stops.pause(id))) throw new AppError("待发消息已暂停，请先核对停止状态", 409);
     if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("发送参数无效", 400);
     const row = this.queued(id, requestId, input.expectedRevision);
     if (this.sending.has(id)) throw new AppError("原任务正在提交另一条消息", 409);
@@ -318,7 +371,7 @@ export class DesktopService {
     let result;
     try {
       result = await this.request({ operation: "send", threadId: id, codexHome: this.codexHome,
-        text: row.text, requestId, delivery });
+        text: row.text, requestId, delivery, ...(resumeAfterTurnId ? { resumeAfterTurnId } : {}) });
     } catch { result = { ok: false, code: "dispatch_unknown", sent: null }; }
     finally { this.sending.delete(id); }
     const observed = this.getReceipt(id, requestId);
@@ -333,20 +386,26 @@ export class DesktopService {
   }
   async processQueue() {
     const ids = this.store.db.prepare("SELECT DISTINCT thread_id FROM outgoing_messages").all().map(r => r.thread_id);
-    for (const id of ids) {
-      const thread = this.store.thread(id);
-      if (thread.archived || thread.missing || this.sending.has(id)) continue;
-      const head = this.outbox(id)[0];
-      if (!head || head.status !== "queued") continue;
-      const history = await this.history(id);
-      if (!history.queueReady) continue;
-      try { await this.dispatchQueued(id, head.id, { expectedRevision: head.revision }, "auto"); }
-      catch { /* A concurrent edit/cancel is resolved by the next read. */ }
-    }
+    for (const id of ids) await this.processQueueForThread(id);
+  }
+  async processQueueForThread(id) {
+    const thread = this.store.thread(id);
+    if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pause(id) || this.stops.pending(id)) return;
+    const head = this.outbox(id)[0];
+    if (!head || head.status !== "queued") return;
+    const history = await this.history(id);
+    const stopped = this.stops.latest(id);
+    const explicitlyResumed = !this.stops.pause(id) && stopped?.status === "stopped" &&
+      stopped.targetTurnId === history.latestTurnId && history.runtime === "idle" && history.canSend;
+    if (!history.queueReady && !explicitlyResumed) return;
+    try { await this.dispatchQueued(id, head.id, { expectedRevision: head.revision }, explicitlyResumed ? "resume" : "auto", explicitlyResumed ? stopped.targetTurnId : null); }
+    catch { /* A concurrent edit/cancel is resolved by the next read. */ }
   }
   startQueue() {
     if (this.queueStarted) return;
     this.queueStarted = true;
+    this.stops.recover();
+    this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending' AND id IN(SELECT id FROM question_answers)");
     this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending' AND id IN(SELECT id FROM outgoing_messages)");
     this.store.db.exec("UPDATE compactions SET status='unknown',code='submission_interrupted' WHERE status='pending'");
     this.store.db.exec("UPDATE request_responses SET status='unknown',code='submission_interrupted' WHERE status='pending'");
@@ -384,7 +443,7 @@ export class DesktopService {
         throw new AppError("请求编号已用于另一条消息", 409);
       return this.receipt(old);
     }
-    if ((this.sending.has(id) || this.compactionPending(id)) && !input.enqueue && !this.outbox(id).length)
+    if ((this.sending.has(id) || this.compactionPending(id) || this.stops.pending(id)) && !input.enqueue && !this.outbox(id).length)
       throw new AppError("这条任务正在提交消息，请稍后再试", 409);
     if (this.outbox(id).length >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
     this.store.db

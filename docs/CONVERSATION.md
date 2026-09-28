@@ -20,6 +20,22 @@ Markdown 通过 React 节点渲染，不执行原始 HTML；链接仅允许 HTTP
 
 query 会在原任务的工作目录和权限中执行，模型/推理设置由原任务继承。网站访问口令不变；持有访问口令者现在可以向满足条件的原任务提交消息。网页允许用户对受支持的命令审批明确点击允许一次或拒绝，不自动回答，也不覆盖权限或模型。
 
+## 停止当前执行
+
+正在执行时会话顶部出现「停止」。POST /api/tasks/:id/stop 只接受 `{requestId, expectedTurnId}`；GET /api/tasks/:id/stop/:requestId 只核对回执。原 owner 的 thread-follower-interrupt-turn v4 使用 user-stop 模式和明确 turn ID，原任务已经换轮时拒绝旧请求。
+
+execution_stops 和 queue_pauses 存储停止回执与队列暂停状态。提交前先暂停 Pocket 自动队列，收到 accepted 后继续回读；只在目标 turn=interrupted 时显示中断，若其自行完成则标为 ended。结果不明或服务重启均不重放请求。该操作不撤销已完成的工作，不归档/删除会话，也不修改任务目标、自动化或权限设置。
+
+「恢复排队」POST /api/tasks/:id/queue/resume 接受 `{expectedStopId}`，避免旧页面解除后来一次停止。恢复同一中断轮的队列须由用户明确点击；发送前再次核对原轮次，普通自动队列仍不越过失败/中断状态。队列只属于 Pocket，其他客户端的队列不由该表管理。
+
+## 回答 Codex 异步提问
+
+支持上文原生异步选项/自由文本提问。原消息 delivery=async 且带 questions；编号严格沿用 JSON.stringify([request_user_input_async, sourceMessageId, questionIndex])。从已加载原历史读取最多最近 30 轮中的 10 个未回答问题，单题内容不截断；内容预算超限时保留普通历史文字，不提供不完整题目的提交入口。
+
+POST /api/tasks/:id/questions/:key/answer 接受 `{requestId,text}`。服务端重新读取问题并核对含题目/选项的指纹，再构建原生 send_user_message_question_reply 封装。运行中的回答直接追加给原任务，空闲时开启原任务下一轮；沿用模型和权限，不混入普通 outbox。question_answers 只关联题目指纹与发送账本，不另存答案正文。未知回执只核对，历史看到准确 clientMessageId 才解除不确定性。
+
+已回答状态按原生用户回复或已接受的 steeringUserMessage 识别，跨桌面和 Pocket 一致。待答时只显示交互题卡，避免和普通消息重复；回答后保留问题历史，用户回复展示可读正文。同步阻塞型 item/tool/requestUserInput、文件选择和其他表单没有在此轮接入。
+
 ## 网页命令审批
 
 任务卡片显示「等待确认」时，展开可查看完整命令、工作目录及申请原因。仅对 item/commandExecution/requestApproval 接入「允许这一次」accept 和「拒绝本次」cancel；只显示桌面原请求提供的选项，任何持久 execpolicy/session 放权均不接入。更长于 32000 字的命令或其他未支持请求仍交给 Mac，不能在只显示截断内容时批准。
@@ -30,7 +46,7 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 ## 上下文用量与压缩
 
-输入区附近显示上下文占用百分比，展开可查看 used / window / remaining tokens。值来自原 App 的 latestTokenUsageInfo.last.totalTokens 与 modelContextWindow，与桌面保持同口径；不是累计计费用量，也不以网页显示的消息字数估算。只有已取得实时桌面快照时显示，字段缺失时标记暂不可用。
+会话顶部状态栏显示上下文占用百分比，展开可查看 used / window / remaining tokens。值来自原 App 的 latestTokenUsageInfo.last.totalTokens 与 modelContextWindow，与桌面保持同口径；不是累计计费用量，也不以网页显示的消息字数估算。只有已取得实时桌面快照时显示，字段缺失时标记暂不可用。
 
 「压缩上下文」只在任务已连接且空闲、待发列表为空时可用。较早内容会被总结为更短上下文，可能省略细节；按钮旁的说明可展开。压缩期间暂停发送和自动队列处理。POST /api/tasks/:id/compact 只接受 `{requestId}`，GET /api/tasks/:id/compact/:requestId 仅查询回执。
 
@@ -69,7 +85,7 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 accepted 表示原桌面接口接收，不表示模型执行完成；运行进展通过历史刷新读取。明确拒绝保留草稿供修改/重试。超时或回执不明标 unknown，不自动重发；页面“核对发送状态”只查账本，原 App 历史出现对应 clientUserMessageId 时可确认 accepted。
 
-原接口没有“仅当状态仍相同才提交”的原子条件，最后一次回读与实际提交之间仍有短暂竞态；收到未知结果时应先核对原历史。当前不支持新建任务、上传附件、停止任务、澄清问题回复或命令之外的远程审批。
+原接口没有“仅当状态仍相同才提交”的原子条件，最后一次回读与实际提交之间仍有短暂竞态；收到未知结果时应先核对原历史。当前不支持新建任务、上传附件、原版归档、同步阻塞型澄清问题回复或命令之外的远程审批。
 
 
 ## 待发队列的边界

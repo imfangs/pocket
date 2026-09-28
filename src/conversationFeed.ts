@@ -3,6 +3,7 @@ export type Message = {
   role: "user" | "assistant";
   text: string;
   phase?: string;
+  isQuestion?: boolean;
   timestamp?: number;
   truncated?: boolean;
   clientMessageId?: string;
@@ -16,6 +17,12 @@ export type History = {
   hasMore?: boolean;
   checkedAt: number;
   outbox?: QueuedMessage[];
+  asyncQuestions?: AsyncQuestion[];
+  canStop?: boolean;
+  activeTurnId?: string | null;
+  latestTurnStatus?: string;
+  stopRequest?: StopReceipt | null;
+  queuePaused?: { stopId: string } | null;
   pendingRequests?: PendingRequest[];
   contextUsage?: { usedTokens: number; contextWindow: number; remainingTokens: number; percent: number } | null;
   canCompact?: boolean;
@@ -130,4 +137,16 @@ export type PendingRequest = {
   cwd: string;
   choices: ("accept" | "cancel")[];
   response?: { responseId: string; status: string } | null;
+};
+
+export type StopReceipt = {
+  requestId: string;
+  targetTurnId?: string;
+  status: "pending" | "accepted" | "unknown" | "rejected" | "stopped" | "ended" | "not_found";
+  code?: string;
+};
+
+export type AsyncQuestion = {
+  id: string; key: string; sourceMessageId: string; title: string; options: string[];
+  response?: { requestId: string; status: string } | null;
 };

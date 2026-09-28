@@ -229,7 +229,19 @@ export function makeApp(options = {}) {
         return json(res, 200, desktop.getReceipt(receipt[1], receipt[2]));
       const outbox = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/outbox\/([a-f0-9-]{36})(\/(?:send|edit|resume))?$/i);
       const compact = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/compact$/i);
+      const stop = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/stop$/i);
+      if (stop && method === "POST")
+        return json(res, 200, await desktop.stop(stop[1], await body(req)));
+      const stopReceipt = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/stop\/([a-f0-9-]{36})$/i);
+      if (stopReceipt && method === "GET")
+        return json(res, 200, desktop.stops.receipt(stopReceipt[1], stopReceipt[2]));
+      const resumeQueue = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/queue\/resume$/i);
+      if (resumeQueue && method === "POST")
+        return json(res, 200, await desktop.resumeQueue(resumeQueue[1], await body(req)));
       const response = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/requests\/([a-f0-9]{64})\/respond$/i);
+      const answer = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/questions\/([a-f0-9]{64})\/answer$/i);
+      if (answer && method === "POST")
+        return json(res, 200, await desktop.answer(answer[1], answer[2], await body(req, 70000)));
       if (response && method === "POST")
         return json(res, 200, await desktop.respond(response[1], response[2], await body(req)));
       const responseReceipt = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/responses\/([a-f0-9-]{36})$/i);

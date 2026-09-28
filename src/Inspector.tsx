@@ -132,10 +132,11 @@ export default function Inspector(p: Props) {
   return (
     <aside className="inspector" aria-label="接续详情" ref={panel}>
       <div className="inspector-header">
-        <span>
+        <span className="inspector-desktop-label">
           <MessageSquare size={15} />
           任务详情
         </span>
+        <strong className="inspector-mobile-title" title={p.thread.title}>{p.thread.separator ? "分隔符会话" : p.thread.title}</strong>
         <button
           className="icon-button"
           aria-label="关闭详情"

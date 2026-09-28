@@ -16,7 +16,7 @@ export default function AutoTextarea(props: ComponentProps<"textarea">) {
       input.style.height = "0px";
       const natural = input.scrollHeight + border;
       const conversation = input.closest<HTMLElement>(".conversation");
-      const group = input.closest<HTMLElement>(".conversation-composer, .outbox");
+      const group = input.closest<HTMLElement>(".conversation-composer, .outbox, .question-prompts");
       let available = Infinity;
       if (conversation && group) {
         const fixed = [...conversation.children].filter(el => el !== group && !el.classList.contains("conversation-messages"))

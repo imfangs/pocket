@@ -326,3 +326,48 @@ test('native approval rejects persistent permission changes',async t=>{
  const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,decision:'acceptForSession'});
  assert.equal(r.sent,false);assert.equal(r.code,'invalid_decision');
 });
+
+test('stop sends a conditional user interruption to the existing owner even while awaiting approval',async t=>{
+ const active={...idle,threadRuntimeStatus:{type:'active'},requests:[approval],turns:[{turnId:'running',status:'inProgress',items:[]}]};
+ const f=await fakeDesktop(t,[active]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ assert.equal(h.canStop,true);assert.equal(h.activeTurnId,'running');
+ const r=await desktopRequest({operation:'stop',threadId:id,codexHome:f.home,expectedTurnId:'running'});
+ assert.equal(r.status,'accepted');const call=f.calls.find(c=>c.method==='thread-follower-interrupt-turn');
+ assert.equal(call.version,4);assert.deepEqual(call.params,{conversationId:id,mode:'user-stop',expectedTurnId:'running'});
+ assert.equal(f.calls.some(c=>c.method==='thread-follower-update-thread-settings'),false);
+});
+test('a stale stop cannot interrupt a newer turn',async t=>{
+ const a={...idle,threadRuntimeStatus:{type:'active'},turns:[{turnId:'old',status:'inProgress',items:[]}]};
+ const b={...a,turns:[{turnId:'new',status:'inProgress',items:[]}]};const f=await fakeDesktop(t,[a,b]);
+ const r=await desktopRequest({operation:'stop',threadId:id,codexHome:f.home,expectedTurnId:'old'});
+ assert.equal(r.sent,false);assert.equal(r.code,'turn_changed');assert.equal(f.calls.some(c=>c.method==='thread-follower-interrupt-turn'),false);
+});
+test('resumed queue sends after the exact interrupted turn, but not after another interruption',async t=>{
+ const f=await fakeDesktop(t,[{...idle,turns:[{turnId:'stopped',status:'interrupted',items:[]}]}]);
+ const r=await desktopRequest({operation:'send',delivery:'resume',resumeAfterTurnId:'stopped',threadId:id,codexHome:f.home,text:'Continue',requestId});
+ assert.equal(r.status,'accepted');
+ const other=await desktopRequest({operation:'send',delivery:'resume',resumeAfterTurnId:'other',threadId:id,codexHome:f.home,text:'Stale',requestId});
+ assert.equal(other.sent,false);assert.equal(other.code,'thread_changed');
+ assert.equal(f.calls.filter(c=>c.method==='thread-follower-start-turn').length,1);
+});
+
+const asyncQuestion={type:'agentMessage',id:'call-question',phase:'final_answer',delivery:'async',text:'选一个方向',questions:[{title:'选一个方向',options:['方向 A','方向 B']}]};
+test('async questions are exposed separately and answers use the original native reply envelope',async t=>{
+ const state={...idle,threadRuntimeStatus:{type:'active'},turns:[{turnId:'active',status:'inProgress',items:[asyncQuestion]}]};
+ const f=await fakeDesktop(t,[state]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ assert.equal(h.asyncQuestions.length,1);assert.equal(h.messages[0].isQuestion,true);
+ assert.equal(h.asyncQuestions[0].id,JSON.stringify(['request_user_input_async','call-question',0]));
+ const r=await desktopRequest({operation:'answer',delivery:'now',threadId:id,codexHome:f.home,questionKey:h.asyncQuestions[0].key,text:'方向 B',requestId});
+ assert.equal(r.status,'accepted');const call=f.calls.find(c=>c.method==='thread-follower-steer-turn');
+ const text=call.params.input[0].text;assert.ok(text.startsWith('<send_user_message_question_reply>\n'));
+ const answer=JSON.parse(text.slice(text.indexOf('\n')+1,text.lastIndexOf('\n')));
+ assert.deepEqual(answer,[{questionItemId:h.asyncQuestions[0].id,question:'选一个方向',answer:'方向 B'}]);
+});
+test('answered async questions disappear, and an old question key cannot answer a changed question',async t=>{
+ const reply='<send_user_message_question_reply>\n'+JSON.stringify([{questionItemId:JSON.stringify(['request_user_input_async','call-question',0]),question:'选一个方向',answer:'方向 A'}])+'\n</send_user_message_question_reply>';
+ const f=await fakeDesktop(t,[{...idle,turns:[{turnId:'t',status:'completed',items:[asyncQuestion,{type:'userMessage',id:'reply',clientId:requestId,content:[{type:'text',text:reply}]}]}]}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});assert.equal(h.asyncQuestions.length,0);assert.equal(h.messages[1].clientMessageId,requestId);
+ const changed=await desktopRequest({operation:'answer',delivery:'now',threadId:id,codexHome:f.home,questionKey:'0'.repeat(64),text:'stale',requestId:'cccccccc-cccc-7ccc-8ccc-cccccccccccc'});
+ assert.equal(changed.sent,false);assert.equal(changed.code,'question_changed');
+ assert.equal(f.calls.some(c=>c.method==='thread-follower-start-turn'||c.method==='thread-follower-steer-turn'),false);
+});

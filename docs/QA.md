@@ -176,3 +176,14 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 用户气泡靠右、过程采用灰色虚线时间线、最终回复为白色卡片与绿色侧线，文字和图标共同区分。对 7 条合成消息回读确认 user/commentary/final_answer/final/无 phase 均按预期呈现，旧无阶段消息没有误标成最终。390×844 与 1280×800 无横向溢出，表格可读、代码可独立横向滚动，控制台无 warn/error。构建及 8 项 Markdown/刷新回归通过；没有新增镜像样式实现的测试，没有发送真实 query。证据为 `/tmp/pocket-message-qa.json` 与同目录 `pocket-messages-mobile.png`、`pocket-messages-desktop.png`，这些临时截图不进 Git。
 
 - 正式发布源码 3838ed8 / 部署 69e3de36-48c8-45fd-96ac-32639e1080f9，10 文件哈希、DNS/TLS 与匿名保护通过。正式页面 80 条消息显示用户 15、过程 55、最终回复 10；390px 无溢出，输入区可见，无 console warn/error，测试登录退出。轮询曾使一个 waitFor 定位器失效，后续直接 DOM 回读正常，不视作产品报错。`/tmp/pocket-message-live.json`。
+
+
+## 2026-09-28 停止执行、异步提问与移动精简
+
+- 87 项测试通过：条件中断不会影响新轮次、接收与 interrupted 分离、未知结果不重试、停止暂停队列、恢复只针对明确中断轮；异步问题沿用原 questionItemId 和回复封装、已回答/变化题目不能重复提交、发送账本防重；原有回归通过。
+- 真实公网中断受控原任务：interrupted + idle，待发消息保留且未进入历史；测试条目清理、暂停解除、原归档恢复，0 工具调用。`/tmp/pocket-stop-live.json`。
+- 隔离浏览器停止 → 暂停队列 → 恢复排队只记录一次 stop 和一次 resume send，输入区可见；Safari 模拟器实际点击停止后显示已中断。`/tmp/pocket-stop-ui.json`、`/tmp/pocket-stop-ios.json`。
+- 移动精简将 390×844 对话区从 373px 提升到 566px。上方大摘要、技术说明和底栏收起，停止/上下文/异常仍可见，压缩可展开访问。旧截图捕获了侧栏过渡帧，不用作前后视觉证据；几何度量和精简后截图保留。`/tmp/pocket-mobile-density-after.json`。
+- 异步回答目前以协议、隔离 UI 验证为主；实际选择需由用户作出，未代答归档偏好。PWA 真机仍待验。
+
+异步回答补充验收：选项回答和自由文本各提交一次，均退出待答卡片。iOS Safari 第一次提交曾仅收起键盘；修复为键盘实际收起前保持布局，并记录题卡编辑状态，复测单次点击即提交。输入底部 338px、提交按钮底部 390px，均高于键盘；回执 `/tmp/pocket-question-ui.json`，截图 `/tmp/pocket-question-ios.png`。新增焦点移出但键盘仍遮挡时保持布局的回归。

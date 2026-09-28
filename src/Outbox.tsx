@@ -5,9 +5,10 @@ import type { QueryDraft } from "./Conversation";
 import { api } from "./api";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
-export default function Outbox({ threadId, items, disabled, allowSend, refresh, drafts }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, refresh, drafts }: {
   threadId: string;
   items: QueuedMessage[];
+  paused?: { stopId: string } | null;
   disabled: boolean;
   allowSend: boolean;
   refresh: () => Promise<void> | undefined;
@@ -48,10 +49,21 @@ export default function Outbox({ threadId, items, disabled, allowSend, refresh, 
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(null); }
   };
+  const resumeQueue = async () => {
+    if (!paused || busy) return;
+    setBusy("queue"); setError("");
+    try {
+      await api(`/api/tasks/${threadId}/queue/resume`, "POST", { expectedStopId: paused.stopId });
+      await refresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(null); }
+  };
   if (!items.length) return null;
   return (
     <section className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading"><strong>待发送 · {items.length}</strong><span>当前轮完成后依次发送</span></div>
+      <div className="outbox-heading"><strong>待发送 · {items.length}</strong><span>{paused ? "自动发送已暂停" : "当前轮完成后依次发送"}</span>
+        {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
+      </div>
       {items.map(item => {
         const mutable = ["queued", "rejected", "editing"].includes(item.status);
         return <div className="outbox-item" key={item.id}>
@@ -62,7 +74,7 @@ export default function Outbox({ threadId, items, disabled, allowSend, refresh, 
             <small>{busy === item.id || item.status === "pending" ? "正在提交…" :
               item.status === "unknown" ? "结果待确认，不会自动重发" :
               item.status === "editing" ? "编辑中，已暂停发送" :
-              item.status === "rejected" ? "发送未完成，可编辑后重试" : "排队中"}</small>
+              item.status === "rejected" ? "发送未完成，可编辑后重试" : paused ? "已暂停" : "排队中"}</small>
             {editing?.id === item.id ? <>
               <button disabled={!!busy || disabled || !text.trim()} onClick={() => void act(item, "save")}>保存</button>
               <button disabled={!!busy || disabled} onClick={() => void act(item, "resume")}>取消编辑</button>

@@ -4,10 +4,12 @@ export function bindInspectorViewport(panel: HTMLElement, browser = window) {
   const viewport = browser.visualViewport;
   const narrow = browser.matchMedia("(max-width: 760px)");
   let frame = 0;
+  let keyboardOpen = false;
   const clear = () => {
     panel.style.removeProperty("--inspector-viewport-height");
     panel.style.removeProperty("--inspector-viewport-top");
     panel.removeAttribute("data-keyboard-open");
+    keyboardOpen = false;
   };
   const update = () => {
     frame = 0;
@@ -21,8 +23,11 @@ export function bindInspectorViewport(panel: HTMLElement, browser = window) {
     const active = browser.document.activeElement;
     const editing = !!active && panel.contains(active) &&
       active.matches("input, textarea, [contenteditable='true']");
-    panel.toggleAttribute("data-keyboard-open", editing &&
-      (browser.innerHeight - height > 80 || height < 520));
+    // Keep the layout steady during the tap that blurs an input to submit it.
+    // Release it when the keyboard's viewport actually returns.
+    const obscured = browser.innerHeight - height > 80;
+    keyboardOpen = (editing && (obscured || height < 520)) || (keyboardOpen && obscured);
+    panel.toggleAttribute("data-keyboard-open", keyboardOpen);
   };
   const schedule = () => {
     if (!frame) frame = browser.requestAnimationFrame(update);

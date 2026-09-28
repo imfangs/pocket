@@ -1911,14 +1911,17 @@ hr {
   }
 }
 
-.context-status { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; flex-shrink: 0; padding: 3px 0; font-size: 11px; color: #64725e; }
-.context-status summary { cursor: pointer; padding: 6px 0; }
-.context-status details[open] { position: absolute; bottom: 100%; left: 0; right: 0; z-index: 3; background: #f7f9f4; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; box-shadow: 0 4px 20px #0001; }
-.context-status details p { line-height: 1.6; margin: 6px 0; }
-.context-compact { border: 0; background: none; padding: 6px 2px; color: #365e4c; font-size: 11px; }
+.conversation-toolbar { position: relative; gap: 6px; }
+.conversation-overview { align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.conversation-controls { align-items: center; flex-shrink: 0; }
+.context-status { font-size: 10px; color: #64725e; }
+.context-status summary { cursor: pointer; padding: 8px 0; }
+.context-popover { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 4; max-height: min(300px, 60dvh); overflow: auto; background: #f7f9f4; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 4px 20px #0001; font-size: 12px; }
+.context-popover p { line-height: 1.6; margin: 6px 0; }
+.context-compact { border: 1px solid #cbd8c5; border-radius: 6px; background: #fff; padding: 8px 10px; color: #365e4c; font-size: 12px; }
 .context-compact:disabled { opacity: .45; cursor: default; }
-.context-operation, .context-status > .inline-error { flex-basis: 100%; margin: 0; }
-@media (pointer: coarse) { .context-compact, .context-status summary { min-height: 36px; touch-action: manipulation; } }
+.context-operation { margin: 0; }
+@media (pointer: coarse) { .context-compact { min-height: 44px; } .context-status summary { min-height: 36px; } }
 
 .request-actions { flex-shrink: 1; min-height: 80px; max-height: 48%; overflow: auto; overscroll-behavior: contain; padding: 8px 0; font-size: 12px; }
 .request-actions > strong { color: #745e30; }
@@ -1930,3 +1933,59 @@ hr {
 .approval-buttons { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .approval-buttons button { min-height: 44px; padding: 8px 12px; border: 1px solid #d9d4c8; border-radius: 7px; touch-action: manipulation; }
 .approval-buttons button:disabled { opacity: .5; }
+
+.stop-execution {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; min-width: 68px; padding: 7px 9px; margin-right: 4px;
+  border: 1px solid #d8b7af; border-radius: 8px; background: #fff7f4;
+  color: #8e3d2d; font-size: 12px; font-weight: 600; touch-action: manipulation;
+}
+.stop-execution:disabled { opacity: .55; }
+.stop-execution:active:not(:disabled) { background: #f7e5df; }
+.resume-queue { margin-left: auto; padding: 6px 8px; border: 1px solid #cbd8c5; background: #f5f8f2; border-radius: 6px; color: #365e4c; font-size: 11px; }
+@media (pointer: coarse) { .stop-execution, .resume-queue { min-height: 44px; } }
+
+.inspector-mobile-title { display: none; }
+@media (max-width: 760px) {
+  .workspace-header { padding: 10px 14px; }
+  .heading p, .search-box kbd, .workspace-footer, .row-open { display: none; }
+  .heading h1 { font-size: 20px; }
+  .filter-row { margin-top: 9px; }
+  .inspector-header { height: 46px; padding: 0 14px; gap: 8px; }
+  .inspector-header .inspector-desktop-label { display: none; }
+  .inspector-mobile-title { display: block; min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: #314c32; }
+  .inspector-header .icon-button { width: 40px; min-height: 40px; flex-shrink: 0; }
+  .inspector-tabs { padding: 0 14px; }
+  .inspector-tabs button { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+  .inspector-conversation { padding: 4px 14px 0; }
+  .inspector-conversation > .inspector-summary { display: none; }
+  .conversation-toolbar { min-height: 44px; padding: 0; }
+  .conversation-overview { gap: 8px; }
+  .conversation-status .routine-hint, .composer-actions > small { display: none; }
+  .conversation-status { padding: 2px 0; }
+  .conversation-status:empty { padding: 0; }
+  .composer-actions { justify-content: flex-end; margin-top: 6px; }
+  .conversation-composer { padding-top: 6px; }
+  .history-boundary { padding: 4px 0; margin: 0; font-size: 10px; }
+  .list-caption { height: 34px; padding-right: 15px; }
+  .task-row { min-height: 72px; }
+}
+
+.question-prompts { flex-shrink: 1; min-height: 90px; max-height: 48%; overflow: auto; overscroll-behavior: contain; padding: 8px 0; font-size: 12px; }
+.question-prompts > strong { color: #52644a; }
+.question-card { padding: 12px; border: 1px solid #d8e1cf; border-radius: 10px; background: #f7faf3; margin-top: 7px; }
+.question-title { line-height: 1.6; margin: 0 0 10px; overflow-wrap: anywhere; }
+.question-option { display: flex; align-items: flex-start; gap: 8px; padding: 9px 7px; min-height: 40px; line-height: 1.5; cursor: pointer; border-radius: 6px; }
+.question-option:has(input:checked) { background: #e7efdf; }
+.question-option input { margin: 3px 0 0; flex-shrink: 0; accent-color: #4e7042; }
+.question-custom { background: none; border: 0; padding: 8px 7px; color: #426b44; font-size: 12px; }
+.inspector .question-card textarea { display: block; width: 100%; min-height: 56px; max-height: 110px; font-size: 16px; resize: none; }
+.question-submit { display: flex; justify-content: flex-end; margin-top: 8px; }
+.question-submit button, .question-custom { min-height: 40px; touch-action: manipulation; }
+@media (pointer: coarse) { .question-submit button, .question-option { min-height: 44px; } }
+
+@media (max-width: 760px) {
+  .inspector[data-keyboard-open] .conversation:has(.question-card[data-editing] textarea) .conversation-composer,
+  .inspector[data-keyboard-open] .conversation:has(.question-card[data-editing] textarea) .conversation-messages { display: none; }
+  .inspector[data-keyboard-open] .conversation:has(.question-card[data-editing] textarea) .question-prompts { max-height: none; flex: 1; }
+}

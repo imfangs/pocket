@@ -118,8 +118,70 @@ def pending_requests(state):
     return result
 
 
+def async_questions(state):
+    turns = ordered_turns(state)
+    answered = set()
+    for turn in turns:
+        items = list(turn.get("items") or [])
+        if (turn.get("params") or {}).get("input"):
+            items.append({"type": "userMessage", "content": turn["params"]["input"]})
+        for item in items:
+            if item.get("type") == "userMessage":
+                content = item.get("content") or []
+            elif item.get("type") == "steeringUserMessage" and item.get("status") == "accepted":
+                content = item.get("input") or []
+            else:
+                continue
+            if len(content) != 1 or content[0].get("type") != "text":
+                continue
+            text = content[0].get("text", "").strip()
+            start, end = "<send_user_message_question_reply>", "</send_user_message_question_reply>"
+            if text.startswith(start) and text.endswith(end):
+                try:
+                    rows = json.loads(text[len(start):-len(end)])
+                    for row in rows if isinstance(rows, list) else [rows]:
+                        if isinstance(row, dict) and isinstance(row.get("answer"), str):
+                            answered.add(row.get("questionItemId"))
+                except (ValueError, TypeError):
+                    pass
+    questions = []
+    for turn in turns[-30:]:
+        for item in turn.get("items", []):
+            if item.get("type") != "agentMessage" or item.get("delivery") != "async":
+                continue
+            if not isinstance(item.get("id"), str) or not isinstance(item.get("questions"), list):
+                continue
+            for index, question in enumerate(item["questions"]):
+                if not isinstance(question, dict):
+                    continue
+                title, options = question.get("title"), question.get("options") or []
+                qid = json.dumps(["request_user_input_async", item.get("id"), index], separators=(",", ":"), ensure_ascii=False)
+                if qid in answered or not isinstance(title, str) or not title or len(title) > 8000:
+                    continue
+                if not isinstance(options, list) or len(options) > 20 or any(not isinstance(o, str) or len(o) > 2000 for o in options):
+                    continue
+                shown = {"id": qid, "sourceMessageId": item.get("id"), "title": title, "options": options}
+                questions.append({**shown, "key": request_key(shown)})
+    result, budget = [], 45000
+    for question in reversed(questions[-10:]):
+        size = len(question["title"]) + sum(map(len, question["options"]))
+        if size <= budget:
+            result.insert(0, question)
+            budget -= size
+    return result
+
+
 def can_compact(state):
     return writable(state)[0] and state.get("threadRuntimeStatus", {}).get("type") == "idle"
+
+
+def active_turn_id(state):
+    turns = [t for t in ordered_turns(state) if t.get("turnId")]
+    if state.get("resumeState") != "resumed" or state.get("threadRuntimeStatus", {}).get("type") != "active":
+        return None
+    if state.get("threadSource") == "subagent" or state.get("parentThreadId"):
+        return None
+    return turns[-1]["turnId"] if turns and turns[-1].get("status") == "inProgress" else None
 
 
 def history(state):
@@ -140,7 +202,7 @@ def history(state):
             message_id = item.get("id") or str(tid)+":"+str(len(messages))
             if item.get("type") == "userMessage":
                 text = input_text(item.get("content"))
-                msg = {"role": "user", "clientMessageId": params.get("clientUserMessageId") or item.get("clientId")}
+                msg = {"role": "user", "clientMessageId": item.get("clientId") or params.get("clientUserMessageId")}
             elif item.get("type") == "steeringUserMessage" and item.get("status") == "accepted":
                 # Input added mid-turn remains a distinct visible user message.
                 # The desktop may later materialize it as a regular userMessage.
@@ -153,6 +215,7 @@ def history(state):
             elif item.get("type") == "agentMessage" and item.get("phase") != "analysis":
                 text = item.get("text", "")
                 msg = {"role": "assistant", "phase": item.get("phase"),
+                       "isQuestion": item.get("delivery") == "async" and bool(item.get("questions")),
                        "timestamp": (turn.get("aeonAssistantMessageStartedAtMsById") or {}).get(item.get("id")) or turn.get("turnStartedAtMs")}
             else:
                 continue
@@ -173,6 +236,10 @@ def history(state):
     return {"source": "desktop", "messages": messages, "runtime": state.get("threadRuntimeStatus", {}).get("type"),
             "contextUsage": context_usage(state), "compaction": compaction_state(state), "canCompact": can_compact(state),
             "pendingRequests": requests,
+            "asyncQuestions": async_questions(state),
+            "activeTurnId": active_turn_id(state), "canStop": active_turn_id(state) is not None,
+            "recentTurns": [{"id": t.get("turnId"), "status": t.get("status")} for t in turns[-30:] if t.get("turnId")],
+            "latestTurnStatus": turns[-1].get("status") if turns else None,
             "canSend": allowed, "hint": hint, "hasMore": not state.get("turnsPagination", {}).get("hasLoadedOldest", False) or len(turns) > 30,
             "queueReady": allowed and state.get("threadRuntimeStatus", {}).get("type") == "idle" and
                           (not turns or turns[-1].get("status") == "completed"),
@@ -194,6 +261,17 @@ def main():
             owner, state = client.snapshot(thread_id)
             if data["operation"] == "history":
                 return {"ok": True, **history(state)}
+            if data["operation"] == "stop":
+                target = data.get("expectedTurnId")
+                if not isinstance(target, str) or not target:
+                    return {"ok": False, "code": "invalid_turn", "sent": False}
+                fresh_owner, fresh = client.snapshot(thread_id)
+                if fresh_owner != owner or active_turn_id(fresh) != target:
+                    return {"ok": False, "code": "turn_changed", "sent": False}
+                dispatched = True
+                client.request("thread-follower-interrupt-turn", {"conversationId": thread_id,
+                    "mode": "user-stop", "expectedTurnId": target}, 4, owner)
+                return {"ok": True, "status": "accepted", "turnId": target}
             if data["operation"] == "respond":
                 fresh_owner, fresh = client.snapshot(thread_id)
                 shown = next((r for r in pending_requests(fresh) if r["key"] == data.get("requestKey")), None)
@@ -216,7 +294,7 @@ def main():
                 dispatched = True
                 client.request("thread-follower-compact-thread", {"conversationId": thread_id}, 1, owner)
                 return {"ok": True, "status": "accepted"}
-            if data["operation"] != "send":
+            if data["operation"] not in ("send", "answer"):
                 return {"ok": False, "code": "unsupported_operation", "sent": False}
             message_id = data["requestId"]
             for turn in ordered_turns(state):
@@ -235,9 +313,21 @@ def main():
             if fresh_owner != owner or not writable(fresh)[0]:
                 return {"ok": False, "code": "thread_changed", "sent": False}
             active = fresh.get("threadRuntimeStatus", {}).get("type") == "active"
+            if data["operation"] == "answer":
+                question = next((q for q in async_questions(fresh) if q["key"] == data.get("questionKey")), None)
+                if question is None:
+                    return {"ok": False, "code": "question_changed", "sent": False}
+                data["text"] = "<send_user_message_question_reply>\n" + json.dumps([{
+                    "questionItemId": question["id"], "question": question["title"], "answer": data["text"]
+                }], ensure_ascii=False, separators=(",", ":")) + "\n</send_user_message_question_reply>"
             if active and data.get("delivery") != "now":
                 return {"ok": False, "code": "thread_active", "sent": False}
             turns = ordered_turns(fresh)
+            if data.get("delivery") == "resume" and (
+                fresh.get("threadRuntimeStatus", {}).get("type") != "idle" or not turns or
+                turns[-1].get("turnId") != data.get("resumeAfterTurnId") or turns[-1].get("status") != "interrupted"
+            ):
+                return {"ok": False, "code": "thread_changed", "sent": False}
             if data.get("delivery") == "auto" and (
                 fresh.get("threadRuntimeStatus", {}).get("type") != "idle" or
                 (turns and turns[-1].get("status") != "completed")

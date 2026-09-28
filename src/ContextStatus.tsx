@@ -39,15 +39,17 @@ export default function ContextStatus({ threadId, history, disabled, refresh }: 
   };
   return <div className="context-status">
     <details>
-      <summary>{usage ? `上下文 ${Math.round(usage.percent)}%` : "上下文用量暂不可用"}</summary>
-      <p>{usage ? `${usage.usedTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens，剩余 ${usage.remainingTokens.toLocaleString()}。与桌面同口径，按最近一次模型用量更新。` : "连接原任务后显示桌面报告的用量，不根据聊天字数估算。"}</p>
-      <p>压缩会把较早内容总结为较短上下文，可能省略细节。任务空闲且待发列表为空时可使用。</p>
+      <summary>{history?.compaction?.active ? "压缩中…" : pending ? "压缩待核对" : usage ? `上下文 ${Math.round(usage.percent)}%` : "上下文"}</summary>
+      <div className="context-popover">
+        <p>{usage ? `${usage.usedTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens，剩余 ${usage.remainingTokens.toLocaleString()}。按最近一次模型用量更新。` : "连接原任务后可查看上下文用量。"}</p>
+        <p>压缩会将较早内容总结为较短上下文，可能省略细节。任务空闲且待发列表为空时可使用。</p>
+        <button type="button" className="context-compact" disabled={disabled || busy || (!pending && !history?.canCompact)} onClick={() => void act()}>
+          {busy ? "处理中…" : pending ? "核对压缩状态" : "压缩上下文"}
+        </button>
+        {(history?.compaction?.active || status || uncertainId || error) && <p className={error ? "inline-error" : "context-operation"} role="status">
+          {error || (history?.compaction?.active ? "正在压缩上下文…" : uncertainId ? "提交结果待核对，不会自动重试" : labels[status || ""])}
+        </p>}
+      </div>
     </details>
-    <button type="button" className="context-compact" disabled={disabled || busy || (!pending && !history?.canCompact)} onClick={() => void act()}>
-      {busy ? "处理中…" : pending ? "核对压缩状态" : "压缩上下文"}
-    </button>
-    {(history?.compaction?.active || status || uncertainId || error) && <p className={error ? "inline-error" : "context-operation"} role="status">
-      {error || (history?.compaction?.active ? "正在压缩上下文…" : uncertainId ? "提交结果待核对，不会自动重试" : labels[status || ""])}
-    </p>}
   </div>;
 }
