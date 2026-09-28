@@ -10,7 +10,7 @@
 
 已按用户要求创建独立任务「分析 ChatGPT 与 Claude 移动端，为 Pocket 提炼借鉴方案」和「学习 Happy 等移动 Coding Agent 源码，为 Pocket…」，在各自 study 工作树研究，不修改当前 Pocket。用户可在对应任务继续，研究结果不搬进本任务。
 
-新建任务按钮尚未实现：现有 owner IPC 服务于已存在任务；新建 deep link 只能预填 Mac 输入框。只读探测桌面 App Tools 原生管道被拒绝，日志 2026-09-28T11:59:44Z 的原因是 missing-code-signing-identity。没有绕过签名检查或另起 app-server 来制造表面成功。待找到受支持且能独立常驻的创建路径后再接入。
+新建任务按钮尚未实现：现有 owner IPC 服务于已存在任务；新建 deep link 只能预填 Mac 输入框。只读探测桌面 App Tools 原生管道被拒绝，日志 2026-09-28T11:59:44Z 的原因是 missing-code-signing-identity。后续只读核验已确认管道限定 OpenAI Team ID `2DC432GLL2`、固定程序标识及父/祖父进程身份链；自己的 Developer ID、临时签名或公证无法满足。没有修改 App 或放宽校验。依据见 [签名边界](docs/research/2026-09-28-peer-signing-boundary.md)，待找到受支持且能独立常驻的创建路径后再接入。
 
 ## 上下文用量、压缩与输入增高（2026-09-28，已发布）
 
