@@ -189,7 +189,9 @@ export class DesktopService {
       response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
     const asyncQuestions = (data.asyncQuestions || []).map(question => ({ ...question,
       response: this.store.db.prepare("SELECT d.id AS requestId,d.status FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? ORDER BY d.created_at DESC LIMIT 1").get(id, question.key) || null }));
-    return { ...data, outbox, pendingRequests, canCompact: !!data.canCompact && !blocked && !outbox.length && !this.sending.has(id),
+    return { ...data, outbox, pendingRequests, canCompact: targetAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
+      canAttemptCompact: targetAvailable && !blocked && !this.sending.has(id) &&
+        (!!data.canCompact || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
       asyncQuestions,
       canQueue: targetAvailable && outbox.length < 20,
       canAttemptSend: targetAvailable && !blocked && !this.sending.has(id) &&
@@ -280,12 +282,12 @@ export class DesktopService {
       if (old.thread_id !== id) throw new AppError("请求编号已用于其他任务", 409);
       return { requestId: old.id, status: old.status, code: old.code };
     }
-    if (thread.archived || thread.missing || this.sending.has(id) || this.outbox(id).length || this.compactionPending(id) || this.stops.pending(id))
-      throw new AppError("请等当前操作和待发消息完成后再压缩", 409);
+    if (thread.archived || thread.missing || this.sending.has(id) || this.compactionPending(id) || this.stops.pending(id))
+      throw new AppError("请等当前操作完成并确认任务可用后再压缩", 409);
     this.sending.add(id);
     try {
       const state = await this.loadHistory(id);
-      if (!state.canCompact || state.source !== "desktop" || this.outbox(id).length) throw new AppError("请在任务空闲且待发列表为空时压缩", 409);
+      if (!state.canCompact || state.source !== "desktop") throw new AppError("请等本轮执行结束、原任务连接恢复后再压缩", 409);
       this.store.db.prepare("INSERT INTO compactions VALUES(?,?,'pending',?,NULL,?)")
         .run(input.requestId, id, state.compaction?.latestId || null, Date.now());
       let result;

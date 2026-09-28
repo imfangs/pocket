@@ -1,6 +1,7 @@
 import * as Popover from "@radix-ui/react-popover";
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { History } from "./conversationFeed";
 import { api } from "./api";
 
@@ -8,7 +9,6 @@ const labels: Record<string, string> = {
   pending: "正在提交压缩…",
   accepted: "压缩已提交，等待完成…",
   unknown: "压缩结果待核对，不会自动重试",
-  completed: "上下文压缩已完成",
   failed: "压缩未完成，请检查原任务",
   rejected: "未启动压缩，可以稍后重试",
 };
@@ -26,10 +26,20 @@ export default function ContextStatus({
   const [busy, setBusy] = useState(false);
   const [uncertainId, setUncertainId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const watchedRequest = useRef<string | null>(null);
   const usage = history?.contextUsage;
   const status = history?.compactionRequest?.status;
   const pending =
     !!uncertainId || ["pending", "accepted", "unknown"].includes(status || "");
+  const requestId = history?.compactionRequest?.requestId;
+  useEffect(() => {
+    if (!requestId) return;
+    if (["pending", "accepted", "unknown"].includes(status || "")) watchedRequest.current = requestId;
+    if (status === "completed" && watchedRequest.current === requestId) {
+      watchedRequest.current = null;
+      toast.success("上下文压缩已完成", { id: `compact-${requestId}`, duration: 3500 });
+    }
+  }, [requestId, status]);
   const act = async () => {
     if (busy) return;
     setBusy(true);
@@ -47,6 +57,7 @@ export default function ContextStatus({
         }
       } else {
         setUncertainId(id);
+        watchedRequest.current = id;
         await api(`/api/tasks/${threadId}/compact`, "POST", { requestId: id });
         setUncertainId(null);
         await refresh();
@@ -107,18 +118,20 @@ export default function ContextStatus({
                 : "连接原任务后可查看上下文用量。"}
             </p>
             <p>
-              压缩会将较早内容总结为较短上下文，可能省略细节。任务空闲且待发列表为空时可使用。
+              压缩会将较早内容总结为较短上下文，可能省略细节。压缩期间会暂停待发消息。
             </p>
+            {!pending && history?.runtime === "active" && <p>本轮正在执行，结束后可手动压缩。</p>}
+            {!pending && history?.source !== "desktop" && history?.canAttemptCompact && <p>点击后会先连接原任务，核验空闲状态。</p>}
             <button
               type="button"
               className="context-compact"
-              disabled={disabled || busy || (!pending && !history?.canCompact)}
+              disabled={disabled || busy || (!pending && !(history?.canAttemptCompact ?? history?.canCompact))}
               onClick={() => void act()}
             >
               {busy ? "处理中…" : pending ? "核对压缩状态" : "压缩上下文"}
             </button>
             {(history?.compaction?.active ||
-              status ||
+              labels[status || ""] ||
               uncertainId ||
               error) && (
               <p

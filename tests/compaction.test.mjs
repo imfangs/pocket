@@ -8,8 +8,8 @@ const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',rid='bbbbbbbb-bbbb-7bbb-8bbb-bbb
 function fixture(t){
  const dir=mkdtempSync(join(tmpdir(),'pocket-compact-'));const store=new NavigatorStore(dir);
  store.sync({threads:[{id,title:'Fixture',archived:false}],projects:[],sourceInfo:{}});
- const state={calls:0,result:{ok:true},history:{ok:true,source:'desktop',runtime:'idle',canSend:true,canCompact:true,queueReady:true,compaction:{active:false,latestId:'old',completed:true,turnStatus:'completed'},messages:[]}};
- const request=async p=>{if(p.operation==='history')return state.history;state.calls++;assert.equal(p.operation,'compact');assert.equal(p.expectedCompactionId,'old');return state.result;};
+ const state={calls:0,sendCalls:0,result:{ok:true},history:{ok:true,source:'desktop',runtime:'idle',canSend:true,canCompact:true,queueReady:true,compaction:{active:false,latestId:'old',completed:true,turnStatus:'completed'},messages:[]}};
+ const request=async p=>{if(p.operation==='history')return state.history;if(p.operation==='send'){state.sendCalls++;return {ok:true};}state.calls++;assert.equal(p.operation,'compact');assert.equal(p.expectedCompactionId,'old');return state.result;};
  const service=new DesktopService(store,'/fixture',request);
  t.after(()=>{service.stopQueue();store.close();rmSync(dir,{recursive:true,force:true});});
  return {store,state,service,request};
@@ -33,9 +33,19 @@ test('unknown compaction survives restart without retry and cannot be replaced b
  await assert.rejects(restarted.compact(id,{requestId:'cccccccc-cccc-7ccc-8ccc-cccccccccccc'}),e=>e.status===409);
  assert.equal(state.calls,1);
 });
-test('queued work prevents compaction and unsupported overrides are rejected',async t=>{
+test('idle compaction holds queued work until native completion without deleting it',async t=>{
  const {service:s,state}=fixture(t);
  await s.send(id,{requestId:rid,text:'Later',enqueue:true});
+ assert.equal((await s.history(id)).canCompact,true);
+ assert.equal((await s.compact(id,{requestId:rid})).status,'accepted');
+ await s.processQueue();assert.equal(state.sendCalls,0);assert.equal(s.outbox(id).length,1);
+ state.history.compaction={active:false,latestId:'new',completed:true,turnStatus:'completed'};s.cache.clear();
+ await s.history(id);await s.processQueue();
+ assert.equal(state.sendCalls,1);assert.equal(s.outbox(id).length,0);
+});
+test('active native tasks and unsupported overrides still reject compaction',async t=>{
+ const {service:s,state}=fixture(t);
+ state.history={...state.history,runtime:'active',canCompact:false};
  await assert.rejects(s.compact(id,{requestId:rid}),e=>e.status===409);
  await assert.rejects(s.compact(id,{requestId:rid,model:'override'}),e=>e.status===400);
  assert.equal(state.calls,0);

@@ -37,6 +37,7 @@ export type History = {
   pendingRequests?: PendingRequest[];
   contextUsage?: { usedTokens: number; contextWindow: number; remainingTokens: number; percent: number } | null;
   canCompact?: boolean;
+  canAttemptCompact?: boolean;
   compaction?: { active: boolean; latestId: string | null; completed?: boolean };
   compactionRequest?: { requestId: string; status: string; code?: string } | null;
 };

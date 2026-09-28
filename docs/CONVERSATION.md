@@ -48,7 +48,7 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 会话顶部状态栏显示上下文占用百分比，展开可查看 used / window / remaining tokens。值来自原 App 的 latestTokenUsageInfo.last.totalTokens 与 modelContextWindow，与桌面保持同口径；不是累计计费用量，也不以网页显示的消息字数估算。只有已取得实时桌面快照时显示，字段缺失时标记暂不可用。
 
-「压缩上下文」只在任务已连接且空闲、待发列表为空时可用。较早内容会被总结为更短上下文，可能省略细节；按钮旁的说明可展开。压缩期间暂停发送和自动队列处理。POST /api/tasks/:id/compact 只接受 `{requestId}`，GET /api/tasks/:id/compact/:requestId 仅查询回执。
+「压缩上下文」在原任务空闲时可用，允许保留待发消息。较早内容会被总结为更短上下文，可能省略细节；按钮旁的说明可展开。压缩期间暂停执行派发和自动出队，仍可保存新的待发正文；原本已暂停/编辑中的队列不会被自动解锁。POST /api/tasks/:id/compact 只接受 `{requestId}`，GET /api/tasks/:id/compact/:requestId 仅查询回执。
 
 请求在本机 compactions 表记录编号、任务、基线事件 ID 和状态，不保存聊天正文。原 owner 收到 thread-follower-compact-thread v1 后返回 accepted；读取到基线之后的新 contextCompaction 完成事件后才显示 completed。失败和结果不明分别显示；未知回执不自动重放，重启未完成的提交标为 unknown。该内部接口未提供服务端幂等编号，最后一次状态校验与调用间仍有很短竞态；其他客户端也可能触发压缩，核对表示已观察到后续压缩事件，不强行归因给某一次点击。
 
@@ -119,3 +119,5 @@ Pocket 与 Codex 桌面的待发列表独立。已安装桌面版本的队列 IP
 `canSend` 表示最近桌面快照的接收状态；`canQueue` 表示可把正文存进 Mac 待发列表；`canAttemptSend` 表示可显式调用写侧重新连接并核验后发送，不能把它当已获得实时状态。已知审批/压缩/停止未确认、不兼容版本和不可用原任务不会开放直接发送。未知回执仍不自动重放。
 
 UI 仅在实际离线、输入为空、操作提交中或相应能力被明确禁止时禁用；原 owner 读取失败后默认保存为待发，不发送未验证的缓存状态。当前数据仍来自保存历史时说明连接恢复后发送。初次 owner 读取 2 秒回退；一分钟内的后续读取给 5 秒预算，最多保存 40 个最近读取记录。前 3 次回退后 2 秒再读，持续不可用时回到 8 秒，后台暂停规则不变。
+
+2026-09-29：当前原版界面在聊天执行中禁用手动压缩（安装版本 26.903.71938:8576 的 composer.compactSlashCommand.disabledInProgressToast），Pocket 保留这一条件。有待发消息不再是禁止压缩的理由，服务端以发送互斥锁及压缩请求账本优先暂停出队。历史暂时回退时 canAttemptCompact 允许显式重新连接并核验，只有原 owner 新鲜空闲状态才真正发起。旧 completed 回执仅留作去重，不再常驻显示；当前观察到的完成转移只提示 3.5 秒。pending/accepted/unknown 和错误继续可见，未知结果不自动重试。

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import PwaInstall from "./PwaInstall";
+import ThemeSwitch from "./ThemeSwitch";
 
 const App = lazy(() => import("./App"));
 export default function AccessGate() {
@@ -101,6 +102,7 @@ export default function AccessGate() {
           <App
             footerActions={
               <div className="access-actions">
+                <ThemeSwitch />
                 <PwaInstall />
                 <button
                   className="pwa-install"
@@ -202,6 +204,7 @@ export default function AccessGate() {
           <PwaInstall />
         </div>
         <p className="access-privacy">私人任务 · 口令保护</p>
+        <ThemeSwitch />
       </section>
     </main>
   );

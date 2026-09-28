@@ -1,0 +1,24 @@
+import { useSyncExternalStore } from "react";
+import { Sun, Moon, Monitor } from "lucide-react";
+
+const subscribe = (update: () => void) => {
+  window.addEventListener("pocket-theme-changed", update);
+  return () => window.removeEventListener("pocket-theme-changed", update);
+};
+const snapshot = () => document.documentElement.dataset.themePreference || "system";
+const choices = [
+  { value: "light", label: "亮色", Icon: Sun },
+  { value: "dark", label: "暗色", Icon: Moon },
+  { value: "system", label: "系统", Icon: Monitor },
+];
+export default function ThemeSwitch() {
+  const preference = useSyncExternalStore(subscribe, snapshot, () => "system");
+  return <div className="theme-switch" role="group" aria-label="外观主题">
+    {choices.map(({ value, label, Icon }) => <button key={value} type="button"
+      aria-label={value === "system" ? "跟随系统" : `${label}模式`}
+      aria-pressed={preference === value}
+      onClick={() => window.dispatchEvent(new CustomEvent("pocket-set-theme", { detail: value }))}>
+      <Icon size={14} aria-hidden="true" />{label}
+    </button>)}
+  </div>;
+}

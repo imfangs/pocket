@@ -189,7 +189,7 @@ export default function Conversation({
         </span>
           <TurnDuration timing={history?.turnTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
         </div>
-          <ContextStatus threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
+          <ContextStatus threadId={thread.id} history={history} disabled={!online || thread.archived || thread.missing} refresh={load} />
         </div>
         <div className="conversation-controls">
           <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} notify={setNotice} />

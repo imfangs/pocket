@@ -5,6 +5,7 @@ import AccessGate from "./AccessGate";
 import "./styles.css";
 import "./pwa.css";
 import "./polish.css";
+import "./theme.css";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AccessGate />
@@ -24,7 +25,7 @@ createRoot(document.getElementById("root")!).render(
           fontSize: 13,
           borderRadius: 14,
           background: "var(--ink)",
-          color: "white",
+          color: "var(--on-strong)",
           border: "none",
         },
       }}

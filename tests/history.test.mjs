@@ -253,6 +253,7 @@ test("quick history fallback keeps local queue available and a recent retry gets
   assert.equal(first.canSend,false);
   assert.equal(first.canQueue,true);
   assert.equal(first.canAttemptSend,true);
+  assert.equal(first.canAttemptCompact,true);
   const receipt=await service.send(id,{text:'Save while reconnecting',requestId:rid,enqueue:true});
   assert.equal(receipt.status,'queued');
   assert.equal(budgets.length,1);
@@ -260,6 +261,7 @@ test("quick history fallback keeps local queue available and a recent retry gets
   assert.deepEqual(budgets,[2000,5000]);
   compatible=false;service.cache.clear();
   assert.equal((await service.history(id)).canAttemptSend,false);
+  assert.equal((await service.history(id)).canAttemptCompact,false);
   s.sync({threads:[{id,title:'Fixture',archived:true}],projects:[],sourceInfo:{}});
   const archived=await service.history(id);
   assert.equal(archived.canAttemptSend,false);

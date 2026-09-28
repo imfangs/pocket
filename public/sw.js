@@ -1,5 +1,6 @@
-const CACHE = "navigator-public-shell-v2";
+const CACHE = "navigator-public-shell-v3";
 const PUBLIC_FILES = [
+  "/theme.js",
   "/offline.html",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
@@ -41,7 +42,7 @@ self.addEventListener("fetch", (event) => {
     return;
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: "no-store" })
         .then((response) =>
           response.status >= 500 ? caches.match("/offline.html") : response,
         )

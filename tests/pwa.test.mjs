@@ -6,10 +6,12 @@ test("worker handles real fetch failures and 502 navigations with only the publi
   const handlers = {};
   let fail = true;
   let cached=[];
+  const navigationFetches=[];
   const context = {
     URL,
     Response,
-    fetch: async () => {
+    fetch: async (_request, options) => {
+      navigationFetches.push(options);
       if (fail) throw new Error("offline");
       return new Response("origin unavailable", { status: 502 });
     },
@@ -31,7 +33,7 @@ test("worker handles real fetch failures and 502 navigations with only the publi
     context,
   );
   let installing;handlers.install({waitUntil:p=>installing=p});await installing;
-  assert.ok(cached.length>0&&cached.every(path=>path==='/offline.html'||path==='/manifest.webmanifest'||path.startsWith('/icons/')));
+  assert.ok(cached.length>0&&cached.every(path=>path==='/offline.html'||path==='/theme.js'||path==='/manifest.webmanifest'||path.startsWith('/icons/')));
   const navigation = async () => {
     let promise;
     handlers.fetch({
@@ -45,6 +47,7 @@ test("worker handles real fetch failures and 502 navigations with only the publi
     return (await promise).text();
   };
   assert.equal(await navigation(), "PUBLIC OFFLINE PAGE");
+  assert.equal(navigationFetches.at(-1).cache,"no-store");
   fail = false;
   assert.equal(await navigation(), "PUBLIC OFFLINE PAGE");
   let intercepted = false;

@@ -1,0 +1,77 @@
+:root { --on-strong: #fff; }
+.theme-switch { display: flex; gap: 3px; padding: 3px; margin: 8px 0; border: 1px solid var(--line); border-radius: 11px; }
+.theme-switch button { display: flex; align-items: center; justify-content: center; gap: 5px; flex: 1; min-width: 0; min-height: 36px; padding: 6px; border-radius: 8px; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
+.access-actions { flex-wrap: wrap; }
+.access-actions .theme-switch { flex: 0 0 100%; margin: 3px 0; }
+.theme-switch button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+.access-card > .theme-switch { max-width: 244px; margin: 24px auto 0; }
+@media (pointer:coarse) { .theme-switch button { min-height: 44px; } }
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #eceaf2; --on-strong: #19191f;
+  --surface: #18181e; --surface-soft: #111116; --surface-raised: #22222b;
+  --sidebar: #14141a; --line: #33323e; --soft: #282632;
+  --text-secondary: #b2adbf; --muted: #9d97ab;
+  --accent: #b9a6ff; --accent-soft: #302941; --green: var(--accent);
+  background: var(--surface); color: var(--ink);
+}
+[data-theme="dark"] ::selection { background: #594375; color: #fff; }
+[data-theme="dark"] :is(.workspace, .inspector, .with-inspector .inspector, .list-caption, .inspector-savebar, .access-screen) { background: var(--surface); }
+[data-theme="dark"] :is(.inspector-placeholder, .placeholder-symbol) { background: var(--surface-soft); }
+[data-theme="dark"] :is(.sidebar, .sidebar-bottom, .workspace-header, .workspace-footer, .save-row, .source-details, .access-install, .access-actions) { border-color: var(--line); }
+[data-theme="dark"] :is(.nav-item, .group-row, .field-label, .setting-switch, .settings-content h3, .question-title, .question-prompts > strong, .data-summary strong, .empty-list h2, .inspector-placeholder h2, .message-notice, .access-card h1, .access-brand, .row-first strong, .message-text) { color: var(--ink); }
+[data-theme="dark"] :is(.nav-item small, .nav-item svg, .group-select small, .sidebar-section-head, .local-status, .breadcrumb, .heading p, .sync-button, .icon-button, .row-second, .row-first time, .note-preview, .field-help, .review-date, .review-date small, .membership-list label, .save-row > span, .source-details, .source-details dt, .source-details dd, .text-button, .privacy-note, .privacy-note p, .data-summary, .data-summary p, .setting-switch small, .dialog .group-options, .source-line, .inspector-header > span, .inspector-placeholder p, .workspace-footer, .empty-list, .loading, .empty-list p, .list-end, .load-more, .list-caption, .pull-refresh-indicator, .pin-icon, .mobile-selection-toggle, .inspector-back-icon) { color: var(--muted); }
+[data-theme="dark"] :is(.nav-item.selected, .group-row.selected, .group-row.drop-target) { background: var(--accent-soft); color: var(--accent); }
+[data-theme="dark"] .nav-item.selected :is(svg, small) { color: var(--accent); }
+[data-theme="dark"] :is(.nav-item:hover, .group-row:hover, .icon-button:hover, .membership-list label:hover) { background: var(--soft); }
+[data-theme="dark"] :is(.task-row.is-selected, .task-row.is-checked) { background: #282235; }
+[data-theme="dark"] .task-row { border-color: var(--line); }
+[data-theme="dark"] .task-row::after { background: #292832; }
+[data-theme="dark"] :is(.search-box, .search-box:focus-within, .project-filter, .sort-control, .batch-bar, .intent-options button, .review-date input, textarea, dialog input:not([type="checkbox"]):not([type="color"]), dialog select, .passphrase-input) { background: var(--surface-raised); border-color: var(--line); color: var(--ink); }
+[data-theme="dark"] :is(.sort-control select, .project-filter, .search-box, .search-box input::placeholder, input::placeholder, textarea::placeholder, .search-box kbd) { color: var(--muted); }
+[data-theme="dark"] :is(.intent-options button.chosen, .inspector-tabs button[aria-selected="true"]) { background: var(--soft); color: var(--ink); border-color: #6b587f; }
+[data-theme="dark"] .inspector-tabs button { color: var(--muted); }
+[data-theme="dark"] :is(.secondary, .batch-bar button:not(.icon-button), .batch-bar select, .context-compact, .resume-queue) { background: var(--surface-raised); border-color: var(--line); color: var(--text-secondary); }
+[data-theme="dark"] :is(.primary, .brand-mark, .stop-execution, .toast, .access-toast) { color: var(--on-strong); }
+[data-theme="dark"] .access-toast { background: var(--ink); }
+[data-theme="dark"] .sync-button { background: transparent; }
+[data-theme="dark"] :is(.conversation-toolbar, .context-status, .context-trigger, .conversation-status, .history-boundary, .history-empty, .conversation-message small, .outbox-heading, .outbox-actions small, .inline-hint) { color: var(--text-secondary); }
+[data-theme="dark"] :is(.turn-duration, .message-duration, .message-label, .message-label time, .message-progress .message-label, .composer-actions small, .copy-button) { color: var(--muted); }
+[data-theme="dark"] .message-progress .message-text { color: #b3aabd; }
+[data-theme="dark"] .conversation-message.message-user { background: #30283f; }
+[data-theme="dark"] .conversation-message.message-progress { border-color: #484050; }
+[data-theme="dark"] .message-answer .message-label strong { color: var(--accent); }
+[data-theme="dark"] .message-markdown code, [data-theme="dark"] .question-option:has(input:checked) { background: #342c45; color: #d2bff0; }
+[data-theme="dark"] .conversation-messages { scrollbar-color: #5e566c transparent; }
+[data-theme="dark"] .message-markdown blockquote { border-color: #6d597f; color: var(--text-secondary); }
+[data-theme="dark"] :is(.code-block, .markdown-table th) { background: #202027; border-color: var(--line); }
+[data-theme="dark"] .code-block-header { color: var(--muted); border-color: var(--line); }
+[data-theme="dark"] .message-markdown pre code { color: #d0c9db; background: none; }
+[data-theme="dark"] :is(.markdown-table, .markdown-table th, .markdown-table td, .message-markdown hr) { border-color: var(--line); }
+[data-theme="dark"] .markdown-table th { color: var(--text-secondary); }
+[data-theme="dark"] .markdown-image-reference { color: var(--text-secondary); }
+[data-theme="dark"] :is(.conversation-composer, .question-card, .outbox-item) { background: var(--surface-raised); border-color: #3d3749; box-shadow: none; }
+[data-theme="dark"] .conversation-composer:focus-within { border-color: #9d83c7; box-shadow: 0 0 0 3px #b9a6ff0c; }
+[data-theme="dark"] .inspector .conversation-composer textarea { background: transparent; color: var(--ink); }
+[data-theme="dark"] .context-ring { stroke: #453d50; }
+[data-theme="dark"] .context-ring circle + circle { stroke: var(--accent); }
+[data-theme="dark"] :is(.context-popover, dialog) { background: #24212b; color: var(--text-secondary); border-color: #42384e; box-shadow: 0 14px 48px #0005; }
+[data-theme="dark"] dialog::backdrop, [data-theme="dark"] .sidebar-backdrop.shown { background: #0008; }
+[data-theme="dark"] dialog .group-options { color: var(--text-secondary); }
+[data-theme="dark"] :is(.approval-card, .error-banner) { background: #302a20; border-color: #5b4a32; color: #e6c898; }
+[data-theme="dark"] :is(.approval-card small, .request-actions > strong) { color: #c7b28e; }
+[data-theme="dark"] .approval-buttons button { border-color: #766243; }
+[data-theme="dark"] .inline-error { background: #392525; color: #f0b2a1; }
+[data-theme="dark"] :is(.danger, .delete-confirm, .import-confirm) { color: #efb5a6; border-color: var(--line); }
+[data-theme="dark"] .danger-button { background: #a05e4e; color: #fff; }
+[data-theme="dark"] :is(.conversation-toolbar .runtime-active, .intent-dot.active) { color: #8acba8; }
+[data-theme="dark"] :is(.intent-dot.later, .due-label, .source-line span) { color: #d9b47c; }
+[data-theme="dark"] .stop-execution[data-waiting] .stop-execution-disc { background: var(--soft); color: var(--text-secondary); }
+[data-theme="dark"] :is(.access-intro, .access-card form > label, .access-session-note, .access-privacy, .access-status, .access-offline, .access-offline small, .pwa-install, .install-guide, .install-guide small, .passphrase-input button) { color: var(--text-secondary); }
+[data-theme="dark"] .access-actions .theme-switch { border-color: var(--line); }
+@media (hover:hover) and (pointer:fine) {
+  [data-theme="dark"] .task-row:hover { background: #25222f; }
+  [data-theme="dark"] .primary:hover:not(:disabled) { background: #d9d3e7; }
+  [data-theme="dark"] .secondary:hover { background: var(--soft); }
+}
