@@ -26,7 +26,7 @@ class NavigatorIPC(AppIPC):
 
     def send(self, message):
         if message.get("type") == "request" and message.get("method") == "thread-owner-discovery":
-            message = {**message, "timeoutMs": 2000}
+            message = {**message, "timeoutMs": int((self.owner_lookup_timeout or 10) * 1000)}
         return super().send(message)
 
     def request(self, method, params, version, owner=None):
@@ -274,7 +274,7 @@ def main():
     try:
         with NavigatorIPC(Path(data["codexHome"]) / "ipc/ipc.sock") as client:
             if data["operation"] == "history":
-                client.owner_lookup_timeout = 2.0
+                client.owner_lookup_timeout = 5.0 if data.get("ownerLookupTimeoutMs") == 5000 else 2.0
             owner, state = client.snapshot(thread_id)
             if data["operation"] == "history":
                 return {"ok": True, **history(state)}

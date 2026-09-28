@@ -42,6 +42,7 @@ export default function Conversation({
     ),
     [sending, setSending] = useState(false),
     [connecting, setConnecting] = useState(false),
+    [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false),
     [error, setError] = useState(""),
     [historyError, setHistoryError] = useState(""),
     [notice, setNotice] = useState("");
@@ -58,6 +59,18 @@ export default function Conversation({
     [drafts, thread.id],
   );
   const load = useCallback(() => feed.current?.refresh(), []);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine !== false);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+  const targetAvailable = !thread.archived && !thread.missing;
+  const canQueue = targetAvailable && history?.canQueue !== false;
+  const canAttemptSend = targetAvailable && !!(history?.canAttemptSend ?? history?.canSend);
+  // Queue storage only needs the Mac API; a stale desktop read is not a reason
+  // to reject the user's next instruction. Dispatch still checks fresh state.
+  const enqueue = history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
   useEffect(() => {
     const subscription = startConversationFeed({
       request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
@@ -111,7 +124,7 @@ export default function Conversation({
   const receive = (receipt: Receipt) => {
     if (receipt.status === "accepted" || receipt.status === "queued") {
       updateDraft({ text: "" });
-      setNotice(receipt.status === "queued" ? "已加入待发列表，当前轮完成后发送。" : "消息已交给 Mac 中的原任务。");
+      setNotice(receipt.status === "queued" ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入待发列表，连接恢复后发送。" : "消息已交给 Mac 中的原任务。");
       nearBottom.current = true;
     } else if (
       receipt.status === "rejected" ||
@@ -145,7 +158,7 @@ export default function Conversation({
           await api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
             text: draft.text,
             requestId,
-            ...(history?.runtime === "active" || history?.outbox?.length ? { enqueue: true } : {}),
+            ...(enqueue ? { enqueue: true } : {}),
           }),
         );
       }
@@ -263,7 +276,7 @@ export default function Conversation({
       </div>
       <QuestionPrompts threadId={thread.id} questions={history?.asyncQuestions ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || !history?.canSend} drafts={drafts} refresh={load} />
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
-      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={loading || !!historyError} allowSend={!thread.archived && !thread.missing && !!history?.canSend} refresh={load} drafts={drafts} />
+      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
           发送给原任务的消息
@@ -271,7 +284,7 @@ export default function Conversation({
         <AutoTextarea
           id="user-query"
           aria-label="发送给原任务的消息"
-          placeholder={history?.runtime === "active" ? "写下下一步，完成当前轮后发送…" : "在原任务中继续问…"}
+          placeholder={enqueue ? "写下下一步，加入待发消息…" : "在原任务中继续问…"}
           value={draft.text}
           maxLength={16000}
           disabled={sending}
@@ -284,14 +297,13 @@ export default function Conversation({
             className="primary"
             disabled={
               sending ||
-              loading ||
-              !!historyError ||
+              !online ||
               !draft.text.trim() ||
-              (!history?.canSend && !draft.requestId)
+              (!draft.requestId && (enqueue ? !canQueue : !targetAvailable || !history?.canSend))
             }
           >
             <Send size={15} />
-            {sending ? "提交中…" : draft.requestId ? "核对发送状态" : history?.runtime === "active" || history?.outbox?.length ? "加入队列" : "发送"}
+            {sending ? "提交中…" : draft.requestId ? "核对发送状态" : enqueue ? "加入队列" : "发送"}
           </button>
         </div>
       </form>

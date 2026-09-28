@@ -5,12 +5,13 @@ import type { QueryDraft } from "./Conversation";
 import { api } from "./api";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
-export default function Outbox({ threadId, items, paused, disabled, allowSend, refresh, drafts }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts }: {
   threadId: string;
   items: QueuedMessage[];
   paused?: { stopId: string } | null;
   disabled: boolean;
   allowSend: boolean;
+  connectionPending?: boolean;
   refresh: () => Promise<void> | undefined;
   drafts: Map<string, QueryDraft>;
 }) {
@@ -61,7 +62,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, r
   if (!items.length) return null;
   return (
     <section className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading"><strong>待发送 · {items.length}</strong><span>{paused ? "自动发送已暂停" : "当前轮完成后依次发送"}</span>
+      <div className="outbox-heading"><strong>待发送 · {items.length}</strong><span>{paused ? "自动发送已暂停" : connectionPending ? "已保存在 Mac，连接恢复后依次发送" : "当前轮完成后依次发送"}</span>
         {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
       </div>
       {items.map(item => {

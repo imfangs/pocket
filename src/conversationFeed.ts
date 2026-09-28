@@ -21,6 +21,8 @@ export type History = {
   messages: Message[];
   runtime: string;
   canSend: boolean;
+  canQueue?: boolean;
+  canAttemptSend?: boolean;
   hint: string;
   hasMore?: boolean;
   checkedAt: number;
@@ -71,7 +73,7 @@ type FeedOptions = {
 export function startConversationFeed(options: FeedOptions) {
   const browser = options.browser ?? window;
   const visibility = options.visibility ?? document;
-  let stopped = false, failures = 0, delay = 8000, queued = false;
+  let stopped = false, failures = 0, desktopMisses = 0, delay = 8000, queued = false;
   let timer: number | undefined;
   let pending: Promise<void> | null = null;
   let controller: AbortController | null = null;
@@ -89,7 +91,8 @@ export function startConversationFeed(options: FeedOptions) {
         const data = await options.request(current.signal);
         if (!ready() || current.signal.aborted) return;
         failures = 0;
-        delay = data.runtime === "active" ? 2000 : 8000;
+        desktopMisses = data.source === "desktop" ? 0 : desktopMisses + 1;
+        delay = data.runtime === "active" || (desktopMisses > 0 && desktopMisses <= 3) ? 2000 : 8000;
         options.onData(data);
       } catch (error) {
         if (!ready() || (current.signal.aborted && current.signal.reason?.name !== "TimeoutError")) return;

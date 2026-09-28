@@ -72,6 +72,7 @@ export class DesktopService {
   ) {
     Object.assign(this, { store, codexHome, request, readHistory });
     this.cache = new Map();
+    this.recentReads = new Map();
     this.sending = new Set();
     this.stops = new ExecutionStops(store, payload => this.request({ ...payload, codexHome: this.codexHome }));
     store.db.exec(
@@ -103,10 +104,16 @@ export class DesktopService {
     }
   }
   async loadHistory(id) {
+    const now = Date.now();
+    const retrying = now - (this.recentReads.get(id) ?? -Infinity) < 60000;
+    this.recentReads.delete(id);
+    this.recentReads.set(id, now);
+    if (this.recentReads.size > 40) this.recentReads.delete(this.recentReads.keys().next().value);
     const result = await this.request({
       operation: "history",
       threadId: id,
       codexHome: this.codexHome,
+      ownerLookupTimeoutMs: retrying ? 5000 : 2000,
     });
     let data;
     if (result.ok) data = result;
@@ -122,8 +129,10 @@ export class DesktopService {
           hint: "暂时无法读取历史，请连接 Mac 中的原任务后刷新。",
         };
       }
-      if (result.code === "app_version_changed")
+      if (result.code === "app_version_changed") {
         data.hint = "Codex 桌面版本已变化，发送功能需重新验证。";
+        data.readOnlyReason = result.code;
+      }
     }
     if (this.store.thread(id).archived) {
       data.canSend = false;
@@ -174,12 +183,17 @@ export class DesktopService {
     const blocked = this.compactionPending(id) || this.stops.pending(id);
     const queuePaused = this.stops.pause(id);
     const outbox = this.outbox(id);
+    const thread = this.store.thread(id);
+    const targetAvailable = !thread.archived && !thread.missing;
     const pendingRequests = (data.pendingRequests || []).map(request => ({ ...request,
       response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
     const asyncQuestions = (data.asyncQuestions || []).map(question => ({ ...question,
       response: this.store.db.prepare("SELECT d.id AS requestId,d.status FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? ORDER BY d.created_at DESC LIMIT 1").get(id, question.key) || null }));
     return { ...data, outbox, pendingRequests, canCompact: !!data.canCompact && !blocked && !outbox.length && !this.sending.has(id),
       asyncQuestions,
+      canQueue: targetAvailable && outbox.length < 20,
+      canAttemptSend: targetAvailable && !blocked && !this.sending.has(id) &&
+        (!!data.canSend || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
       canSend: data.canSend && !blocked, queueReady: data.queueReady && !blocked && !queuePaused,
       canStop: !!data.canStop && !this.stops.pending(id), activeTurnId: data.activeTurnId || null,
       queuePaused, stopRequest: this.stops.latest(id),

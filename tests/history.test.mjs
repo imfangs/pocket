@@ -241,3 +241,27 @@ test("slow history reads share one desktop request and active snapshots expire p
   now += 500; await service.history(id); assert.equal(calls, 1);
   now += 500; await service.history(id); assert.equal(calls, 2);
 });
+
+test("quick history fallback keeps local queue available and a recent retry gets a longer owner budget", async t => {
+  const s=store(t), budgets=[];
+  let compatible=true;
+  const service=new DesktopService(s,'/fixture',async p=>{
+    budgets.push(p.ownerLookupTimeoutMs);
+    return {ok:false,code:compatible?'desktop_unavailable':'app_version_changed'};
+  },()=>({source:'rollout',runtime:'unavailable',canSend:false,messages:[]}));
+  const first=await service.history(id);
+  assert.equal(first.canSend,false);
+  assert.equal(first.canQueue,true);
+  assert.equal(first.canAttemptSend,true);
+  const receipt=await service.send(id,{text:'Save while reconnecting',requestId:rid,enqueue:true});
+  assert.equal(receipt.status,'queued');
+  assert.equal(budgets.length,1);
+  await service.history(id);
+  assert.deepEqual(budgets,[2000,5000]);
+  compatible=false;service.cache.clear();
+  assert.equal((await service.history(id)).canAttemptSend,false);
+  s.sync({threads:[{id,title:'Fixture',archived:true}],projects:[],sourceInfo:{}});
+  const archived=await service.history(id);
+  assert.equal(archived.canAttemptSend,false);
+  assert.equal(archived.canQueue,false);
+});

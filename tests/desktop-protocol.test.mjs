@@ -117,6 +117,14 @@ test("history bounds owner lookup without waiting for the desktop default", asyn
   assert.equal(f.calls.some(c => c.method === "thread-follower-start-turn"), false);
 });
 
+test("a follow-up history read tolerates an owner slower than the initial two-second budget", async (t) => {
+  const f = await fakeDesktop(t, [idle], { ownerDelay: 2700 });
+  const result = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home, ownerLookupTimeoutMs: 5000 });
+  assert.equal(result.ok, true);
+  assert.equal(result.canSend, true);
+  assert.equal(f.calls.find(c => c.method === "thread-owner-discovery").timeoutMs, 5000);
+});
+
 test("query submission keeps the longer owner lookup budget", async (t) => {
   const f = await fakeDesktop(t, [idle], { ownerDelay: 2100 });
   const result = await desktopRequest({

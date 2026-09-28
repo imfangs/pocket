@@ -47,6 +47,19 @@ test("active conversation refreshes promptly, pauses in background, and resumes 
   assert.equal(f.tasks.size, 0);
 });
 
+test("desktop fallback retries promptly then backs off, without pretending cached history is live", async () => {
+  let calls=0;
+  const f=fixture(async()=>{calls++;return {...history('unavailable'),source:'rollout',canSend:false};});
+  await f.advance(0); assert.equal(calls,1);
+  await f.advance(2000); assert.equal(calls,2);
+  await f.advance(2000); assert.equal(calls,3);
+  await f.advance(2000); assert.equal(calls,4);
+  await f.advance(7999); assert.equal(calls,4);
+  await f.advance(1); assert.equal(calls,5);
+  assert.ok(f.data.every(h=>h.source==='rollout'&&!h.canSend));
+  f.feed.stop();
+});
+
 test("idle conversations poll less often and reconnect immediately after offline", async () => {
   let calls = 0;
   const f = fixture(async () => { calls++; return history("idle"); });

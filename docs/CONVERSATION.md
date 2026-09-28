@@ -113,3 +113,9 @@ Pocket 与 Codex 桌面的待发列表独立。已安装桌面版本的队列 IP
 ## 保存历史的可见性（2026-09-28）
 
 `response_item.role` 是模型输入输出角色，不能单独证明用户发言或用户可见回复。回退读取使用 `internal_chat_message_metadata_passthrough.content_item_kinds` 过滤自动上下文，保留 `user.text`；混合条目按内容项过滤。`compacted.compaction_response_id` 经 `token_usage_record.response_id` 定位内部摘要消息；缺少该关系时仅按 compacted 精确引用的正文匹配。原生 `item_completed` 的 AgentMessage 具有可见性优先权，避免把用户真正请求的总结当内部摘要。没有来源标记的旧记录只识别完整运行时封装，不用 AGENTS、memory 等关键词删除普通讨论。过滤在消息数量/字数截断之前，不修改 Codex 原文件。
+
+## 队列与连接恢复的独立性（2026-09-28）
+
+`canSend` 表示最近桌面快照的接收状态；`canQueue` 表示可把正文存进 Mac 待发列表；`canAttemptSend` 表示可显式调用写侧重新连接并核验后发送，不能把它当已获得实时状态。已知审批/压缩/停止未确认、不兼容版本和不可用原任务不会开放直接发送。未知回执仍不自动重放。
+
+UI 仅在实际离线、输入为空、操作提交中或相应能力被明确禁止时禁用；原 owner 读取失败后默认保存为待发，不发送未验证的缓存状态。当前数据仍来自保存历史时说明连接恢复后发送。初次 owner 读取 2 秒回退；一分钟内的后续读取给 5 秒预算，最多保存 40 个最近读取记录。前 3 次回退后 2 秒再读，持续不可用时回到 8 秒，后台暂停规则不变。
