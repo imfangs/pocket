@@ -147,3 +147,6 @@ FBT local 管理常驻进程和 HTTPS，域名解析到 127.0.0.1 与 ::1。实�
 - 隔离真实浏览器：加入队列、暂停编辑、修改保存、删除、直接发送及自动出队回显通过。合成自动回显另由 API 回读确认，见 `.local/qa/fixture-read.json`。
 - iPhone 16 / iOS 18.2 Safari 模拟器：从任务行下拉 190px 松手后同步计数 +1，短拉 30px、横移 110px 均 +0。首次连续手势发现 Safari 在短拉后合成点击误开详情；加入点击抑制后，同组手势留在列表，普通点按可打开。`.local/qa/pull-real.json`。
 - 主屏幕 PWA 真机、Android 与长期掉线恢复不由本轮模拟器结果替代。线上部署身份以 CURRENT.md 为准。
+
+- 补充键盘：iOS Safari 首次聚焦待发编辑框后，输入底部 391px，保存/取消按钮底部 447px，受控截图确认均在键盘/地址栏之上；队列操作触控高度 44px。取消编辑和删除后隔离 outbox=0，测试会话已关闭。
+- 正式发布：源码 ffd2291 / 部署 b94c2d4e-33a1-48b1-be22-fdf8818b8d19。凭据刷新后单次上传，版本切换后 resume 完成 10/10 文件、DNS/TLS 和匿名保护检查。正式站活动会话加入队列按钮可用，390px 页面宽度一致，控制台无 warn/error；草稿清空，退出登录，恢复 viewport。`.local/qa/queue-public-browser.json`。
