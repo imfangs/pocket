@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "任务架 · Codex Navigator",
-  "short_name": "任务架",
+  "name": "Pocket",
+  "short_name": "Pocket",
   "description": "连接 Mac 上的 Codex 任务，保留分组与接续。",
   "lang": "zh-CN",
   "start_url": "/",

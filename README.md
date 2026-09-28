@@ -1,6 +1,8 @@
-# 任务架 · Codex Navigator
+# Pocket
 
-为大量已有 Codex 会话保留归属和接续入口。本机使用：**https://threads.local**。
+把 Mac 上的 Codex 带到手机，随时查看对话、接着工作。本机使用：**https://threads.local**。
+
+原名任务架 / Codex Navigator，2026-09-28 更名为 Pocket。仓库目录、服务与数据标识沿用原值，既有口令、分组、备注和备份继续使用。
 
 手机 PWA 与 `x.fangs.cc` 固定入口的实现、口令文件、连接器和发布方式见 [docs/MOBILE.md](docs/MOBILE.md)，实际就绪状态以 [CURRENT.md](CURRENT.md) 为准。
 
@@ -12,7 +14,7 @@
 - 手机上可从详情页左边缘向右滑返回列表，未发送草稿保留；输入时详情随软件键盘调整可见区域。
 - 在「整理」写接续说明，标记正在推进 / 稍后继续 / 留作参考，并设置可选回顾日期。点保存，或切换任务时由界面先保存。明确标记的任务即使在原版归档，仍保留在相应意图视图。
 - 「在 Mac 打开原任务」用原 thread ID 请求官方 App。运行与审批继续由原版负责，网页提交继承原模型和权限，见 [会话接入说明](docs/CONVERSATION.md)。
-- 「数据与备份」可导出/恢复整理结果。横线分隔符默认只在任务架隐藏，原版记录保留。
+- 「数据与备份」可导出/恢复整理结果。横线分隔符默认只在 Pocket 隐藏，原版记录保留。
 
 首轮已从原版读取项目和置顶，建立独立分组；另外把三条明确的游戏任务加入 `side / 游戏`，没有替用户判定它们的接续状态。完整验证与当前限制见 [CURRENT.md](CURRENT.md)。
 
@@ -53,6 +55,6 @@ node /Users/fangs/workspace/side/codex-navigator/bin/navigator.mjs backup /绝�
 
 默认整理数据：`~/Library/Application Support/CodexNavigator/navigator.sqlite`，自动 JSON 备份位于相邻 `backups/`，保留最近 50 次。首次导入、刷新和 App 重启都不会覆盖已编辑的接续说明或分组。界面导出的 JSON 包含分组与备注，不含完整聊天记录；恢复时先备份现有整理，再用事务替换。
 
-数据、截图和测试回执不进 Git。源码保存在当前项目，可重新安装；换电脑需另行恢复原 Codex 会话，任务架备份不代替原会话备份。
+数据、截图和测试回执不进 Git。源码保存在当前项目，可重新安装；换电脑需另行恢复原 Codex 会话，Pocket 备份不代替原会话备份。
 
 可用 `NAVIGATOR_DATA_DIR` 和 `NAVIGATOR_CODEX_HOME` 指定隔离数据目录和来源，适用于合成测试。不要将测试环境指向真实来源做写入测试。服务只监听 loopback，不用于公网/多用户部署。

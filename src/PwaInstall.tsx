@@ -60,7 +60,7 @@ export default function PwaInstall() {
             <ol>
               <li>用 Safari 打开当前地址并登录。</li>
               <li>点“共享”，选择“添加到主屏幕”。</li>
-              <li>确认名称为“任务架”，点击“添加”。</li>
+              <li>确认名称为“Pocket”，点击“添加”。</li>
             </ol>
             <p>Android</p>
             <ol>

@@ -115,7 +115,7 @@ export default function AccessGate() {
       <section className="access-card">
         <div className="access-brand">
           <Layers3 size={25} />
-          <span>任务架</span>
+          <span>Pocket</span>
         </div>
         <h1>
           把想做的事，
@@ -179,7 +179,7 @@ export default function AccessGate() {
               className="primary access-submit"
               disabled={busy || !passphrase}
             >
-              {busy ? "正在验证…" : "进入任务架"}
+              {busy ? "正在验证…" : "进入 Pocket"}
               <ArrowRight size={17} />
             </button>
             <small className="access-session-note">

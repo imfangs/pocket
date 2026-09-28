@@ -2,7 +2,7 @@
 
 ## 所有权
 
-`server/source.mjs` 是 Codex 桌面只读适配器；`server/store.mjs` 管理任务架 SQLite；`server/index.mjs` 提供本机 HTTP；React 按导航、列表、接续详情和对话框组织。
+`server/source.mjs` 是 Codex 桌面只读适配器；`server/store.mjs` 管理 Pocket SQLite；`server/index.mjs` 提供本机 HTTP；React 按导航、列表、接续详情和对话框组织。
 
 已核验来源：ChatGPT App 26.903.71938 (8576)、内置 Core 0.153.4。原 `state_5.sqlite` 的 `name` 优先于初始提示词形式的 title；项目和 pin 顺序以桌面 global state 的明确映射为准，兼容 app-server project ID 到旧 saved-project ID 的迁移映射。cwd 只作为来源说明，不自动覆盖明确项目归属。
 
@@ -29,7 +29,7 @@
 - `POST /api/batch`：`{ids,change:{intent?,groupId?}}`，最多 2000 条。
 - `POST /api/groups`、`PATCH /api/groups/:id`、`DELETE /api/groups/:id`：导航分组。
 - `POST /api/open/:id`：只接受已导入原 ID，调用系统 `open codex://threads/:id`，返回 `handoff_requested`，不发送消息或新建会话。
-- `GET /api/export`、`POST /api/import`：仅任务架元数据备份。
+- `GET /api/export`、`POST /api/import`：仅 Pocket 元数据备份。
 
 所有私人 API 需通过 Cookie 认证；本机 CLI 的独立 bearer 仅直连 loopback 有效。状态变更需相同 Origin 和从 catalog 取得的 `X-Navigator-Token`，登录/退出只要求同源。允许 loopback、threads.local 和本机已登记的精确 tunnel Host；Caddy/cloudflared 在 loopback 转发 HTTPS，服务校验 forwarded proto 并按实际 Host 重建 Origin。无 CORS、无遥测，API 响应 no-store，静态资源和 CSP 限定本站。Pages 只持久保存公开前端与连接地址，私人 API 经 Worker 转发，口令哈希与浏览器会话保存在 Mac。
 
@@ -39,7 +39,7 @@
 
 使用官方文档列出的 `codex://threads/<id>`，实际请求含原 ID。系统 `open` 成功只表明交接已受理；独立验证通过原生 Codex 任务接口核对目标由 notLoaded 变为 idle。原 App 的 GUI 自动化读取被工具安全限制，因此未自动确认具体窗口视觉布局。
 
-从内置浏览器跳回原会话可能切换原 App 当前任务，原先的浏览器面板随任务切换；固定 URL 与后台服务继续存在。在独立浏览器窗口使用任务架可以保留并列导航入口。
+从内置浏览器跳回原会话可能切换原 App 当前任务，原先的浏览器面板随任务切换；固定 URL 与后台服务继续存在。在独立浏览器窗口使用 Pocket 可以保留并列导航入口。
 
 ## 回归
 

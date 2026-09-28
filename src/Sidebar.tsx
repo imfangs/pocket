@@ -202,8 +202,8 @@ export default function Sidebar(p: Props) {
             <Layers3 size={22} />
           </div>
           <div>
-            <strong>任务架</strong>
-            <span>Codex Navigator</span>
+            <strong>Pocket</strong>
+            <span>Codex 随身入口</span>
           </div>
           <button
             className="icon-button mobile-only"

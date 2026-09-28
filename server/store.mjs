@@ -378,7 +378,7 @@ export class NavigatorStore {
       data.groups.length > 1000 ||
       data.annotations.length > 20000
     )
-      throw new AppError("不是支持的任务架备份");
+      throw new AppError("不是支持的 Pocket 备份");
     const ids = new Set(data.groups.map((g) => g.id));
     if (ids.size !== data.groups.length)
       throw new AppError("备份中分组 ID 重复");

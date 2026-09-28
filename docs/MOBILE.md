@@ -4,7 +4,7 @@
 
 ## 运行路径
 
-手机 → x.fangs.cc 的 Cloudflare Pages 静态壳 → `/api/*` Pages Worker → KV 中登记的 Quick Tunnel 地址 → Mac 上 Node 服务 → 本机 Codex 元数据与任务架 SQLite。
+手机 → x.fangs.cc 的 Cloudflare Pages 静态壳 → `/api/*` Pages Worker → KV 中登记的 Quick Tunnel 地址 → Mac 上 Node 服务 → 本机 Codex 元数据与 Pocket SQLite。
 
 Cloudflare KV 只保存接入地址、连接标记和时间，不保存任务、备注、口令或会话 Cookie。API 响应经 Cloudflare 转发到手机；持久任务数据与口令校验留在 Mac。Pages Worker 检查客户端 Origin，删除远程 Authorization 头，再向已验证的 HTTPS Tunnel 地址转发必要 Cookie/CSRF/JSON。关闭上游重定向跟随，API 始终 no-store。
 

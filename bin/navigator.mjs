@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
-const help = `任务架 CLI（服务需已运行）
+const help = `Pocket CLI（服务需已运行）
   node bin/navigator.mjs list [--query 游戏] [--intent later] [--archived] [--json]
   node bin/navigator.mjs groups [--json]
   node bin/navigator.mjs group 名称 [--parent 分组ID] [--json]
@@ -13,7 +13,7 @@ const help = `任务架 CLI（服务需已运行）
   node bin/navigator.mjs backup /绝对路径/backup.json [--json]
   node bin/navigator.mjs connection [--json]
 
-list/search 只读。分组与 annotate 仅写任务架自己的数据。open 使用原会话 ID。
+list/search 只读。分组与 annotate 仅写 Pocket 自己的数据。open 使用原会话 ID。
 `;
 async function main() {
   const { values: v, positionals: p } = parseArgs({
@@ -39,7 +39,7 @@ async function main() {
       base.hostname,
     )
   )
-    throw new Error("仅支持本机任务架地址");
+    throw new Error("仅支持本机 Pocket 地址");
   let token = "";
   const access = JSON.parse(
     readFileSync(

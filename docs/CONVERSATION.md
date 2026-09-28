@@ -26,7 +26,7 @@ query 会在原任务的工作目录和权限中执行，模型/推理设置由�
 
 有 owner 时读取原 App 的 canonical turnHistory，提取 userMessage、已接受的 steeringUserMessage 与非 analysis 的 agentMessage。运行中追加的用户文本单独显示；其 serverUserMessageId 已成为普通 userMessage 时去重。只读取追加消息的输入、标识和时间，不暴露 restoreMessage 中的上下文。这里支持查看桌面追加消息，网页发送仍不支持 steer。无 owner 时通过只读 SQLite 定位 rollout，校验真实路径必须在 Codex home 的 sessions/archived_sessions 内且 session_meta ID 相同，再读取文件尾部至多 4 MiB。只保留 user/assistant 可见文本，单消息至多 24000 字，总量至多 160000 字。页面标明“已保存的历史”或实时状态，不把落盘副本当成实时运行状态。
 
-后端最多短时复用 10 条任务的历史：未完成的读取合并为一个请求，完成后活动快照 750ms、其他 3 秒过期。浏览器本次登录内最多缓存 10 个已访问任务的历史与阅读位置，切回先展示缓存，成功复核前保持发送禁用；退出后随 App 卸载清空。历史不保存到任务架数据库、KV、浏览器持久存储或 Service Worker cache。分组/说明仍独立存储。未发送的 query 草稿只保留在当前登录页面内存中，可在任务与标签切换后取回；刷新前提示未发送文本。
+后端最多短时复用 10 条任务的历史：未完成的读取合并为一个请求，完成后活动快照 750ms、其他 3 秒过期。浏览器本次登录内最多缓存 10 个已访问任务的历史与阅读位置，切回先展示缓存，成功复核前保持发送禁用；退出后随 App 卸载清空。历史不保存到 Pocket 数据库、KV、浏览器持久存储或 Service Worker cache。分组/说明仍独立存储。未发送的 query 草稿只保留在当前登录页面内存中，可在任务与标签切换后取回；刷新前提示未发送文本。
 
 历史请求一次只运行一个，离开页面会取消；18 秒仍无响应则结束等待并有界退避重试，断网时保留已读内容并提示恢复方式。发送操作不使用这套自动重试，仍按下文 requestId/回执处理。
 
@@ -38,7 +38,7 @@ query 会在原任务的工作目录和权限中执行，模型/推理设置由�
 - `POST /api/tasks/:id/messages`：仅接受 `{text, requestId}`，拒绝模型、权限、cwd 等覆盖字段。
 - `GET /api/tasks/:id/messages/:requestId`：查询提交回执，不重新发送。
 
-每次提交先在任务架 SQLite `dispatches` 表写入请求编号、目标 ID、文本哈希和 pending 状态，真实文本不进入账本。相同编号只能对应相同目标和文本，重复 POST 返回已有回执；同一服务进程中同一任务并行提交被拒绝。Python 在发送前两次回读 owner 和状态，使用 clientUserMessageId 与 inheritThreadSettings 提交。
+每次提交先在 Pocket SQLite `dispatches` 表写入请求编号、目标 ID、文本哈希和 pending 状态，真实文本不进入账本。相同编号只能对应相同目标和文本，重复 POST 返回已有回执；同一服务进程中同一任务并行提交被拒绝。Python 在发送前两次回读 owner 和状态，使用 clientUserMessageId 与 inheritThreadSettings 提交。
 
 accepted 表示原桌面接口接收，不表示模型执行完成；运行进展通过历史刷新读取。明确拒绝保留草稿供修改/重试。超时或回执不明标 unknown，不自动重发；页面“核对发送状态”只查账本，原 App 历史出现对应 clientUserMessageId 时可确认 accepted。
 

@@ -284,7 +284,7 @@ if (
   const { server } = makeApp();
   const port = Number(process.env.PORT || 4397);
   server.listen(port, "127.0.0.1", () =>
-    console.log(`Codex Navigator ready on loopback port ${port}`),
+    console.log(`Pocket ready on loopback port ${port}`),
   );
   for (const signal of ["SIGTERM", "SIGINT"])
     process.on(signal, () => server.close(() => process.exit(0)));

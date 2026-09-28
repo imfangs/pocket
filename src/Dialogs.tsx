@@ -136,7 +136,7 @@ export function GroupDialog(p: {
             />
           </label>
         </div>
-        <p className="field-help">只整理任务架的导航，不移动文件或原会话。</p>
+        <p className="field-help">只整理 Pocket 的导航，不移动文件或原会话。</p>
         {error && (
           <p role="alert" className="inline-error">
             {error}
@@ -241,7 +241,7 @@ export function SettingsDialog(p: {
         <label className="setting-switch">
           <span>
             显示横线分隔符会话
-            <small>默认在任务架隐藏，原版记录保持原样。</small>
+            <small>默认在 Pocket 隐藏，原版记录保持原样。</small>
           </span>
           <input
             type="checkbox"
@@ -277,7 +277,7 @@ export function SettingsDialog(p: {
                   throw new Error("备份不能超过 4 MB");
                 const data = JSON.parse(await f.text());
                 if (data.format !== "codex-navigator")
-                  throw new Error("请选择任务架导出的 JSON 备份");
+                  throw new Error("请选择 Pocket 导出的 JSON 备份");
                 setPending({ data, name: f.name });
               } catch (e) {
                 setError((e as Error).message);

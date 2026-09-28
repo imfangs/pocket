@@ -50,7 +50,7 @@ const subtitles: Record<View, string> = {
   active: "把注意力留给正在向前走的事。",
   later: "先放在这里，想继续时随时接上。",
   reference: "值得留下的讨论，不必都变成待办。",
-  recent: "从任务架打开过的原会话。",
+  recent: "从 Pocket 打开过的原会话。",
   archived: "原版归档记录仍可检索，整理说明会一直保留。",
   unassigned: "还没有放入分组的会话。",
   group: "这里聚合分组和子分组里的原会话。",
@@ -258,7 +258,7 @@ export default function App({
             </button>
             <div className="heading">
               <div className="breadcrumb">
-                任务架
+                Pocket
                 {view === "group" && selectedGroup?.parentId && (
                   <>
                     <span>/</span>

@@ -1,4 +1,4 @@
-const CACHE = "navigator-public-shell-v1";
+const CACHE = "navigator-public-shell-v2";
 const PUBLIC_FILES = [
   "/offline.html",
   "/manifest.webmanifest",
