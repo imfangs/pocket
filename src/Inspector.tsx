@@ -9,13 +9,14 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
 import type { MutableRefObject } from "react";
 import type { Group, Intent, Thread } from "./types";
 import { intentLabels } from "./types";
 import { groupPath } from "./model";
 import Conversation from "./Conversation";
 import type { QueryDraft } from "./Conversation";
+import { bindInspectorSwipe, bindInspectorViewport } from "./mobileInspector";
 type Draft = {
   intent: Intent;
   note: string;
@@ -42,6 +43,15 @@ interface Props {
   onToast: (s: string) => void;
 }
 export default function Inspector(p: Props) {
+  const panel = useRef<HTMLElement>(null);
+  const close = useRef(p.onClose);
+  useLayoutEffect(() => { close.current = p.onClose; }, [p.onClose]);
+  useLayoutEffect(() => {
+    if (!panel.current) return;
+    const releaseViewport = bindInspectorViewport(panel.current);
+    const releaseSwipe = bindInspectorSwipe(panel.current, () => close.current());
+    return () => { releaseViewport(); releaseSwipe(); };
+  }, []);
   const [tab, setTab] = useState<"conversation" | "organize">("conversation");
   const [draft, setDraft] = useState<Draft>(() => draftOf(p.thread)),
     [base, setBase] = useState<Draft>(() => draftOf(p.thread)),
@@ -118,7 +128,7 @@ export default function Inspector(p: Props) {
     }
   };
   return (
-    <aside className="inspector" aria-label="接续详情">
+    <aside className="inspector" aria-label="接续详情" ref={panel}>
       <div className="inspector-header">
         <span>
           <MessageSquare size={15} />

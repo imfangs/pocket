@@ -1,5 +1,13 @@
 # 当前状态
 
+## 移动端返回与键盘（2026-09-28，本地已验，待发布）
+
+详情页支持手指向左滑回列表，沿用原关闭/保存流程，未发送 query 草稿保留。输入框、按钮/链接、代码块和表格上的横向操作、垂直滚动、文本选择与多指手势不会触发返回。
+
+修复 Safari 软件键盘遮挡输入框：窄屏详情使用 visualViewport 的 height/offsetTop，持续监听首次聚焦后的 resize/scroll；键盘打开时收起任务摘要、压缩输入区，保留历史和发送按钮。页面缩放时不强制套用键盘布局，不关闭 pinch zoom。
+
+构建与 37 项测试通过。iPhone 16 / iOS 18.2 Simulator 的 Safari 复现旧版输入底部 501px 超出可见区域约 450px；同一流程刷新后首次聚焦，新版输入底部 396px，输入框和发送按钮完整可见。原生触摸左滑返回、重新打开草稿保留、垂直滚动不返回均通过。用户真机、PWA 独立窗口和 Android 仍待验。私有证据 `.local/qa/keyboard-baseline.json`、`keyboard-after.json`、`swipe-back.json`；受控对照 `/tmp/navigator-keyboard-comparison.jpg`。
+
 ## 实现原理分享（2026-09-28）
 
 已将远控架构、隧道续登记、原桌面 owner 执行、防重与验证边界整理成[技术文章](docs/shares/2026-09-28-remote-control/article.md)，附可编辑架构图与[来源索引](docs/shares/2026-09-28-remote-control/SOURCES.md)。学城正文、图附件和指定收件人浏览权限已独立回读；链接已通过大象发送并获得 acknowledged 回执。发布与发送细节仅保留在 `.local/shares/2026-09-28-remote-control/`。此次仅交付说明文档，没有改造产品、重新部署或发送真实任务测试 query。

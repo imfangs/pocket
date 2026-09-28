@@ -1411,9 +1411,10 @@ hr {
   }
   .with-inspector .inspector {
     position: fixed;
-    top: 0;
+    top: var(--inspector-viewport-top, 0px);
     right: 0;
-    bottom: 0;
+    bottom: auto;
+    height: var(--inspector-viewport-height, 100dvh);
     z-index: 12;
     width: 100%;
     background: #fcfdfb;
@@ -1791,5 +1792,21 @@ hr {
   }
   .conversation-composer {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .inspector[data-keyboard-open] .inspector-summary {
+    display: none;
+  }
+  .inspector[data-keyboard-open] .conversation-status {
+    max-height: 40px;
+    padding: 4px 0;
+  }
+  .inspector[data-keyboard-open] .conversation-composer {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .inspector[data-keyboard-open] .conversation-composer textarea {
+    min-height: 56px;
+    height: 64px;
+    max-height: 100px;
   }
 }
