@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
 import Inspector from "./Inspector";
+import type { QueryDraft } from "./Conversation";
 import { GroupDialog, SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
 import { filterThreads, groupPath } from "./model";
@@ -71,9 +72,10 @@ export default function App({
     [query, setQuery] = useState(""),
     [project, setProject] = useState(""),
     [sort, setSort] = useState(
-      ["pinned", "updated", "title", "review"].includes(prefs.sort)
+      prefs.sortVersion === 2 &&
+        ["pinned", "updated", "title", "review"].includes(prefs.sort)
         ? prefs.sort
-        : "pinned",
+        : "updated",
     ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -88,6 +90,7 @@ export default function App({
       () => localStorage.getItem("navigator.separators") === "true",
     );
   const search = useRef<HTMLInputElement>(null),
+    conversationDrafts = useRef(new Map<string, QueryDraft>()),
     flushRef = useRef<(() => Promise<void>) | null>(null),
     toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const notify = useCallback((s: string) => {
@@ -129,7 +132,7 @@ export default function App({
     try {
       localStorage.setItem(
         "navigator.view",
-        JSON.stringify({ view, groupId, sort }),
+        JSON.stringify({ view, groupId, sort, sortVersion: 2 }),
       );
     } catch {}
   }, [view, groupId, sort]);
@@ -333,7 +336,6 @@ export default function App({
                 aria-label="排序方式"
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                disabled={view === "pinned" || view === "recent"}
               >
                 <option value="pinned">置顶优先</option>
                 <option value="updated">最近活动</option>
@@ -416,6 +418,7 @@ export default function App({
             <Inspector
               key={current.id}
               thread={current}
+              queryDrafts={conversationDrafts.current}
               groups={catalog.groups}
               onSave={saveTask}
               onOpen={open}
@@ -457,7 +460,7 @@ export default function App({
               ? `最近同步 ${new Date(catalog.sourceInfo.syncedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
               : "等待来源"}
           </span>
-          <span>原会话只读 · 整理独立保存</span>
+          <span>沿用原任务 · 整理独立保存</span>
         </footer>
       </main>
       {toast && (

@@ -21,6 +21,23 @@ const t = {
   groupIds: ["child"],
   lastOpenedAt: 2,
 };
+test("pinned view honors recent activity and can switch back to native pin order", () => {
+  const older = { ...t, id: "older", pinnedOrder: 0, updatedAt: 10 };
+  const newer = { ...t, id: "newer", pinnedOrder: 1, updatedAt: 20 };
+  const list = (sort) =>
+    filterThreads(
+      [older, newer],
+      groups,
+      "pinned",
+      null,
+      "",
+      "",
+      false,
+      sort,
+    ).map((x) => x.id);
+  assert.deepEqual(list("updated"), ["newer", "older"]);
+  assert.deepEqual(list("pinned"), ["older", "newer"]);
+});
 test("hierarchical grouping and Chinese multi-term search preserve one original identity", () => {
   assert.equal(groupPath(groups, "child"), "领域 / 游戏");
   assert.deepEqual([...descendantIds(groups, "parent")], ["parent", "child"]);

@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import { NavigatorStore, AppError } from "./store.mjs";
 import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
+import { DesktopService } from "./desktop.mjs";
 import { isIP } from "node:net";
 
 const exec = promisify(execFile);
@@ -37,6 +38,12 @@ export function makeApp(options = {}) {
     process.env.NAVIGATOR_CODEX_HOME ||
     join(homedir(), ".codex");
   const auth = new AccessControl(store.directory, store.db);
+  const desktop = new DesktopService(
+    store,
+    codexHome,
+    options.desktopRequest,
+    options.readHistory,
+  );
   const readSource = options.readSource || (() => readCodexSource(codexHome));
   const openThread =
     options.openThread ||
@@ -205,6 +212,21 @@ export function makeApp(options = {}) {
         return json(res, 200, store.batch(b.ids, b.change));
       }
       const task = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)$/);
+      const history = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/history$/i);
+      if (history && method === "GET")
+        return json(res, 200, await desktop.history(history[1]));
+      const message = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/messages$/i);
+      if (message && method === "POST")
+        return json(
+          res,
+          200,
+          await desktop.send(message[1], await body(req, 70000)),
+        );
+      const receipt = path.match(
+        /^\/api\/tasks\/([a-f0-9-]{36})\/messages\/([a-f0-9-]{36})$/i,
+      );
+      if (receipt && method === "GET")
+        return json(res, 200, desktop.getReceipt(receipt[1], receipt[2]));
       if (task && method === "PATCH")
         return json(res, 200, store.patchThread(task[1], await body(req)));
       const open = path.match(/^\/api\/open\/([a-f0-9-]{36})$/i);

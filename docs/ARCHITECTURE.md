@@ -6,7 +6,7 @@
 
 已核验来源：ChatGPT App 26.903.71938 (8576)、内置 Core 0.153.4。原 `state_5.sqlite` 的 `name` 优先于初始提示词形式的 title；项目和 pin 顺序以桌面 global state 的明确映射为准，兼容 app-server project ID 到旧 saved-project ID 的迁移映射。cwd 只作为来源说明，不自动覆盖明确项目归属。
 
-源 SQLite 用 `readOnly:true` 和 query_only，global state 仅 readFile。扫描本机 CLI/桌面/独立执行来源，排除标明 subagent 的记录；不用 `has_user_event` 推断有效任务，因为本机该字段不具备筛选效力。此版不导入完整 transcript、不提取模型总结，不读取云端或其他 remote host 的任务。手机访问通过口令保护的 HTTPS 转发，见 `docs/MOBILE.md`。
+源 SQLite 用 `readOnly:true` 和 query_only，global state 仅 readFile。扫描本机 CLI/桌面/独立执行来源，排除标明 subagent 的记录；不用 `has_user_event` 推断有效任务，因为本机该字段不具备筛选效力。最近可见历史按需读取而不持久导入；不提取模型总结，不读取云端或其他 remote host 的任务。手机访问通过口令保护的 HTTPS 转发，见 `docs/MOBILE.md`。历史与 query 桥接、状态限制及防重语义见 `docs/CONVERSATION.md`。
 
 `source_threads` 缓存来源元数据；`annotations` 存意图、备注、回顾日期、组 ID、最后打开时间和编辑 revision；`groups` 存独立树。默认继承来源分组只在 sourceProjectId 非空时成立，手动分组不会捕获全部无项目任务。用户明确的空组数组表示取消归组，以后同步不重新附加。
 

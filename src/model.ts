@@ -48,6 +48,7 @@ export function filterThreads(
         return false;
       if (project && t.projectId !== project) return false;
       if (view === "pinned" && !t.pinned) return false;
+      if (view === "recent" && !t.lastOpenedAt) return false;
       if (["active", "later", "reference"].includes(view) && t.intent !== view)
         return false;
       if (view === "recent" && !t.lastOpenedAt) return false;
@@ -66,9 +67,6 @@ export function filterThreads(
       return terms.every((q) => hay.includes(q));
     })
     .sort((a, b) => {
-      if (view === "pinned") return a.pinnedOrder - b.pinnedOrder;
-      if (view === "recent")
-        return (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0);
       if (sort === "title") return a.title.localeCompare(b.title, "zh-CN");
       if (sort === "review")
         return (
@@ -76,6 +74,8 @@ export function filterThreads(
           b.updatedAt - a.updatedAt
         );
       if (sort === "pinned" && a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      if (sort === "pinned" && a.pinned && b.pinned)
+        return a.pinnedOrder - b.pinnedOrder || b.updatedAt - a.updatedAt;
       return b.updatedAt - a.updatedAt;
     });
 }

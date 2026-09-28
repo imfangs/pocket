@@ -44,7 +44,10 @@ test("password config is private and hashed; sessions survive process restart an
   assert.ok(a.authenticate(req));
   a.setPassphrase("4826");
   assert.equal(a.authenticate(req), false);
-  assert.throws(() => a.login(pass, "test"), (e) => e.status === 401);
+  assert.throws(
+    () => a.login(pass, "test"),
+    (e) => e.status === 401,
+  );
   assert.ok(a.login("4826", "test").token);
   s.close();
 });
@@ -106,7 +109,12 @@ test("anonymous cannot read private endpoints; remote cookie login works and loc
       req.on("error", reject);
       req.end(body === undefined ? undefined : JSON.stringify(body));
     });
-  for (const path of ["/api/catalog", "/api/export", "/api/connection"]) {
+  for (const path of [
+    "/api/catalog",
+    "/api/export",
+    "/api/connection",
+    "/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/history",
+  ]) {
     const r = await request(path);
     assert.equal(r.status, 401);
     assert.ok(!r.text.includes("PRIVATE_FIXTURE"));
