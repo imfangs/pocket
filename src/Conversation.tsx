@@ -1,27 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown, RefreshCw, Send, Monitor } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
 import MessageMarkdown from "./MessageMarkdown";
+import { rememberHistory, startConversationFeed } from "./conversationFeed";
+import type { History, HistoryCache } from "./conversationFeed";
 export type QueryDraft = { text: string; requestId?: string };
-type Message = {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-  phase?: string;
-  timestamp?: number;
-  truncated?: boolean;
-  clientMessageId?: string;
-};
-type History = {
-  source: string;
-  messages: Message[];
-  runtime: string;
-  canSend: boolean;
-  hint: string;
-  hasMore?: boolean;
-  checkedAt: number;
-};
 type Receipt = {
   requestId: string;
   status: "accepted" | "pending" | "unknown" | "rejected" | "not_found";
@@ -36,13 +20,15 @@ const statuses: Record<string, string> = {
 export default function Conversation({
   thread,
   drafts,
+  historyCache,
   onConnect,
 }: {
   thread: Thread;
   drafts: Map<string, QueryDraft>;
+  historyCache: HistoryCache;
   onConnect: () => Promise<void>;
 }) {
-  const [history, setHistory] = useState<History | null>(null),
+  const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
     [loading, setLoading] = useState(true),
     [draft, setDraft] = useState<QueryDraft>(
       () => drafts.get(thread.id) || { text: "" },
@@ -53,9 +39,9 @@ export default function Conversation({
     [historyError, setHistoryError] = useState(""),
     [notice, setNotice] = useState("");
   const messages = useRef<HTMLDivElement>(null),
-    nearBottom = useRef(true),
-    alive = useRef(true),
-    request = useRef(false);
+    nearBottom = useRef(historyCache.get(thread.id)?.nearBottom ?? true),
+    restoreScroll = useRef<number | null>(historyCache.get(thread.id)?.scrollTop ?? null),
+    feed = useRef<ReturnType<typeof startConversationFeed> | null>(null);
   const updateDraft = useCallback(
     (next: QueryDraft) => {
       setDraft(next);
@@ -64,48 +50,41 @@ export default function Conversation({
     },
     [drafts, thread.id],
   );
-  const load = useCallback(async () => {
-    if (request.current) return;
-    request.current = true;
-    try {
-      const data = await api<History>(`/api/tasks/${thread.id}/history`);
-      if (!alive.current) return;
-      setHistory(data);
-      setHistoryError("");
-      const saved = drafts.get(thread.id);
-      if (
-        saved?.requestId &&
-        data.messages.some((m) => m.clientMessageId === saved.requestId)
-      ) {
-        updateDraft({ text: "" });
-        setNotice("已在原任务历史中确认这条消息。");
-      }
-    } catch (e) {
-      if (alive.current) setHistoryError((e as Error).message);
-    } finally {
-      request.current = false;
-      if (alive.current) setLoading(false);
-    }
-  }, [thread.id, drafts, updateDraft]);
+  const load = useCallback(() => feed.current?.refresh(), []);
   useEffect(() => {
-    alive.current = true;
-    void load();
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") void load();
-    }, 8000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    document.addEventListener("visibilitychange", onVisible);
+    const subscription = startConversationFeed({
+      request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
+      onData(data) {
+        rememberHistory(historyCache, thread.id, data);
+        setHistory(data);
+        setHistoryError("");
+        setLoading(false);
+        const saved = drafts.get(thread.id);
+        if (
+          saved?.requestId &&
+          data.messages.some((m) => m.clientMessageId === saved.requestId)
+        ) {
+          updateDraft({ text: "" });
+          setNotice("已在原任务历史中确认这条消息。");
+        }
+      },
+      onError(error) {
+        setHistoryError(error.message === "Failed to fetch" ? "连接暂时中断，正在自动重试。" : error.message);
+        setLoading(false);
+      },
+    });
+    feed.current = subscription;
     return () => {
-      alive.current = false;
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
+      subscription.stop();
+      if (feed.current === subscription) feed.current = null;
     };
-  }, [load]);
-  useEffect(() => {
-    if (nearBottom.current && messages.current)
-      messages.current.scrollTop = messages.current.scrollHeight;
+  }, [thread.id, drafts, historyCache, updateDraft]);
+  useLayoutEffect(() => {
+    const element = messages.current;
+    if (!element) return;
+    if (nearBottom.current) element.scrollTop = element.scrollHeight;
+    else if (restoreScroll.current !== null) element.scrollTop = restoreScroll.current;
+    restoreScroll.current = null;
   }, [history]);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
@@ -172,10 +151,10 @@ export default function Conversation({
   return (
     <section className="conversation" aria-label="会话历史与发送">
       <div className="conversation-toolbar">
-        <span className={history?.runtime === "active" ? "runtime-active" : ""}>
+        <span className={!loading && !historyError && history?.runtime === "active" ? "runtime-active" : ""}>
           {loading
-            ? "正在读取历史…"
-            : statuses[history?.runtime || ""] || "任务状态"}
+            ? history ? "正在更新…" : "正在读取历史…"
+            : historyError ? "等待重连" : statuses[history?.runtime || ""] || "任务状态"}
         </span>
         <div>
           <button
@@ -203,9 +182,15 @@ export default function Conversation({
         ref={messages}
         onScroll={() => {
           const el = messages.current;
-          if (el)
+          if (el) {
             nearBottom.current =
               el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+            const cached = historyCache.get(thread.id);
+            if (cached) {
+              cached.scrollTop = el.scrollTop;
+              cached.nearBottom = nearBottom.current;
+            }
+          }
         }}
       >
         {history?.hasMore && (
@@ -213,15 +198,15 @@ export default function Conversation({
             显示最近的对话，完整历史可在 Codex 中查看。
           </p>
         )}
-        {!loading && !history?.messages.length && (
+        {!loading && !historyError && !history?.messages.length && (
           <p className="history-empty">
             暂时没有可显示的消息。可以连接原任务后刷新。
           </p>
         )}
-        {history?.messages.map((m, index) => (
+        {history?.messages.map((m) => (
           <article
             className={`conversation-message ${m.role}`}
-            key={`${m.id}:${index}`}
+            key={m.id}
           >
             <div className="message-label">
               <strong>
@@ -249,7 +234,7 @@ export default function Conversation({
       </div>
       <div className="conversation-status">
         <p>{history?.hint}</p>
-        {!loading && history?.source !== "desktop" && !thread.archived && (
+        {!loading && history && history.source !== "desktop" && !thread.archived && (
           <button
             className="secondary"
             disabled={connecting}
@@ -301,6 +286,8 @@ export default function Conversation({
             className="primary"
             disabled={
               sending ||
+              loading ||
+              !!historyError ||
               !draft.text.trim() ||
               (!history?.canSend && !draft.requestId)
             }

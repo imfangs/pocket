@@ -1,0 +1,109 @@
+export type Message = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  phase?: string;
+  timestamp?: number;
+  truncated?: boolean;
+  clientMessageId?: string;
+};
+export type History = {
+  source: string;
+  messages: Message[];
+  runtime: string;
+  canSend: boolean;
+  hint: string;
+  hasMore?: boolean;
+  checkedAt: number;
+};
+export type HistoryCache = Map<string, {
+  history: History;
+  scrollTop: number;
+  nearBottom: boolean;
+}>;
+
+export function rememberHistory(cache: HistoryCache, id: string, history: History) {
+  const previous = cache.get(id);
+  cache.delete(id);
+  cache.set(id, { history, scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
+  if (cache.size > 10) cache.delete(cache.keys().next().value!);
+}
+
+type FeedOptions = {
+  request: (signal: AbortSignal) => Promise<History>;
+  onData: (history: History) => void;
+  onError: (error: Error) => void;
+  browser?: Window;
+  visibility?: Document;
+};
+
+// One read at a time; resume immediately, then poll according to actual activity.
+export function startConversationFeed(options: FeedOptions) {
+  const browser = options.browser ?? window;
+  const visibility = options.visibility ?? document;
+  let stopped = false, failures = 0, delay = 8000, queued = false;
+  let timer: number | undefined;
+  let pending: Promise<void> | null = null;
+  let controller: AbortController | null = null;
+  const ready = () => !stopped && visibility.visibilityState === "visible" && browser.navigator.onLine !== false;
+  const clearTimer = () => { browser.clearTimeout(timer); timer = undefined; };
+  const refresh = (): Promise<void> => {
+    if (!ready()) return Promise.resolve();
+    if (pending) { queued = true; return pending; }
+    clearTimer();
+    const current = new AbortController();
+    controller = current;
+    const deadline = browser.setTimeout(() => current.abort(new DOMException("读取超时", "TimeoutError")), 18000);
+    pending = (async () => {
+      try {
+        const data = await options.request(current.signal);
+        if (!ready() || current.signal.aborted) return;
+        failures = 0;
+        delay = data.runtime === "active" ? 2000 : 8000;
+        options.onData(data);
+      } catch (error) {
+        if (!ready() || (current.signal.aborted && current.signal.reason?.name !== "TimeoutError")) return;
+        failures++;
+        delay = Math.min(30000, 2000 * 2 ** (failures - 1));
+        options.onError(current.signal.reason?.name === "TimeoutError"
+          ? new Error("连接 Mac 较慢，正在自动重试。")
+          : error instanceof Error ? error : new Error("连接暂时中断，正在自动重试。"));
+      } finally {
+        browser.clearTimeout(deadline);
+        controller = null;
+        pending = null;
+        if (ready()) timer = browser.setTimeout(() => { void refresh(); }, queued ? 0 : delay);
+        queued = false;
+      }
+    })();
+    return pending;
+  };
+  const resume = () => {
+    if (!ready()) {
+      clearTimer();
+      controller?.abort();
+      if (!stopped && browser.navigator.onLine === false)
+        options.onError(new Error("当前离线，联网后会自动恢复。"));
+      return;
+    }
+    failures = 0;
+    void refresh();
+  };
+  visibility.addEventListener("visibilitychange", resume);
+  browser.addEventListener("online", resume);
+  browser.addEventListener("offline", resume);
+  browser.addEventListener("pageshow", resume);
+  resume();
+  return {
+    refresh,
+    stop() {
+      stopped = true;
+      clearTimer();
+      controller?.abort();
+      visibility.removeEventListener("visibilitychange", resume);
+      browser.removeEventListener("online", resume);
+      browser.removeEventListener("offline", resume);
+      browser.removeEventListener("pageshow", resume);
+    },
+  };
+}

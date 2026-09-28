@@ -17,6 +17,7 @@ import { groupPath } from "./model";
 import Conversation from "./Conversation";
 import type { QueryDraft } from "./Conversation";
 import { bindInspectorSwipe, bindInspectorViewport } from "./mobileInspector";
+import type { HistoryCache } from "./conversationFeed";
 type Draft = {
   intent: Intent;
   note: string;
@@ -31,6 +32,7 @@ const draftOf = (t: Thread): Draft => ({
 });
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
+  historyCache: HistoryCache;
   thread: Thread;
   groups: Group[];
   onSave: (
@@ -185,6 +187,7 @@ export default function Inspector(p: Props) {
           <Conversation
             thread={p.thread}
             drafts={p.queryDrafts}
+            historyCache={p.historyCache}
             onConnect={async () => {
               await save();
               await p.onOpen(p.thread);

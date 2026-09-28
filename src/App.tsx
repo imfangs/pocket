@@ -14,6 +14,7 @@ import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
 import Inspector from "./Inspector";
 import type { QueryDraft } from "./Conversation";
+import type { HistoryCache } from "./conversationFeed";
 import { GroupDialog, SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
 import { filterThreads, groupPath } from "./model";
@@ -91,6 +92,7 @@ export default function App({
     );
   const search = useRef<HTMLInputElement>(null),
     conversationDrafts = useRef(new Map<string, QueryDraft>()),
+    conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null),
     toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const notify = useCallback((s: string) => {
@@ -419,6 +421,7 @@ export default function App({
               key={current.id}
               thread={current}
               queryDrafts={conversationDrafts.current}
+              historyCache={conversationHistory.current}
               groups={catalog.groups}
               onSave={saveTask}
               onOpen={open}

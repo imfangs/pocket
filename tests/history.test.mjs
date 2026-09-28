@@ -137,3 +137,21 @@ test("desktop read-back reconciles an unknown receipt and archived tasks cannot 
     (e) => e.status === 409,
   );
 });
+
+test("slow history reads share one desktop request and active snapshots expire promptly", async (t) => {
+  const s = store(t);
+  let now = 1000, calls = 0, finish;
+  t.mock.method(Date, "now", () => now);
+  const data = { ok: true, runtime: "active", canSend: false, messages: [] };
+  const service = new DesktopService(s, "/fixture", () => {
+    if (++calls === 1) return new Promise(resolve => { finish = resolve; });
+    return Promise.resolve(data);
+  });
+  const first = service.history(id);
+  now += 4000;
+  const second = service.history(id);
+  assert.equal(calls, 1);
+  finish(data); await Promise.all([first, second]);
+  now += 500; await service.history(id); assert.equal(calls, 1);
+  now += 500; await service.history(id); assert.equal(calls, 2);
+});

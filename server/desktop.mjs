@@ -79,14 +79,20 @@ export class DesktopService {
   async history(id) {
     this.store.thread(id);
     const cached = this.cache.get(id);
-    if (cached && Date.now() - cached.at < 3000) return cached.promise;
+    if (cached && (cached.pending || Date.now() - cached.at < (cached.runtime === "active" ? 750 : 3000)))
+      return cached.promise;
     const promise = this.loadHistory(id);
-    this.cache.set(id, { at: Date.now(), promise });
+    const entry = { at: Date.now(), promise, pending: true, runtime: null };
+    this.cache.set(id, entry);
     if (this.cache.size > 10) this.cache.delete(this.cache.keys().next().value);
     try {
-      return await promise;
+      const data = await promise;
+      entry.at = Date.now();
+      entry.pending = false;
+      entry.runtime = data.runtime;
+      return data;
     } catch (e) {
-      this.cache.delete(id);
+      if (this.cache.get(id) === entry) this.cache.delete(id);
       throw e;
     }
   }

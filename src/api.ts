@@ -6,10 +6,13 @@ export async function api<T>(
   path: string,
   method = "GET",
   body?: unknown,
+  options: { signal?: AbortSignal } = {},
 ): Promise<T> {
   const send = () =>
     fetch(path, {
       method,
+      signal: options.signal,
+      cache: "no-store",
       headers: {
         "Content-Type": "application/json",
         ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
@@ -19,7 +22,7 @@ export async function api<T>(
   let response = await send();
   let data = await response.json();
   if (response.status === 403 && data.error === "请求已过期，请刷新页面") {
-    const fresh = await fetch("/api/catalog", { cache: "no-store" });
+    const fresh = await fetch("/api/catalog", { cache: "no-store", signal: options.signal });
     if (fresh.ok) {
       const catalog = await fresh.json();
       if (catalog.csrfToken) {
