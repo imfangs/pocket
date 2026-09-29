@@ -401,6 +401,7 @@ export class DesktopService {
     this.store.db.prepare("UPDATE dispatches SET status=?,turn_id=COALESCE(?,turn_id),code=? WHERE id=?")
       .run(status, result.turnId || null, result.code || null, requestId);
     if (status === "accepted") this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(requestId);
+    if (status === "accepted") this.onAccepted?.(id, this.getReceipt(id, requestId).turnId);
     this.cache.delete(id);
     return this.getReceipt(id, requestId);
   }
@@ -502,6 +503,7 @@ export class DesktopService {
     this.store.db
       .prepare("UPDATE dispatches SET status=?,turn_id=?,code=? WHERE id=?")
       .run(status, result.turnId || null, result.code || null, input.requestId);
+    if (status === "accepted") this.onAccepted?.(id, result.turnId);
     this.cache.delete(id);
     return this.receipt(
       this.store.db

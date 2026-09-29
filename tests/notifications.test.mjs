@@ -80,3 +80,31 @@ test('rotating the Pocket passphrase revokes notification endpoints and pending 
  const {service:s,state,store}=fixture(t);const auth=new AccessControl(store.directory,store.db);s.subscribe(subscription());s.watch(id,state.history);s.watch(id,{...state.history,latestTurnStatus:'completed'});
  auth.setPassphrase('new-private-test-passphrase');assert.equal(s.devices().length,0);assert.equal(store.db.prepare('SELECT count(*) AS n FROM push_deliveries').get().n,0);
 });
+test('a send accepted before any browser history read is followed through completion',async t=>{
+ const {service:s,state}=fixture(t);s.subscribe(subscription());s.followSubmission(id,'turn-1');
+ state.history={source:'desktop',runtime:'idle',latestTurnId:'turn-1',latestTurnStatus:'completed',pendingRequests:[]};state.now+=11000;
+ await s.tick();assert.equal(state.sends.length,1);assert.equal(JSON.parse(state.sends[0][1]).body,'任务已完成');
+});
+test('following an accepted send retains pending approval state until the owner resolves it',t=>{
+ const {service:s,state,store}=fixture(t);s.subscribe(subscription());s.watch(id,{...state.history,pendingRequests:[{key:'pending'}]});s.followSubmission(id,'turn-1');
+ assert.deepEqual(JSON.parse(store.db.prepare('SELECT state FROM push_watches WHERE thread_id=?').get(id).state).requests,['pending']);
+});
+test('direct and queued HTTP sends register notification tracking without opening history',async t=>{
+ const {makeApp}=await import('../server/index.mjs');
+ const directory=mkdtempSync(join(tmpdir(),'pocket-send-watch-'));
+ const app=makeApp({dataDir:directory,readSource:()=>({threads:[{id,title:'Fixture',archived:false}],projects:[],sourceInfo:{}}),
+  notifications:{send:async()=>{}},desktopRequest:async p=>p.operation==='history'?{ok:true,source:'desktop',runtime:'active',canSend:true,messages:[]}:{ok:true,turnId:'accepted-turn'}});
+ await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
+ t.after(async()=>{await new Promise(resolve=>app.server.close(resolve));rmSync(directory,{recursive:true,force:true});});
+ const base=`http://127.0.0.1:${app.server.address().port}`,authorization=`Bearer ${app.auth.localToken}`;
+ const catalog=await fetch(base+'/api/catalog',{headers:{Authorization:authorization}}).then(r=>r.json());
+ const post=(path,data)=>fetch(base+path,{method:'POST',headers:{Authorization:authorization,Origin:base,'Content-Type':'application/json','X-Navigator-Token':catalog.csrfToken},body:JSON.stringify(data)}).then(r=>r.json());
+ await post('/api/notifications/subscription',subscription());
+ const read=()=>JSON.parse(app.store.db.prepare('SELECT state FROM push_watches WHERE thread_id=?').get(id).state);
+ const rid='bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb';
+ assert.equal((await post(`/api/tasks/${id}/messages`,{requestId:rid,text:'Direct'})).status,'accepted');assert.equal(read().turn,'accepted-turn');
+ app.store.db.prepare('DELETE FROM push_watches').run();
+ const qid='cccccccc-cccc-7ccc-8ccc-cccccccccccc';
+ assert.equal((await post(`/api/tasks/${id}/messages`,{requestId:qid,text:'Queued',enqueue:true})).status,'queued');
+ assert.equal((await post(`/api/tasks/${id}/outbox/${qid}/send`,{expectedRevision:0})).status,'accepted');assert.equal(read().turn,'accepted-turn');
+});

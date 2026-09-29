@@ -46,6 +46,10 @@ export function makeApp(options = {}) {
     options.readHistory,
   );
   const notifications = new Notifications(store, desktop, options.notifications);
+  desktop.onAccepted = (id, turnId) => {
+    try { notifications.followSubmission(id, turnId); }
+    catch { /* Notification bookkeeping must not change an accepted send receipt. */ }
+  };
   const readSource = options.readSource || (() => readCodexSource(codexHome));
   const openThread =
     options.openThread ||

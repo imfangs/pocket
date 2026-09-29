@@ -117,3 +117,15 @@ renderer 的 `vBn` 以 Statsig gate `2120612410` 且 Core 版本至少 `0.148.0-
 | `webview/assets/app-initial-a9514281e192.js` | `038d28242240bb19fd90c7a380d80c6d23caaebc77a3ebb87ff6045bc49762c6` | `acceptFromFollower` 2988767，存储适配 `Dfn` 2990823，后端 `vBn` 3522173，字段 reader 2652934，`async#t` 2979549 |
 
 本次未修改应用、配置、认证、队列或源数据库。当前在线运行和特定设备上的真实执行行为仍以受控操作回读为准。
+
+## 用户追问：怎样开放（2026-09-29 追加）
+
+当前安装版本仍为 26.903.71938；本次再次读取官方 App Server 文档，确认 stdio、Unix socket、WebSocket 与多客户端协议。这里区分三个方向：
+
+1. **桌面增加受支持的 IPC 操作。** 由原 owner 暴露新建、改名、归档和统一队列 read/add/update/delete/send-now，内部调用已有 App Server 与原生发送锁。这最符合现有桌面模式，但需要官方提供这些接口或可用扩展点；当前公开源码不等于整个桌面 App 可自行构建替换。
+2. **桌面和 Pocket 共用一个 App Server。** 目标是“桌面 → 同一 App Server ← Pocket 本机桥接”，由 Unix socket 或带鉴权的本地 WebSocket 连接。当前桌面包存在连接外部 WebSocket 的入口，因此值得做迁移兼容性验证；它不会给正在运行的 stdio 进程自动增加监听口。必须核验自定义 provider/模型与权限、MCP App Tools、原任务 ID/历史、队列和恢复，再安排空闲窗口切换原 owner。只启动另一个 app-server 不能算接通当前桌面。
+3. **启用官方 Remote。** 官方客户端路径为 ChatGPT 登录、桌面 Connections 开启控制、手机配对；当前 API key 模式不满足。即使官方客户端能控制 Mac，也还要验证 Pocket 的受支持接入方式，不能把“Remote 已开启”当作任意第三方已获 SDK/凭据。
+
+工程判断：若希望自主推进完整远控，优先验证方向 2 的兼容性。若要求当前桌面、模型路由与 App Tools 的运行方式完全不变，就需要方向 1 的接口支持。此追加是方案说明，没有启动新执行器、迁移登录、修改桌面程序或重启 Codex。
+
+[官方 App Server 文档](https://learn.chatgpt.com/docs/app-server)本次明确将 WebSocket transport 标为实验性、不支持生产工作负载；Unix listener 可作为本机连接入口，具体桌面兼容性仍须实测。`--code-mode-host` 调整的是执行服务连接的 Code Mode host，并不是开放客户端连接的 `--listen`，不能混为一个开关。

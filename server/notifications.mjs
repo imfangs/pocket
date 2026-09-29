@@ -59,6 +59,17 @@ export class Notifications {
     this.store.db.prepare('DELETE FROM push_deliveries WHERE device_id=?').run(id);
     return { enabled: false };
   }
+  followSubmission(id, turnId) {
+    if (this.stopped || !this.devices().length || typeof turnId !== 'string') return;
+    const previous = this.store.db.prepare('SELECT * FROM push_watches WHERE thread_id=?').get(id);
+    // An accepted submission is a baseline even if the first browser history read never completed.
+    // Preserve actual pending requests until the owner confirms that they are resolved.
+    const state = previous?.state ? JSON.parse(previous.state) : { turn: turnId, status: 'accepted', requests: [] };
+    state.active = true;
+    this.store.db.prepare('INSERT INTO push_watches VALUES(?,?,?,?,0) ON CONFLICT(thread_id) DO UPDATE SET state=excluded.state,touched_at=excluded.touched_at,checked_at=0')
+      .run(id, JSON.stringify(state), previous?.source_updated ?? null, this.now());
+    this.store.db.prepare('DELETE FROM push_watches WHERE thread_id NOT IN(SELECT thread_id FROM push_watches ORDER BY touched_at DESC LIMIT 100)').run();
+  }
   watch(id, history) {
     if (this.stopped || !this.devices().length) return;
     const thread = this.store.thread(id), state = stateOf(history), now = this.now();

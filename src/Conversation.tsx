@@ -5,7 +5,7 @@ import StopExecution from "./StopExecution";
 import TurnDuration from "./TurnDuration";
 import QuestionPrompts from "./QuestionPrompts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, RefreshCw, Send, Monitor } from "lucide-react";
+import { ArrowDown, RefreshCw, Send, Link2 } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
@@ -231,12 +231,12 @@ export default function Conversation({
       >
         {history?.hasMore && (
           <p className="history-boundary">
-            显示最近的对话，完整历史可在 Codex 中查看。
+            仅显示最近的对话
           </p>
         )}
         {!loading && !historyError && !history?.messages.length && (
           <p className="history-empty">
-            暂时没有可显示的消息。可以连接原任务后刷新。
+            暂时没有可显示的消息
           </p>
         )}
         {history?.messages.filter(message => !message.isQuestion || !history.asyncQuestions?.some(q => q.sourceMessageId === message.id)).map((message) => (
@@ -249,7 +249,7 @@ export default function Conversation({
           <button
             className="secondary"
             disabled={connecting || !online}
-            title="在 Mac 的 Codex 中打开这条原会话，随后重试读取实时状态"
+            title="连接原任务并重新读取实时状态"
             onClick={async () => {
               setConnecting(true);
               setError("");
@@ -263,8 +263,8 @@ export default function Conversation({
               }
             }}
           >
-            <Monitor size={15} />
-            {connecting ? "正在打开…" : "在 Mac 中打开"}
+            <Link2 size={15} />
+            {connecting ? "正在连接…" : "连接任务"}
           </button>
         )}
         {(error || historyError) && (
@@ -295,7 +295,6 @@ export default function Conversation({
           onInput={(e) => updateDraft({ text: e.currentTarget.value })}
         />
         <div className="composer-actions">
-          <small>沿用原任务 · 在 Mac 执行</small>
           <button
             className="primary"
             disabled={

@@ -172,7 +172,7 @@ export default function Inspector(p: Props) {
         <div className="inspector-summary">
           <div className="source-line">
             {p.thread.projectName}
-            {p.thread.archived && <span>原版已归档</span>}
+            {p.thread.archived && <span>已归档</span>}
           </div>
           <h2>{p.thread.separator ? "分隔符会话" : p.thread.title}</h2>
           {p.thread.separator && (
@@ -202,7 +202,7 @@ export default function Inspector(p: Props) {
           <>
             <fieldset disabled={saving} className="inspector-fields">
               <label className="field-label" htmlFor="intent">
-                接下来怎么放
+                分类
               </label>
               <div className="intent-options" id="intent">
                 {(["none", "active", "later", "reference"] as Intent[]).map(
@@ -219,7 +219,7 @@ export default function Inspector(p: Props) {
                   ),
                 )}
               </div>
-              <label className="field-label">所在分组</label>
+              <label className="field-label">分组</label>
               <div className="membership-list">
                 {p.groups.map((g) => (
                   <label key={g.id}>
@@ -246,7 +246,6 @@ export default function Inspector(p: Props) {
               <label className="field-label note-label" htmlFor="continuation">
                 接续说明
               </label>
-              <p className="field-help">留一句，下次从哪里接上。</p>
               <textarea
                 id="continuation"
                 value={draft.note}
@@ -318,7 +317,7 @@ export default function Inspector(p: Props) {
                 <dd className="thread-id">{p.thread.id}</dd>
               </dl>
               <button
-                className="text-button"
+                className="text-button desktop-action"
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(

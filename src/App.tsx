@@ -495,7 +495,6 @@ export default function App({
               ? `最近同步 ${new Date(catalog.sourceInfo.syncedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
               : "等待来源"}
           </span>
-          <span>沿用原任务 · 整理独立保存</span>
         </footer>
       </main>
       {groupDialog !== undefined && (

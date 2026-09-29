@@ -144,6 +144,7 @@ export default function TaskList(p: Props) {
                   className="task-select"
                   onClick={() => p.onSelect(t.id)}
                   aria-pressed={p.selected === t.id}
+                  title={t.title}
                 >
                   <div className="row-first">
                     <strong>{t.separator ? "分隔符会话" : t.title}</strong>
@@ -165,7 +166,7 @@ export default function TaskList(p: Props) {
                             : "参考"}
                       </span>
                     )}
-                    {t.archived && <span>原版已归档</span>}
+                    {t.archived && <span>已归档</span>}
                     {due && <span className="due-label">到回顾时间了</span>}
                     {t.missing && <span className="due-label">来源待核对</span>}
                   </div>

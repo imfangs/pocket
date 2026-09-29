@@ -1,5 +1,16 @@
 /* Pocket visual system. Layout/viewport and delivery state machines live in their
    feature modules; these tokens and surfaces only define presentation. */
+@media (min-width: 761px) {
+  .with-inspector .list-panel { flex: 0 0 clamp(260px, 39%, 470px); }
+  .with-inspector .inspector { flex: 1; width: auto; min-width: 0; }
+}
+@media (min-width: 1001px) {
+  .workspace:not(.with-inspector) .list-panel { flex: 0 0 clamp(260px, 39%, 470px); }
+  .inspector-placeholder { flex: 1; width: auto; min-width: 0; }
+}
+@media (max-width: 760px) {
+  .inspector .inspector-summary, .desktop-action { display: none; }
+}
 :root { color: var(--ink); background: var(--surface-soft); --sidebar: #f7f7f9; --line: #ebebf0; --soft: var(--accent-soft); }
 ::selection { background: #e4ddff; color: #24242b; }
 button, a, input, textarea, select { transition: background-color 140ms var(--ease), border-color 140ms var(--ease), box-shadow 140ms var(--ease), color 140ms var(--ease); }
