@@ -11,6 +11,7 @@ import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
 import { Notifications } from "./notifications.mjs";
+import { sendCatalog } from "./catalog-response.mjs";
 import { isIP } from "node:net";
 
 const exec = promisify(execFile);
@@ -197,7 +198,7 @@ export function makeApp(options = {}) {
       if (method === "GET" && path === "/api/connection")
         return json(res, 200, connection);
       if (method === "GET" && path === "/api/catalog")
-        return json(res, 200, { ...store.catalog(), csrfToken: csrf });
+        return sendCatalog(res, { ...store.catalog(), csrfToken: csrf }, req.headers["accept-encoding"]);
       if (method === "GET" && path === "/api/notifications")
         return json(res, 200, notifications.config());
       if (path === "/api/notifications/subscription" && method === "POST")
@@ -208,7 +209,7 @@ export function makeApp(options = {}) {
         return json(res, 200, notifications.subscriptionState((await body(req, 4096)).endpoint));
       if (method === "POST" && path === "/api/sync") {
         sync();
-        return json(res, 200, store.catalog());
+        return sendCatalog(res, store.catalog(), req.headers["accept-encoding"]);
       }
       if (method === "GET" && path === "/api/export") {
         res.setHeader(
