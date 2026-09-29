@@ -253,26 +253,28 @@ export default function Sidebar(p: Props) {
         </div>
         <div className="sidebar-bottom">
           {p.footerActions}
-          <button
-            className={`nav-item ${p.view === "archived" ? "selected" : ""}`}
-            onClick={() => p.onView("archived")}
-          >
-            <Archive size={17} />
-            <span>归档</span>
-            <small>
-              {
-                p.catalog.threads.filter((t) => t.archived && !t.separator)
-                  .length
-              }
-            </small>
-          </button>
-          <button className="nav-item" onClick={p.onSettings}>
-            <Settings2 size={17} />
-            <span>数据与备份</span>
-          </button>
-          <div className="local-status">
-            <i />
-            保存在这台 Mac
+          <div className="sidebar-tools">
+            <button
+              className={`nav-item ${p.view === "archived" ? "selected" : ""}`}
+              onClick={() => p.onView("archived")}
+            >
+              <Archive size={17} />
+              <span>归档</span>
+              <small>
+                {
+                  p.catalog.threads.filter((t) => t.archived && !t.separator)
+                    .length
+                }
+              </small>
+            </button>
+            <button
+              className="icon-button sidebar-settings"
+              onClick={p.onSettings}
+              aria-label="设置"
+              title="设置"
+            >
+              <Settings2 size={17} aria-hidden="true" />
+            </button>
           </div>
         </div>
       </aside>

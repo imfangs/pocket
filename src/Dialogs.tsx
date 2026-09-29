@@ -1,4 +1,4 @@
-import { Download, FolderPlus, ShieldCheck, Upload, X } from "lucide-react";
+import { Download, FolderPlus, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Catalog, Group } from "./types";
 import { descendantIds, groupPath } from "./model";
@@ -216,17 +216,8 @@ export function SettingsDialog(p: {
     [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   return (
-    <Modal title="数据与备份" onClose={() => !busy && p.onClose()}>
+    <Modal title="设置" onClose={() => !busy && p.onClose()}>
       <div className="settings-content">
-        <div className="privacy-note">
-          <ShieldCheck size={23} />
-          <div>
-            <strong>你的整理，保存在这台 Mac</strong>
-            <p>
-              原版数据只读。分组、接续说明和稍后状态独立保存，修改后自动保留备份。
-            </p>
-          </div>
-        </div>
         <div className="data-summary">
           <span>最近成功同步</span>
           <strong>
@@ -249,7 +240,7 @@ export function SettingsDialog(p: {
           />
         </label>
         <hr />
-        <h3>带走或恢复整理结果</h3>
+        <h3>备份</h3>
         <p className="field-help">
           导出分组和接续说明，不包含完整聊天记录。导入会替换当前整理，导入前会自动备份。
         </p>

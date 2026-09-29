@@ -121,6 +121,7 @@ button:not(:disabled):active,
   font-size: 12px;
   padding: 9px 2px;
 }
+.access-install:empty { display: none; }
 .access-privacy {
   font-size: 10px;
   color: #92929f;

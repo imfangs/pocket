@@ -1,4 +1,4 @@
-import { Download, Check, Share2 } from "lucide-react";
+import { Download, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Modal } from "./Dialogs";
 type InstallEvent = Event & {
@@ -46,11 +46,12 @@ export default function PwaInstall() {
       setPrompt(null);
     } else setGuide(true);
   };
+  if (installed) return null;
   return (
     <>
       <button className="pwa-install" onClick={() => void install()}>
-        {installed ? <Check size={16} /> : <Download size={16} />}
-        <span>{installed ? "主屏幕使用说明" : "添加到主屏幕"}</span>
+        <Download size={16} />
+        <span>添加到主屏幕</span>
       </button>
       {guide && (
         <Modal title="添加到手机主屏幕" onClose={() => setGuide(false)}>
