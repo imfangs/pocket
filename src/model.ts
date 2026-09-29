@@ -44,8 +44,9 @@ export function filterThreads(
     .filter((t) => {
       if (!showSeparators && t.separator) return false;
       if (view === "archived" && !t.archived) return false;
-      if (["all", "pinned", "group", "unassigned"].includes(view) && t.archived)
+      if (["all", "pinned", "group", "unassigned", "unread"].includes(view) && t.archived)
         return false;
+      if (view === "unread" && (!t.needsInput || t.missing || t.separator)) return false;
       if (project && t.projectId !== project) return false;
       if (view === "pinned" && !t.pinned) return false;
       if (view === "recent" && !t.lastOpenedAt) return false;
@@ -67,12 +68,6 @@ export function filterThreads(
       return terms.every((q) => hay.includes(q));
     })
     .sort((a, b) => {
-      if (sort === "title") return a.title.localeCompare(b.title, "zh-CN");
-      if (sort === "review")
-        return (
-          (a.reviewAt || "9999").localeCompare(b.reviewAt || "9999") ||
-          b.updatedAt - a.updatedAt
-        );
       if (sort === "pinned" && a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       if (sort === "pinned" && a.pinned && b.pinned)
         return a.pinnedOrder - b.pinnedOrder || b.updatedAt - a.updatedAt;

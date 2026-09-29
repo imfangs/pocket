@@ -36,6 +36,8 @@ export interface Thread {
   groupIds: string[];
   lastOpenedAt: number | null;
   revision: number;
+  hasUnreadTurn?: boolean | null;
+  needsInput?: boolean;
 }
 export interface Catalog {
   threads: Thread[];
@@ -47,12 +49,14 @@ export interface Catalog {
     archived: number;
     total: number;
     scope: string;
+    unread?: { available: boolean; source: string; pending: number };
   } | null;
   sourceError: string | null;
   csrfToken?: string;
 }
 export type View =
   | "all"
+  | "unread"
   | "pinned"
   | "active"
   | "later"

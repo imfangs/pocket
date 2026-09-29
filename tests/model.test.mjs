@@ -94,3 +94,11 @@ test("an intentionally saved later task stays discoverable after original archiv
     1,
   );
 });
+test('waiting-for-input view includes only available ended unread tasks, not ordinary idle or archived tasks',()=>{
+ const items=[{...t,id:'unread',hasUnreadTurn:true,needsInput:true},{...t,id:'read',needsInput:false},{...t,id:'running',hasUnreadTurn:true,needsInput:false},{...t,id:'archived',needsInput:true,archived:true},{...t,id:'missing',needsInput:true,missing:true}];
+ assert.deepEqual(filterThreads(items,groups,'unread',null,'','',false,'updated').map(t=>t.id),['unread']);
+});
+test('retired title and review sort preferences fall back to recent activity',()=>{
+ const items=[{...t,id:'old',title:'A',updatedAt:1,reviewAt:'2020-01-01'},{...t,id:'new',title:'Z',updatedAt:2,reviewAt:null}];
+ for(const sort of ['title','review'])assert.equal(filterThreads(items,groups,'all',null,'','',false,sort)[0].id,'new');
+});

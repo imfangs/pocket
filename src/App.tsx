@@ -8,8 +8,10 @@ import {
   PanelRightOpen,
   Folder,
   AlertCircle,
+  ChevronLeft,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
@@ -39,6 +41,7 @@ const empty: Catalog = {
 };
 const titles: Record<View, string> = {
   all: "全部任务",
+  unread: "待我输入",
   pinned: "置顶",
   active: "正在推进",
   later: "稍后继续",
@@ -68,10 +71,11 @@ export default function App({
       return id && /^[a-f0-9-]{36}$/i.test(id) ? id : null;
     }),
     [query, setQuery] = useState(""),
+    [searchOpen, setSearchOpen] = useState(false),
     [project, setProject] = useState(""),
     [sort, setSort] = useState(
       prefs.sortVersion === 2 &&
-        ["pinned", "updated", "title", "review"].includes(prefs.sort)
+        ["pinned", "updated"].includes(prefs.sort)
         ? prefs.sort
         : "updated",
     ),
@@ -87,10 +91,32 @@ export default function App({
       () => localStorage.getItem("navigator.separators") === "true",
     );
   const search = useRef<HTMLInputElement>(null),
+    searchToggle = useRef<HTMLButtonElement>(null),
     conversationDrafts = useRef(new Map<string, QueryDraft>()),
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null);
   const syncing = useRef<Promise<void> | null>(null);
+  const listPanel = useRef<HTMLElement>(null);
+  const restoreScroll = useRef<number | null>(null);
+  const returnView = useRef<{ view: View; groupId: string | null; project: string; query: string; searchOpen: boolean; sort: string; scrollTop: number; selected: string | null }>({
+    view: "pinned", groupId: null, project: "", query: "", searchOpen: false, sort: "updated", scrollTop: 0, selected: null,
+  });
+  const openSearch = useCallback(() => {
+    // Focus during the tap so iOS opens the keyboard on the first interaction.
+    flushSync(() => setSearchOpen(true));
+    search.current?.focus();
+  }, []);
+  const closeSearch = useCallback(() => {
+    setQuery("");
+    setChecked(new Set());
+    setSearchOpen(false);
+    searchToggle.current?.focus();
+  }, []);
+  useLayoutEffect(() => {
+    if (restoreScroll.current === null || !listPanel.current) return;
+    listPanel.current.scrollTop = restoreScroll.current;
+    restoreScroll.current = null;
+  }, [view, groupId, project, query, sort]);
   const notify = useCallback((s: string) => {
     toast.success(s, { id: "pocket-feedback" });
   }, []);
@@ -153,15 +179,16 @@ export default function App({
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        if (document.querySelector("dialog[open]")) return;
         e.preventDefault();
-        search.current?.focus();
+        openSearch();
       }
       if (e.key === "Escape" && !document.querySelector("dialog[open]"))
         setMobile(false);
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, []);
+  }, [openSearch]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -197,6 +224,8 @@ export default function App({
   const current = catalog.threads.find((t) => t.id === selected);
   const selectedGroup = catalog.groups.find((g) => g.id === groupId);
   const title = view === "group" ? selectedGroup?.name || "分组" : titles[view];
+  const unreadKnown = catalog.sourceInfo?.unread?.available === true;
+  const unreadCount = catalog.threads.filter(t => t.needsInput && !t.archived && !t.missing && !t.separator).length;
   const flush = async () => {
     await flushRef.current?.();
   };
@@ -208,7 +237,42 @@ export default function App({
       setError((e as Error).message);
     }
   };
-  const switchView = (v: View, id?: string) =>
+  const openUnread = () => {
+    if (view === "unread") return;
+    void guard(async () => {
+      await flush();
+      returnView.current = { view, groupId, project, query, searchOpen, sort, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
+      restoreScroll.current = 0;
+      setView("unread");
+      setGroupId(null);
+      setProject("");
+      setQuery("");
+      setSearchOpen(false);
+      setSort("updated");
+      setSelected(null);
+      setChecked(new Set());
+      setMobile(false);
+      refreshAfterActivity();
+    });
+  };
+  const returnFromUnread = () => void guard(async () => {
+    await flush();
+    const previous = returnView.current;
+    restoreScroll.current = previous.scrollTop;
+    setView(previous.view);
+    setGroupId(previous.groupId);
+    setProject(previous.project);
+    setQuery(previous.query);
+    setSearchOpen(previous.searchOpen);
+    setSort(previous.sort);
+    setSelected(previous.selected);
+    setChecked(new Set());
+    refreshAfterActivity();
+  });
+  const switchView = (v: View, id?: string) => {
+    if (v === "unread") return openUnread();
+    if (view === "unread" && v === returnView.current.view && (id || null) === returnView.current.groupId)
+      return returnFromUnread();
     void guard(async () => {
       await flush();
       setView(v);
@@ -219,6 +283,7 @@ export default function App({
       setMobile(false);
       refreshAfterActivity();
     });
+  };
   useEffect(() => {
     const fromNotification = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
@@ -316,7 +381,7 @@ export default function App({
               </div>
               <h1>
                 {title}
-                <span>{threads.length}</span>
+                <span>{view === "unread" && !unreadKnown ? "—" : threads.length}</span>
               </h1>
             </div>
             <button
@@ -330,58 +395,72 @@ export default function App({
             </button>
           </div>
           <div className="filter-row">
-            <div className="search-box">
-              <Search size={17} />
-              <input
-                ref={search}
-                aria-label="搜索任务"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setChecked(new Set());
-                }}
-              />
-              {query ? (
-                <button
-                  className="icon-button"
-                  onClick={() => setQuery("")}
-                  aria-label="清除搜索"
-                >
-                  <X size={15} />
-                </button>
-              ) : (
-                <kbd>⌘ K</kbd>
-              )}
-            </div>
-            <select
-              className="project-filter"
-              aria-label="筛选来源项目"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-            >
-              <option value="">所有来源项目</option>
-              {catalog.projects
-                .filter((p) => !p.separator)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-            </select>
-            <label className="sort-control">
-              <ArrowDownWideNarrow size={16} />
+            <button className="needs-input-toggle" data-inbox={view === "unread"} onClick={view === "unread" ? returnFromUnread : openUnread}
+              title={view === "unread" ? "返回之前的列表、搜索与位置" : "查看所有项目的待输入任务"}>
+              {view === "unread" ? <ChevronLeft size={16} aria-hidden="true" /> : <span className="unread-dot" aria-hidden="true" />}
+              <span>{view === "unread" ? "返回列表" : "待我输入"}</span>
+              {view !== "unread" && <small>{unreadKnown ? unreadCount : "—"}</small>}
+            </button>
+            <div className="list-controls">
               <select
-                aria-label="排序方式"
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
+                className="project-filter"
+                aria-label="筛选来源项目"
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
               >
-                <option value="pinned">置顶优先</option>
-                <option value="updated">最近活动</option>
-                <option value="title">按标题</option>
-                <option value="review">回顾日期</option>
+                <option value="">所有来源项目</option>
+                {catalog.projects
+                  .filter((p) => !p.separator)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
               </select>
-            </label>
+              <label className="sort-control">
+                <ArrowDownWideNarrow size={16} />
+                <select
+                  aria-label="排序方式"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                >
+                  <option value="pinned">置顶优先</option>
+                  <option value="updated">最近活动</option>
+                </select>
+              </label>
+              <button
+                ref={searchToggle}
+                className="icon-button search-toggle"
+                aria-label={searchOpen ? "收起搜索" : "展开搜索"}
+                aria-expanded={searchOpen}
+                aria-controls="task-search-box"
+                aria-keyshortcuts="Control+K Meta+K"
+                onClick={searchOpen ? closeSearch : openSearch}
+              >
+                <Search size={20} />
+              </button>
+            </div>
           </div>
+          {searchOpen && <div className="search-box expanded-search" id="task-search-box">
+            <Search size={17} aria-hidden="true" />
+            <input
+              ref={search}
+              aria-label="搜索任务"
+              inputMode="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setChecked(new Set()); }}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+                if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeSearch(); }
+                if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+              }}
+            />
+            <button className="icon-button" onClick={closeSearch} aria-label="清除并收起搜索">
+              <X size={17} />
+            </button>
+          </div>}
         </header>
         {(error || catalog.sourceError) && (
           <div className="error-banner" role="alert">
@@ -406,12 +485,14 @@ export default function App({
           </div>
         )}
         <div className="content">
-          <TaskListPanel busy={busy || loading} onRefresh={syncTasks}>
+          <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel}>
               <TaskList
                 threads={threads}
                 groups={catalog.groups}
                 selected={selected}
                 view={view}
+                unreadAvailable={unreadKnown}
+                unreadPending={catalog.sourceInfo?.unread?.pending ?? 0}
                 onSelect={(id) =>
                   void guard(async () => {
                     await flush();

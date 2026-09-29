@@ -10,6 +10,7 @@ import {
   Layers3,
   Pocket,
   MoreHorizontal,
+  MessageCircle,
   Pin,
   Plus,
   RotateCcw,
@@ -71,7 +72,8 @@ export default function Sidebar(p: Props) {
   };
   const active = p.catalog.threads.filter((t) => !t.archived && !t.separator);
   const all = p.catalog.threads.filter((t) => !t.separator);
-  const navs: [View, string, typeof Layers3, number][] = [
+  const navs: [View, string, typeof Layers3, number | string][] = [
+    ["unread", "待我输入", MessageCircle, p.catalog.sourceInfo?.unread?.available ? active.filter(t => t.needsInput && !t.missing).length : "—"],
     ["all", "全部任务", Layers3, active.length],
     ["pinned", "置顶", Pin, active.filter((t) => t.pinned).length],
     [
@@ -218,6 +220,7 @@ export default function Sidebar(p: Props) {
           {navs.map(([v, label, Icon, n]) => (
             <button
               key={v}
+              data-view={v}
               className={`nav-item ${p.view === v ? "selected" : ""}`}
               onClick={() => p.onView(v)}
             >

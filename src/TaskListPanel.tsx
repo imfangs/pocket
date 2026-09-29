@@ -1,13 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ArrowDown, RefreshCw } from "lucide-react";
 import { bindPullToRefresh } from "./pullToRefresh";
 
-export default function TaskListPanel({ children, busy, onRefresh }: {
+export default function TaskListPanel({ children, busy, onRefresh, scrollRef }: {
   children: ReactNode;
   busy: boolean;
   onRefresh: () => Promise<void>;
+  scrollRef?: RefObject<HTMLElement | null>;
 }) {
-  const panel = useRef<HTMLElement>(null);
+  const ownPanel = useRef<HTMLElement>(null);
+  const panel = scrollRef ?? ownPanel;
   const latest = useRef({ busy, onRefresh });
   const [pull, setPull] = useState({ distance: 0, refreshing: false, armed: false });
   useLayoutEffect(() => { latest.current = { busy, onRefresh }; }, [busy, onRefresh]);

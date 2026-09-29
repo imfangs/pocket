@@ -15,6 +15,8 @@ interface Props {
   groups: Group[];
   selected: string | null;
   view: View;
+  unreadAvailable?: boolean;
+  unreadPending?: number;
   onSelect: (id: string) => void;
   onOpen: (t: Thread) => void;
   checked: Set<string>;
@@ -97,15 +99,23 @@ export default function TaskList(p: Props) {
         <div className="empty-list">
           {p.query ? <Search size={30} /> : <Inbox size={32} />}
           <h2>
-            {p.query
+            {p.view === "unread" && !p.unreadAvailable
+              ? "暂时无法读取待输入状态"
+              : p.query
               ? "没有找到相关任务"
+              : p.view === "unread"
+                ? "暂时没有待输入任务"
               : p.view === "later"
                 ? "想以后继续的，留在这里"
                 : "这里还没有任务"}
           </h2>
           <p>
-            {p.query
+            {p.view === "unread" && !p.unreadAvailable
+              ? "请稍后刷新重试。"
+              : p.query
               ? "试试任务名、项目名或接续说明里的词。"
+              : p.view === "unread"
+                ? p.unreadPending ? "有未读任务尚未确认结束。" : "任务结束并有新提醒后，会出现在这里。"
               : p.view === "later"
                 ? "选中一条任务，标记「稍后继续」。下次回来，从这里接上。"
                 : "可以切换视图，或把任务拖入这个分组。"}
@@ -148,6 +158,7 @@ export default function TaskList(p: Props) {
                 >
                   <div className="row-first">
                     <strong>{t.separator ? "分隔符会话" : t.title}</strong>
+                    {t.needsInput && !t.archived && !t.missing && <span className="unread-dot" role="img" aria-label="有未读进展" />}
                     {t.pinned && <Pin size={13} className="pin-icon" />}
                     <time dateTime={new Date(t.updatedAt).toISOString()}>
                       {ago(t.updatedAt)}

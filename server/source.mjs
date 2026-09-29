@@ -1,12 +1,14 @@
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { readLocalUnreadState, readRecordedTurnState } from "./unread.mjs";
 
 const separator = (s) => /^[-—–_\s]{3,}$/.test(s);
 export function readCodexSource(codexHome) {
   const file = join(codexHome, "state_5.sqlite");
   const globalFile = join(codexHome, ".codex-global-state.json");
   const global = JSON.parse(readFileSync(globalFile, "utf8"));
+  const unread = readLocalUnreadState(global, codexHome);
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     db.exec("PRAGMA query_only = ON; PRAGMA busy_timeout = 2000");
@@ -33,7 +35,7 @@ export function readCodexSource(codexHome) {
     const rows = db
       .prepare(
         `SELECT id, title, cwd, archived, created_at, updated_at, source,
-      ${["name", "thread_source", "agent_path", "project_id", "updated_at_ms", "git_branch"].map((f) => optional(f)).join(", ")}
+      ${["name", "thread_source", "agent_path", "project_id", "updated_at_ms", "git_branch", "rollout_path"].map((f) => optional(f)).join(", ")}
       FROM threads WHERE source IN ('vscode', 'cli', 'exec', 'app')`,
       )
       .all();
@@ -79,6 +81,9 @@ export function readCodexSource(codexHome) {
         const title = String(r.name || r.title || "未命名会话")
           .split("\n")[0]
           .slice(0, 220);
+        const hasUnreadTurn = unread.available ? unread.ids.has(r.id) : null;
+        const recordedTurnState = hasUnreadTurn && !r.archived && !separator(title)
+          ? readRecordedTurnState(codexHome, r.id, r.rollout_path) : undefined;
         return {
           id: r.id,
           hostId: "local",
@@ -96,6 +101,9 @@ export function readCodexSource(codexHome) {
           // Pocket labels this as activity, so use the actual update timestamp.
           updatedAt: r.updated_at_ms || r.updated_at * 1000,
           branch: r.git_branch || null,
+          hasUnreadTurn,
+          needsInput: hasUnreadTurn === true && recordedTurnState === "ended",
+          ...(recordedTurnState ? { recordedTurnState } : {}),
         };
       });
     return {
@@ -112,6 +120,11 @@ export function readCodexSource(codexHome) {
         archived: threads.filter((t) => t.archived && !t.separator).length,
         separators: threads.filter((t) => t.separator).length,
         excludedChildren,
+        unread: {
+          available: unread.available,
+          source: unread.source,
+          pending: threads.filter(t => t.hasUnreadTurn && !t.archived && !t.separator && !t.needsInput).length,
+        },
         scope: "本机 Codex 用户、自动化及独立任务；不含子代理、云端和其他电脑",
       },
     };
