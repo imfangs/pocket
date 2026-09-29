@@ -1,4 +1,5 @@
 """Version-gated client of the existing desktop owner; never starts an agent."""
+from request_actions import projected_requests, prepare_response
 import json
 import plistlib
 import sys
@@ -102,20 +103,7 @@ def request_key(request):
 
 
 def pending_requests(state):
-    result = []
-    for request in state.get("requests", []):
-        params = request.get("params") or {}
-        if request.get("method") != "item/commandExecution/requestApproval":
-            continue
-        command = params.get("command")
-        decisions = params.get("availableDecisions") or []
-        if not isinstance(command, str) or not command or len(command) > 32000:
-            continue
-        result.append({"key": request_key(request), "kind": "command", "command": command,
-                       "reason": params.get("reason") or "Codex 请求你确认这次命令执行。",
-                       "cwd": params.get("cwd") or "", "turnId": params.get("turnId"),
-                       "choices": [d for d in decisions if d in ("accept", "cancel")]})
-    return result
+    return projected_requests(state, ordered_turns(state))
 
 
 def async_questions(state):
@@ -294,13 +282,12 @@ def main():
                 shown = next((r for r in pending_requests(fresh) if r["key"] == data.get("requestKey")), None)
                 if fresh_owner != owner or fresh.get("resumeState") != "resumed" or not shown:
                     return {"ok": False, "code": "request_changed", "sent": False}
-                decision = data.get("decision")
-                if decision not in shown["choices"]:
+                prepared = prepare_response(fresh, ordered_turns(fresh), data.get("requestKey"), data.get("decision"), data.get("answers"))
+                if not prepared:
                     return {"ok": False, "code": "invalid_decision", "sent": False}
-                original = next(r for r in fresh["requests"] if request_key(r) == shown["key"])
+                method, params = prepared
                 dispatched = True
-                client.request("thread-follower-command-approval-decision", {"conversationId": thread_id,
-                    "requestId": original["id"], "decision": decision}, 1, owner)
+                client.request(method, params, 1, owner)
                 return {"ok": True, "status": "accepted"}
             if data["operation"] == "compact":
                 if not can_compact(state):

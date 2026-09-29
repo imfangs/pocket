@@ -72,6 +72,10 @@ export class AccessControl {
     writeFileSync(this.passphrasePath, value + "\n", { mode: 0o600 });
     chmodSync(this.passphrasePath, 0o600);
     this.db.prepare("DELETE FROM auth_sessions").run();
+    if (this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='push_devices'").get()) {
+      this.db.prepare("DELETE FROM push_devices").run();
+      this.db.prepare("DELETE FROM push_deliveries").run();
+    }
   }
   cookieToken(req) {
     const raw = String(req.headers.cookie || "")

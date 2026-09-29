@@ -33,6 +33,12 @@ createRoot(document.getElementById("root")!).render(
   </React.StrictMode>,
 );
 if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", event => {
+    if (event.data?.type !== "pocket-open-task" || !/^[a-f0-9-]{36}$/i.test(event.data.threadId)) return;
+    try { sessionStorage.setItem("pocket.pending-task", event.data.threadId); } catch {}
+    window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: event.data.threadId }));
+    event.ports[0]?.postMessage("pocket-task-received");
+  });
   navigator.serviceWorker
     .register("/sw.js")
     .then(() => navigator.serviceWorker.ready)

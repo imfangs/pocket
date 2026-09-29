@@ -249,22 +249,26 @@ export class DesktopService {
   }
   async respond(id, requestKey, input) {
     const thread = this.store.thread(id);
-    if (!input || Object.keys(input).some(k => !["responseId", "decision"].includes(k)) ||
-        !["accept", "cancel"].includes(input.decision) || typeof input.responseId !== "string" ||
+    const hasAnswers = input?.answers && typeof input.answers === "object" && !Array.isArray(input.answers);
+    if (!input || Object.keys(input).some(k => !["responseId", "decision", "answers"].includes(k)) ||
+        (hasAnswers ? input.decision !== undefined || !Object.keys(input.answers).length || Object.keys(input.answers).length > 10 ||
+          Object.values(input.answers).some(v => typeof v !== "string" || !v.trim() || v.length > 16000) || JSON.stringify(input.answers).length > 40000
+          : !["accept", "cancel"].includes(input.decision) || input.answers !== undefined) || typeof input.responseId !== "string" ||
         !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.responseId) || !/^[a-f0-9]{64}$/.test(requestKey))
       throw new AppError("审批响应参数无效", 400);
+    const recordedDecision = hasAnswers ? 'answers:' + createHash('sha256').update(JSON.stringify(Object.fromEntries(Object.entries(input.answers).sort(([a], [b]) => a.localeCompare(b))))).digest('hex') : input.decision;
     const old = this.store.db.prepare("SELECT * FROM request_responses WHERE id=?").get(input.responseId);
     if (old) {
-      if (old.thread_id !== id || old.request_key !== requestKey || old.decision !== input.decision) throw new AppError("响应编号已用于其他操作", 409);
+      if (old.thread_id !== id || old.request_key !== requestKey || old.decision !== recordedDecision) throw new AppError("响应编号已用于其他操作", 409);
       return this.getResponseReceipt(id, input.responseId);
     }
     if (thread.archived || thread.missing) throw new AppError("请先恢复原任务", 409);
     const prior = this.store.db.prepare("SELECT id FROM request_responses WHERE thread_id=? AND request_key=? AND status IN('pending','accepted','unknown')").get(id, requestKey);
     if (prior) throw new AppError("这个请求已经响应，请先刷新核对", 409);
     this.store.db.prepare("INSERT INTO request_responses VALUES(?,?,?,?,'pending',NULL,?)")
-      .run(input.responseId, id, requestKey, input.decision, Date.now());
+      .run(input.responseId, id, requestKey, recordedDecision, Date.now());
     let result;
-    try { result = await this.request({ operation: "respond", threadId: id, codexHome: this.codexHome, requestKey, decision: input.decision }); }
+    try { result = await this.request({ operation: "respond", threadId: id, codexHome: this.codexHome, requestKey, decision: input.decision, ...(hasAnswers ? { answers: input.answers } : {}) }); }
     catch { result = { ok: false, sent: null, code: "dispatch_unknown" }; }
     const status = result.ok ? "accepted" : result.sent === false ? "rejected" : "unknown";
     this.store.db.prepare("UPDATE request_responses SET status=?,code=? WHERE id=? AND status='pending'")

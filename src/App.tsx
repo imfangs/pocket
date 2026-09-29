@@ -62,7 +62,11 @@ export default function App({
     [groupId, setGroupId] = useState<string | null>(
       typeof prefs.groupId === "string" ? prefs.groupId : null,
     ),
-    [selected, setSelected] = useState<string | null>(null),
+    [selected, setSelected] = useState<string | null>(() => {
+      let id = new URLSearchParams(location.search).get("task");
+      try { id ||= sessionStorage.getItem("pocket.pending-task"); sessionStorage.removeItem("pocket.pending-task"); } catch {}
+      return id && /^[a-f0-9-]{36}$/i.test(id) ? id : null;
+    }),
     [query, setQuery] = useState(""),
     [project, setProject] = useState(""),
     [sort, setSort] = useState(
@@ -215,6 +219,20 @@ export default function App({
       setMobile(false);
       refreshAfterActivity();
     });
+  useEffect(() => {
+    const fromNotification = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      void guard(async () => {
+        await flush();
+        await syncTasks(true);
+        setSelected(id);
+        setMobile(false);
+        try { sessionStorage.removeItem("pocket.pending-task"); } catch {}
+      });
+    };
+    window.addEventListener("pocket-open-task", fromNotification);
+    return () => window.removeEventListener("pocket-open-task", fromNotification);
+  });
   const saveTask = useCallback(
     async (id: string, patch: unknown) => {
       try {

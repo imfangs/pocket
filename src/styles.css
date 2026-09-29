@@ -1996,3 +1996,13 @@ hr {
   .inspector[data-keyboard-open] .conversation:has(.question-card[data-editing] textarea) .conversation-messages { display: none; }
   .inspector[data-keyboard-open] .conversation:has(.question-card[data-editing] textarea) .question-prompts { max-height: none; flex: 1; }
 }
+
+.inspector #continuation { min-height: 0; height: auto; line-height: 1.5; resize: vertical; }
+
+.notification-setting { padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.notification-setting .secondary { min-height: 44px; margin-top: 8px; }
+.approval-question { border: 0; padding: 8px 0; margin: 0; min-width: 0; }
+.approval-question legend { padding: 0; font-size: 14px; line-height: 1.5; }
+.approval-question label { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 0; }
+.approval-question small { display: block; color: var(--muted); }
+.approval-question input:not([type="radio"]) { width: 100%; min-height: 44px; padding: 10px; font-size: 16px; border: 1px solid var(--line); background: var(--surface-raised); color: var(--ink); border-radius: 8px; }

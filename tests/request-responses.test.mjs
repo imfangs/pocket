@@ -24,3 +24,9 @@ test('approval API rejects session-wide permission values and undeclared fields'
  await assert.rejects(s.respond(id,key,{responseId:rid,decision:'accept',permissions:'full'}),e=>e.status===400);
  assert.equal(state.calls.length,0);
 });
+test('blocking answers are fingerprinted without storing the submitted text and cannot be changed on retry',async t=>{
+ const {service:s,state,store}=fixture(t);const input={responseId:rid,answers:{a:'Private answer'}};
+ assert.equal((await s.respond(id,key,input)).status,'accepted');assert.equal((await s.respond(id,key,input)).status,'accepted');assert.equal(state.calls.length,1);
+ assert.ok(!store.db.prepare('SELECT decision FROM request_responses').get().decision.includes('Private'));
+ await assert.rejects(s.respond(id,key,{responseId:rid,answers:{a:'Other'}}),e=>e.status===409);
+});

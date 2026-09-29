@@ -399,3 +399,32 @@ test('answered async questions disappear, and an old question key cannot answer 
  assert.equal(changed.sent,false);assert.equal(changed.code,'question_changed');
  assert.equal(f.calls.some(c=>c.method==='thread-follower-start-turn'||c.method==='thread-follower-steer-turn'),false);
 });
+
+test('file approval displays its exact patch and a changed patch rejects an old response',async t=>{
+ const request={id:9,method:'item/fileChange/requestApproval',params:{threadId:id,turnId:'t',itemId:'file'}};
+ const state={...idle,requests:[request],turns:[{turnId:'t',items:[{id:'file',type:'fileChange',changes:[{path:'/fixture/a.txt',kind:'update',diff:'-old\n+new'}]}]}]};
+ const f=await fakeDesktop(t,[state]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ assert.equal(h.pendingRequests[0].kind,'file');assert.ok(h.pendingRequests[0].details.includes('+new'));
+ const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,decision:'accept'});
+ assert.equal(r.status,'accepted');assert.equal(f.calls.find(c=>c.method==='thread-follower-file-approval-decision').params.requestId,9);
+ const changed={...state,turns:[{turnId:'t',items:[{id:'file',type:'fileChange',changes:[{path:'/fixture/a.txt',diff:'+other'}]}]}]};
+ const other=await fakeDesktop(t,[changed]);const denied=await desktopRequest({operation:'respond',threadId:id,codexHome:other.home,requestKey:h.pendingRequests[0].key,decision:'accept'});
+ assert.equal(denied.code,'request_changed');
+});
+test('requested permissions are scoped only to the current turn and denial grants nothing',async t=>{
+ const request={id:'permissions',method:'item/permissions/requestApproval',params:{threadId:id,turnId:'t',permissions:{network:{enabled:true},fileSystem:{read:['/fixture']}}}};
+ const f=await fakeDesktop(t,[{...idle,requests:[request]}]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ for(const decision of ['accept','cancel']){
+  const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,decision});assert.equal(r.status,'accepted');
+ }
+ const calls=f.calls.filter(c=>c.method==='thread-follower-permissions-request-approval-response');
+ assert.deepEqual(calls[0].params.response,{permissions:request.params.permissions,scope:'turn'});assert.deepEqual(calls[1].params.response,{permissions:{},scope:'turn'});
+});
+test('blocking question answers go through native response, never a new user turn',async t=>{
+ const request={id:'question',method:'item/tool/requestUserInput',params:{threadId:id,turnId:'t',questions:[{id:'direction',question:'Choose',options:[{label:'A',description:'Option A'}]}]}};
+ const f=await fakeDesktop(t,[{...idle,requests:[request]}]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,answers:{direction:'A'}});assert.equal(r.status,'accepted');
+ assert.deepEqual(f.calls.find(c=>c.method==='thread-follower-submit-user-input').params.response,{answers:{direction:{answers:['A']}}});
+ const bad=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,answers:{unexpected:'A'}});assert.equal(bad.sent,false);
+ assert.equal(f.calls.some(c=>c.method==='thread-follower-start-turn'),false);
+});

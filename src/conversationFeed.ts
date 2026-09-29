@@ -144,8 +144,10 @@ export function startConversationFeed(options: FeedOptions) {
 
 export type PendingRequest = {
   key: string;
-  kind: "command";
-  command: string;
+  kind: "command" | "file" | "permissions" | "questions" | "unsupported";
+  command?: string;
+  details?: string;
+  questions?: { id: string; question: string; isSecret?: boolean; options?: { label: string; description: string }[] | null }[];
   reason: string;
   cwd: string;
   choices: ("accept" | "cancel")[];

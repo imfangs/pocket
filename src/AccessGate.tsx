@@ -11,6 +11,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import PwaInstall from "./PwaInstall";
 import ThemeSwitch from "./ThemeSwitch";
 import BootSplash from "./BootSplash";
+import { api } from "./api";
 
 const App = lazy(() => import("./App"));
 export default function AccessGate() {
@@ -73,6 +74,14 @@ export default function AccessGate() {
   const logout = async () => {
     setBusy(true);
     try {
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const subscription = await registration?.pushManager.getSubscription();
+        if (subscription) {
+          await api('/api/notifications/subscription', 'DELETE', {endpoint: subscription.endpoint});
+          await subscription.unsubscribe();
+        }
+      }
       const r = await fetch("/api/auth/logout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

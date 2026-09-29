@@ -219,6 +219,30 @@ export default function Inspector(p: Props) {
                   ),
                 )}
               </div>
+              <label className="field-label">所在分组</label>
+              <div className="membership-list">
+                {p.groups.map((g) => (
+                  <label key={g.id}>
+                    <input
+                      type="checkbox"
+                      checked={draft.groupIds.includes(g.id)}
+                      onChange={(e) =>
+                        update(
+                          "groupIds",
+                          e.target.checked
+                            ? [...draft.groupIds, g.id]
+                            : draft.groupIds.filter((id) => id !== g.id),
+                        )
+                      }
+                    />
+                    <Folder size={14} color={g.color} />
+                    <span>{groupPath(p.groups, g.id)}</span>
+                  </label>
+                ))}
+                {!p.groups.length && (
+                  <p className="field-help">先在左侧新建一个分组。</p>
+                )}
+              </div>
               <label className="field-label note-label" htmlFor="continuation">
                 接续说明
               </label>
@@ -227,7 +251,7 @@ export default function Inspector(p: Props) {
                 id="continuation"
                 value={draft.note}
                 maxLength={12000}
-                rows={7}
+                rows={2}
                 onInput={(e) => update("note", e.currentTarget.value)}
                 onChange={(e) => update("note", e.target.value)}
                 onKeyDown={(e) => {
@@ -254,30 +278,6 @@ export default function Inspector(p: Props) {
                   />
                 </label>
               )}
-              <label className="field-label">所在分组</label>
-              <div className="membership-list">
-                {p.groups.map((g) => (
-                  <label key={g.id}>
-                    <input
-                      type="checkbox"
-                      checked={draft.groupIds.includes(g.id)}
-                      onChange={(e) =>
-                        update(
-                          "groupIds",
-                          e.target.checked
-                            ? [...draft.groupIds, g.id]
-                            : draft.groupIds.filter((id) => id !== g.id),
-                        )
-                      }
-                    />
-                    <Folder size={14} color={g.color} />
-                    <span>{groupPath(p.groups, g.id)}</span>
-                  </label>
-                ))}
-                {!p.groups.length && (
-                  <p className="field-help">先在左侧新建一个分组。</p>
-                )}
-              </div>
             </fieldset>
             {error && (
               <p className="inline-error" role="alert">

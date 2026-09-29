@@ -1,5 +1,6 @@
 import { Download, FolderPlus, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import NotificationSettings from "./NotificationSettings";
 import type { Catalog, Group } from "./types";
 import { descendantIds, groupPath } from "./model";
 export function Modal({
@@ -218,6 +219,7 @@ export function SettingsDialog(p: {
   return (
     <Modal title="设置" onClose={() => !busy && p.onClose()}>
       <div className="settings-content">
+        <NotificationSettings />
         <div className="data-summary">
           <span>最近成功同步</span>
           <strong>

@@ -10,6 +10,7 @@ import { NavigatorStore, AppError } from "./store.mjs";
 import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
+import { Notifications } from "./notifications.mjs";
 import { isIP } from "node:net";
 
 const exec = promisify(execFile);
@@ -44,6 +45,7 @@ export function makeApp(options = {}) {
     options.desktopRequest,
     options.readHistory,
   );
+  const notifications = new Notifications(store, desktop, options.notifications);
   const readSource = options.readSource || (() => readCodexSource(codexHome));
   const openThread =
     options.openThread ||
@@ -192,6 +194,14 @@ export function makeApp(options = {}) {
         return json(res, 200, connection);
       if (method === "GET" && path === "/api/catalog")
         return json(res, 200, { ...store.catalog(), csrfToken: csrf });
+      if (method === "GET" && path === "/api/notifications")
+        return json(res, 200, notifications.config());
+      if (path === "/api/notifications/subscription" && method === "POST")
+        return json(res, 200, notifications.subscribe(await body(req, 4096)));
+      if (path === "/api/notifications/subscription" && method === "DELETE")
+        return json(res, 200, notifications.unsubscribe((await body(req, 4096)).endpoint));
+      if (path === "/api/notifications/state" && method === "POST")
+        return json(res, 200, notifications.subscriptionState((await body(req, 4096)).endpoint));
       if (method === "POST" && path === "/api/sync") {
         sync();
         return json(res, 200, store.catalog());
@@ -213,8 +223,11 @@ export function makeApp(options = {}) {
       }
       const task = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)$/);
       const history = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/history$/i);
-      if (history && method === "GET")
-        return json(res, 200, await desktop.history(history[1]));
+      if (history && method === "GET") {
+        const data = await desktop.history(history[1]);
+        notifications.watch(history[1], data);
+        return json(res, 200, data);
+      }
       const message = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/messages$/i);
       if (message && method === "POST")
         return json(
@@ -307,10 +320,11 @@ export function makeApp(options = {}) {
   });
   const close = () => {
     clearInterval(interval);
+    notifications.stop();
     desktop.stopQueue();
     store.close();
   };
-  server.on("listening", () => desktop.startQueue());
+  server.on("listening", () => { desktop.startQueue(); notifications.start(); });
   server.on("close", close);
   return { server, store, sync, auth };
 }

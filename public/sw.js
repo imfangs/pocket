@@ -1,4 +1,4 @@
-const CACHE = "navigator-public-shell-v4";
+const CACHE = "navigator-public-shell-v5";
 const PUBLIC_FILES = [
   "/startup.css",
   "/theme.js",
@@ -16,6 +16,37 @@ self.addEventListener("install", (event) => {
       .then((cache) => cache.addAll(PUBLIC_FILES))
       .then(() => self.skipWaiting()),
   );
+});
+self.addEventListener("push", event => {
+  let data;
+  try { data = event.data.json(); } catch { return; }
+  if (!/^[a-f0-9-]{36}$/i.test(data?.threadId) || typeof data.body !== "string") return;
+  event.waitUntil(self.registration.showNotification("Pocket", {
+    body: data.body.slice(0, 100), icon: "/icons/icon-192.png", badge: "/icons/icon-192.png",
+    tag: `pocket-${data.eventId}`, data: { threadId: data.threadId },
+  }));
+});
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  const id = event.notification.data?.threadId;
+  if (!/^[a-f0-9-]{36}$/i.test(id)) return;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const existing = windows.find(client => new URL(client.url).origin === self.location.origin);
+    if (existing) {
+      await existing.focus();
+      const acknowledged = await new Promise(resolve => {
+        const channel = new MessageChannel();
+        const timer = setTimeout(() => { channel.port1.close(); resolve(false); }, 3000);
+        channel.port1.onmessage = message => {
+          if (message.data !== "pocket-task-received") return;
+          clearTimeout(timer); channel.port1.close(); resolve(true);
+        };
+        existing.postMessage({ type: "pocket-open-task", threadId: id }, [channel.port2]);
+      });
+      if (!acknowledged) await existing.navigate(`/?task=${encodeURIComponent(id)}`);
+    } else await self.clients.openWindow(`/?task=${encodeURIComponent(id)}`);
+  })());
 });
 self.addEventListener("activate", (event) => {
   event.waitUntil(
