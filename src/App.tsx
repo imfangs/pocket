@@ -29,7 +29,7 @@ function readPrefs() {
     return {};
   }
 }
-const catalogError = (error: Error) => error.name === "TimeoutError" ? "读取任务较慢，请刷新重试。" : error.message;
+const catalogError = (error: Error) => ["TimeoutError", "AbortError"].includes(error.name) ? "读取任务较慢，请刷新重试。" : error.message;
 const empty: Catalog = {
   threads: [],
   groups: [],
