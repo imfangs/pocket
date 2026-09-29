@@ -30,6 +30,8 @@ UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-eleme
 
 ## 已建立的验收基线
 
+- 前台恢复认证时序：较早的未登录响应不能覆盖后续成功登录；较早的已登录响应不能覆盖退出或明确过期。隔离390px浏览器已复现并修复草稿丢失，实际发布和真机边界见 CURRENT.md 与 `docs/design/2026-09-29-access-resume.md`。
+
 - 上下文压缩：原 owner 受控压缩从 237904 tokens 降到 6898，事件 completed、原始 compacted 记录确认，0 工具调用，归档恢复。`.local/qa/compact-live.json`；接口返回 accepted 不能代替完成。
 
 

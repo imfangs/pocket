@@ -12,6 +12,7 @@ import PwaInstall from "./PwaInstall";
 import ThemeSwitch from "./ThemeSwitch";
 import BootSplash from "./BootSplash";
 import { api } from "./api";
+import { createAccessCheck } from "./accessCheck";
 
 const App = lazy(() => import("./App"));
 export default function AccessGate() {
@@ -22,19 +23,24 @@ export default function AccessGate() {
     [visible, setVisible] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const check = useCallback(async () => {
-    try {
+  const [checks] = useState(() => createAccessCheck({
+    async request() {
       const r = await fetch("/api/auth/status", { cache: "no-store", signal: AbortSignal.timeout(12000) });
       if (!r.ok) throw new Error();
       const d = await r.json();
-      setState(d.authenticated ? "authenticated" : "locked");
-    } catch {
+      return d.authenticated === true;
+    },
+    onResult(authenticated) { setState(authenticated ? "authenticated" : "locked"); },
+    onFailure() {
       setState((old) => (old === "authenticated" ? old : "offline"));
-    }
-  }, []);
+    },
+  }));
+  const check = useCallback(() => checks.check(), [checks]);
   useEffect(() => {
+    checks.resume();
     void check();
     const expired = () => {
+      checks.invalidate();
       setState("locked");
       setError("登录已过期，请重新输入口令。");
     };
@@ -46,13 +52,15 @@ export default function AccessGate() {
     };
     document.addEventListener("visibilitychange", visible);
     return () => {
+      checks.pause();
       window.removeEventListener("navigator-auth-expired", expired);
       window.removeEventListener("online", online);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [check]);
+  }, [check, checks]);
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
+    checks.pause();
     setBusy(true);
     setError("");
     try {
@@ -68,10 +76,12 @@ export default function AccessGate() {
     } catch (e) {
       setError((e as Error).message || "无法连接 Mac");
     } finally {
+      checks.resume();
       setBusy(false);
     }
   };
   const logout = async () => {
+    checks.pause();
     setBusy(true);
     try {
       if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -94,6 +104,7 @@ export default function AccessGate() {
     } catch {
       setError("退出未完成，请检查连接后重试。");
     } finally {
+      checks.resume();
       setBusy(false);
     }
   };
