@@ -1,8 +1,9 @@
 import AutoTextarea from "./AutoTextarea";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "./conversationFeed";
 import type { QueryDraft } from "./Conversation";
 import { api } from "./api";
+import { waitForSubmission, type SubmissionReceipt } from "./submissionReceipt";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
 export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, onActivity }: {
@@ -21,6 +22,8 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const key = (id: string) => `${threadId}/outbox/${id}`;
+  const receiptRead = useRef<AbortController | null>(null);
+  useEffect(() => () => receiptRead.current?.abort(), [threadId]);
   useEffect(() => {
     if (!editing) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -42,9 +45,14 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         drafts.set(key(item.id), { text: value, revision: updated.revision });
         await refresh();
       } else {
-        const result = await api<{status?: string}>(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
+        let result = await api<SubmissionReceipt>(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
           action === "save" ? "PATCH" : action === "cancel" ? "DELETE" : "POST",
           { expectedRevision, ...(action === "save" ? { text } : {}) });
+        if (action === "send") {
+          const controller = new AbortController();receiptRead.current = controller;
+          result = await waitForSubmission(result, signal => api<SubmissionReceipt>(`/api/tasks/${threadId}/messages/${item.id}`, "GET", undefined, { signal }), controller.signal);
+          if (receiptRead.current === controller) receiptRead.current = null;
+        }
         if (action === "send" && result.status === "accepted") onActivity?.();
         drafts.delete(key(item.id)); setEditing(null);
         await refresh();
@@ -64,7 +72,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   if (!items.length) return null;
   return (
     <section className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading"><strong>待发送 · {items.length}</strong><span>{paused ? "自动发送已暂停" : connectionPending ? "已保存在 Mac，连接恢复后依次发送" : "当前轮完成后依次发送"}</span>
+      <div className="outbox-heading"><strong>待发送 · {items.length}</strong><span>{items[0]?.status === "unknown" ? "等待核对首条消息，自动发送已暂停" : paused ? "自动发送已暂停" : connectionPending ? "已保存在 Mac，连接恢复后依次发送" : "当前轮完成后依次发送"}</span>
         {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
       </div>
       {items.map(item => {

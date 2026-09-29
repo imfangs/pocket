@@ -64,7 +64,7 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 有 owner 时读取原 App 的 canonical turnHistory，提取 userMessage、已接受的 steeringUserMessage 与非 analysis 的 agentMessage。运行中追加的用户文本单独显示；其 serverUserMessageId 已成为普通 userMessage 时去重。只读取追加消息的输入、标识和时间，不暴露 restoreMessage 中的上下文。网页的「直接发送」也通过同一 owner 提交追加消息。无 owner 时通过只读 SQLite 定位 rollout，校验真实路径必须在 Codex home 的 sessions/archived_sessions 内且 session_meta ID 相同，再读取文件尾部至多 4 MiB。只保留 user/assistant 可见文本，单消息至多 24000 字，总量至多 160000 字。页面标明“已保存的历史”或实时状态，不把落盘副本当成实时运行状态。
 
-历史读取的 owner discovery 最多等待 2 秒，以免未加载任务等满桌面默认的 10 秒才显示落盘内容。该客户端截止时间不用于发送，并在找到 owner 后恢复 socket 原预算，以允许较大的完整快照读取。初始化或快照传输本身不属于这 2 秒预算；整体读取仍受现有超时保护。
+历史首次读取的 owner discovery 最多等待2秒，以免未加载任务长时间阻塞落盘内容。近期重试最多等待10秒，兼容长会话与繁忙桌面；找到owner后恢复socket原预算，整体历史读取仍有16秒外层上限。查找、初始化和完整快照传输是不同阶段，不能把2秒当成完整请求预算。
 
 后端最多短时复用 10 条任务的历史：未完成的读取合并为一个请求，完成后活动快照 750ms、其他 3 秒过期。浏览器本次登录内最多缓存 10 个已访问任务的历史与阅读位置，切回先展示缓存，成功复核前保持发送禁用；退出后随 App 卸载清空。历史不保存到 Pocket 数据库、KV、浏览器持久存储或 Service Worker cache。分组/说明仍独立存储。未发送的 query 草稿只保留在当前登录页面内存中，可在任务与标签切换后取回；刷新前提示未发送文本。
 
@@ -84,6 +84,8 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 每次提交先在 Pocket SQLite `dispatches` 表写入请求编号、目标 ID、文本哈希和 pending 状态，真实文本不进入发送账本。已提交的待发正文单独存入 `outgoing_messages`，仅在 Mac 私有数据库中持久保存，接受或取消后清除；不包含在整理备份、公开构建或浏览器持久缓存中。相同编号只能对应相同目标和文本，重复 POST 返回已有回执；同一任务的实际发送串行，发送尚未返回时仍可继续追加待发消息。Python 在发送前两次回读 owner 和状态，使用 clientUserMessageId 与 inheritThreadSettings 提交。
 
 accepted 表示原桌面接口接收，不表示模型执行完成；运行进展通过历史刷新读取。明确拒绝保留草稿供修改/重试。超时或回执不明标 unknown，不自动重发；页面“核对发送状态”只查账本，原 App 历史出现对应 clientUserMessageId 时可确认 accepted。
+
+2026-09-30：普通消息发送的原owner桥接预算为45秒；HTTP约1秒内返回账本状态，仍在核验时为202/pending，网页只GET原编号直至终态。桥接输出无内容的阶段标记，终止并排空stdio后，只有明确停在发送前才报告未发送；已经进入发送、无标记或排空不明仍为unknown。已由原历史确认accepted的结果不能被迟到错误降级。详见 [长会话发送修复](design/2026-09-30-send-reliability.md)。
 
 原接口没有“仅当状态仍相同才提交”的原子条件，最后一次回读与实际提交之间仍有短暂竞态；收到未知结果时应先核对原历史。当前不支持新建任务、上传附件、原版归档、同步阻塞型澄清问题回复或命令之外的远程审批。
 

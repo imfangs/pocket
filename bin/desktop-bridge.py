@@ -259,10 +259,11 @@ def main():
     if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
         return {"ok": False, "code": "app_version_changed", "sent": False}
     dispatched = False
+    print("POCKET_BRIDGE_PHASE_V1 preflight", file=sys.stderr, flush=True)
     try:
         with NavigatorIPC(Path(data["codexHome"]) / "ipc/ipc.sock") as client:
             if data["operation"] == "history":
-                client.owner_lookup_timeout = 5.0 if data.get("ownerLookupTimeoutMs") == 5000 else 2.0
+                client.owner_lookup_timeout = {5000: 5.0, 10000: 10.0}.get(data.get("ownerLookupTimeoutMs"), 2.0)
             owner, state = client.snapshot(thread_id)
             if data["operation"] == "history":
                 return {"ok": True, **history(state)}
@@ -274,6 +275,7 @@ def main():
                 if fresh_owner != owner or active_turn_id(fresh) != target:
                     return {"ok": False, "code": "turn_changed", "sent": False}
                 dispatched = True
+                print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
                 client.request("thread-follower-interrupt-turn", {"conversationId": thread_id,
                     "mode": "user-stop", "expectedTurnId": target}, 4, owner)
                 return {"ok": True, "status": "accepted", "turnId": target}
@@ -287,6 +289,7 @@ def main():
                     return {"ok": False, "code": "invalid_decision", "sent": False}
                 method, params = prepared
                 dispatched = True
+                print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
                 client.request(method, params, 1, owner)
                 return {"ok": True, "status": "accepted"}
             if data["operation"] == "compact":
@@ -296,6 +299,7 @@ def main():
                 if fresh_owner != owner or not can_compact(fresh) or compaction_state(fresh)["latestId"] != data.get("expectedCompactionId"):
                     return {"ok": False, "code": "thread_changed", "sent": False}
                 dispatched = True
+                print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
                 client.request("thread-follower-compact-thread", {"conversationId": thread_id}, 1, owner)
                 return {"ok": True, "status": "accepted"}
             if data["operation"] not in ("send", "answer"):
@@ -338,6 +342,7 @@ def main():
             ):
                 return {"ok": False, "code": "thread_not_ready", "sent": False}
             dispatched = True
+            print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
             if active:
                 cwd = fresh.get("cwd") or "/"
                 restore = {"id": message_id, "text": data["text"], "cwd": cwd, "createdAt": int(time.time()*1000),

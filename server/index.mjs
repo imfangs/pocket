@@ -13,6 +13,7 @@ import { DesktopService } from "./desktop.mjs";
 import { Notifications } from "./notifications.mjs";
 import { sendCatalog } from "./catalog-response.mjs";
 import { MessageImages } from "./message-images.mjs";
+import { dispatchResponse } from "./dispatch-response.mjs";
 import { isIP } from "node:net";
 
 const exec = promisify(execFile);
@@ -89,6 +90,10 @@ export function makeApp(options = {}) {
       "Content-Type": "application/json; charset=utf-8",
     });
     res.end(JSON.stringify(data));
+  };
+  const replyToSend = async (res, threadId, requestId, operation) => {
+    const result = await dispatchResponse(operation, () => desktop.getReceipt(threadId, requestId), options.dispatchReplyWaitMs ?? 1000);
+    return json(res, result.status, result.data);
   };
   async function body(req, maxBytes = 4 * 1024 * 1024) {
     if (
@@ -248,12 +253,10 @@ export function makeApp(options = {}) {
         return res.end(data.bytes);
       }
       const message = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/messages$/i);
-      if (message && method === "POST")
-        return json(
-          res,
-          200,
-          await desktop.send(message[1], await body(req, 70000)),
-        );
+      if (message && method === "POST") {
+        const input = await body(req, 70000);
+        return await replyToSend(res, message[1], input?.requestId, desktop.send(message[1], input));
+      }
       const receipt = path.match(
         /^\/api\/tasks\/([a-f0-9-]{36})\/messages\/([a-f0-9-]{36})$/i,
       );
@@ -290,7 +293,7 @@ export function makeApp(options = {}) {
         if (method === "DELETE" && !outbox[3])
           return json(res, 200, desktop.cancelQueued(outbox[1], outbox[2], await body(req)));
         if (method === "POST" && outbox[3] === "/send")
-          return json(res, 200, await desktop.dispatchQueued(outbox[1], outbox[2], await body(req)));
+        return await replyToSend(res, outbox[1], outbox[2], desktop.dispatchQueued(outbox[1], outbox[2], await body(req)));
         if (method === "POST" && ["/edit", "/resume"].includes(outbox[3]))
           return json(res, 200, desktop.pauseQueued(outbox[1], outbox[2], await body(req), outbox[3] === "/resume"));
       }

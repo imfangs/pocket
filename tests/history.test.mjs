@@ -258,7 +258,7 @@ test("quick history fallback keeps local queue available and a recent retry gets
   assert.equal(receipt.status,'queued');
   assert.equal(budgets.length,1);
   await service.history(id);
-  assert.deepEqual(budgets,[2000,5000]);
+  assert.deepEqual(budgets,[2000,10000]);
   compatible=false;service.cache.clear();
   assert.equal((await service.history(id)).canAttemptSend,false);
   assert.equal((await service.history(id)).canAttemptCompact,false);

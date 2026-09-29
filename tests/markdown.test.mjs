@@ -69,6 +69,13 @@ test("registered local images render lazy previews and large-image links without
   assert.doesNotMatch(external,/<img/);
 });
 
+test("an unknown head explains why the queue is paused rather than promising automatic delivery", async () => {
+  const {default:Outbox}=await vite.ssrLoadModule('/src/Outbox.tsx');
+  const html=renderToStaticMarkup(createElement(Outbox,{threadId:'test',items:[{id:'one',text:'pending',revision:0,status:'unknown'}],disabled:false,allowSend:true,drafts:new Map(),refresh:async()=>{}}));
+  assert.ok(html.includes('等待核对首条消息，自动发送已暂停'));
+  assert.ok(html.includes('核对状态'));assert.ok(!html.includes('当前轮完成后依次发送'));
+});
+
 test("turn elapsed rendering handles hours, frozen completion and missing times", async () => {
   const { default: TurnDuration, elapsedDuration, formatDuration } = await vite.ssrLoadModule("/src/TurnDuration.tsx");
   assert.equal(formatDuration(0), "0:00");

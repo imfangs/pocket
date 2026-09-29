@@ -1,10 +1,10 @@
-import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { AppError } from "./store.mjs";
 import { readPersistedHistory } from "./history.mjs";
 import { ExecutionStops } from "./execution-stops.mjs";
+import { runBridge } from "./bridge-process.mjs";
 
 export function desktopRequest(payload) {
   const config = JSON.parse(
@@ -13,53 +13,10 @@ export function desktopRequest(payload) {
       "utf8",
     ),
   );
-  return new Promise((resolve) => {
-    const child = spawn(
-      config.python,
-      [fileURLToPath(new URL("../bin/desktop-bridge.py", import.meta.url))],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    const chunks = [];
-    let bytes = 0,
-      settled = false;
-    const finish = (result) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(result);
-    };
-    const uncertain = () => ({
-      ok: false,
-      code:
-        payload.operation !== "history"
-          ? "dispatch_unknown"
-          : "desktop_unavailable",
-      sent: payload.operation !== "history" ? null : false,
-    });
-    const timer = setTimeout(() => {
-      child.kill();
-      finish(uncertain());
-    }, 16000);
-    child.stdout.on("data", (chunk) => {
-      bytes += chunk.length;
-      if (bytes > 2 * 1024 * 1024) {
-        child.kill();
-        finish(uncertain());
-      } else chunks.push(chunk);
-    });
-    child.stderr.resume();
-    child.on("error", () =>
-      finish({ ok: false, code: "desktop_unavailable", sent: false }),
-    );
-    child.stdin.on("error", () => {});
-    child.on("close", () => {
-      try {
-        finish(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-      } catch {
-        finish(uncertain());
-      }
-    });
-    child.stdin.end(JSON.stringify(payload));
+  return runBridge(payload, {
+    command: config.python,
+    args: [fileURLToPath(new URL("../bin/desktop-bridge.py", import.meta.url))],
+    timeoutMs: payload.operation === "send" ? 45000 : 16000,
   });
 }
 
@@ -113,7 +70,7 @@ export class DesktopService {
       operation: "history",
       threadId: id,
       codexHome: this.codexHome,
-      ownerLookupTimeoutMs: retrying ? 5000 : 2000,
+      ownerLookupTimeoutMs: retrying ? 10000 : 2000,
     });
     let data;
     if (result.ok) data = result;
@@ -426,8 +383,7 @@ export class DesktopService {
     if (this.queueStarted) return;
     this.queueStarted = true;
     this.stops.recover();
-    this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending' AND id IN(SELECT id FROM question_answers)");
-    this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending' AND id IN(SELECT id FROM outgoing_messages)");
+    this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending'");
     this.store.db.exec("UPDATE compactions SET status='unknown',code='submission_interrupted' WHERE status='pending'");
     this.store.db.exec("UPDATE request_responses SET status='unknown',code='submission_interrupted' WHERE status='pending'");
     const tick = async () => {
@@ -495,14 +451,15 @@ export class DesktopService {
       this.queue(id, input.requestId, text);
       return this.getReceipt(id, input.requestId);
     }
-    const status = result.ok
+    const observed = this.getReceipt(id, input.requestId);
+    const status = observed.status === "accepted" || result.ok
       ? "accepted"
       : result.sent === false
         ? "rejected"
         : "unknown";
     this.store.db
       .prepare("UPDATE dispatches SET status=?,turn_id=?,code=? WHERE id=?")
-      .run(status, result.turnId || null, result.code || null, input.requestId);
+      .run(status, result.turnId || observed.turnId || null, status === "accepted" ? null : result.code || null, input.requestId);
     if (status === "accepted") this.onAccepted?.(id, result.turnId);
     this.cache.delete(id);
     return this.receipt(

@@ -12,12 +12,8 @@ import ConversationMessage from "./ConversationMessage";
 import { rememberHistory, startConversationFeed } from "./conversationFeed";
 import type { History, HistoryCache } from "./conversationFeed";
 import Outbox from "./Outbox";
+import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
 export type QueryDraft = { text: string; requestId?: string; revision?: number };
-type Receipt = {
-  requestId: string;
-  status: "accepted" | "queued" | "pending" | "unknown" | "rejected" | "not_found";
-  code?: string;
-};
 const statuses: Record<string, string> = {
   active: "正在运行",
   idle: "可继续",
@@ -61,6 +57,8 @@ export default function Conversation({
     [drafts, thread.id],
   );
   const load = useCallback(() => feed.current?.refresh(), []);
+  const receiptRead = useRef<AbortController | null>(null);
+  useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine !== false);
     window.addEventListener("online", update);
@@ -137,6 +135,7 @@ export default function Conversation({
       setError(
         receipt.status === "not_found"
           ? "未收到这次提交，可以重新发送。"
+          : receipt.code === "desktop_preflight_timeout" ? "连接原任务超时，这次没有发送，可以重试。"
           : "原任务暂时无法接收消息，请检查当前状态或重新连接。",
       );
     } else setNotice("发送结果尚未确认。先刷新历史；核对状态不会重复发送。");
@@ -147,24 +146,25 @@ export default function Conversation({
     setSending(true);
     setError("");
     setNotice("");
+    const controller = new AbortController();
+    receiptRead.current = controller;
     try {
+      let receipt: Receipt;
       if (draft.requestId) {
-        receive(
-          await api<Receipt>(
+        receipt = await api<Receipt>(
             `/api/tasks/${thread.id}/messages/${draft.requestId}`,
-          ),
-        );
+          );
       } else {
         const requestId = crypto.randomUUID();
         updateDraft({ ...draft, requestId });
-        receive(
-          await api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
+        receipt = await api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
             text: draft.text,
             requestId,
             ...(enqueue ? { enqueue: true } : {}),
-          }),
-        );
+          });
       }
+      if (receipt.status === "pending") setNotice("Pocket 已收到，正在确认原任务…");
+      receive(await waitForSubmission(receipt, signal => api<Receipt>(`/api/tasks/${thread.id}/messages/${receipt.requestId}`, "GET", undefined, { signal }), controller.signal));
       void load();
     } catch (e) {
       const status = (e as Error & { status?: number }).status;
@@ -174,6 +174,7 @@ export default function Conversation({
       } else
         setNotice("连接中断，发送结果尚未确认。请核对状态，避免重复提交。");
     } finally {
+      if (receiptRead.current === controller) receiptRead.current = null;
       setSending(false);
     }
   };
