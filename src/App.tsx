@@ -15,6 +15,7 @@ import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
 import TaskListPanel from "./TaskListPanel";
 import Inspector from "./Inspector";
+import BootSplash from "./BootSplash";
 import type { QueryDraft } from "./Conversation";
 import type { HistoryCache } from "./conversationFeed";
 import { GroupDialog, SettingsDialog } from "./Dialogs";
@@ -28,6 +29,7 @@ function readPrefs() {
     return {};
   }
 }
+const catalogError = (error: Error) => error.name === "TimeoutError" ? "读取任务较慢，请刷新重试。" : error.message;
 const empty: Catalog = {
   threads: [],
   groups: [],
@@ -37,12 +39,12 @@ const empty: Catalog = {
 };
 const titles: Record<View, string> = {
   all: "全部任务",
-  pinned: "原版置顶",
+  pinned: "置顶",
   active: "正在推进",
   later: "稍后继续",
   reference: "留作参考",
   recent: "最近打开",
-  archived: "原版归档",
+  archived: "归档",
   unassigned: "未分组",
   group: "",
 };
@@ -92,6 +94,8 @@ export default function App({
     const c = await api<Catalog>(
       sync ? "/api/sync" : "/api/catalog",
       sync ? "POST" : "GET",
+      undefined,
+      { signal: AbortSignal.timeout(15000) },
     );
     if (c.csrfToken) setToken(c.csrfToken);
     setCatalog(c);
@@ -110,7 +114,7 @@ export default function App({
     return syncing.current.then(() => {
       notify("任务已刷新");
     }).catch((error: Error) => {
-      setError(error.message);
+      setError(catalogError(error));
       throw error;
     }).finally(() => {
       setBusy(false);
@@ -129,7 +133,7 @@ export default function App({
     };
     refresh()
       .then(syncIfVisible)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(catalogError(e)))
       .finally(() => setLoading(false));
     const timer = setInterval(syncIfVisible, 45000);
     document.addEventListener("visibilitychange", syncIfVisible);
@@ -257,6 +261,7 @@ export default function App({
       setBusy(false);
     }
   };
+  if (loading) return <BootSplash />;
   return (
     <div className="app-shell">
       <Sidebar
@@ -300,7 +305,7 @@ export default function App({
               className={`sync-button ${busy ? "spinning" : ""}`}
               onClick={() => { void syncTasks().catch(() => {}); }}
               disabled={busy || loading}
-              aria-label="同步原版任务"
+              aria-label="刷新任务"
             >
               <RefreshCw size={16} />
               <span>同步</span>
@@ -311,7 +316,6 @@ export default function App({
               <Search size={17} />
               <input
                 ref={search}
-                placeholder="搜索任务、项目或接续说明"
                 aria-label="搜索任务"
                 value={query}
                 onChange={(e) => {
@@ -385,9 +389,6 @@ export default function App({
         )}
         <div className="content">
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks}>
-            {loading ? (
-              <div className="loading">正在读取本机任务…</div>
-            ) : (
               <TaskList
                 threads={threads}
                 groups={catalog.groups}
@@ -428,7 +429,6 @@ export default function App({
                 query={query}
                 onClearQuery={() => setQuery("")}
               />
-            )}
           </TaskListPanel>
           {current ? (
             <Inspector

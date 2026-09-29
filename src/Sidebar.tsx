@@ -73,7 +73,7 @@ export default function Sidebar(p: Props) {
   const all = p.catalog.threads.filter((t) => !t.separator);
   const navs: [View, string, typeof Layers3, number][] = [
     ["all", "全部任务", Layers3, active.length],
-    ["pinned", "原版置顶", Pin, active.filter((t) => t.pinned).length],
+    ["pinned", "置顶", Pin, active.filter((t) => t.pinned).length],
     [
       "active",
       "正在推进",
@@ -258,7 +258,7 @@ export default function Sidebar(p: Props) {
             onClick={() => p.onView("archived")}
           >
             <Archive size={17} />
-            <span>原版归档</span>
+            <span>归档</span>
             <small>
               {
                 p.catalog.threads.filter((t) => t.archived && !t.separator)

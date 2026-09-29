@@ -288,7 +288,6 @@ export default function Conversation({
         <AutoTextarea
           id="user-query"
           aria-label="发送给原任务的消息"
-          placeholder={enqueue ? "写下下一步，加入待发消息…" : "在原任务中继续问…"}
           value={draft.text}
           maxLength={16000}
           disabled={sending}

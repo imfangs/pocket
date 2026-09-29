@@ -1,0 +1,27 @@
+html, body { margin: 0; }
+:root { --boot-bg: #faf9fc; --boot-ink: #24242b; --boot-accent: #6254c7; --boot-muted: #737381; }
+html[data-theme="dark"] { --boot-bg: #18181e; --boot-ink: #eceaf2; --boot-accent: #b9a6ff; --boot-muted: #b2adbf; }
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) { --boot-bg: #18181e; --boot-ink: #eceaf2; --boot-accent: #b9a6ff; --boot-muted: #b2adbf; }
+}
+.boot-screen {
+  box-sizing: border-box; position: relative; min-height: 100dvh; width: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  padding: max(28px, env(safe-area-inset-top)) 24px max(28px, env(safe-area-inset-bottom));
+  background: var(--boot-bg); color: var(--boot-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+.boot-symbol { display: block; width: 64px; height: 64px; border-radius: 17px; }
+.boot-name { font-size: 25px; font-weight: 650; letter-spacing: -.7px; }
+.boot-dots { display: flex; align-items: center; gap: 6px; height: 12px; margin-top: 4px; }
+.boot-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--boot-accent); animation: pocket-boot-pulse 1.2s ease-in-out infinite; }
+.boot-dots i:nth-child(2) { animation-delay: .16s; }
+.boot-dots i:nth-child(3) { animation-delay: .32s; }
+.boot-retry { position: absolute; bottom: max(40px, env(safe-area-inset-bottom)); min-height: 44px; box-sizing: border-box; padding: 12px 18px; color: var(--boot-muted); font-size: 13px; text-decoration: none; visibility: hidden; opacity: 0; animation: pocket-boot-retry .2s ease 10s forwards; }
+.boot-screen noscript { max-width: 260px; color: var(--boot-muted); font-size: 13px; text-align: center; }
+@keyframes pocket-boot-pulse { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+@keyframes pocket-boot-retry { to { opacity: 1; visibility: visible; } }
+@media (prefers-reduced-motion: reduce) {
+  .boot-dots i { animation: none; }
+  .boot-retry { animation: none; opacity: 1; visibility: visible; }
+}

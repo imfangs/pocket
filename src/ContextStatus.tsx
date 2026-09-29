@@ -6,11 +6,11 @@ import type { History } from "./conversationFeed";
 import { api } from "./api";
 
 const labels: Record<string, string> = {
-  pending: "正在提交压缩…",
-  accepted: "压缩已提交，等待完成…",
-  unknown: "压缩结果待核对，不会自动重试",
-  failed: "压缩未完成，请检查原任务",
-  rejected: "未启动压缩，可以稍后重试",
+  pending: "正在提交…",
+  accepted: "等待完成…",
+  unknown: "结果待核对",
+  failed: "压缩未完成",
+  rejected: "未启动，可重试",
 };
 export default function ContextStatus({
   threadId,
@@ -112,26 +112,20 @@ export default function ContextStatus({
             align="start"
             aria-label="上下文用量与压缩"
           >
-            <p>
+            <p className="context-usage">
               {usage
-                ? `${usage.usedTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens，剩余 ${usage.remainingTokens.toLocaleString()}。按最近一次模型用量更新。`
-                : "连接原任务后可查看上下文用量。"}
+                ? `${usage.usedTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
+                : "用量暂不可用"}
             </p>
-            <p>
-              压缩会将较早内容总结为较短上下文，可能省略细节。压缩期间会暂停待发消息。
-            </p>
-            {!pending && history?.runtime === "active" && <p>本轮正在执行，结束后可手动压缩。</p>}
-            {!pending && history?.source !== "desktop" && history?.canAttemptCompact && <p>点击后会先连接原任务，核验空闲状态。</p>}
             <button
               type="button"
               className="context-compact"
               disabled={disabled || busy || (!pending && !(history?.canAttemptCompact ?? history?.canCompact))}
               onClick={() => void act()}
             >
-              {busy ? "处理中…" : pending ? "核对压缩状态" : "压缩上下文"}
+              {busy ? "处理中…" : pending ? "核对状态" : history?.compaction?.active ? "正在压缩…" : history?.runtime === "active" ? "执行中，稍后压缩" : "压缩上下文"}
             </button>
-            {(history?.compaction?.active ||
-              labels[status || ""] ||
+            {(labels[status || ""] ||
               uncertainId ||
               error) && (
               <p
@@ -139,11 +133,7 @@ export default function ContextStatus({
                 role="status"
               >
                 {error ||
-                  (history?.compaction?.active
-                    ? "正在压缩上下文…"
-                    : uncertainId
-                      ? "提交结果待核对，不会自动重试"
-                      : labels[status || ""])}
+                  (uncertainId ? "结果待核对" : labels[status || ""])}
               </p>
             )}
           </Popover.Content>

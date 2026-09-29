@@ -91,7 +91,6 @@ export function GroupDialog(p: {
           onInput={(e) => setName(e.currentTarget.value)}
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
-          placeholder="例如：游戏、语音交互"
           required
           disabled={busy}
         />

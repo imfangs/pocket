@@ -33,7 +33,7 @@ test("worker handles real fetch failures and 502 navigations with only the publi
     context,
   );
   let installing;handlers.install({waitUntil:p=>installing=p});await installing;
-  assert.ok(cached.length>0&&cached.every(path=>path==='/offline.html'||path==='/theme.js'||path==='/manifest.webmanifest'||path.startsWith('/icons/')));
+  assert.ok(cached.length>0&&cached.every(path=>path==='/offline.html'||path==='/theme.js'||path==='/startup.css'||path==='/manifest.webmanifest'||path.startsWith('/icons/')));
   const navigation = async () => {
     let promise;
     handlers.fetch({

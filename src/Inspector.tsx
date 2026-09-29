@@ -228,7 +228,6 @@ export default function Inspector(p: Props) {
                 value={draft.note}
                 maxLength={12000}
                 rows={7}
-                placeholder="为什么想保留？下一步想做什么？"
                 onInput={(e) => update("note", e.currentTarget.value)}
                 onChange={(e) => update("note", e.target.value)}
                 onKeyDown={(e) => {

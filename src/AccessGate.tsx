@@ -10,6 +10,7 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import PwaInstall from "./PwaInstall";
 import ThemeSwitch from "./ThemeSwitch";
+import BootSplash from "./BootSplash";
 
 const App = lazy(() => import("./App"));
 export default function AccessGate() {
@@ -22,7 +23,7 @@ export default function AccessGate() {
     [error, setError] = useState("");
   const check = useCallback(async () => {
     try {
-      const r = await fetch("/api/auth/status", { cache: "no-store" });
+      const r = await fetch("/api/auth/status", { cache: "no-store", signal: AbortSignal.timeout(12000) });
       if (!r.ok) throw new Error();
       const d = await r.json();
       setState(d.authenticated ? "authenticated" : "locked");
@@ -87,18 +88,11 @@ export default function AccessGate() {
       setBusy(false);
     }
   };
+  if (state === "loading") return <BootSplash />;
   if (state === "authenticated")
     return (
       <>
-        <Suspense
-          fallback={
-            <main className="access-screen">
-              <p role="status" className="access-status">
-                正在读取任务…
-              </p>
-            </main>
-          }
-        >
+        <Suspense fallback={<BootSplash />}>
           <App
             footerActions={
               <div className="access-actions">
@@ -140,11 +134,7 @@ export default function AccessGate() {
           <br />
           你的分组和接续说明，随时可见。
         </p>
-        {state === "loading" ? (
-          <p role="status" className="access-status">
-            正在连接…
-          </p>
-        ) : state === "offline" ? (
+        {state === "offline" ? (
           <div className="access-offline">
             <WifiOff size={24} />
             <p>暂时连接不到 Mac。</p>
@@ -167,7 +157,6 @@ export default function AccessGate() {
                 autoCorrect="off"
                 spellCheck={false}
                 enterKeyHint="go"
-                placeholder="输入你的口令"
                 value={passphrase}
                 onInput={(e) => setPassphrase(e.currentTarget.value)}
                 onChange={(e) => setPassphrase(e.target.value)}
