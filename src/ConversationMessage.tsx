@@ -50,6 +50,7 @@ export default function ConversationMessage({ message }: { message: Message }) {
         </div>
       </div>
       <MessageMarkdown
+        images={message.images}
         text={
           message.role === "user"
             ? readableQuestionReply(message.text)

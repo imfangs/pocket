@@ -8,6 +8,7 @@ export type Message = {
   truncated?: boolean;
   clientMessageId?: string;
   turnDurationMs?: number;
+  images?: Record<string, string>;
 };
 export type TurnTiming = {
   turnId: string | null;

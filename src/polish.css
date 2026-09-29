@@ -224,3 +224,29 @@ dialog input:not([type="checkbox"]):not([type="color"]), dialog select { border-
 }
 [data-theme="dark"] .unread-dot { background: #70aaff; }
 [data-theme="dark"] .nav-item[data-view="unread"] > svg { color: #70aaff; }
+.message-image {
+  display: block;
+  width: min(100%, 560px);
+  margin: 12px 0;
+}
+.message-image-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.message-markdown .message-image-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.message-image-failed { flex-direction: column; gap: 8px; color: var(--muted); }
+.message-image-failed button { min-height: 44px; padding: 8px 16px; }
+.message-image-frame > svg { position: absolute; right: 8px; top: 8px; color: var(--muted); background: var(--surface); padding: 5px; box-sizing: content-box; border-radius: 7px; }

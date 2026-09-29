@@ -12,6 +12,7 @@ import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
 import { Notifications } from "./notifications.mjs";
 import { sendCatalog } from "./catalog-response.mjs";
+import { MessageImages } from "./message-images.mjs";
 import { isIP } from "node:net";
 
 const exec = promisify(execFile);
@@ -47,6 +48,7 @@ export function makeApp(options = {}) {
     options.readHistory,
   );
   const notifications = new Notifications(store, desktop, options.notifications);
+  const images = new MessageImages();
   desktop.onAccepted = (id, turnId) => {
     try { notifications.followSubmission(id, turnId); }
     catch { /* Notification bookkeeping must not change an accepted send receipt. */ }
@@ -231,7 +233,19 @@ export function makeApp(options = {}) {
       if (history && method === "GET") {
         const data = await desktop.history(history[1]);
         notifications.watch(history[1], data);
-        return json(res, 200, data);
+        return json(res, 200, images.attach(store.thread(history[1]), data));
+      }
+      const image = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/images\/([a-f0-9]{64})$/i);
+      if (image && method === "GET") {
+        const data = await images.read(store.thread(image[1]), image[2]);
+        res.writeHead(200, {
+          "Content-Type": data.type,
+          "Content-Length": data.bytes.length,
+          "Content-Disposition": "inline",
+          "Cross-Origin-Resource-Policy": "same-origin",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+        });
+        return res.end(data.bytes);
       }
       const message = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/messages$/i);
       if (message && method === "POST")
