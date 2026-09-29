@@ -4,7 +4,7 @@
 
 ## 链路与状态
 
-手机 PushManager 订阅 → 认证后的 Pocket HTTP API → Mac 私有订阅表。Mac `Notifications` 读取原 owner 历史中的 turn/请求状态变化，使用 web-push 3.6.7、VAPID、aes128gcm 发送至 Apple/Google/Mozilla 的 Web Push 服务。Service Worker 显示通知，点击后优先发送任务 ID 给现有页面并等待 ACK，保留正常页面草稿；没有页面或离线壳不能响应时打开带任务参数的 URL，登录后进入目标任务。
+手机 PushManager 订阅 → 认证后的 Pocket HTTP API → Mac 私有订阅表。Mac `Notifications` 读取原 owner 历史中的 turn/请求状态变化，使用 web-push 3.6.7、VAPID、aes128gcm 发送至 Apple/Google/Mozilla 的 Web Push 服务。Service Worker 显示通知，点击后优先发送任务 ID 给现有页面并等待 ACK，保留正常页面草稿；没有页面或离线壳不能响应时打开带任务参数的 URL，登录后进入目标任务；启动重试保留这个参数。
 
 它是 Web Push，不是浏览器定时器保活。Mac 仍需在线、唤醒、Pocket 服务运行。首次在 iPhone 主屏幕 App 中点击开启并允许系统通知必须在实际设备完成，服务端准备好不等于手机已收到。
 
