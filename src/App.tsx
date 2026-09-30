@@ -23,6 +23,9 @@ import type { HistoryCache } from "./conversationFeed";
 import { GroupDialog, SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
 import { createCatalogReader } from "./catalogReader";
+import { useReloadGuard } from "./updateSafety";
+import { hasUpdateBlockingDraft } from "./updateDrafts";
+import PocketUpdate from "./PocketUpdate";
 import { filterThreads, groupPath } from "./model";
 import type { Catalog, Group, Thread, View } from "./types";
 function readPrefs() {
@@ -102,6 +105,8 @@ export default function App({
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null);
   const syncing = useRef<Promise<Catalog | undefined> | null>(null);
+  useReloadGuard(() => hasUpdateBlockingDraft(conversationDrafts.current, conversationHistory.current)
+    ? "还有未完成的输入，请处理后再更新。" : busy ? "操作尚未完成，请稍后更新。" : null);
   const listPanel = useRef<HTMLElement>(null);
   const restoreScroll = useRef<number | null>(null);
   const returnView = useRef<{ view: View; groupId: string | null; project: string; query: string; searchOpen: boolean; sort: string; scrollTop: number; selected: string | null }>({
@@ -365,6 +370,7 @@ export default function App({
       />
       <main className={`workspace ${current ? "with-inspector" : ""}`}>
         <header className="workspace-header">
+          <PocketUpdate taskId={selected} />
           <div className="heading-line">
             <button
               className="icon-button mobile-only"

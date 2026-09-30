@@ -15,6 +15,7 @@ import { displayMessages } from "./transcript";
 import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
+import { holdReload, useReloadGuard } from "./updateSafety";
 export type QueryDraft = { text: string; requestId?: string; revision?: number };
 const statuses: Record<string, string> = {
   active: "正在运行",
@@ -54,6 +55,8 @@ export default function Conversation({
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
   const questions = currentQuestions(history, transcript);
+  useReloadGuard(() => sending || connecting ? "操作尚未完成，请稍后更新。"
+    : draft.text || draft.requestId ? "还有未发送或待核对的消息，请处理后再更新。" : null);
   const updateDraft = useCallback(
     (next: QueryDraft) => {
       setDraft(next);
@@ -172,6 +175,7 @@ export default function Conversation({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sending || !draft.text.trim()) return;
+    const release = holdReload();
     setSending(true);
     setError("");
     setNotice("");
@@ -212,6 +216,7 @@ export default function Conversation({
       } else
         setNotice("连接中断，发送结果尚未确认。请核对状态，避免重复提交。");
     } finally {
+      release();
       if (receiptRead.current === controller) {
         receiptRead.current = null;
         if (!controller.signal.aborted) setSending(false);

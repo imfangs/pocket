@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import NotificationSettings from "./NotificationSettings";
 import type { Catalog, Group } from "./types";
 import { descendantIds, groupPath } from "./model";
+import { holdReload, useReloadGuard } from "./updateSafety";
 export function Modal({
   title,
   onClose,
@@ -58,9 +59,15 @@ export function GroupDialog(p: {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [confirmDelete, setConfirmDelete] = useState(false);
+  const [initial] = useState(() => ({ name, parentId, color, position }));
+  useReloadGuard(() => busy ? "分组操作尚未完成，请稍后更新。"
+    : name !== initial.name || parentId !== initial.parentId || color !== initial.color || position !== initial.position
+      ? "分组还有未保存的修改，请保存或取消后再更新。" : null);
   const unavailable = p.group ? descendantIds(p.groups, p.group.id) : new Set();
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    const release = holdReload();
     setBusy(true);
     setError("");
     try {
@@ -72,6 +79,7 @@ export function GroupDialog(p: {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      release();
       setBusy(false);
     }
   };
@@ -183,6 +191,8 @@ export function GroupDialog(p: {
               className="danger-button"
               disabled={busy}
               onClick={async () => {
+                if (busy) return;
+                const release = holdReload();
                 setBusy(true);
                 try {
                   await p.onDelete(p.group!.id);
@@ -190,6 +200,7 @@ export function GroupDialog(p: {
                 } catch (e) {
                   setError((e as Error).message);
                 } finally {
+                  release();
                   setBusy(false);
                 }
               }}
@@ -215,6 +226,8 @@ export function SettingsDialog(p: {
     } | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  useReloadGuard(() => busy ? "备份正在恢复，请稍后更新。"
+    : pending ? "已选的备份尚未处理，请恢复或取消后再更新。" : null);
   const file = useRef<HTMLInputElement>(null);
   return (
     <Modal title="设置" onClose={() => !busy && p.onClose()}>
@@ -263,6 +276,7 @@ export function SettingsDialog(p: {
             onChange={async (e) => {
               const f = e.target.files?.[0];
               if (!f) return;
+              const release = holdReload();
               setError("");
               try {
                 if (f.size > 4 * 1024 * 1024)
@@ -273,6 +287,8 @@ export function SettingsDialog(p: {
                 setPending({ data, name: f.name });
               } catch (e) {
                 setError((e as Error).message);
+              } finally {
+                release();
               }
               e.target.value = "";
             }}
@@ -292,6 +308,8 @@ export function SettingsDialog(p: {
               className="primary"
               disabled={busy}
               onClick={async () => {
+                if (busy) return;
+                const release = holdReload();
                 setBusy(true);
                 try {
                   await p.onImport(pending.data);
@@ -299,6 +317,7 @@ export function SettingsDialog(p: {
                 } catch (e) {
                   setError((e as Error).message);
                 } finally {
+                  release();
                   setBusy(false);
                 }
               }}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Square, RefreshCw, LoaderCircle } from "lucide-react";
 import { api } from "./api";
 import type { History, StopReceipt } from "./conversationFeed";
+import { holdReload, useReloadGuard } from "./updateSafety";
 
 const pending = (status?: string) => ["pending", "accepted", "unknown"].includes(status || "");
 const resultText = (status: string) => status === "stopped" ? "当前执行已中断，待发消息保留并暂停自动发送。"
@@ -16,6 +17,8 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
   const [attempt, setAttempt] = useState<StopReceipt | null>(null);
   const receipt = attempt && history?.stopRequest?.requestId !== attempt.requestId ? attempt : history?.stopRequest || attempt;
   const waiting = pending(receipt?.status);
+  useReloadGuard(() => busy ? "停止操作尚未完成，请稍后更新。"
+    : attempt && waiting ? "停止结果尚待核对，请处理后再更新。" : null);
   useEffect(() => {
     const result = history?.stopRequest;
     if (attempt && result?.requestId === attempt.requestId && !pending(result.status)) {
@@ -24,6 +27,7 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
   }, [history?.stopRequest, attempt, notify]);
   const stop = async () => {
     if (busy || disabled) return;
+    const release = holdReload();
     setBusy(true);
     const requestId = waiting && receipt ? receipt.requestId : crypto.randomUUID();
     try {
@@ -42,7 +46,7 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
       const status = (error as Error & { status?: number }).status;
       setAttempt(status && status < 500 ? null : { requestId, status: "unknown" });
       notify(status && status < 500 ? (error as Error).message : "停止结果待确认，请核对状态；不会自动重复中断。");
-    } finally { setBusy(false); }
+    } finally { release(); setBusy(false); }
   };
   if (!history?.canStop && !waiting && !busy) return null;
   return <button type="button" className="stop-execution" disabled={disabled || busy}

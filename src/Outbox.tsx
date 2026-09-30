@@ -4,6 +4,7 @@ import type { QueuedMessage } from "./conversationFeed";
 import type { QueryDraft } from "./Conversation";
 import { api } from "./api";
 import { waitForSubmission, type SubmissionReceipt } from "./submissionReceipt";
+import { holdReload, useReloadGuard } from "./updateSafety";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
 export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, onActivity }: {
@@ -23,6 +24,8 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const [error, setError] = useState("");
   const key = (id: string) => `${threadId}/outbox/${id}`;
   const receiptRead = useRef<AbortController | null>(null);
+  useReloadGuard(() => busy ? "待发消息的操作尚未完成，请稍后更新。"
+    : editing ? "待发消息还在编辑，请保存或取消编辑后再更新。" : null);
   useEffect(() => () => receiptRead.current?.abort(), [threadId]);
   useEffect(() => {
     if (!editing) return;
@@ -32,6 +35,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   }, [editing]);
   const act = async (item: QueuedMessage, action: Action) => {
     if (busy) return;
+    const release = holdReload();
     setBusy(item.id); setError("");
     try {
       const base = `/api/tasks/${threadId}/outbox/${item.id}`;
@@ -58,16 +62,17 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         await refresh();
       }
     } catch (e) { setError((e as Error).message); }
-    finally { setBusy(null); }
+    finally { release(); setBusy(null); }
   };
   const resumeQueue = async () => {
     if (!paused || busy) return;
+    const release = holdReload();
     setBusy("queue"); setError("");
     try {
       await api(`/api/tasks/${threadId}/queue/resume`, "POST", { expectedStopId: paused.stopId });
       await refresh();
     } catch (e) { setError((e as Error).message); }
-    finally { setBusy(null); }
+    finally { release(); setBusy(null); }
   };
   if (!items.length) return null;
   return (

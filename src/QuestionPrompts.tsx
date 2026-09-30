@@ -3,6 +3,7 @@ import AutoTextarea from "./AutoTextarea";
 import { api } from "./api";
 import type { AsyncQuestion } from "./conversationFeed";
 import type { QueryDraft } from "./Conversation";
+import { holdReload, useReloadGuard } from "./updateSafety";
 
 type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; drafts: Map<string, QueryDraft>; refresh: () => Promise<void> | undefined };
 function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Props, "questions"> & { question: AsyncQuestion }) {
@@ -13,6 +14,11 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Pr
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const form = useRef<HTMLFormElement>(null);
+  useReloadGuard(() => {
+    const saved = drafts.get(key);
+    return busy ? "回答尚未提交完成，请稍后更新。"
+      : saved?.text || saved?.requestId ? "还有未提交或待核对的回答，请处理后再更新。" : null;
+  });
   useEffect(() => {
     const focus = (event: FocusEvent) => {
       const target = event.target;
@@ -25,6 +31,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Pr
   const update = (value: QueryDraft) => { setDraft(value); drafts.set(key, value); };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); if (busy || disabled) return;
+    const release = holdReload();
     setBusy(true); setError("");
     const requestId = draft.requestId || (waiting ? question.response?.requestId : null) || crypto.randomUUID();
     try {
@@ -46,7 +53,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Pr
       const status = (e as Error & { status?: number }).status;
       if (status && status < 500) update({ text: draft.text });
       setError(status && status < 500 ? (e as Error).message : "回答结果待确认，请核对状态，避免重复提交。");
-    } finally { setBusy(false); }
+    } finally { release(); setBusy(false); }
   };
   return <form ref={form} className="question-card" data-editing={editing || undefined} onSubmit={e => void submit(e)} aria-label={question.title}>
     <p className="question-title">{question.title}</p>

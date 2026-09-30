@@ -13,6 +13,7 @@ import ThemeSwitch from "./ThemeSwitch";
 import BootSplash from "./BootSplash";
 import { api } from "./api";
 import { createAccessCheck } from "./accessCheck";
+import { holdReload, useReloadGuard } from "./updateSafety";
 
 const App = lazy(() => import("./App"));
 export default function AccessGate() {
@@ -23,6 +24,8 @@ export default function AccessGate() {
     [visible, setVisible] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useReloadGuard(() => busy ? "登录操作尚未完成，请稍后更新。"
+    : passphrase ? "访问口令尚未提交，请登录或清空后再更新。" : null);
   const [checks] = useState(() => createAccessCheck({
     async request() {
       const r = await fetch("/api/auth/status", { cache: "no-store", signal: AbortSignal.timeout(12000) });
@@ -60,6 +63,8 @@ export default function AccessGate() {
   }, [check, checks]);
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    const release = holdReload();
     checks.pause();
     setBusy(true);
     setError("");
@@ -76,11 +81,14 @@ export default function AccessGate() {
     } catch (e) {
       setError((e as Error).message || "无法连接 Mac");
     } finally {
+      release();
       checks.resume();
       setBusy(false);
     }
   };
   const logout = async () => {
+    if (busy) return;
+    const release = holdReload();
     checks.pause();
     setBusy(true);
     try {
@@ -104,6 +112,7 @@ export default function AccessGate() {
     } catch {
       setError("退出未完成，请检查连接后重试。");
     } finally {
+      release();
       checks.resume();
       setBusy(false);
     }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "./api";
 import type { PendingRequest } from "./conversationFeed";
+import { holdReload, useReloadGuard } from "./updateSafety";
 
 type Reply = { responseId: string; status: string };
 export default function RequestActions({ threadId, requests, disabled, refresh }: {
@@ -10,8 +11,23 @@ export default function RequestActions({ threadId, requests, disabled, refresh }
   const [pending, setPending] = useState<Record<string, Reply>>({});
   const [error, setError] = useState("");
   const [answers, setAnswers] = useState<Record<string, Record<string, string>>>({});
+  useReloadGuard(() => {
+    if (busy) return "确认操作尚未完成，请稍后更新。";
+    // Requests can disappear after a turn advances. Their old local state no
+    // longer represents an editable answer or a live confirmation surface.
+    for (const request of requests) {
+      const reply = pending[request.key] || request.response;
+      if (["pending", "unknown"].includes(pending[request.key]?.status || ""))
+        return "确认结果尚待核对，请处理后再更新。";
+      if (!["accepted", "resolved"].includes(reply?.status || "") &&
+          Object.values(answers[request.key] || {}).some(value => value.length > 0))
+        return "还有未提交的回答，请处理后再更新。";
+    }
+    return null;
+  });
   const act = async (request: PendingRequest, decision?: "accept" | "cancel" | "answer") => {
     if (busy) return;
+    const release = holdReload();
     setBusy(request.key); setError("");
     const saved = pending[request.key] || request.response;
     const responseId = saved && saved.status !== "rejected" ? saved.responseId : crypto.randomUUID();
@@ -36,7 +52,7 @@ export default function RequestActions({ threadId, requests, disabled, refresh }
       const status = (e as Error & {status?: number}).status;
       setPending(p => ({ ...p, [request.key]: { responseId, status: status && status < 500 ? "rejected" : "unknown" } }));
       setError((e as Error).message);
-    } finally { setBusy(null); }
+    } finally { release(); setBusy(null); }
   };
   if (!requests.length) return null;
   return <section className="request-actions" aria-label="等待你的确认">

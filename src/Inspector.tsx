@@ -19,6 +19,7 @@ import Conversation from "./Conversation";
 import type { QueryDraft } from "./Conversation";
 import { bindInspectorSwipe, bindInspectorViewport } from "./mobileInspector";
 import type { HistoryCache } from "./conversationFeed";
+import { holdReload, useReloadGuard } from "./updateSafety";
 type Draft = {
   intent: Intent;
   note: string;
@@ -65,6 +66,8 @@ export default function Inspector(p: Props) {
     [error, setError] = useState("");
   const pendingSave = useRef<Promise<void> | null>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(base);
+  useReloadGuard(() => saving || pendingSave.current ? "整理正在保存，请稍后更新。"
+    : dirty ? "整理还有未保存的修改，请保存后再更新。" : null);
   useEffect(() => {
     if (!dirty && p.thread.revision !== baseRevision) {
       const fresh = draftOf(p.thread);
@@ -77,6 +80,7 @@ export default function Inspector(p: Props) {
     if (pendingSave.current) return pendingSave.current;
     if (!dirty) return;
     const operation = async () => {
+      const release = holdReload();
       setSaving(true);
       setError("");
       setConflict(false);
@@ -94,6 +98,7 @@ export default function Inspector(p: Props) {
         setConflict((e as Error & { status?: number }).status === 409);
         throw e;
       } finally {
+        release();
         setSaving(false);
       }
     };

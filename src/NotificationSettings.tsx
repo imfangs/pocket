@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellOff } from 'lucide-react';
 import { api } from './api';
+import { holdReload, useReloadGuard } from './updateSafety';
 
 export default function NotificationSettings() {
   const supported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
   const [key, setKey] = useState(''), [enabled, setEnabled] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  useReloadGuard(() => busy ? '通知设置尚未完成，请稍后更新。' : null);
   useEffect(() => {
     let cancelled = false;
     if (!supported) return;
@@ -18,6 +20,8 @@ export default function NotificationSettings() {
     return () => { cancelled = true; };
   }, [supported]);
   const toggle = async () => {
+    if (busy) return;
+    const release = holdReload();
     setBusy(true); setError('');
     try {
       // iOS requires this to start directly from the button gesture.
@@ -40,7 +44,7 @@ export default function NotificationSettings() {
         setEnabled(true);
       }
     } catch (error) { setError((error as Error).message); }
-    finally { setBusy(false); }
+    finally { release(); setBusy(false); }
   };
   return <section className="notification-setting" aria-label="任务通知">
     <div><strong>任务通知</strong><p className="field-help">{supported ? '在 Pocket 打开或发送过的任务：完成、失败或需要处理时通知。' : '从手机主屏幕打开 Pocket 后可开启。'}</p></div>

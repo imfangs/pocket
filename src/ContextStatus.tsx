@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { History } from "./conversationFeed";
 import { api } from "./api";
+import { holdReload, useReloadGuard } from "./updateSafety";
 
 const labels: Record<string, string> = {
   pending: "正在提交…",
@@ -32,6 +33,9 @@ export default function ContextStatus({
   const pending =
     !!uncertainId || ["pending", "accepted", "unknown"].includes(status || "");
   const requestId = history?.compactionRequest?.requestId;
+  useReloadGuard(() => busy ? "压缩操作尚未完成，请稍后更新。"
+    : uncertainId && !(requestId === uncertainId && status && !["pending", "unknown"].includes(status))
+      ? "压缩结果尚待核对，请处理后再更新。" : null);
   useEffect(() => {
     if (!requestId) return;
     if (["pending", "accepted", "unknown"].includes(status || "")) watchedRequest.current = requestId;
@@ -42,6 +46,7 @@ export default function ContextStatus({
   }, [requestId, status]);
   const act = async () => {
     if (busy) return;
+    const release = holdReload();
     setBusy(true);
     setError("");
     const id = uncertainId || crypto.randomUUID();
@@ -70,6 +75,7 @@ export default function ContextStatus({
         setUncertainId(null);
       setError((e as Error).message);
     } finally {
+      release();
       setBusy(false);
     }
   };
