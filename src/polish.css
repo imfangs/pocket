@@ -87,6 +87,8 @@ input::placeholder, textarea::placeholder { color: #92929f; }
 .message-markdown :is(h1,h2,h3,h4,h5,h6) { color: var(--ink); letter-spacing: -.3px; }
 .message-markdown a { color: var(--accent); }
 .pocket-update { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; padding: 0 10px 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); color: var(--ink); font-size: 12px; }
+.pocket-update-copy { min-width: 0; padding: 9px 0; }
+.pocket-update-copy small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .pocket-update button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 10px; border: 0; background: transparent; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
 .message-markdown code { background: #f0eef5; color: #655888; }
 .message-markdown blockquote { border-color: #c8bfde; color: #757080; }
