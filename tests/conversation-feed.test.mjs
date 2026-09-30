@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate } from "node:timers/promises";
-import { rememberHistory, startConversationFeed } from "../src/conversationFeed.ts";
+import { rememberHistory, startConversationFeed, startTranscriptFeed } from "../src/conversationFeed.ts";
 
 const history = (runtime = "active") => ({ runtime, source: "desktop", messages: [], canSend: runtime === "idle", hint: "", checkedAt: 0 });
-function fixture(request) {
+function fixture(request, createFeed = startConversationFeed) {
   const browser = new EventTarget(), visibility = new EventTarget();
   const tasks = new Map();
   let now = 0, nextId = 0;
@@ -15,7 +15,7 @@ function fixture(request) {
   });
   visibility.visibilityState = "visible";
   const data = [], errors = [];
-  const feed = startConversationFeed({ browser, visibility, request, onData: value => data.push(value), onError: error => errors.push(error) });
+  const feed = createFeed({ browser, visibility, request, onData: value => data.push(value), onError: error => errors.push(error) });
   async function advance(ms) {
     const until = now + ms;
     await setImmediate();
@@ -123,4 +123,15 @@ test("recent history cache preserves reading position and stays bounded", () => 
   assert.equal(cache.get("5").nearBottom, false);
   assert.equal(cache.get("5").history.runtime, "idle");
   cache.clear(); assert.equal(cache.size, 0);
+});
+
+test("transcript reads use recorded activity only for pacing and stop while hidden", async () => {
+  let calls=0, status='inProgress';
+  const f=fixture(async()=>{calls++;return{source:'rollout',messages:[],turnTiming:{status},checkedAt:0};},startTranscriptFeed);
+  await f.advance(2000);assert.equal(calls,2);
+  f.visibility.visibilityState='hidden';f.visibility.dispatchEvent(new Event('visibilitychange'));
+  await f.advance(30000);assert.equal(calls,2);
+  status='completed';f.visibility.visibilityState='visible';f.visibility.dispatchEvent(new Event('visibilitychange'));
+  await f.advance(7999);assert.equal(calls,3);await f.advance(1);assert.equal(calls,4);
+  assert.ok(f.data.every(d=>d.canSend===undefined));f.feed.stop();assert.equal(f.tasks.size,0);
 });

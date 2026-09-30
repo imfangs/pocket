@@ -60,6 +60,14 @@ export class DesktopService {
       throw e;
     }
   }
+  transcript(id) {
+    this.store.thread(id);
+    const saved = this.readHistory(this.codexHome, id);
+    // Display data only. Never promote saved text into live permissions or
+    // reconcile pending sends/approvals from this fast path.
+    return { source: "rollout", messages: saved.messages || [], hasMore: !!saved.hasMore,
+      turnTiming: saved.turnTiming || null, checkedAt: Date.now() };
+  }
   async loadHistory(id) {
     const now = Date.now();
     const retrying = now - (this.recentReads.get(id) ?? -Infinity) < 60000;

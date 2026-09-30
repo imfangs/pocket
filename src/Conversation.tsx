@@ -4,13 +4,14 @@ import RequestActions from "./RequestActions";
 import StopExecution from "./StopExecution";
 import TurnDuration from "./TurnDuration";
 import QuestionPrompts from "./QuestionPrompts";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, RefreshCw, Send, Link2 } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
-import { rememberHistory, startConversationFeed } from "./conversationFeed";
-import type { History, HistoryCache } from "./conversationFeed";
+import { rememberHistory, rememberTranscript, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
+import type { History, HistoryCache, SavedTranscript } from "./conversationFeed";
+import { displayMessages } from "./transcript";
 import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
 export type QueryDraft = { text: string; requestId?: string; revision?: number };
@@ -34,6 +35,7 @@ export default function Conversation({
   onActivity?: () => void;
 }) {
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
+    [transcript, setTranscript] = useState<SavedTranscript | null>(() => historyCache.get(thread.id)?.transcript ?? null),
     [loading, setLoading] = useState(true),
     [draft, setDraft] = useState<QueryDraft>(
       () => drafts.get(thread.id) || { text: "" },
@@ -47,7 +49,9 @@ export default function Conversation({
   const messages = useRef<HTMLDivElement>(null),
     nearBottom = useRef(historyCache.get(thread.id)?.nearBottom ?? true),
     restoreScroll = useRef<number | null>(historyCache.get(thread.id)?.scrollTop ?? null),
-    feed = useRef<ReturnType<typeof startConversationFeed> | null>(null);
+    feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
+    textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
+  const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
   const updateDraft = useCallback(
     (next: QueryDraft) => {
       setDraft(next);
@@ -56,7 +60,7 @@ export default function Conversation({
     },
     [drafts, thread.id],
   );
-  const load = useCallback(() => feed.current?.refresh(), []);
+  const load = useCallback(async () => { await Promise.all([feed.current?.refresh(), textFeed.current?.refresh()]); }, []);
   const receiptRead = useRef<AbortController | null>(null);
   useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
   useEffect(() => {
@@ -71,6 +75,18 @@ export default function Conversation({
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
+  useEffect(() => {
+    const subscription = startTranscriptFeed({
+      request: signal => api<SavedTranscript>(`/api/tasks/${thread.id}/transcript`, "GET", undefined, { signal }),
+      onData(data) {
+        rememberTranscript(historyCache, thread.id, data);
+        setTranscript(data);
+      },
+      onError() { /* Keep readable content and let the native feed report connection state. */ },
+    });
+    textFeed.current = subscription;
+    return () => { subscription.stop(); if (textFeed.current === subscription) textFeed.current = null; };
+  }, [thread.id, historyCache]);
   useEffect(() => {
     const subscription = startConversationFeed({
       request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
@@ -105,7 +121,7 @@ export default function Conversation({
     if (nearBottom.current) element.scrollTop = element.scrollHeight;
     else if (restoreScroll.current !== null) element.scrollTop = restoreScroll.current;
     restoreScroll.current = null;
-  }, [history]);
+  }, [shownMessages]);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       if (draft.text) {
@@ -185,7 +201,7 @@ export default function Conversation({
         <div className="runtime-summary">
         <span className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>
           {loading
-            ? history ? "正在更新…" : "正在读取历史…"
+            ? shownMessages.length ? "正在同步状态…" : "正在读取历史…"
             : historyError ? "等待重连" : history?.pendingRequests?.length ? "等待确认" : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断" : statuses[history?.runtime || ""] || "任务状态"}
         </span>
           <TurnDuration timing={history?.turnTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
@@ -230,17 +246,17 @@ export default function Conversation({
           }
         }}
       >
-        {history?.hasMore && (
+        {(history?.hasMore || transcript?.hasMore) && (
           <p className="history-boundary">
             仅显示最近的对话
           </p>
         )}
-        {!loading && !historyError && !history?.messages.length && (
+        {!loading && !historyError && !shownMessages.length && (
           <p className="history-empty">
             暂时没有可显示的消息
           </p>
         )}
-        {history?.messages.filter(message => !message.isQuestion || !history.asyncQuestions?.some(q => q.sourceMessageId === message.id)).map((message) => (
+        {shownMessages.filter(message => !message.isQuestion || !history?.asyncQuestions?.some(q => q.sourceMessageId === message.id)).map((message) => (
           <ConversationMessage key={message.id} message={message} />
         ))}
       </div>

@@ -236,9 +236,18 @@ export function makeApp(options = {}) {
       const task = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)$/);
       const history = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/history$/i);
       if (history && method === "GET") {
+        const start = performance.now();
         const data = await desktop.history(history[1]);
         notifications.watch(history[1], data);
+        res.setHeader("Server-Timing", `desktop_history;dur=${(performance.now() - start).toFixed(1)}`);
         return json(res, 200, images.attach(store.thread(history[1]), data));
+      }
+      const transcript = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/transcript$/i);
+      if (transcript && method === "GET") {
+        const start = performance.now();
+        const data = images.attach(store.thread(transcript[1]), desktop.transcript(transcript[1]));
+        res.setHeader("Server-Timing", `transcript;dur=${(performance.now() - start).toFixed(1)}`);
+        return sendCatalog(res, data, req.headers["accept-encoding"]);
       }
       const image = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/images\/([a-f0-9]{64})$/i);
       if (image && method === "GET") {

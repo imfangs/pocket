@@ -1,5 +1,6 @@
 export type Message = {
   id: string;
+  turnId?: string | null;
   role: "user" | "assistant";
   text: string;
   phase?: string;
@@ -51,31 +52,55 @@ export type QueuedMessage = {
   createdAt: number;
 };
 export type HistoryCache = Map<string, {
-  history: History;
+  history?: History;
+  transcript?: SavedTranscript;
   scrollTop: number;
   nearBottom: boolean;
 }>;
+export type SavedTranscript = {
+  source: "rollout";
+  messages: Message[];
+  hasMore?: boolean;
+  turnTiming?: TurnTiming | null;
+  checkedAt: number;
+};
 
 export function rememberHistory(cache: HistoryCache, id: string, history: History) {
   const previous = cache.get(id);
   cache.delete(id);
-  cache.set(id, { history, scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
+  cache.set(id, { history, transcript: previous?.transcript, scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
+  if (cache.size > 10) cache.delete(cache.keys().next().value!);
+}
+export function rememberTranscript(cache: HistoryCache, id: string, transcript: SavedTranscript) {
+  const previous = cache.get(id);
+  cache.delete(id);
+  cache.set(id, { ...previous, transcript, scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
   if (cache.size > 10) cache.delete(cache.keys().next().value!);
 }
 
-type FeedOptions = {
-  request: (signal: AbortSignal) => Promise<History>;
-  onData: (history: History) => void;
+type FeedOptions<T> = {
+  request: (signal: AbortSignal) => Promise<T>;
+  onData: (history: T) => void;
   onError: (error: Error) => void;
   browser?: Window;
   visibility?: Document;
 };
 
 // One read at a time; resume immediately, then poll according to actual activity.
-export function startConversationFeed(options: FeedOptions) {
+export function startConversationFeed(options: FeedOptions<History>) {
+  let desktopMisses = 0;
+  return startFeed(options, data => {
+    desktopMisses = data.source === "desktop" ? 0 : desktopMisses + 1;
+    return data.runtime === "active" || (desktopMisses > 0 && desktopMisses <= 3) ? 2000 : 8000;
+  });
+}
+export function startTranscriptFeed(options: FeedOptions<SavedTranscript>) {
+  return startFeed(options, data => data.turnTiming?.status === "inProgress" ? 2000 : 8000);
+}
+function startFeed<T>(options: FeedOptions<T>, nextDelay: (data: T) => number) {
   const browser = options.browser ?? window;
   const visibility = options.visibility ?? document;
-  let stopped = false, failures = 0, desktopMisses = 0, delay = 8000, queued = false;
+  let stopped = false, failures = 0, delay = 8000, queued = false;
   let timer: number | undefined;
   let pending: Promise<void> | null = null;
   let controller: AbortController | null = null;
@@ -93,8 +118,7 @@ export function startConversationFeed(options: FeedOptions) {
         const data = await options.request(current.signal);
         if (!ready() || current.signal.aborted) return;
         failures = 0;
-        desktopMisses = data.source === "desktop" ? 0 : desktopMisses + 1;
-        delay = data.runtime === "active" || (desktopMisses > 0 && desktopMisses <= 3) ? 2000 : 8000;
+        delay = nextDelay(data);
         options.onData(data);
       } catch (error) {
         if (!ready() || (current.signal.aborted && current.signal.reason?.name !== "TimeoutError")) return;
