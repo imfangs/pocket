@@ -16,3 +16,20 @@ test('leaving stops receipt reads and mismatched receipts cannot clear another d
   controller.abort();await assert.rejects(waiting);assert.equal(reads,0);
   await assert.rejects(waitForSubmission(receipt('pending'),async()=>({requestId:'another',status:'accepted'}),new AbortController().signal,{intervalMs:1,maxWaitMs:1000}),/不匹配/);
 });
+test('leaving before the original HTTP response arrives ignores even a terminal receipt',async()=>{
+  const controller=new AbortController();controller.abort();let reads=0;
+  for(const status of ['accepted','queued','rejected','unknown']) {
+    await assert.rejects(waitForSubmission(receipt(status),async()=>{reads++;return receipt('accepted');},controller.signal),{name:'AbortError'});
+  }
+  assert.equal(reads,0);
+});
+test('leaving during a receipt read rejects its late result and keeps the request available to a new view',async()=>{
+  const controller=new AbortController();let finish,started;
+  const reading=new Promise(resolve=>{started=resolve;});
+  const waiting=waitForSubmission(receipt('pending'),()=>{started();return new Promise(resolve=>{finish=resolve;});},controller.signal,{intervalMs:1,maxWaitMs:1000});
+  await reading;controller.abort();finish(receipt('accepted'));
+  await assert.rejects(waiting,{name:'AbortError'});
+  let reads=0;
+  const checked=await waitForSubmission(receipt('pending'),async()=>{reads++;return receipt('accepted');},new AbortController().signal,{intervalMs:1,maxWaitMs:1000});
+  assert.equal(checked.requestId,'one');assert.equal(checked.status,'accepted');assert.equal(reads,1);
+});

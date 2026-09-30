@@ -22,6 +22,7 @@ import type { QueryDraft } from "./Conversation";
 import type { HistoryCache } from "./conversationFeed";
 import { GroupDialog, SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
+import { createCatalogReader } from "./catalogReader";
 import { filterThreads, groupPath } from "./model";
 import type { Catalog, Group, Thread, View } from "./types";
 function readPrefs() {
@@ -31,7 +32,11 @@ function readPrefs() {
     return {};
   }
 }
-const catalogError = (error: Error) => ["TimeoutError", "AbortError"].includes(error.name) ? "读取任务较慢，请刷新重试。" : error.message;
+const catalogError = (error: Error) => ["TimeoutError", "AbortError"].includes(error.name)
+  ? "读取任务较慢，保留当前列表。"
+  : /failed to fetch|networkerror|load failed/i.test(error.message)
+    ? "连接暂时中断，保留当前列表。"
+    : error.message;
 const empty: Catalog = {
   threads: [],
   groups: [],
@@ -81,6 +86,7 @@ export default function App({
     ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    [readError, setReadError] = useState(""),
     [mobile, setMobile] = useState(false),
     [checked, setChecked] = useState<Set<string>>(new Set()),
     [groupDialog, setGroupDialog] = useState<Group | null | undefined>(
@@ -95,7 +101,7 @@ export default function App({
     conversationDrafts = useRef(new Map<string, QueryDraft>()),
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null);
-  const syncing = useRef<Promise<void> | null>(null);
+  const syncing = useRef<Promise<Catalog | undefined> | null>(null);
   const listPanel = useRef<HTMLElement>(null);
   const restoreScroll = useRef<number | null>(null);
   const returnView = useRef<{ view: View; groupId: string | null; project: string; query: string; searchOpen: boolean; sort: string; scrollTop: number; selected: string | null }>({
@@ -120,32 +126,25 @@ export default function App({
   const notify = useCallback((s: string) => {
     toast.success(s, { id: "pocket-feedback" });
   }, []);
-  const refresh = useCallback(async (sync = false) => {
-    const c = await api<Catalog>(
-      sync ? "/api/sync" : "/api/catalog",
-      sync ? "POST" : "GET",
-      undefined,
-      { signal: AbortSignal.timeout(15000) },
-    );
-    if (c.csrfToken) setToken(c.csrfToken);
-    setCatalog(c);
-    return c;
-  }, []);
+  const [catalogReader] = useState(() => createCatalogReader({
+    request: sync => api<Catalog>(sync ? "/api/sync" : "/api/catalog", sync ? "POST" : "GET",
+      undefined, { signal: AbortSignal.timeout(15000) }),
+    onData(c) { if (c.csrfToken) setToken(c.csrfToken); setCatalog(c); },
+    onSettled(error) { setLoading(false); setReadError(error ? catalogError(error) : ""); },
+  }));
+  const refresh = useCallback((sync = false) => catalogReader.read(sync), [catalogReader]);
   const syncTasks = useCallback((silent = false) => {
     if (!syncing.current) {
-      const operation = refresh(true).then(() => {}).finally(() => {
+      const operation = refresh(true).finally(() => {
         if (syncing.current === operation) syncing.current = null;
       });
       syncing.current = operation;
     }
-    if (silent) return syncing.current;
+    if (silent) return syncing.current.then(() => {});
     setBusy(true);
     setError("");
-    return syncing.current.then(() => {
-      notify("任务已刷新");
-    }).catch((error: Error) => {
-      setError(catalogError(error));
-      throw error;
+    return syncing.current.then(catalog => {
+      if (catalog) notify("任务已刷新");
     }).finally(() => {
       setBusy(false);
     });
@@ -157,25 +156,26 @@ export default function App({
     void (syncing.current ?? Promise.resolve()).catch(() => {}).then(() => syncTasks(true)).catch(() => {});
   }, [syncTasks]);
   useEffect(() => {
+    catalogReader.resume();
     const syncIfVisible = () => {
       if (document.visibilityState === "visible" && navigator.onLine !== false)
         void syncTasks(true).catch(() => {});
     };
     refresh()
-      .then(syncIfVisible)
-      .catch((e) => setError(catalogError(e)))
-      .finally(() => setLoading(false));
+      .then(catalog => { if (catalog) syncIfVisible(); })
+      .catch(() => {});
     const timer = setInterval(syncIfVisible, 45000);
     document.addEventListener("visibilitychange", syncIfVisible);
     window.addEventListener("online", syncIfVisible);
     window.addEventListener("pageshow", syncIfVisible);
     return () => {
+      catalogReader.pause();
       clearInterval(timer);
       document.removeEventListener("visibilitychange", syncIfVisible);
       window.removeEventListener("online", syncIfVisible);
       window.removeEventListener("pageshow", syncIfVisible);
     };
-  }, [refresh, syncTasks]);
+  }, [refresh, syncTasks, catalogReader]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -303,6 +303,7 @@ export default function App({
     async (id: string, patch: unknown) => {
       try {
         const t = await api<Thread>(`/api/tasks/${id}`, "PATCH", patch);
+        catalogReader.invalidate();
         setCatalog((c) => ({
           ...c,
           threads: c.threads.map((old) => (old.id === id ? t : old)),
@@ -313,18 +314,19 @@ export default function App({
         throw e;
       }
     },
-    [refresh],
+    [refresh, catalogReader],
   );
   const open = useCallback(
     async (t: Thread) => {
       const result = await api<{ thread: Thread }>(`/api/open/${t.id}`, "POST");
+      catalogReader.invalidate();
       setCatalog((c) => ({
         ...c,
         threads: c.threads.map((x) => (x.id === t.id ? result.thread : x)),
       }));
       notify("已请求在 Codex 打开原会话");
     },
-    [notify],
+    [notify, catalogReader],
   );
   const batch = async (
     ids: string[],
@@ -334,6 +336,7 @@ export default function App({
     try {
       await flush();
       const c = await api<Catalog>("/api/batch", "POST", { ids, change });
+      catalogReader.invalidate();
       setCatalog(c);
       setChecked(new Set());
       notify(
@@ -463,22 +466,20 @@ export default function App({
             </button>
           </div>}
         </header>
-        {(error || catalog.sourceError) && (
+        {(error || readError || catalog.sourceError) && (
           <div className="error-banner" role="alert">
             <AlertCircle size={17} />
             <span>
-              {error ||
+              {error || readError ||
                 `原版暂时无法读取，保留上次同步结果。${catalog.sourceError}`}
             </span>
             <button
               className="icon-button"
-              aria-label={error ? "关闭提示" : "重新读取来源"}
+              aria-label={error ? "关闭提示" : readError ? "重新读取任务" : "重新读取来源"}
+              disabled={!error && busy}
               onClick={() => {
                 if (error) setError("");
-                else
-                  void guard(async () => {
-                    await refresh(true);
-                  });
+                else void syncTasks().catch(() => {});
               }}
             >
               {error ? <X size={15} /> : <RefreshCw size={15} />}
@@ -618,6 +619,7 @@ export default function App({
           onImport={async (data) => {
             await flush();
             const c = await api<Catalog>("/api/import", "POST", data);
+            catalogReader.invalidate();
             setCatalog(c);
             setSelected(null);
             setGroupId(null);

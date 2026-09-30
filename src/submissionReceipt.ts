@@ -21,11 +21,13 @@ export async function waitForSubmission(
   signal: AbortSignal,
   options = { intervalMs: 1500, maxWaitMs: 65000 },
 ) {
+  signal.throwIfAborted();
   let receipt = initial;
   const started = Date.now();
   while (receipt.status === "pending" && Date.now() - started < options.maxWaitMs) {
     await delay(options.intervalMs, signal);
     receipt = await read(AbortSignal.any([signal, AbortSignal.timeout(10000)]));
+    signal.throwIfAborted();
     if (receipt.requestId !== initial.requestId) throw new Error("回执与当前消息不匹配，请重新核对。");
   }
   return receipt;

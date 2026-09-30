@@ -124,6 +124,17 @@ export default function Conversation({
     else if (restoreScroll.current !== null) element.scrollTop = restoreScroll.current;
     restoreScroll.current = null;
   }, [shownMessages]);
+  useLayoutEffect(() => {
+    const element = messages.current;
+    if (!element) return;
+    // Composer growth and the software keyboard resize the reading area even
+    // when no message changes. Follow only while the reader is already at bottom.
+    const observer = new ResizeObserver(() => {
+      if (nearBottom.current) element.scrollTop = element.scrollHeight;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       if (draft.text) {
@@ -165,15 +176,19 @@ export default function Conversation({
     setError("");
     setNotice("");
     const controller = new AbortController();
+    const requestId = draft.requestId || crypto.randomUUID();
     receiptRead.current = controller;
+    // A submission belongs to this view and this exact draft. Leaving must not
+    // let its late response rewrite a newer draft held by the next view.
+    const ownsDraft = () => !controller.signal.aborted && receiptRead.current === controller &&
+      drafts.get(thread.id)?.requestId === requestId;
     try {
       let receipt: Receipt;
       if (draft.requestId) {
         receipt = await api<Receipt>(
-            `/api/tasks/${thread.id}/messages/${draft.requestId}`,
+            `/api/tasks/${thread.id}/messages/${requestId}`,
           );
       } else {
-        const requestId = crypto.randomUUID();
         updateDraft({ ...draft, requestId });
         receipt = await api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
             text: draft.text,
@@ -181,10 +196,15 @@ export default function Conversation({
             ...(enqueue ? { enqueue: true } : {}),
           });
       }
+      if (!ownsDraft()) return;
+      if (receipt.requestId !== requestId) throw new Error("回执与当前消息不匹配，请重新核对。");
       if (receipt.status === "pending") setNotice("Pocket 已收到，正在确认原任务…");
-      receive(await waitForSubmission(receipt, signal => api<Receipt>(`/api/tasks/${thread.id}/messages/${receipt.requestId}`, "GET", undefined, { signal }), controller.signal));
+      const confirmed = await waitForSubmission(receipt, signal => api<Receipt>(`/api/tasks/${thread.id}/messages/${requestId}`, "GET", undefined, { signal }), controller.signal);
+      if (!ownsDraft()) return;
+      receive(confirmed);
       void load();
     } catch (e) {
+      if (!ownsDraft()) return;
       const status = (e as Error & { status?: number }).status;
       if (status && status < 500) {
         updateDraft({ text: draft.text });
@@ -192,8 +212,10 @@ export default function Conversation({
       } else
         setNotice("连接中断，发送结果尚未确认。请核对状态，避免重复提交。");
     } finally {
-      if (receiptRead.current === controller) receiptRead.current = null;
-      setSending(false);
+      if (receiptRead.current === controller) {
+        receiptRead.current = null;
+        if (!controller.signal.aborted) setSending(false);
+      }
     }
   };
   return (
