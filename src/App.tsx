@@ -287,6 +287,7 @@ export default function App({
   useEffect(() => {
     const fromNotification = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
+      if (typeof id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) return;
       void guard(async () => {
         await flush();
         await syncTasks(true);

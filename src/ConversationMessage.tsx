@@ -4,8 +4,12 @@ import MessageMarkdown from "./MessageMarkdown";
 import { readableQuestionReply } from "./questionReply";
 import type { Message } from "./conversationFeed";
 import { formatDuration } from "./TurnDuration";
+import { readableCodexMarkdown } from "./codexMarkup";
+import { useMemo } from "react";
 
 export default function ConversationMessage({ message }: { message: Message }) {
+  const displayText = useMemo(() => message.role === "user"
+    ? readableQuestionReply(message.text) : readableCodexMarkdown(message.text), [message.role, message.text]);
   const progress =
     message.role === "assistant" && message.phase === "commentary";
   const final = message.phase === "final_answer" || message.phase === "final";
@@ -45,17 +49,14 @@ export default function ConversationMessage({ message }: { message: Message }) {
             </time>
           )}
           {kind === "answer" && (
-            <CopyButton text={message.text} label="复制回复" />
+            <CopyButton text={displayText} label="复制回复" />
           )}
         </div>
       </div>
       <MessageMarkdown
         images={message.images}
-        text={
-          message.role === "user"
-            ? readableQuestionReply(message.text)
-            : message.text
-        }
+        text={displayText}
+        codex={false}
       />
       {final && message.turnDurationMs != null && (
         <div className="message-duration">总用时 <time>{formatDuration(message.turnDurationMs)}</time></div>

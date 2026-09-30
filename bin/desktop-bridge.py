@@ -133,7 +133,9 @@ def async_questions(state):
                 except (ValueError, TypeError):
                     pass
     questions = []
-    for turn in turns[-30:]:
+    # An unanswered historical prompt is not an outstanding request in the
+    # current turn. Keep the latest completed turn eligible until a new turn.
+    for turn in turns[-1:]:
         for item in turn.get("items", []):
             if item.get("type") != "agentMessage" or item.get("delivery") != "async":
                 continue
@@ -149,7 +151,8 @@ def async_questions(state):
                 if not isinstance(options, list) or len(options) > 20 or any(not isinstance(o, str) or len(o) > 2000 for o in options):
                     continue
                 shown = {"id": qid, "sourceMessageId": item.get("id"), "title": title, "options": options}
-                questions.append({**shown, "key": request_key(shown)})
+                # Preserve existing reply ledger keys across this display change.
+                questions.append({**shown, "turnId": turn.get("turnId"), "key": request_key(shown)})
     result, budget = [], 45000
     for question in reversed(questions[-10:]):
         size = len(question["title"]) + sum(map(len, question["options"]))

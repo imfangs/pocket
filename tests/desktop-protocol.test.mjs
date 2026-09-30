@@ -380,16 +380,37 @@ test('resumed queue sends after the exact interrupted turn, but not after anothe
 });
 
 const asyncQuestion={type:'agentMessage',id:'call-question',phase:'final_answer',delivery:'async',text:'选一个方向',questions:[{title:'选一个方向',options:['方向 A','方向 B']}]};
+test('unanswered questions from older turns are not offered or answerable',async t=>{
+ const old={turnId:'old',status:'completed',items:[asyncQuestion]};
+ const f=await fakeDesktop(t,[{...idle,turns:[old]}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ assert.equal(h.asyncQuestions.length,1,'latest completed turn may still need an answer');
+ const next=await fakeDesktop(t,[{...idle,turns:[old,{turnId:'new',status:'completed',items:[]}]}]);
+ const current=await desktopRequest({operation:'history',threadId:id,codexHome:next.home});
+ assert.equal(current.asyncQuestions.length,0,'old unanswered question must disappear');
+ const answer=await desktopRequest({operation:'answer',threadId:id,codexHome:next.home,questionKey:h.asyncQuestions[0].key,text:'stale',requestId});
+ assert.equal(answer.code,'question_changed');
+ assert.equal(next.calls.some(c=>c.method==='thread-follower-start-turn'||c.method==='thread-follower-steer-turn'),false);
+});
 test('async questions are exposed separately and answers use the original native reply envelope',async t=>{
  const state={...idle,threadRuntimeStatus:{type:'active'},turns:[{turnId:'active',status:'inProgress',items:[asyncQuestion]}]};
  const f=await fakeDesktop(t,[state]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
  assert.equal(h.asyncQuestions.length,1);assert.equal(h.messages[0].isQuestion,true);
+ assert.equal(h.asyncQuestions[0].turnId,'active');
  assert.equal(h.asyncQuestions[0].id,JSON.stringify(['request_user_input_async','call-question',0]));
  const r=await desktopRequest({operation:'answer',delivery:'now',threadId:id,codexHome:f.home,questionKey:h.asyncQuestions[0].key,text:'方向 B',requestId});
  assert.equal(r.status,'accepted');const call=f.calls.find(c=>c.method==='thread-follower-steer-turn');
  const text=call.params.input[0].text;assert.ok(text.startsWith('<send_user_message_question_reply>\n'));
  const answer=JSON.parse(text.slice(text.indexOf('\n')+1,text.lastIndexOf('\n')));
  assert.deepEqual(answer,[{questionItemId:h.asyncQuestions[0].id,question:'选一个方向',answer:'方向 B'}]);
+});
+test('only the latest canonical turn contributes questions, while old questions stay in history',async t=>{
+ const old={turnId:'old',status:'completed',items:[asyncQuestion]};
+ const current={turnId:'current',status:'completed',items:[{...asyncQuestion,id:'new-question',text:'新问题'}]};
+ const f=await fakeDesktop(t,[{...idle,turns:[old],turnHistory:{kind:'canonical',history:{entitiesByKey:{a:old,b:current},islands:[{entries:[{value:'a'},{value:'b'}]}]}}}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ assert.equal(h.asyncQuestions.length,1);assert.equal(h.asyncQuestions[0].sourceMessageId,'new-question');
+ assert.equal(h.asyncQuestions[0].turnId,'current');assert.equal(h.messages.length,2);
 });
 test('answered async questions disappear, and an old question key cannot answer a changed question',async t=>{
  const reply='<send_user_message_question_reply>\n'+JSON.stringify([{questionItemId:JSON.stringify(['request_user_input_async','call-question',0]),question:'选一个方向',answer:'方向 A'}])+'\n</send_user_message_question_reply>';

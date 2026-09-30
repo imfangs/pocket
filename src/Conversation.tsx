@@ -12,6 +12,7 @@ import ConversationMessage from "./ConversationMessage";
 import { rememberHistory, rememberTranscript, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript } from "./conversationFeed";
 import { displayMessages } from "./transcript";
+import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
 export type QueryDraft = { text: string; requestId?: string; revision?: number };
@@ -52,6 +53,7 @@ export default function Conversation({
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
+  const questions = currentQuestions(history, transcript);
   const updateDraft = useCallback(
     (next: QueryDraft) => {
       setDraft(next);
@@ -256,7 +258,7 @@ export default function Conversation({
             暂时没有可显示的消息
           </p>
         )}
-        {shownMessages.filter(message => !message.isQuestion || !history?.asyncQuestions?.some(q => q.sourceMessageId === message.id)).map((message) => (
+        {shownMessages.filter(message => !message.isQuestion || !questions.some(q => q.sourceMessageId === message.id)).map((message) => (
           <ConversationMessage key={message.id} message={message} />
         ))}
       </div>
@@ -295,7 +297,7 @@ export default function Conversation({
           </p>
         )}
       </div>
-      <QuestionPrompts threadId={thread.id} questions={history?.asyncQuestions ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || !history?.canSend} drafts={drafts} refresh={load} />
+      <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || !history?.canSend} drafts={drafts} refresh={load} />
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
       <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>

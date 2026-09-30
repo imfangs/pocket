@@ -1,12 +1,13 @@
 import MarkdownCode from "./MarkdownCode";
 import MessageImage from "./MessageImage";
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { pocketTaskUrl, readableCodexMarkdown } from "./codexMarkup";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const plugins = [remarkGfm];
 const imageRoute = /^\/api\/tasks\/[a-f0-9-]{36}\/images\/[a-f0-9]{64}$/i;
-type Props = { text: string; images?: Record<string, string> };
+type Props = { text: string; images?: Record<string, string>; codex?: boolean };
 
 function publicUrl(value: string) {
   try {
@@ -19,6 +20,12 @@ function publicUrl(value: string) {
 
 const components: Components = {
   a({ href, children }) {
+    const taskUrl = href && pocketTaskUrl(href);
+    if (taskUrl) return <a className="pocket-task-link" href={taskUrl} onClick={event => {
+      if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: taskUrl.slice("/?task=".length) }));
+    }}>{children}</a>;
     return href ? (
       <a href={href} target="_blank" rel="noopener noreferrer">
         {children}
@@ -55,7 +62,8 @@ const components: Components = {
   },
 };
 
-export default memo(function MessageMarkdown({ text, images }: Props) {
+export default memo(function MessageMarkdown({ text, images, codex = true }: Props) {
+  const markdown = useMemo(() => codex ? readableCodexMarkdown(text) : text, [text, codex]);
   const urlTransform = (value: string, key: string) => {
     if (key === "src" && images) {
       try {
@@ -63,15 +71,15 @@ export default memo(function MessageMarkdown({ text, images }: Props) {
         if (url && imageRoute.test(url)) return url;
       } catch { /* Keep malformed or unregistered references as text. */ }
     }
-    return publicUrl(value);
+    return key === "href" ? pocketTaskUrl(value) || publicUrl(value) : publicUrl(value);
   };
   return (
     <div className="message-text message-markdown">
       <Markdown remarkPlugins={plugins} components={components} urlTransform={urlTransform} skipHtml>
-        {text}
+        {markdown}
       </Markdown>
     </div>
   );
-}, (before, after) => before.text === after.text &&
+}, (before, after) => before.text === after.text && before.codex === after.codex &&
   Object.keys(before.images || {}).length === Object.keys(after.images || {}).length &&
   Object.entries(before.images || {}).every(([source, url]) => after.images?.[source] === url));

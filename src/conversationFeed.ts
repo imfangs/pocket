@@ -187,6 +187,6 @@ export type StopReceipt = {
 };
 
 export type AsyncQuestion = {
-  id: string; key: string; sourceMessageId: string; title: string; options: string[];
+  id: string; key: string; turnId?: string | null; sourceMessageId: string; title: string; options: string[];
   response?: { requestId: string; status: string } | null;
 };
