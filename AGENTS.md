@@ -1,35 +1,54 @@
-# Pocket
+# Pocket · 开发接续
 
-2026-09-28 方帅选定产品名 **Pocket**，原名任务架 / Codex Navigator。内部兼容标识沿用 `codex-navigator`、`CodexNavigator` 数据目录和原备份格式；旧研究与验证记录保留历史名称。
+个人 Mac 上 Codex 的手机入口：查看和接续原任务，整理分组与下次继续的意图。产品名为 **Pocket**；仓库、服务、数据目录和备份格式继续使用 `codex-navigator` / `CodexNavigator` 兼容标识。
 
-个人本机 Codex 会话导航工具。用户在 2026-09-27 授权从研究进入实现：管理大量现有会话，按领域/项目分组，保留稍后继续的意图，并准确打开官方 App 的原会话。
+## 开工顺序
 
-## 接续
+1. 先遵循 `/Users/fangs/workspace/AGENTS.md`，再读 [CURRENT.md](CURRENT.md)：确认继续方式、最近已验证版本、未决问题和本轮目标。自动运行状态以该页及实际 automation 为准。
+2. 在本子仓库核对 `git status --short` 与当前分支，隔离其他任务的改动；运行命令和依赖从 [README.md](README.md)、`package.json`、`config/` 回读。
+3. 按下面的任务分支加载文档与代码。只有追溯旧取舍/验证时才查 [HISTORY.md](HISTORY.md)，不用把整份流水当成当前需求。
+4. 完成与本轮目标相称的实现和验证。已有功能优化、缺陷修复及对应发布沿用用户授权；纯文档维护只核对事实、链接与差异，不触发产品部署。
 
-先读 `CURRENT.md` 的验证状态；功能与运行命令见 `README.md`，架构/数据契约见 `docs/ARCHITECTURE.md`。研究依据为 `/Users/fangs/workspace/study/research/2026-09-27-codex-thread-management.md`。
+## 按任务进入
 
-评估桌面尚有但网页缺少的能力时读 `docs/DESKTOP-PARITY.md` 的核验日期与接口边界。
+| 本轮任务 | 先读的契约与依据 |
+| --- | --- |
+| 列表、分组、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
+| 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |
+| 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
+| Markdown、Codex 专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)、[图片契约](docs/IMAGES.md) |
+| 版本更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
+| 通知与用户确认 | [通知](docs/NOTIFICATIONS.md)、会话契约中的审批/阻塞问题章节 |
+| 新建/改名/归档、共享桌面队列等能力补齐 | [能力对照](docs/DESKTOP-PARITY.md)、[原实例控制入口](docs/research/2026-09-29-desktop-control-entrypoints.md)；先核对当前 App 与 `config/desktop-bridge.json` |
+| 本机运行、连接器或公网发布 | [手机链路](docs/MOBILE.md)；对应 `config/local-service.json`、`config/tunnel-service.json`、`config/pages-site.json` |
+| 原生 App、竞品或开源方向 | [调研输入](docs/research/2026-09-29-external-research-intake.md)、[开源准备度](docs/research/2026-09-27-open-source-readiness.md)，按具体问题再展开来源 |
 
-持续打磨远控体验时读 `docs/QUALITY.md`：用户已授权围绕现有能力优化、验证和发布，按真实摩擦与证据推进，保留 PWA 真机及长期效果的验证边界。
+## 代码入口
 
-外部调研的采用：2026-09-29 方帅明确要求先讨论，再选定具体事项实施。研究清单只作为待讨论输入，不由日常打磨自动转成建设任务。用户已明确提出的功能、实际缺陷修复及对应验证发布继续按既有授权完成。
+| 范围 | 主要文件 |
+| --- | --- |
+| 来源/元数据/列表 | `server/source.mjs`、`server/unread.mjs`、`server/store.mjs`、`src/App.tsx`、`src/catalogReader.ts` |
+| 原桌面控制与账本 | `server/desktop.mjs`、`server/bridge-process.mjs`、`bin/desktop-bridge.py`、`bin/request_actions.py` |
+| 历史读取与展示合并 | `server/history.mjs`、`src/conversationFeed.ts`、`src/transcript.ts` |
+| 会话交互与回执 | `src/Conversation.tsx`、`src/Outbox.tsx`、`src/QuestionPrompts.tsx`、`src/RequestActions.tsx`、`src/submissionReceipt.ts` |
+| Markdown/图片 | `src/MessageMarkdown.tsx`、`src/codexMarkup.ts`、`server/message-images.mjs` |
+| 更新与输入保护 | `src/PocketUpdate.tsx`、`src/appUpdate.ts`、`src/updateSafety.ts`、`src/updateDrafts.ts`、`bin/build-version.mjs` |
+| HTTP/公网转发 | `server/index.mjs`、`edge/worker.mjs`、`bin/tunnel.mjs` |
 
-2026-09-29 方帅已选定实施：通知、更多审批、共享待发队列、原任务新建/改名/归档。后续按这一授权继续，无需重复讨论是否要做；当前已接入和真实接口阻塞见 CURRENT.md。通知实现与验证读 docs/NOTIFICATIONS.md；原实例控制/共享队列接续前读 docs/research/2026-09-29-desktop-control-entrypoints.md，升级后重新核验。
+## 保持的项目约定
 
-## 数据边界
+- **原任务权威**：Codex SQLite、global JSON 与 rollout 只读。以原 thread ID 定位，真实操作交给现有桌面 owner，继承模型、cwd 与权限；分组不改变这些属性。接口缺口通过受支持的原实例通道解决，不另起执行实例冒充接管，也不绕过签名校验。
+- **展示与执行分离**：按 provenance 显示真实用户消息和可见回复，排除注入上下文/内部压缩摘要。transcript、缓存和文字合并只能用于展示，不能授予执行权限或核销发送回执。问题卡只属于最新原轮次；该轮已完成但仍有问题时可保留，旧轮题目留在历史。
+- **派发与恢复**：保留 `requestId`、指纹、revision 和原 turn 约束；`accepted` 不等于模型完成。未知发送/中断/审批结果先核对，不自动重放。`canQueue`、`canSend`、`canAttemptSend` 含义独立，读侧失败不应误禁安全入队。
+- **输入与队列**：Pocket 待发队列与桌面队列仍独立；用户暂停或编辑的条目保持暂停。迟到响应不覆盖新草稿、已保存说明或较新列表；更新只由明确点击触发，检查期间产生的新输入也需保护。
+- **私人数据**：Pocket 元数据与已提交待发正文留在本机私有数据目录；草稿/历史沿用现有内存边界。口令、真实数据、截图、回执和备份放 `.local/` 或本机私有目录，不进入 Git、公开构建或第三方模型。Service Worker 只缓存公开壳。
+- **网络与渲染**：本机服务监听 loopback，私人 API 保持认证、Host/Origin/CSRF 校验。消息标记仅作展示/受控导航，不执行指令或 raw HTML；图片只开放正文已引用、任务目录内且通过现有校验的文件。
+- **能力取舍**：用户已要求通知、更多审批、共享待发队列及原任务新建/改名/归档；已交付与真实接口阻塞看 CURRENT。改名/归档须同步 Codex 原任务，不用 Pocket 别名或隐藏替代。外部调研候选仍先讨论，再实施选定事项。
 
-- Codex 是原会话、标题、归档、目录与历史的权威来源。源 SQLite 使用只读连接；本工具不编辑 Codex 数据库、全局 JSON 或 rollout，不创建新的 Agent 执行进程。
-- Pocket 保存自己的分组、接续意图、备注、访问记录，以及用户已提交但尚未发送的待发消息，数据位于用户 Application Support，禁止提交真实会话数据、截图、索引和备份。
-- 以来源 + 原 thread ID 识别会话；导航用原 ID。显示分组不改变 cwd、项目绑定或访问权限。原版归档与本工具“资料留存”是不同概念。
-- 运行 idle、旧更新时间、生成摘要不能自动变成用户的待办承诺。默认未分类；用户编辑优先于以后同步。
-- 本地服务只监听 loopback，严格校验 Host/Origin。2026-09-27 用户追加授权口令保护的手机 PWA 验证：可通过专用 HTTPS 隧道接入；全部私人 API 必须先认证，隧道启动前验证未登录目录请求被拒绝。无遥测或外部模型调用。
-- 口令、local CLI token、浏览器 session 和连接配置仅放本机私有状态目录。PWA 离线缓存只允许公开壳与图标，不缓存目录、说明或聊天数据。
-- 2026-09-28 用户追加历史查看与网页 query 需求。历史按需从原 App 快照或只读 rollout 取得，仅展示用户消息及可见回复；query 通过现有桌面 owner 的 IPC 提交，继承原模型和权限。新建原任务已有后续授权，但须通过原实例的受支持通道；另起 app-server、自动处理审批仍不在范围内。协议按 App 版本核验，发送账本防止相同请求重发，未知回执先核对历史。用户后续明确要求运行中默认排队，并可编辑、删除、直接发送；Pocket 待发正文仅持久保存在本机私有数据库，接受或删除后清除。直接发送调用原 owner 的 Steer，Pocket 与桌面的待发列表独立；详细状态机和恢复规则见 `docs/CONVERSATION.md`。用户随后要求上下文用量及手动压缩：通过原 owner 读取最近模型用量与请求原生压缩；仅在原任务空闲时触发，压缩期间暂停 Pocket 出队，按持久请求编号防重并回读完成；已有人为暂停的队列保持暂停。用户追加网页响应等待操作的需求，现可由用户明确点击响应命令执行审批（允许一次/拒绝）；展示完整命令和目录，绑定请求指纹，不提供永久放权或自动批准。用户随后明确要求中断执行，停止使用原 owner 的条件中断（绑定 turn ID），暂停 Pocket 自动队列，保留历史；不得自动重试未知中断。异步提问按原 questionItemId 回答，用户选项和自由文本均须由用户提交，不代作选择。
+## 验证、运行与收尾
 
-## 实现与验证
-
-React/Vite + Node 原生 HTTP/SQLite。模块分为源导入、导航数据、API、UI；服务生命周期复用 FBT local，配置留在 `config/local-service.json`。
-
-验收覆盖真实源导入、过滤/分组、稍后与接续备注、刷新/重启持久化、原 ID 导航、来源只读和失败保留已有状态；原会话打开须独立回读，不能把 `open` 退出 0 当作导航完成。
-
-使用合成数据做自动测试；默认真实验收只读或操作可恢复的 Pocket 元数据。必要的真实发送使用 `docs/QUALITY.md` 的受控回显对象和约定，恢复临时状态；不在无关原任务中发送测试内容。新增需求先保持当前用户的管理成果，再迭代。
+- 功能改动先跑相关回归；发布前运行 `npm test` 和 `npm run build`，再验证受影响的实际流程。文档改动检查路径、事实、历史保全和 diff 即可。验证策略及受控真实发送对象只在 [QUALITY](docs/QUALITY.md) 维护。
+- 默认使用合成数据和只读真实验收；必要发送按受控对象/文本约定操作，避免污染其他原任务。区分自动测试、浏览器、模拟器、iPhone 主屏幕真机与长期使用证据。
+- 本地开发优先复用已有 API 或任务内临时 fixture；结束后关闭自己启动的临时进程。已登记服务的生命周期复用 FBT local，实际配置留在本仓库，不顺手重启 Codex。
+- 发布从项目配置进入 [FBT Pages Site](/Users/fangs/workspace/fbt/workflows/pages-site/SKILL.md)；本地服务管理从 [FBT local](/Users/fangs/workspace/fbt/local/SKILL.md) 进入。上传已成功但回读未通过时，继续同一部署的 `resume --resume-verification`，先核对结果再决定下一步。
+- 当前状态只维护在 `CURRENT.md`；详细演进追加 `HISTORY.md` 或对应设计记录，证据保留日期与入口。检查并本地提交本任务改动，沿用 Workspace 的 Git 规则；本地 commit 不代表 push、发布或真实效果完成。
