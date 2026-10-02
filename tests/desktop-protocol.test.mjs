@@ -15,12 +15,11 @@ const idle = {
   requests: [],
   turns: [],
 };
-async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0, owners = [], disconnectSettings = false } = {}) {
+async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0 } = {}) {
   const home = mkdtempSync("/tmp/navigator-ipc-");
   mkdirSync(join(home, "ipc"), { mode: 0o700 });
   const calls = [];
   let snapshots = 0;
-  let discoveries = 0;
   const server = net.createServer((socket) => {
     let pending = Buffer.alloc(0);
     const send = (object, delay = 0) => {
@@ -45,17 +44,11 @@ async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0, owner
         pending = pending.subarray(4 + size);
         calls.push(m);
         if (m.type === "request") {
-          if (disconnectSettings && m.method === "thread-follower-update-thread-settings") {
-            socket.end();
-            continue;
-          }
-          const owner = m.method === "thread-owner-discovery" && owners.length
-            ? owners[Math.min(discoveries++, owners.length - 1)] : "desktop-fixture";
           const answer = () => send({
             type: "response",
             requestId: m.requestId,
             resultType: "success",
-            handledByClientId: owner,
+            handledByClientId: "desktop-fixture",
             result:
               m.method === "initialize"
                 ? { clientId: "navigator-fixture" }
@@ -455,73 +448,4 @@ test('blocking question answers go through native response, never a new user tur
  assert.deepEqual(f.calls.find(c=>c.method==='thread-follower-submit-user-input').params.response,{answers:{direction:{answers:['A']}}});
  const bad=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,answers:{unexpected:'A'}});assert.equal(bad.sent,false);
  assert.equal(f.calls.some(c=>c.method==='thread-follower-start-turn'),false);
-});
-
-const modelIdle = { ...idle, modelProvider: 'codex', latestModel: 'gpt-6-astra', latestReasoningEffort: 'high' };
-test('model projection preserves an unlisted current model and excludes conversation and permission content', async t => {
-  const state = { ...modelIdle, latestThreadSettings: { model: 'custom-current', effort: 'low',
-    cwd: '/PRIVATE-CWD', approvalPolicy: 'never', sandboxPolicy: { type: 'dangerFullAccess' } },
-    turns: [{ items: [{ type: 'agentMessage', text: 'PRIVATE-BODY' }] }] };
-  const f = await fakeDesktop(t, [state]);
-  const result = await desktopRequest({ operation: 'model', threadId: id, codexHome: f.home });
-  assert.deepEqual(result.current, { model: 'custom-current', effort: 'low', provider: 'codex' });
-  assert.equal(result.catalogSource, 'configured'); assert.equal(result.canChange, true);
-  assert.equal(result.models.some(m => m.id === 'custom-current'), false);
-  assert.match(result.revision, /^[a-f0-9]{64}$/);
-  assert.equal(/PRIVATE|approvalPolicy|sandboxPolicy|desktop-fixture/.test(JSON.stringify(result)), false);
-  assert.equal(f.calls.some(c => c.method === 'thread-follower-update-thread-settings'), false);
-});
-test('model updates target the same owner and send only next-turn model and effort', async t => {
-  const f = await fakeDesktop(t, [modelIdle]);
-  const current = await desktopRequest({ operation: 'model', threadId: id, codexHome: f.home });
-  const result = await desktopRequest({ operation: 'set-model', threadId: id, codexHome: f.home,
-    model: 'gpt-5.6-luna', effort: 'medium', expectedRevision: current.revision });
-  assert.equal(result.status, 'accepted');
-  const calls = f.calls.filter(c => c.method === 'thread-follower-update-thread-settings');
-  assert.equal(calls.length, 1); assert.equal(calls[0].version, 1);
-  assert.equal(calls[0].targetClientId, 'desktop-fixture');
-  assert.deepEqual(calls[0].params, { conversationId: id, threadSettings: { model: 'gpt-5.6-luna', effort: 'medium' } });
-  assert.equal(f.calls.some(c => c.method === 'thread-follower-start-turn'), false);
-});
-test('a changed model or owner between snapshots rejects the stale selection without dispatch', async t => {
-  for (const options of [{ states: [modelIdle, modelIdle, { ...modelIdle, latestModel: 'gpt-5.6-terra' }] },
-    { states: [modelIdle], owners: ['desktop-fixture', 'desktop-fixture', 'another-owner'] }]) {
-    const f = await fakeDesktop(t, options.states, options);
-    const current = await desktopRequest({ operation: 'model', threadId: id, codexHome: f.home });
-    const result = await desktopRequest({ operation: 'set-model', threadId: id, codexHome: f.home,
-      model: 'gpt-5.6-luna', effort: 'medium', expectedRevision: current.revision });
-    assert.equal(result.sent, false); assert.equal(result.code, 'model_state_changed');
-    assert.equal(f.calls.some(c => c.method === 'thread-follower-update-thread-settings'), false);
-  }
-});
-test('active tasks, pending requests, another provider and unsupported model efforts never dispatch', async t => {
-  for (const state of [
-    { ...modelIdle, threadRuntimeStatus: { type: 'active' } },
-    { ...modelIdle, requests: [{ id: 'approval', method: 'item/commandExecution/requestApproval' }] },
-    { ...modelIdle, modelProvider: 'other-provider' },
-  ]) {
-    const f = await fakeDesktop(t, [state]);
-    const current = await desktopRequest({ operation: 'model', threadId: id, codexHome: f.home });
-    assert.equal(current.canChange, false);
-    const result = await desktopRequest({ operation: 'set-model', threadId: id, codexHome: f.home,
-      model: 'gpt-5.6-luna', effort: 'medium', expectedRevision: current.revision });
-    assert.equal(result.sent, false);
-    assert.equal(f.calls.some(c => c.method === 'thread-follower-update-thread-settings'), false);
-  }
-  const f = await fakeDesktop(t, [modelIdle]);
-  const current = await desktopRequest({ operation: 'model', threadId: id, codexHome: f.home });
-  for (const input of [{ model: 'gpt-5.6-luna', effort: 'ultra' }, { model: 'not-configured', effort: 'low' }]) {
-    const result = await desktopRequest({ operation: 'set-model', threadId: id, codexHome: f.home,
-      ...input, expectedRevision: current.revision });
-    assert.equal(result.code, 'model_not_configured'); assert.equal(result.sent, false);
-  }
-  assert.equal(f.calls.some(c => c.method === 'thread-follower-update-thread-settings'), false);
-});
-test('loss of the setting response remains unknown after the one dispatch', async t => {
-  const f = await fakeDesktop(t, [modelIdle], { disconnectSettings: true });
-  const current = await desktopRequest({ operation: 'model', threadId: id, codexHome: f.home });
-  const result = await desktopRequest({ operation: 'set-model', threadId: id, codexHome: f.home,
-    model: 'gpt-5.6-luna', effort: 'medium', expectedRevision: current.revision });
-  assert.deepEqual(result, { ok: false, code: 'dispatch_unknown', sent: null });
-  assert.equal(f.calls.filter(c => c.method === 'thread-follower-update-thread-settings').length, 1);
 });

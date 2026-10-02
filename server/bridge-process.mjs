@@ -12,7 +12,7 @@ export function runBridge(payload, { command, args, timeoutMs }) {
       clearTimeout(timer);clearTimeout(forceTimer);clearTimeout(drainTimer);
       resolve(result);
     };
-    const uncertain = drained => ['history', 'model'].includes(payload.operation)
+    const uncertain = drained => payload.operation === 'history'
       ? { ok: false, code: 'desktop_unavailable', sent: false }
       : drained && phase === 'preflight'
         ? { ok: false, code: timedOut ? 'desktop_preflight_timeout' : 'desktop_unavailable', sent: false }

@@ -28,8 +28,6 @@ Node 26（使用内置 SQLite）、npm。代码与运行依赖不包含模型服
 
 实时历史与 query 的桌面桥接另需 Python 3 和本机 FBT IPC 模块，路径与支持的 App 版本在 `config/desktop-bridge.json`。缺少桌面连接时仍可显示只读落盘历史；入队保存、显式重连尝试和已取得的发送许可分别处理，真正派发会重新核验原 owner 状态，不另启 Agent 接管任务。
 
-Ged 客户端的手动模型选择使用[模型接口](docs/CONVERSATION.md#下一轮模型选择)。同 provider 的候选在 `config/model-catalog.json`，可通过 `NAVIGATOR_MODEL_CATALOG` 指定私有绝对路径配置；目录不代表所有 Friday 模型均已兼容。当前模型从原 owner 回读，选择只修改其下一轮 model/effort。
-
 ```sh
 npm ci
 npm run build
