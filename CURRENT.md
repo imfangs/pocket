@@ -1,6 +1,6 @@
 # Pocket 当前状态
 
-2026-10-02补充：按方帅最终要求撤回Ged模型切换原型，继续由原Codex对话管理模型；实验、跨模型密文失败与受控对象恢复见[实验记录](docs/research/2026-10-02-model-selection-experiment.md)。本轮不改变Pocket网页交互。
+2026-10-02补充：按方帅最终要求撤回Ged模型切换原型，继续由原Codex对话管理模型；实验、跨模型密文失败与受控对象恢复见[实验记录](docs/research/2026-10-02-model-selection-experiment.md)。撤回后188项测试和构建通过，API已重启；认证目录/历史200且恢复回显可读，模型端点404。代码逻辑与本轮实验前一致，Pocket网页交互不变；证据`.local/qa/model-selection-2026-10-02/reverted-readback.json`。
 
 维护日期：2026-10-01。产品与公网最近实测为 2026-09-30；本轮只整理接续文档并回读自动化状态，没有重新部署或重跑产品验收。详细历史已完整保留在 [HISTORY.md](HISTORY.md)。
 
