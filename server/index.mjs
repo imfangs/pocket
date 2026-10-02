@@ -234,6 +234,18 @@ export function makeApp(options = {}) {
         return json(res, 200, store.batch(b.ids, b.change));
       }
       const task = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)$/);
+      const model = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/model$/i);
+      if (model && method === "GET")
+        return json(res, 200, await desktop.models.read(model[1]));
+      if (model && method === "POST") {
+        const input = await body(req, 2048);
+        const result = await dispatchResponse(desktop.models.set(model[1], input),
+          () => desktop.models.receipt(model[1], input?.requestId), options.dispatchReplyWaitMs ?? 1000);
+        return json(res, result.status, result.data);
+      }
+      const modelReceipt = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/model\/([a-f0-9-]{36})$/i);
+      if (modelReceipt && method === "GET")
+        return json(res, 200, await desktop.models.checkReceipt(modelReceipt[1], modelReceipt[2]));
       const history = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/history$/i);
       if (history && method === "GET") {
         const start = performance.now();

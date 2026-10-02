@@ -1,5 +1,6 @@
 """Version-gated client of the existing desktop owner; never starts an agent."""
 from request_actions import projected_requests, prepare_response
+from model_settings import model_projection, model_state, validate_model_change
 import json
 import plistlib
 import sys
@@ -265,11 +266,32 @@ def main():
     print("POCKET_BRIDGE_PHASE_V1 preflight", file=sys.stderr, flush=True)
     try:
         with NavigatorIPC(Path(data["codexHome"]) / "ipc/ipc.sock") as client:
-            if data["operation"] == "history":
+            if data["operation"] in ("history", "model"):
                 client.owner_lookup_timeout = {5000: 5.0, 10000: 10.0}.get(data.get("ownerLookupTimeoutMs"), 2.0)
             owner, state = client.snapshot(thread_id)
             if data["operation"] == "history":
-                return {"ok": True, **history(state)}
+                return {"ok": True, **history(state), "modelState": model_projection(state, owner)}
+            if data["operation"] == "model":
+                return {"ok": True, **model_state(state, owner, writable(state)[0])}
+            if data["operation"] == "set-model":
+                projected = model_state(state, owner, writable(state)[0])
+                problem = validate_model_change(data, projected)
+                if problem:
+                    return {"ok": False, "code": problem, "sent": False}
+                fresh_owner, fresh = client.snapshot(thread_id)
+                # Re-read the configured choices and native state immediately
+                # before dispatch. Only the original owner may accept this edit.
+                latest = model_state(fresh, fresh_owner, writable(fresh)[0])
+                problem = validate_model_change(data, latest)
+                if fresh_owner != owner or problem:
+                    return {"ok": False, "code": problem or "thread_changed", "sent": False}
+                dispatched = True
+                print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
+                client.request("thread-follower-update-thread-settings", {
+                    "conversationId": thread_id,
+                    "threadSettings": {"model": data["model"], "effort": data["effort"]},
+                }, 1, owner)
+                return {"ok": True, "status": "accepted"}
             if data["operation"] == "stop":
                 target = data.get("expectedTurnId")
                 if not isinstance(target, str) or not target:

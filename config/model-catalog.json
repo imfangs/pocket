@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "modelProvider": "codex",
+  "models": [
+    { "id": "gpt-6-astra", "name": "GPT-6 Astra", "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "low" },
+    { "id": "gpt-5.6-sol", "name": "GPT-5.6 Sol", "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "low" },
+    { "id": "gpt-5.6-terra", "name": "GPT-5.6 Terra", "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "medium" },
+    { "id": "gpt-5.6-luna", "name": "GPT-5.6 Luna", "supportedEfforts": ["low", "medium", "high", "xhigh", "max"], "defaultEffort": "medium" },
+    { "id": "gpt-5.5", "name": "GPT-5.5", "supportedEfforts": ["low", "medium", "high", "xhigh"], "defaultEffort": "medium" },
+    { "id": "gpt-5.2", "name": "GPT-5.2", "supportedEfforts": ["low", "medium", "high", "xhigh"], "defaultEffort": "medium" }
+  ]
+}

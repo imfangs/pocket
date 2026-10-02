@@ -15,6 +15,7 @@
 | --- | --- |
 | 列表、分组、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
 | 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |
+| 读取或切换下一轮模型 | [模型选择契约](docs/CONVERSATION.md#下一轮模型选择)；候选配置在 `config/model-catalog.json`，实际续聊验收看 CURRENT |
 | 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
 | Markdown、Codex 专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)、[图片契约](docs/IMAGES.md) |
 | 版本更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
@@ -29,6 +30,7 @@
 | --- | --- |
 | 来源/元数据/列表 | `server/source.mjs`、`server/unread.mjs`、`server/store.mjs`、`src/App.tsx`、`src/catalogReader.ts` |
 | 原桌面控制与账本 | `server/desktop.mjs`、`server/bridge-process.mjs`、`bin/desktop-bridge.py`、`bin/request_actions.py` |
+| 模型读取、选择与回执 | `server/thread-models.mjs`、`bin/model_settings.py` |
 | 历史读取与展示合并 | `server/history.mjs`、`src/conversationFeed.ts`、`src/transcript.ts` |
 | 会话交互与回执 | `src/Conversation.tsx`、`src/Outbox.tsx`、`src/QuestionPrompts.tsx`、`src/RequestActions.tsx`、`src/submissionReceipt.ts` |
 | Markdown/图片 | `src/MessageMarkdown.tsx`、`src/codexMarkup.ts`、`server/message-images.mjs` |
@@ -37,7 +39,7 @@
 
 ## 保持的项目约定
 
-- **原任务权威**：Codex SQLite、global JSON 与 rollout 只读。以原 thread ID 定位，真实操作交给现有桌面 owner，继承模型、cwd 与权限；分组不改变这些属性。接口缺口通过受支持的原实例通道解决，不另起执行实例冒充接管，也不绕过签名校验。
+- **原任务权威**：Codex SQLite、global JSON 与 rollout 只读。以原 thread ID 定位，真实操作交给现有桌面 owner，消息继承其设置；用户明确选择模型时只修改下一轮 model/effort，保留 provider、cwd 与权限。接口缺口通过受支持的原实例通道解决，不另起执行实例冒充接管，也不绕过签名校验。
 - **展示与执行分离**：按 provenance 显示真实用户消息和可见回复，排除注入上下文/内部压缩摘要。transcript、缓存和文字合并只能用于展示，不能授予执行权限或核销发送回执。问题卡只属于最新原轮次；该轮已完成但仍有问题时可保留，旧轮题目留在历史。
 - **派发与恢复**：保留 `requestId`、指纹、revision 和原 turn 约束；`accepted` 不等于模型完成。未知发送/中断/审批结果先核对，不自动重放。`canQueue`、`canSend`、`canAttemptSend` 含义独立，读侧失败不应误禁安全入队。
 - **输入与队列**：Pocket 待发队列与桌面队列仍独立；用户暂停或编辑的条目保持暂停。迟到响应不覆盖新草稿、已保存说明或较新列表；更新只由明确点击触发，检查期间产生的新输入也需保护。

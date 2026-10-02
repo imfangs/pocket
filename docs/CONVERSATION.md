@@ -18,7 +18,27 @@ Markdown 通过 React 节点渲染，不执行原始 HTML；外链仅允许 HTTP
 
 输入框按实际文字换行自动增高，删除后缩回；长文到上限后在框内滚动，上限随可见视口收缩。待发消息编辑框使用相同规则。
 
-query 会在原任务的工作目录和权限中执行，模型/推理设置由原任务继承。网站访问口令不变；持有访问口令者现在可以向满足条件的原任务提交消息。网页允许用户明确响应已支持的提问与审批，不自动回答，也不覆盖原模型或扩展权限范围。
+query 会在原任务的工作目录和权限中执行，模型/推理设置由原任务继承。网站访问口令不变；持有访问口令者现在可以向满足条件的原任务提交消息。网页允许用户明确响应已支持的提问与审批，不自动回答或扩展权限范围；下一轮模型通过下方独立接口显式选择。
+
+## 下一轮模型选择
+
+2026-10-02：为 Ged 原生客户端增加服务端入口，Pocket 网页尚无选择器。沿用现有认证、Origin/CSRF、内部 IPC 版本门槛与原 owner。模型目录是服务端**显式配置的候选**，不是从 owner 的 `model/list` 动态取得；跨模型的真实续聊与工具能力须分别验收。
+
+| 请求 | 契约 |
+| --- | --- |
+| `GET /api/tasks/:id/model` | 读取 `current:{model,effort,provider}`、`revision`、`models`、`catalogSource:"configured"`、`canChange`、`reason`、最新 `request` 与 `checkedAt` |
+| `POST /api/tasks/:id/model` | 严格接受 `{requestId,model,effort,expectedRevision}`；慢操作先返回 HTTP 202 与持久回执 |
+| `GET /api/tasks/:id/model/:requestId` | 对未决回执只读核对原任务；不重新执行修改 |
+
+`config/model-catalog.json` 定义单个 `modelProvider` 的候选。可用 `NAVIGATOR_MODEL_CATALOG` 指向另一份绝对路径 JSON；入口只读取这份有界文件，不读取 Codex 凭据、修改全局 config 或调用模型。每项为 `{id,name,supportedEfforts,defaultEffort}`，默认 effort 仅供客户端在原值不受支持时提出有效选择。provider 不匹配、目录无效或原任务未就绪时关闭修改；真实当前模型即使不在候选中也照常显示。
+
+当前候选依据 10-02 Codex App 工具公开的模型/effort 元数据配置，当前 provider `codex` 使用已有 Friday Responses 代理。配置可选项不等于代理对该模型的历史、加密内容与工具循环已验收；上游 Chat-only 模型不能仅凭名称加入。配置文件及模型当前值均不暴露 provider 凭据或私人正文。
+
+首版仅原任务 idle 且无待审批、未确认发送或压缩时接受选择。`expectedRevision` 绑定原 thread、owner 与已显示的 model/effort/provider；提交前两次回读原 owner 并复核候选。内部调用 `thread-follower-update-thread-settings` v1，仅给 `conversationId` 和 `threadSettings:{model,effort}`，省略 `activeTurnId`，由 owner 的 next-turn 分支执行。保留原线程、权限、工作目录、provider 和工作模式。
+
+`model_changes` 先记录请求编号、目标、选择与状态，再尝试修改；同编号同内容只回已有结果，改变内容或目标时拒绝。`pending` 表示处理中，`accepted` 只表示 owner 接受，`unknown` 表示修改结果不明，`rejected` 表示已知未派发，`confirmed` 表示新鲜原 owner 状态已读到目标 provider/model/effort。`confirmed` 不证明是哪一个客户端造成了变化，也不证明下一次推理成功。超时或服务重启的未决修改只读核对，绝不自动重放。
+
+模型修改未确认时暂停 Pocket 发送、回答、压缩与队列派发；可以继续保存入队。实时 model 或 history 读回一致设置后解除阻塞；队列恢复时也只读核对，落盘历史不能确认。若结果一直不明，保留回执并在 Mac 检查；不要通过重发或直接改数据库核销。
 
 ## 停止当前执行
 
