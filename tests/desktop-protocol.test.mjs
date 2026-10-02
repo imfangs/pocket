@@ -483,6 +483,35 @@ test('model updates target the same owner and send only next-turn model and effo
   assert.deepEqual(calls[0].params, { conversationId: id, threadSettings: { model: 'gpt-5.6-luna', effort: 'medium' } });
   assert.equal(f.calls.some(c => c.method === 'thread-follower-start-turn'), false);
 });
+test('a failed but writable task can select a recovery model for its next turn', async t => {
+  const failed = { ...modelIdle, latestModel: 'gpt-5.6-sol', threadRuntimeStatus: { type: 'systemError' },
+    turns: [{ turnId: requestId, status: 'failed', items: [] }] };
+  const f = await fakeDesktop(t, [failed]);
+  const history = await desktopRequest({ operation: 'history', threadId: id, codexHome: f.home });
+  assert.equal(history.runtime, 'systemError'); assert.equal(history.canSend, true);
+  const current = await desktopRequest({ operation: 'model', threadId: id, codexHome: f.home });
+  assert.equal(current.canChange, true); assert.equal(current.reason, null);
+  const result = await desktopRequest({ operation: 'set-model', threadId: id, codexHome: f.home,
+    model: 'gpt-6-astra', effort: 'high', expectedRevision: current.revision });
+  assert.equal(result.status, 'accepted');
+  const calls = f.calls.filter(c => c.method === 'thread-follower-update-thread-settings');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].params, { conversationId: id, threadSettings: { model: 'gpt-6-astra', effort: 'high' } });
+  assert.equal(f.calls.some(c => c.method === 'thread-follower-start-turn'), false);
+});
+test('a failed task that starts retrying before model dispatch still rejects the change', async t => {
+  const failed = { ...modelIdle, threadRuntimeStatus: { type: 'systemError' },
+    turns: [{ turnId: requestId, status: 'failed', items: [] }] };
+  const retrying = { ...failed, threadRuntimeStatus: { type: 'active' },
+    turns: [{ turnId: requestId, status: 'inProgress', items: [] }] };
+  const f = await fakeDesktop(t, [failed, failed, retrying]);
+  const current = await desktopRequest({ operation: 'model', threadId: id, codexHome: f.home });
+  assert.equal(current.canChange, true);
+  const result = await desktopRequest({ operation: 'set-model', threadId: id, codexHome: f.home,
+    model: 'gpt-5.6-luna', effort: 'medium', expectedRevision: current.revision });
+  assert.equal(result.code, 'thread_not_ready'); assert.equal(result.sent, false);
+  assert.equal(f.calls.some(c => c.method === 'thread-follower-update-thread-settings'), false);
+});
 test('a changed model or owner between snapshots rejects the stale selection without dispatch', async t => {
   for (const options of [{ states: [modelIdle, modelIdle, { ...modelIdle, latestModel: 'gpt-5.6-terra' }] },
     { states: [modelIdle], owners: ['desktop-fixture', 'desktop-fixture', 'another-owner'] }]) {
@@ -498,6 +527,9 @@ test('active tasks, pending requests, another provider and unsupported model eff
   for (const state of [
     { ...modelIdle, threadRuntimeStatus: { type: 'active' } },
     { ...modelIdle, requests: [{ id: 'approval', method: 'item/commandExecution/requestApproval' }] },
+    { ...modelIdle, threadRuntimeStatus: { type: 'systemError' }, requests: [{ id: 'approval', method: 'item/commandExecution/requestApproval' }] },
+    { ...modelIdle, threadRuntimeStatus: { type: 'systemError' }, unconfirmedTurnSubmissions: [{ id: 'pending' }] },
+    { ...modelIdle, threadRuntimeStatus: { type: 'systemError' }, resumeState: 'needs_resume' },
     { ...modelIdle, modelProvider: 'other-provider' },
   ]) {
     const f = await fakeDesktop(t, [state]);

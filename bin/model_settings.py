@@ -63,7 +63,9 @@ def model_state(state, owner, writable):
     models, reason = configured_models(result["current"]["provider"])
     if not result["current"]["model"] or not result["current"]["provider"]:
         reason = "model_state_unavailable"
-    elif not writable or state.get("threadRuntimeStatus", {}).get("type") != "idle":
+    # A terminated model failure still permits the owner's next-turn settings;
+    # keep the existing writable gate and exclude actively running turns.
+    elif not writable or state.get("threadRuntimeStatus", {}).get("type") not in ("idle", "systemError"):
         reason = "thread_not_ready"
     return {**result, "models": models, "catalogSource": "configured",
             "canChange": reason is None, "reason": reason}
