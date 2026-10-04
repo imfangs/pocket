@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { AppError } from "./store.mjs";
 import { readPersistedHistory } from "./history.mjs";
 import { ExecutionStops } from "./execution-stops.mjs";
@@ -26,8 +26,11 @@ export class DesktopService {
     codexHome,
     request = desktopRequest,
     readHistory = readPersistedHistory,
+    { openThread, connectionTimeoutMs = 45000, connectionPollMs = 500 } = {},
   ) {
     Object.assign(this, { store, codexHome, request, readHistory });
+    Object.assign(this, { openThread, connectionTimeoutMs, connectionPollMs });
+    this.connections = new Map();
     this.cache = new Map();
     this.recentReads = new Map();
     this.sending = new Set();
@@ -40,6 +43,90 @@ export class DesktopService {
     store.db.exec("CREATE TABLE IF NOT EXISTS compactions(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,status TEXT NOT NULL,baseline_id TEXT,code TEXT,created_at INTEGER NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS request_responses(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,request_key TEXT NOT NULL,decision TEXT NOT NULL,status TEXT NOT NULL,code TEXT,created_at INTEGER NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS question_answers(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,question_key TEXT NOT NULL)");
+  }
+  connection(id) {
+    this.store.thread(id);
+    const entry = this.connections.get(id);
+    return entry ? { ...entry.state } : { status: "idle" };
+  }
+  connect(id, { open = true } = {}) {
+    const thread = this.store.thread(id);
+    if (thread.archived || thread.missing) throw new AppError("请先恢复这条原任务", 409);
+    if (!this.openThread) throw new AppError("当前环境无法连接桌面原任务", 503);
+    const previous = this.connections.get(id);
+    if (previous?.state.status === "connecting") return { ...previous.state };
+    const now = Date.now();
+    const entry = { state: { requestId: randomUUID(), status: "connecting", startedAt: now, checkedAt: now },
+      controller: new AbortController() };
+    this.connections.delete(id);
+    this.connections.set(id, entry);
+    if (this.connections.size > 100) {
+      const oldest = [...this.connections].find(([, value]) => value.state.status !== "connecting");
+      if (oldest) this.connections.delete(oldest[0]);
+    }
+    this.cache.delete(id);
+    // The response is immediate. Only this explicit operation may open a desktop
+    // thread; ordinary history and queue polling remain read-only.
+    void this.recoverConnection(id, entry, open);
+    return { ...entry.state };
+  }
+  async recoverConnection(id, entry, openImmediately) {
+    const { signal } = entry.controller;
+    const current = () => !signal.aborted && this.connections.get(id) === entry;
+    const deadline = entry.state.startedAt + this.connectionTimeoutMs;
+    const bounded = async operation => {
+      let timer, abort;
+      const timeout = new Promise((_, reject) => {
+        abort = () => reject(new Error("connection_cancelled"));
+        signal.addEventListener("abort", abort, { once: true });
+        timer = setTimeout(() => reject(new Error("connection_timeout")), Math.max(1, deadline - Date.now()));
+        timer.unref?.();
+      });
+      try { return await Promise.race([operation(), timeout]); }
+      finally { clearTimeout(timer); signal.removeEventListener("abort", abort); }
+    };
+    let opened = false, lastCode = "connection_timeout";
+    try {
+      if (openImmediately) { await bounded(() => this.openThread(id)); opened = true; }
+      for (let attempt = 0; current() && Date.now() < deadline; attempt++) {
+        const result = await bounded(() => this.request({ operation: "history", threadId: id,
+          codexHome: this.codexHome, ownerLookupTimeoutMs: 10000 }));
+        if (!current()) return;
+        entry.state.checkedAt = Date.now();
+        if (result.ok && result.source === "desktop" && result.resumeState === "resumed") {
+          const data = { ...result, checkedAt: entry.state.checkedAt };
+          this.cache.set(id, { at: Date.now(), promise: Promise.resolve(data), pending: false, runtime: data.runtime });
+          entry.state.status = "connected";
+          return;
+        }
+        lastCode = result.connectionReason || result.code || "thread_not_resumed";
+        if (result.code === "app_version_changed") break;
+        if (!opened) { await bounded(() => this.openThread(id)); opened = true; }
+        await bounded(() => new Promise(resolve => {
+          // Keep the full initialization window without rapidly exhausting it.
+          // Production reads are separated by 500 ms, 1 s, then at least 2 s.
+          const delay = Math.min(2000, this.connectionPollMs * 2 ** Math.min(attempt, 8));
+          const timer = setTimeout(resolve, delay);
+          timer.unref?.();
+        }));
+      }
+      if (current()) Object.assign(entry.state, { status: "failed", code: lastCode, checkedAt: Date.now() });
+    } catch (error) {
+      if (current()) Object.assign(entry.state, { status: "failed", code: error.message === "connection_timeout" ? lastCode : "desktop_unavailable", checkedAt: Date.now() });
+    }
+  }
+  connectForSubmission(id) {
+    const thread = this.store.thread(id);
+    if (thread.archived || thread.missing) return;
+    if (!this.openThread || this.sending.has(id) || this.stops.pause(id) || this.stops.pending(id) || this.compactionPending(id)) return;
+    const head = this.outbox(id)[0];
+    if (head?.status !== "queued") return;
+    // Never reopen from an automatic queue tick or replay an uncertain send.
+    this.connect(id, { open: false });
+  }
+  recoverableConnectionFailure(result) {
+    return !!this.openThread && result.sent === false &&
+      ["desktop_unavailable", "desktop_preflight_timeout"].includes(result.code);
   }
   async history(id) {
     this.store.thread(id);
@@ -99,6 +186,7 @@ export class DesktopService {
         data.hint = "Codex 桌面版本已变化，发送功能需重新验证。";
         data.readOnlyReason = result.code;
       }
+      if (result.connectionReason) data.connectionReason = result.connectionReason;
     }
     if (this.store.thread(id).archived) {
       data.canSend = false;
@@ -155,15 +243,15 @@ export class DesktopService {
       response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
     const asyncQuestions = (data.asyncQuestions || []).map(question => ({ ...question,
       response: this.store.db.prepare("SELECT d.id AS requestId,d.status FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? ORDER BY d.created_at DESC LIMIT 1").get(id, question.key) || null }));
-    return { ...data, outbox, pendingRequests, canCompact: targetAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
+    return { ...data, connection: this.connection(id), outbox, pendingRequests, canCompact: targetAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
       canAttemptCompact: targetAvailable && !blocked && !this.sending.has(id) &&
         (!!data.canCompact || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
       asyncQuestions,
       canQueue: targetAvailable && this.queueSize(id, outbox.length) < 20,
       canAttemptSend: targetAvailable && !blocked && !this.sending.has(id) &&
         (!!data.canSend || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
-      canSend: data.canSend && !blocked, queueReady: data.queueReady && !blocked && !queuePaused,
-      canStop: !!data.canStop && !this.stops.pending(id), activeTurnId: data.activeTurnId || null,
+      canSend: targetAvailable && data.canSend && !blocked, queueReady: targetAvailable && data.queueReady && !blocked && !queuePaused,
+      canStop: targetAvailable && !!data.canStop && !this.stops.pending(id), activeTurnId: data.activeTurnId || null,
       queuePaused, stopRequest: this.stops.latest(id),
       compactionRequest: action ? { requestId: action.id, status: action.status, code: action.code } : null };
   }
@@ -364,14 +452,17 @@ export class DesktopService {
     } catch { result = { ok: false, code: "dispatch_unknown", sent: null }; }
     finally { this.sending.delete(id); }
     const observed = this.getReceipt(id, requestId);
+    const reconnect = delivery === "now" && this.recoverableConnectionFailure(result);
     const status = observed.status === "accepted" || result.ok ? "accepted"
       : result.code === "thread_active" && result.sent === false ? "queued"
+      : reconnect ? "queued"
       : result.sent === false ? "rejected" : "unknown";
     this.store.db.prepare("UPDATE dispatches SET status=?,turn_id=COALESCE(?,turn_id),code=? WHERE id=?")
       .run(status, result.turnId || null, result.code || null, requestId);
     if (status === "accepted") this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(requestId);
     if (status === "accepted") this.onAccepted?.(id, this.getReceipt(id, requestId).turnId);
     this.cache.delete(id);
+    if (status === "queued" && reconnect) this.connectForSubmission(id);
     return this.getReceipt(id, requestId);
   }
   async processQueue() {
@@ -404,7 +495,15 @@ export class DesktopService {
     };
     this.queueTimer = setTimeout(tick, 100); this.queueTimer.unref?.();
   }
-  stopQueue() { this.queueStarted = false; clearTimeout(this.queueTimer); }
+  stopQueue() {
+    this.queueStarted = false; clearTimeout(this.queueTimer);
+    for (const entry of this.connections.values()) {
+      if (entry.state.status === "connecting") {
+        entry.state.status = "failed"; entry.state.code = "connection_cancelled";
+        entry.controller.abort();
+      }
+    }
+  }
   async send(id, input) {
     const thread = this.store.thread(id);
     if (thread.missing || thread.archived)
@@ -442,6 +541,7 @@ export class DesktopService {
       .run(input.requestId, id, hash, Date.now());
     if (input.enqueue || this.outbox(id).length) {
       this.queue(id, input.requestId, text);
+      this.connectForSubmission(id);
       return this.getReceipt(id, input.requestId);
     }
     let result;
@@ -463,11 +563,16 @@ export class DesktopService {
       this.sending.delete(id);
       this.queueReservations.delete(id);
     }
-    if (result.code === "thread_active" && result.sent === false) {
+    const observed = this.getReceipt(id, input.requestId);
+    if (observed.status !== "accepted" && result.code === "thread_active" && result.sent === false) {
       this.queue(id, input.requestId, text);
       return this.getReceipt(id, input.requestId);
     }
-    const observed = this.getReceipt(id, input.requestId);
+    if (observed.status !== "accepted" && this.recoverableConnectionFailure(result)) {
+      this.queue(id, input.requestId, text);
+      this.connectForSubmission(id);
+      return this.getReceipt(id, input.requestId);
+    }
     const status = observed.status === "accepted" || result.ok
       ? "accepted"
       : result.sent === false

@@ -42,11 +42,16 @@ export function makeApp(options = {}) {
     process.env.NAVIGATOR_CODEX_HOME ||
     join(homedir(), ".codex");
   const auth = new AccessControl(store.directory, store.db);
+  const openThread =
+    options.openThread ||
+    ((id) =>
+      exec("/usr/bin/open", [`codex://threads/${id}`], { timeout: 10000 }));
   const desktop = new DesktopService(
     store,
     codexHome,
     options.desktopRequest,
     options.readHistory,
+    { openThread, connectionTimeoutMs: options.connectionTimeoutMs, connectionPollMs: options.connectionPollMs },
   );
   const notifications = new Notifications(store, desktop, options.notifications);
   const images = new MessageImages();
@@ -55,10 +60,6 @@ export function makeApp(options = {}) {
     catch { /* Notification bookkeeping must not change an accepted send receipt. */ }
   };
   const readSource = options.readSource || (() => readCodexSource(codexHome));
-  const openThread =
-    options.openThread ||
-    ((id) =>
-      exec("/usr/bin/open", [`codex://threads/${id}`], { timeout: 10000 }));
   const csrf = randomBytes(24).toString("hex");
   const hosts = new Set(
     options.hosts || ["127.0.0.1", "localhost", "[::1]", "threads.local"],
@@ -234,6 +235,9 @@ export function makeApp(options = {}) {
         return json(res, 200, store.batch(b.ids, b.change));
       }
       const task = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)$/);
+      const taskConnection = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/connection$/i);
+      if (taskConnection && method === "GET")
+        return json(res, 200, desktop.connection(taskConnection[1]));
       const history = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/history$/i);
       if (history && method === "GET") {
         const start = performance.now();
@@ -313,9 +317,14 @@ export function makeApp(options = {}) {
         const t = store.thread(open[1]);
         if (t.missing)
           throw new AppError("来源中已找不到这条会话，请先同步", 409);
-        await openThread(t.id);
+        if (t.archived) {
+          await openThread(t.id);
+          return json(res, 200, { status: "handoff_requested", thread: store.recordOpen(t.id),
+            connection: { status: "idle" }, readOnly: true });
+        }
+        const connection = desktop.connect(t.id);
         const updated = store.recordOpen(t.id);
-        return json(res, 200, { status: "handoff_requested", thread: updated });
+        return json(res, 200, { status: "handoff_requested", thread: updated, connection });
       }
       if (method === "POST" && path === "/api/groups")
         return json(res, 201, store.saveGroup(await body(req)));

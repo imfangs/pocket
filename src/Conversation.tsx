@@ -9,13 +9,15 @@ import { ArrowDown, RefreshCw, Send, Link2 } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
-import { rememberHistory, rememberTranscript, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
+import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript } from "./conversationFeed";
 import { displayMessages } from "./transcript";
 import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
 import { holdReload, useReloadGuard } from "./updateSafety";
+import { connectionFailureHint, connectionFromHistory, newerConnection } from "./threadConnection";
+import type { OpenThreadResult, ThreadConnection } from "./threadConnection";
 export type QueryDraft = { text: string; requestId?: string; revision?: number };
 const statuses: Record<string, string> = {
   active: "正在运行",
@@ -33,7 +35,7 @@ export default function Conversation({
   thread: Thread;
   drafts: Map<string, QueryDraft>;
   historyCache: HistoryCache;
-  onConnect: () => Promise<void>;
+  onConnect: () => Promise<OpenThreadResult>;
   onActivity?: () => void;
 }) {
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
@@ -43,7 +45,9 @@ export default function Conversation({
       () => drafts.get(thread.id) || { text: "" },
     ),
     [sending, setSending] = useState(false),
-    [connecting, setConnecting] = useState(false),
+    [opening, setOpening] = useState(false),
+    [connection, setConnection] = useState<ThreadConnection>(() => historyCache.get(thread.id)?.history?.connection ?? { status: "idle" }),
+    [connectionError, setConnectionError] = useState(""),
     [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false),
     [error, setError] = useState(""),
     [historyError, setHistoryError] = useState(""),
@@ -55,6 +59,8 @@ export default function Conversation({
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
   const questions = currentQuestions(history, transcript);
+  const observedConnection = connectionFromHistory(connection, history);
+  const connecting = opening || observedConnection.status === "connecting";
   useReloadGuard(() => sending || connecting ? "操作尚未完成，请稍后更新。"
     : draft.text || draft.requestId ? "还有未发送或待核对的消息，请处理后再更新。" : null);
   const updateDraft = useCallback(
@@ -67,7 +73,9 @@ export default function Conversation({
   );
   const load = useCallback(async () => { await Promise.all([feed.current?.refresh(), textFeed.current?.refresh()]); }, []);
   const receiptRead = useRef<AbortController | null>(null);
+  const connectionOpen = useRef<AbortController | null>(null);
   useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
+  useEffect(() => () => connectionOpen.current?.abort(), [thread.id]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine !== false);
     window.addEventListener("online", update);
@@ -77,9 +85,34 @@ export default function Conversation({
   const targetAvailable = !thread.archived && !thread.missing;
   const canQueue = targetAvailable && history?.canQueue !== false;
   const canAttemptSend = targetAvailable && !!(history?.canAttemptSend ?? history?.canSend);
+  const staleConnection = observedConnection.status === "connected" && history?.source !== "desktop" && (history?.checkedAt ?? 0) > observedConnection.checkedAt;
+  const connectionHint = !targetAvailable ? history?.hint : connecting
+    ? "正在连接 Mac 中的原任务。可以继续输入，草稿和待发消息会保留。"
+    : observedConnection.status === "failed" ? connectionFailureHint(observedConnection.code)
+    : history?.readOnlyReason === "app_version_changed" ? history.hint
+    : staleConnection ? "暂时无法读取原任务的实时状态。草稿和待发消息已保留，可以重试连接。"
+    : observedConnection.status === "connected" && history?.source !== "desktop" ? "已连接 Mac 中的原任务，正在同步发送状态。"
+    : history?.source === "desktop" && observedConnection.status === "connected" ? `已连接 Mac 中的原任务。${history.hint || ""}`
+    : history?.source !== "desktop" && history ? "正在显示已保存的历史。连接原任务，或提交消息后自动连接。" : history?.hint;
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
+  const connectingId = observedConnection.status === "connecting" ? observedConnection.requestId : null;
+  useEffect(() => {
+    if (!connectingId) return;
+    const subscription = startConnectionFeed({
+      request: signal => api<ThreadConnection>(`/api/tasks/${thread.id}/connection`, "GET", undefined, { signal }),
+      onData(data) {
+        setConnectionError("");
+        setConnection(previous => data.status === "idle" && previous.status === "connecting" && previous.requestId === connectingId
+          ? { ...previous, status: "failed", checkedAt: Date.now(), code: "connection_unknown" }
+          : newerConnection(previous, data));
+        if (data.status !== "connecting") void load();
+      },
+      onError() { setConnectionError("暂时无法核对连接状态，联网后会继续核对。草稿和待发消息已保留。"); },
+    });
+    return () => subscription.stop();
+  }, [thread.id, connectingId, load]);
   useEffect(() => {
     const subscription = startTranscriptFeed({
       request: signal => api<SavedTranscript>(`/api/tasks/${thread.id}/transcript`, "GET", undefined, { signal }),
@@ -98,6 +131,8 @@ export default function Conversation({
       onData(data) {
         rememberHistory(historyCache, thread.id, data);
         setHistory(data);
+        setConnection(previous => connectionFromHistory(newerConnection(previous, data.connection), data));
+        if (data.source === "desktop" && data.resumeState === "resumed") setConnectionError("");
         setHistoryError("");
         setLoading(false);
         const saved = drafts.get(thread.id);
@@ -149,7 +184,7 @@ export default function Conversation({
     return () => window.removeEventListener("beforeunload", warn);
   }, [draft.text]);
   useEffect(() => {
-    if (!/^(消息已交给|已加入待发|已在原任务历史|当前执行已中断|这一轮已经结束)/.test(notice)) return;
+    if (!/^(消息已交给|已加入(?: Mac )?待发|已在原任务历史|当前执行已中断|这一轮已经结束)/.test(notice)) return;
     const timer = setTimeout(() => setNotice(""), 4000);
     return () => clearTimeout(timer);
   }, [notice]);
@@ -157,7 +192,7 @@ export default function Conversation({
     if (receipt.status === "accepted" || receipt.status === "queued") {
       if (receipt.status === "accepted") onActivity?.();
       updateDraft({ text: "" });
-      setNotice(receipt.status === "queued" ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入待发列表，连接恢复后发送。" : "消息已交给 Mac 中的原任务。");
+      setNotice(receipt.status === "queued" ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入 Mac 待发列表，正在连接原任务；确认可接收后发送。" : "消息已交给 Mac 中的原任务。");
       nearBottom.current = true;
     } else if (
       receipt.status === "rejected" ||
@@ -223,13 +258,33 @@ export default function Conversation({
       }
     }
   };
+  const connect = async () => {
+    if (connecting || connectionOpen.current) return;
+    const controller = new AbortController();
+    connectionOpen.current = controller;
+    setOpening(true);
+    setError("");
+    setConnectionError("");
+    const ownsView = () => !controller.signal.aborted && connectionOpen.current === controller;
+    try {
+      const result = await onConnect();
+      if (!ownsView()) return;
+      if (result.connection) setConnection(previous => newerConnection(previous, result.connection));
+      else setConnectionError("Mac 已收到打开请求，连接尚未确认。请刷新状态后重试。");
+      void load();
+    } catch (error) {
+      if (ownsView()) setConnectionError((error as Error).message || "连接请求未完成，请重试连接。");
+    } finally {
+      if (ownsView()) { connectionOpen.current = null; setOpening(false); }
+    }
+  };
   return (
     <section className="conversation" aria-label="会话历史与发送">
       <div className="conversation-toolbar">
         <div className="conversation-overview">
         <div className="runtime-summary">
         <span className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>
-          {loading
+          {connecting ? "正在连接原任务…" : observedConnection.status === "failed" && history?.source !== "desktop" ? "连接未完成" : loading
             ? shownMessages.length ? "正在同步状态…" : "正在读取历史…"
             : historyError ? "等待重连" : history?.pendingRequests?.length ? "等待确认" : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断" : statuses[history?.runtime || ""] || "任务状态"}
         </span>
@@ -290,32 +345,21 @@ export default function Conversation({
         ))}
       </div>
       <div className="conversation-status">
-        <p className={history?.canSend || history?.pendingRequests?.length ? "routine-hint" : undefined}>{history?.hint}</p>
-        {!loading && history && history.source !== "desktop" && !thread.archived && (
+        <p role="status" className={history?.canSend || history?.pendingRequests?.length ? "routine-hint" : undefined}>{connectionHint}</p>
+        {targetAvailable && (history || historyError) && (history?.source !== "desktop" || connecting || observedConnection.status === "failed" || !!connectionError) && (
           <button
             className="secondary"
             disabled={connecting || !online}
             title="连接原任务并重新读取实时状态"
-            onClick={async () => {
-              setConnecting(true);
-              setError("");
-              try {
-                await onConnect();
-                await load();
-              } catch (e) {
-                setError((e as Error).message);
-              } finally {
-                setConnecting(false);
-              }
-            }}
+            onClick={() => void connect()}
           >
             <Link2 size={15} />
-            {connecting ? "正在连接…" : "连接任务"}
+            {connecting ? "正在连接…" : observedConnection.status === "failed" || staleConnection || connectionError ? "重试连接" : "连接任务"}
           </button>
         )}
-        {(error || historyError) && (
+        {(error || connectionError || historyError) && (
           <p className="inline-error" role="alert">
-            {error || historyError}
+            {error || connectionError || historyError}
           </p>
         )}
         {notice && (

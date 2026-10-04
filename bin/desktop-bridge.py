@@ -19,6 +19,18 @@ MAX_PAYLOAD_BYTES = 256 * 1024
 
 class NavigatorIPC(AppIPC):
     owner_lookup_timeout = None
+    connection_stage = "initialize"
+
+    def snapshot(self, thread_id):
+        self.connection_stage = "owner"
+        result = super().snapshot(thread_id)
+        self.connection_stage = "ready"
+        return result
+
+    def set_following(self, thread_id, owner, following):
+        if following:
+            self.connection_stage = "snapshot"
+        return super().set_following(thread_id, owner, following)
 
     def receive(self):
         deadline = getattr(self, "_owner_deadline", None)
@@ -245,6 +257,7 @@ def history(state):
     if requests:
         hint = "任务正在等待你确认操作，可在下方查看并响应。"
     return {"source": "desktop", "messages": messages, "runtime": state.get("threadRuntimeStatus", {}).get("type"),
+            "resumeState": state.get("resumeState"),
             "contextUsage": context_usage(state), "compaction": compaction_state(state), "canCompact": can_compact(state),
             "pendingRequests": requests,
             "asyncQuestions": async_questions(state),
@@ -274,6 +287,7 @@ def main():
     if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
         return {"ok": False, "code": "app_version_changed", "sent": False}
     dispatched = False
+    client = None
     print("POCKET_BRIDGE_PHASE_V1 preflight", file=sys.stderr, flush=True)
     try:
         with NavigatorIPC(Path(data["codexHome"]) / "ipc/ipc.sock") as client:
@@ -369,8 +383,18 @@ def main():
             else:
                 client.start(thread_id, owner, message_id, data["text"])
             return {"ok": True, "status": "accepted", "turnId": turns[-1].get("turnId") if active and turns else None}
-    except Exception:
-        return {"ok": False, "code": "dispatch_unknown" if dispatched else "desktop_unavailable", "sent": None if dispatched else False}
+    except Exception as error:
+        # Expose bounded reason codes, never exception text or private IPC data.
+        if isinstance(error, FileNotFoundError):
+            reason = "app_not_running"
+        elif isinstance(error, (ConnectionRefusedError, ConnectionResetError, EOFError)):
+            reason = "desktop_disconnected"
+        elif isinstance(error, TimeoutError):
+            reason = "owner_lookup_timeout" if getattr(client, "connection_stage", None) == "owner" else "snapshot_timeout"
+        else:
+            reason = "desktop_protocol_error"
+        return {"ok": False, "code": "dispatch_unknown" if dispatched else "desktop_unavailable",
+                "sent": None if dispatched else False, "connectionReason": reason}
 
 
 if __name__ == "__main__":

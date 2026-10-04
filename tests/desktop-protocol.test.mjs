@@ -112,6 +112,7 @@ test("history bounds owner lookup without waiting for the desktop default", asyn
   const result = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
   assert.equal(result.ok, false);
   assert.equal(result.sent, false);
+  assert.equal(result.connectionReason, "owner_lookup_timeout");
   const elapsed = performance.now() - started;
   assert.ok(elapsed >= 1800 && elapsed < 3500);
   assert.equal(f.calls.some(c => c.method === "thread-follower-start-turn"), false);
@@ -141,6 +142,14 @@ test("a discovered owner's full snapshot keeps its normal read budget", async (t
   assert.equal(result.ok, true);
   assert.equal(result.source, "desktop");
   assert.equal(result.runtime, "idle");
+});
+test("connection readiness follows native resume state even when sending needs approval", async (t) => {
+  const f = await fakeDesktop(t, [{ ...idle, requests: [{ id: "approval", method: "unknown" }] }]);
+  const result = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.equal(result.source, "desktop");
+  assert.equal(result.resumeState, "resumed");
+  assert.equal(result.canSend, false);
+  assert.equal(f.calls.some(c => c.method === "thread-follower-start-turn"), false);
 });
 test("desktop bridge sends text to the existing owner with inherited settings only", async (t) => {
   const f = await fakeDesktop(t, [idle]);

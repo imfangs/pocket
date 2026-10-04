@@ -1,3 +1,5 @@
+import type { ThreadConnection } from "./threadConnection";
+
 export type Message = {
   id: string;
   turnId?: string | null;
@@ -20,6 +22,8 @@ export type TurnTiming = {
 };
 export type History = {
   source: string;
+  resumeState?: string;
+  readOnlyReason?: string;
   messages: Message[];
   runtime: string;
   canSend: boolean;
@@ -42,6 +46,7 @@ export type History = {
   canAttemptCompact?: boolean;
   compaction?: { active: boolean; latestId: string | null; completed?: boolean };
   compactionRequest?: { requestId: string; status: string; code?: string } | null;
+  connection?: ThreadConnection;
 };
 export type QueuedMessage = {
   id: string;
@@ -97,10 +102,16 @@ export function startConversationFeed(options: FeedOptions<History>) {
 export function startTranscriptFeed(options: FeedOptions<SavedTranscript>) {
   return startFeed(options, data => data.turnTiming?.status === "inProgress" ? 2000 : 8000);
 }
-function startFeed<T>(options: FeedOptions<T>, nextDelay: (data: T) => number) {
+// This feed only observes an already requested connection. Its request callback
+// must be the small status GET; it never opens a Mac task or resends a message.
+export function startConnectionFeed(options: FeedOptions<ThreadConnection>) {
+  return startFeed(options, data => data.status === "connecting" ? 1000 : null);
+}
+function startFeed<T>(options: FeedOptions<T>, nextDelay: (data: T) => number | null) {
   const browser = options.browser ?? window;
   const visibility = options.visibility ?? document;
-  let stopped = false, failures = 0, delay = 8000, queued = false;
+  let stopped = false, failures = 0, queued = false;
+  let delay: number | null = 8000;
   let timer: number | undefined;
   let pending: Promise<void> | null = null;
   let controller: AbortController | null = null;
@@ -131,7 +142,7 @@ function startFeed<T>(options: FeedOptions<T>, nextDelay: (data: T) => number) {
         browser.clearTimeout(deadline);
         controller = null;
         pending = null;
-        if (ready()) timer = browser.setTimeout(() => { void refresh(); }, queued ? 0 : delay);
+        if (ready() && (queued || delay !== null)) timer = browser.setTimeout(() => { void refresh(); }, queued ? 0 : delay!);
         queued = false;
       }
     })();

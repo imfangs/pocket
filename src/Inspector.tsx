@@ -20,6 +20,7 @@ import type { QueryDraft } from "./Conversation";
 import { bindInspectorSwipe, bindInspectorViewport } from "./mobileInspector";
 import type { HistoryCache } from "./conversationFeed";
 import { holdReload, useReloadGuard } from "./updateSafety";
+import type { OpenThreadResult } from "./threadConnection";
 type Draft = {
   intent: Intent;
   note: string;
@@ -41,7 +42,7 @@ interface Props {
     id: string,
     patch: Draft & { expectedRevision: number },
   ) => Promise<Thread>;
-  onOpen: (t: Thread) => Promise<void>;
+  onOpen: (t: Thread) => Promise<OpenThreadResult>;
   onClose: () => void;
   onActivity?: () => void;
   flushRef: MutableRefObject<(() => Promise<void>) | null>;
@@ -194,13 +195,14 @@ export default function Inspector(p: Props) {
         </div>
         {tab === "conversation" ? (
           <Conversation
+            key={p.thread.id}
             thread={p.thread}
             drafts={p.queryDrafts}
             historyCache={p.historyCache}
             onActivity={p.onActivity}
             onConnect={async () => {
               await save();
-              await p.onOpen(p.thread);
+              return p.onOpen(p.thread);
             }}
           />
         ) : (

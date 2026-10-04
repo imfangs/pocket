@@ -20,6 +20,7 @@ import Inspector from "./Inspector";
 import BootSplash from "./BootSplash";
 import type { QueryDraft } from "./Conversation";
 import type { HistoryCache } from "./conversationFeed";
+import type { OpenThreadResult } from "./threadConnection";
 import { GroupDialog, SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
 import { createCatalogReader } from "./catalogReader";
@@ -323,13 +324,14 @@ export default function App({
   );
   const open = useCallback(
     async (t: Thread) => {
-      const result = await api<{ thread: Thread }>(`/api/open/${t.id}`, "POST");
+      const result = await api<OpenThreadResult>(`/api/open/${t.id}`, "POST");
       catalogReader.invalidate();
       setCatalog((c) => ({
         ...c,
         threads: c.threads.map((x) => (x.id === t.id ? result.thread : x)),
       }));
-      notify("已请求在 Codex 打开原会话");
+      notify(result.readOnly ? `已请求在 Mac 打开「${t.title}」` : result.connection?.status === "connected" ? `已连接「${t.title}」` : `正在连接「${t.title}」…`);
+      return result;
     },
     [notify, catalogReader],
   );
