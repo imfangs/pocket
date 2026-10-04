@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -166,6 +166,27 @@ test("history reads only the matching rollout under permitted source directories
   writeFileSync(join(home, "private.txt"), "secret");
   assert.throws(() => readPersistedHistory(home, id), /不在允许/);
   db.close();
+});
+test("clipped UTF-8 history preserves byte-based message IDs while the rollout grows", (t) => {
+  const home = temporary(t);
+  mkdirSync(join(home, "sessions"));
+  const path = join(home, "sessions", "unicode-tail.jsonl");
+  const db = new DatabaseSync(join(home, "state_5.sqlite"));
+  db.exec("CREATE TABLE threads(id TEXT,rollout_path TEXT)");
+  db.prepare("INSERT INTO threads VALUES(?,?)").run(id, path);
+  db.close();
+  const prefix = JSON.stringify({ type: "session_meta", payload: { id } }) + "\n" +
+    JSON.stringify({ type: "ignored", payload: "中".repeat(1400000) }) + "\n";
+  writeFileSync(path, prefix + line("assistant", "Visible answer", "final") + "\n");
+  const expectedId = `rollout:${Buffer.byteLength(prefix)}`;
+  for (let i = 0; i < 4; i++) {
+    const history = readPersistedHistory(home, id);
+    assert.equal(history.hasMore, true);
+    assert.equal(history.messages.length, 1);
+    assert.equal(history.messages[0].id, expectedId);
+    assert.equal(history.messages[0].text, "Visible answer");
+    appendFileSync(path, "\n");
+  }
 });
 test("one request can be dispatched at most once, including after a timeout and store restart", async (t) => {
   const s = store(t);

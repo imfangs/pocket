@@ -80,6 +80,45 @@ test("a slow queue dispatch does not block adding another waiting message", asyn
   finish({ ok: true }); await submitting;
   assert.deepEqual(s.outbox(id).map(row => row.text), ["Next"]);
 });
+test("a slow initial send reserves room to join a queue filled during preflight", async t => {
+  const { service:s, store } = fixture(t);
+  let finish;
+  s.request = () => new Promise(resolve => { finish = resolve; });
+  const submitting = s.send(id, { text: "Original", requestId: rid(1) });
+  for (let n = 2; n <= 20; n++)
+    await s.send(id, { text: `Next ${n}`, requestId: rid(n), enqueue: true });
+  const couldQueue = s.withActions(id, { canSend: true }).canQueue;
+  const overflow = await s.send(id, { text: "Overflow", requestId: rid(21), enqueue: true }).catch(error => error);
+  // Submissions in the same millisecond still follow dispatch insertion order.
+  store.db.prepare("UPDATE dispatches SET created_at=1000").run();
+  finish({ ok: false, sent: false, code: "thread_active" });
+  const result = await submitting.catch(error => error);
+  assert.equal(couldQueue, false);
+  assert.equal(overflow.status, 409);
+  assert.equal(s.getReceipt(id, rid(21)).status, "not_found");
+  assert.equal(result.status, "queued");
+  assert.equal(s.outbox(id).length, 20);
+  assert.equal(s.outbox(id)[0].id, rid(1));
+  assert.equal(s.outbox(id)[0].text, "Original");
+});
+test("a settled direct attempt releases its queue reservation without replaying uncertain input", async t => {
+  for (const outcome of [{ ok: true }, { ok: false, sent: false }, { ok: false, sent: null }]) {
+    const { service:s } = fixture(t);
+    let finish, calls = 0;
+    s.request = () => { calls++; return new Promise(resolve => { finish = resolve; }); };
+    const submitting = s.send(id, { text: "Original", requestId: rid(1) });
+    for (let n = 2; n <= 20; n++)
+      await s.send(id, { text: `Next ${n}`, requestId: rid(n), enqueue: true });
+    finish(outcome);
+    const result = await submitting;
+    assert.equal(result.status, outcome.ok ? "accepted" : outcome.sent === false ? "rejected" : "unknown");
+    assert.equal(s.withActions(id, { canSend: true }).canQueue, true);
+    assert.equal((await s.send(id, { text: "Last slot", requestId: rid(21), enqueue: true })).status, "queued");
+    assert.equal(s.outbox(id).length, 20);
+    assert.equal((await s.send(id, { text: "Original", requestId: rid(1) })).status, result.status);
+    assert.equal(calls, 1);
+  }
+});
 test("unknown outcomes block replay and reconcile only with the matching original message", async t => {
   const { service:s, state } = fixture(t);
   await s.send(id, { text: "Uncertain", requestId: rid(1) });

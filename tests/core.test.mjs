@@ -217,6 +217,52 @@ test("batch is atomic, and backup restore survives reopening", (t) => {
   assert.equal(reopened.annotation(id1).note, "persist");
   reopened.close();
 });
+test("restore revisions reject editors opened before restoring an older backup", (t) => {
+  const s = storeFor(t);
+  s.patchThread(id1, { note: "saved in backup", expectedRevision: 0 });
+  const backup = s.export();
+  const stale = s.patchThread(id1, { note: "newer local note", expectedRevision: 1 });
+  s.restore(backup);
+  assert.equal(s.annotation(id1).note, "saved in backup");
+  assert.ok(s.annotation(id1).revision > stale.revision);
+  assert.throws(
+    () => s.patchThread(id1, { note: "stale overwrite", expectedRevision: stale.revision }),
+    (e) => e.status === 409,
+  );
+  const restored = s.annotation(id1);
+  s.patchThread(id1, { note: "fresh edit", expectedRevision: restored.revision });
+  assert.equal(s.annotation(id1).note, "fresh edit");
+});
+test("restore keeps revisions for omitted annotations and formerly implicit defaults", (t) => {
+  const s = storeFor(t);
+  const backup = s.export();
+  const stale = s.patchThread(id1, { note: "not in the backup", groupIds: [] });
+  const defaultRevision = s.annotation(id2).revision;
+  s.restore(backup);
+  for (const [id, revision] of [[id1, stale.revision], [id2, defaultRevision]]) {
+    const restored = s.annotation(id, s.thread(id));
+    assert.equal(restored.note, "");
+    assert.deepEqual(restored.groupIds, [backup.groups[0].id]);
+    assert.ok(restored.revision > revision);
+    assert.throws(
+      () => s.patchThread(id, { note: "stale overwrite", expectedRevision: revision }),
+      (e) => e.status === 409,
+    );
+  }
+});
+test("restore advances imported revisions and rolls back when they cannot advance safely", (t) => {
+  const s = storeFor(t);
+  s.patchThread(id1, { note: "original" });
+  const backup = s.export();
+  backup.annotations[0].revision = 100;
+  s.restore(backup);
+  assert.equal(s.annotation(id1).revision, 101);
+  const before = s.export();
+  backup.annotations[0].revision = Number.MAX_SAFE_INTEGER;
+  assert.throws(() => s.restore(backup), (e) => e.status === 400);
+  assert.deepEqual(s.groups(), before.groups);
+  assert.deepEqual(s.export().annotations, before.annotations);
+});
 test("HTTP requires same origin and token, opens the exact known original id, never creates a new thread", async (t) => {
   const p = temp(t);
   mkdirSync(join(p, "dist"));

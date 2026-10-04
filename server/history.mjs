@@ -176,13 +176,12 @@ export function readPersistedHistory(codexHome, threadId) {
     const start = Math.max(0, size - 4 * 1024 * 1024);
     const buffer = Buffer.alloc(size - start);
     readSync(fd, buffer, 0, buffer.length, start);
-    let text = buffer.toString("utf8"),
-      offset = start;
-    if (start) {
-      const end = text.indexOf("\n");
-      offset += Buffer.byteLength(text.slice(0, end + 1));
-      text = end < 0 ? "" : text.slice(end + 1);
-    }
+    // Skip a clipped line as raw bytes before decoding: a UTF-8 character
+    // split at the tail boundary would otherwise change fallback message IDs.
+    const end = start ? buffer.indexOf(10) : -1;
+    const skip = start ? (end < 0 ? buffer.length : end + 1) : 0;
+    const offset = start + skip;
+    const text = buffer.subarray(skip).toString("utf8");
     return {
       source: "rollout",
       ...parseHistory(text, offset),

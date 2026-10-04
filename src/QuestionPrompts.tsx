@@ -4,6 +4,7 @@ import { api } from "./api";
 import type { AsyncQuestion } from "./conversationFeed";
 import type { QueryDraft } from "./Conversation";
 import { holdReload, useReloadGuard } from "./updateSafety";
+import { captureDraft } from "./draftTransaction";
 
 type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; drafts: Map<string, QueryDraft>; refresh: () => Promise<void> | undefined };
 function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Props, "questions"> & { question: AsyncQuestion }) {
@@ -14,6 +15,8 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Pr
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const form = useRef<HTMLFormElement>(null);
+  const viewGeneration = useRef(0);
+  useEffect(() => () => { viewGeneration.current++; }, [key]);
   useReloadGuard(() => {
     const saved = drafts.get(key);
     return busy ? "回答尚未提交完成，请稍后更新。"
@@ -32,6 +35,14 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Pr
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); if (busy || disabled) return;
     const release = holdReload();
+    const generation = viewGeneration.current;
+    const currentView = () => viewGeneration.current === generation;
+    const saved = captureDraft(drafts, key);
+    const updateSubmitted = (value: QueryDraft) => {
+      if (!saved.set(value)) return false;
+      if (currentView()) setDraft(value);
+      return true;
+    };
     setBusy(true); setError("");
     const requestId = draft.requestId || (waiting ? question.response?.requestId : null) || crypto.randomUUID();
     try {
@@ -41,19 +52,19 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Pr
         result = await api(`/api/tasks/${threadId}/messages/${requestId}`);
       } else {
         if (!draft.text.trim()) return;
-        update({ ...draft, requestId });
+        updateSubmitted({ ...draft, requestId });
         result = await api(`/api/tasks/${threadId}/questions/${question.key}/answer`, "POST", { requestId, text: draft.text });
       }
-      if (result.status === "accepted") drafts.delete(key);
+      if (result.status === "accepted") saved.clear();
       else if (["rejected", "not_found"].includes(result.status)) {
-        update({ text: draft.text }); setError("问题可能已经变化，请刷新后再回答。");
+        if (updateSubmitted({ text: draft.text }) && currentView()) setError("问题可能已经变化，请刷新后再回答。");
       }
-      await refresh();
+      if (currentView()) await refresh();
     } catch (e) {
       const status = (e as Error & { status?: number }).status;
-      if (status && status < 500) update({ text: draft.text });
-      setError(status && status < 500 ? (e as Error).message : "回答结果待确认，请核对状态，避免重复提交。");
-    } finally { release(); setBusy(false); }
+      if (status && status < 500) updateSubmitted({ text: draft.text });
+      if (currentView()) setError(status && status < 500 ? (e as Error).message : "回答结果待确认，请核对状态，避免重复提交。");
+    } finally { release(); if (currentView()) setBusy(false); }
   };
   return <form ref={form} className="question-card" data-editing={editing || undefined} onSubmit={e => void submit(e)} aria-label={question.title}>
     <p className="question-title">{question.title}</p>

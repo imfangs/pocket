@@ -15,7 +15,20 @@ import { api } from "./api";
 import { createAccessCheck } from "./accessCheck";
 import { holdReload, useReloadGuard } from "./updateSafety";
 
-const App = lazy(() => import("./App"));
+function AppLoadFailure() {
+  return <main className="access-screen">
+    <section className="access-card" role="alert">
+      <div className="access-brand"><Pocket size={25} /><span>Pocket</span></div>
+      <h1>暂时无法打开 Pocket</h1>
+      <p className="access-intro">可能遇到了版本更新或网络中断。请确认网络后重新加载。</p>
+      <button type="button" className="primary access-submit" onClick={() => location.reload()}>重新加载 Pocket</button>
+    </section>
+  </main>;
+}
+
+// Recover only a failed first import. An already loaded App keeps ownership
+// of its drafts, and no network or version event triggers a reload here.
+const App = lazy(() => import("./App").catch(() => ({ default: AppLoadFailure })));
 export default function AccessGate() {
   const [state, setState] = useState<
       "loading" | "locked" | "authenticated" | "offline"

@@ -31,6 +31,7 @@ export class DesktopService {
     this.cache = new Map();
     this.recentReads = new Map();
     this.sending = new Set();
+    this.queueReservations = new Set();
     this.stops = new ExecutionStops(store, payload => this.request({ ...payload, codexHome: this.codexHome }));
     store.db.exec(
       "CREATE TABLE IF NOT EXISTS dispatches(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,text_hash TEXT NOT NULL,status TEXT NOT NULL,turn_id TEXT,code TEXT,created_at INTEGER NOT NULL)",
@@ -158,7 +159,7 @@ export class DesktopService {
       canAttemptCompact: targetAvailable && !blocked && !this.sending.has(id) &&
         (!!data.canCompact || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
       asyncQuestions,
-      canQueue: targetAvailable && outbox.length < 20,
+      canQueue: targetAvailable && this.queueSize(id, outbox.length) < 20,
       canAttemptSend: targetAvailable && !blocked && !this.sending.has(id) &&
         (!!data.canSend || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
       canSend: data.canSend && !blocked, queueReady: data.queueReady && !blocked && !queuePaused,
@@ -287,10 +288,13 @@ export class DesktopService {
     return row ? this.receipt(row) : { requestId, status: "not_found" };
   }
   outbox(id) {
-    return this.store.db.prepare("SELECT o.id,o.text,o.revision,d.status,d.code,d.created_at AS createdAt FROM outgoing_messages o JOIN dispatches d ON d.id=o.id WHERE o.thread_id=? ORDER BY d.created_at,o.rowid").all(id);
+    return this.store.db.prepare("SELECT o.id,o.text,o.revision,d.status,d.code,d.created_at AS createdAt FROM outgoing_messages o JOIN dispatches d ON d.id=o.id WHERE o.thread_id=? ORDER BY d.created_at,d.rowid").all(id);
+  }
+  queueSize(id, saved = this.outbox(id).length) {
+    return saved + (this.queueReservations.has(id) ? 1 : 0);
   }
   queue(id, requestId, text) {
-    if (this.outbox(id).length >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
+    if (this.queueSize(id) >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
     this.transaction(() => {
       this.store.db.prepare("INSERT INTO outgoing_messages(id,thread_id,text) VALUES(?,?,?)").run(requestId, id, text);
       this.store.db.prepare("UPDATE dispatches SET status='queued',code=NULL WHERE id=?").run(requestId);
@@ -430,7 +434,7 @@ export class DesktopService {
     }
     if ((this.sending.has(id) || this.compactionPending(id) || this.stops.pending(id)) && !input.enqueue && !this.outbox(id).length)
       throw new AppError("这条任务正在提交消息，请稍后再试", 409);
-    if (this.outbox(id).length >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
+    if (this.queueSize(id) >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
     this.store.db
       .prepare(
         "INSERT INTO dispatches(id,thread_id,text_hash,status,created_at) VALUES(?,?,?,'pending',?)",
@@ -442,6 +446,9 @@ export class DesktopService {
     }
     let result;
     this.sending.add(id);
+    // Keep room for this submission if a slow preflight finds an active turn.
+    // Later explicit enqueues must not consume its fallback slot.
+    this.queueReservations.add(id);
     try {
       result = await this.request({
         operation: "send",
@@ -454,6 +461,7 @@ export class DesktopService {
       result = { ok: false, code: "dispatch_unknown", sent: null };
     } finally {
       this.sending.delete(id);
+      this.queueReservations.delete(id);
     }
     if (result.code === "thread_active" && result.sent === false) {
       this.queue(id, input.requestId, text);

@@ -23,6 +23,22 @@ const validDate = (s) =>
   Number.isFinite(Date.parse(s)) &&
   new Date(s).toISOString().slice(0, 10) === s;
 export const intents = ["none", "active", "later", "reference"];
+function annotationFromRow(a, source, groups) {
+  const defaults = groups
+    .filter((g) => g.sourceProjectId && g.sourceProjectId === source?.projectId)
+    .map((g) => g.id);
+  const groupIds = parse(a?.group_ids, defaults).filter((id) =>
+    groups.some((g) => g.id === id),
+  );
+  return {
+    intent: a?.intent || "none",
+    note: a?.note || "",
+    reviewAt: a?.review_at || null,
+    groupIds,
+    lastOpenedAt: a?.last_opened_at || null,
+    revision: a?.revision || 0,
+  };
+}
 export class NavigatorStore {
   constructor(directory) {
     this.directory = directory;
@@ -133,22 +149,7 @@ export class NavigatorStore {
     const a = this.db
       .prepare("SELECT * FROM annotations WHERE thread_id=?")
       .get(id);
-    const defaults = groups
-      .filter(
-        (g) => g.sourceProjectId && g.sourceProjectId === source?.projectId,
-      )
-      .map((g) => g.id);
-    const groupIds = parse(a?.group_ids, defaults).filter((id) =>
-      groups.some((g) => g.id === id),
-    );
-    return {
-      intent: a?.intent || "none",
-      note: a?.note || "",
-      reviewAt: a?.review_at || null,
-      groupIds,
-      lastOpenedAt: a?.last_opened_at || null,
-      revision: a?.revision || 0,
-    };
+    return annotationFromRow(a, source, groups);
   }
   thread(id) {
     const row = this.db
@@ -160,11 +161,11 @@ export class NavigatorStore {
   catalog() {
     const groups = this.groups();
     const threads = this.db
-      .prepare("SELECT id,data FROM source_threads")
+      .prepare("SELECT s.data,a.* FROM source_threads s LEFT JOIN annotations a ON a.thread_id=s.id")
       .all()
       .map((row) => {
         const t = JSON.parse(row.data);
-        return { ...t, ...this.annotation(row.id, t, groups) };
+        return { ...t, ...annotationFromRow(row, t, groups) };
       });
     return {
       threads,
@@ -432,6 +433,21 @@ export class NavigatorStore {
     this.backup();
     this.db.exec("BEGIN IMMEDIATE");
     try {
+      // A restore must invalidate snapshots from before it, including tasks
+      // whose annotations disappear from the imported backup. Keep default
+      // rows for those tasks so their revision cannot fall back to zero.
+      const previousRevisions = new Map(
+        this.db.prepare("SELECT thread_id,revision FROM annotations").all()
+          .map((row) => [row.thread_id, row.revision]),
+      );
+      for (const { id } of this.db.prepare("SELECT id FROM source_threads").all())
+        if (!previousRevisions.has(id)) previousRevisions.set(id, 0);
+      const nextRevision = (id, importedRevision = 0) => {
+        const revision = Math.max(previousRevisions.get(id) || 0, importedRevision);
+        if (!Number.isSafeInteger(revision) || revision >= Number.MAX_SAFE_INTEGER)
+          throw new AppError("备份修订编号已超出可恢复范围");
+        return revision + 1;
+      };
       this.db.exec("DELETE FROM groups; DELETE FROM annotations;");
       const g = this.db.prepare("INSERT INTO groups VALUES(?,?,?,?,?,?)");
       data.groups.forEach((x) =>
@@ -456,9 +472,13 @@ export class NavigatorStore {
           x.group_ids || null,
           x.last_opened_at || null,
           Date.now(),
-          (x.revision || 0) + 1,
+          nextRevision(x.thread_id, x.revision),
         ),
       );
+      for (const [id] of previousRevisions) {
+        if (!threadIds.has(id))
+          a.run(id, "none", "", null, null, null, Date.now(), nextRevision(id));
+      }
       this.set("seeded", true);
       this.db.exec("COMMIT");
     } catch (e) {

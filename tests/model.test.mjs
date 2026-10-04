@@ -102,3 +102,12 @@ test('retired title and review sort preferences fall back to recent activity',()
  const items=[{...t,id:'old',title:'A',updatedAt:1,reviewAt:'2020-01-01'},{...t,id:'new',title:'Z',updatedAt:2,reviewAt:null}];
  for(const sort of ['title','review'])assert.equal(filterThreads(items,groups,'all',null,'','',false,sort)[0].id,'new');
 });
+test('search keeps Unicode matching and sees renamed group paths on the next catalog', () => {
+  const items = [{ ...t, title: 'ＡＢＣ', id: 'first', updatedAt: 10 }, { ...t, id: 'second', updatedAt: 20 }];
+  const search = (groups, query) => filterThreads(items, groups, 'all', null, query, '', false, 'updated').map(t => t.id);
+  assert.deepEqual(search(groups, '  '), ['second', 'first']);
+  assert.deepEqual(search(groups, 'abc 游戏'), ['first']);
+  const renamed = groups.map(g => g.id === 'child' ? { ...g, name: '阅读' } : g);
+  assert.deepEqual(search(renamed, '游戏'), []);
+  assert.deepEqual(search(renamed, '领域 阅读'), ['second', 'first']);
+});

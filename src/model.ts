@@ -40,6 +40,11 @@ export function filterThreads(
     .trim()
     .split(/\s+/)
     .filter(Boolean);
+  const groupPaths = new Map<string, string>();
+  const searchableGroupPath = (id: string) => {
+    if (!groupPaths.has(id)) groupPaths.set(id, groupPath(groups, id));
+    return groupPaths.get(id)!;
+  };
   return threads
     .filter((t) => {
       if (!showSeparators && t.separator) return false;
@@ -52,15 +57,15 @@ export function filterThreads(
       if (view === "recent" && !t.lastOpenedAt) return false;
       if (["active", "later", "reference"].includes(view) && t.intent !== view)
         return false;
-      if (view === "recent" && !t.lastOpenedAt) return false;
       if (view === "unassigned" && t.groupIds.length) return false;
       if (view === "group" && !t.groupIds.some((g) => ids.has(g))) return false;
+      if (!terms.length) return true;
       const hay = [
         t.title,
         t.note,
         t.cwd,
         t.projectName,
-        ...t.groupIds.map((id) => groupPath(groups, id)),
+        ...t.groupIds.map(searchableGroupPath),
       ]
         .join(" ")
         .normalize("NFKC")

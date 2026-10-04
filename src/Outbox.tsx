@@ -5,6 +5,7 @@ import type { QueryDraft } from "./Conversation";
 import { api } from "./api";
 import { waitForSubmission, type SubmissionReceipt } from "./submissionReceipt";
 import { holdReload, useReloadGuard } from "./updateSafety";
+import { captureDraft } from "./draftTransaction";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
 export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, onActivity }: {
@@ -24,9 +25,10 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const [error, setError] = useState("");
   const key = (id: string) => `${threadId}/outbox/${id}`;
   const receiptRead = useRef<AbortController | null>(null);
+  const viewGeneration = useRef(0);
   useReloadGuard(() => busy ? "待发消息的操作尚未完成，请稍后更新。"
     : editing ? "待发消息还在编辑，请保存或取消编辑后再更新。" : null);
-  useEffect(() => () => receiptRead.current?.abort(), [threadId]);
+  useEffect(() => () => { viewGeneration.current++; receiptRead.current?.abort(); }, [threadId]);
   useEffect(() => {
     if (!editing) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -36,6 +38,11 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const act = async (item: QueuedMessage, action: Action) => {
     if (busy) return;
     const release = holdReload();
+    const generation = viewGeneration.current;
+    const currentView = () => viewGeneration.current === generation;
+    const saved = captureDraft(drafts, key(item.id));
+    const controller = action === "send" ? new AbortController() : null;
+    if (controller) receiptRead.current = controller;
     setBusy(item.id); setError("");
     try {
       const base = `/api/tasks/${threadId}/outbox/${item.id}`;
@@ -44,25 +51,32 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
       else if (action === "edit") {
         const updated = item.status === "editing" ? item :
           (await api<{ outbox: QueuedMessage[] }>(`${base}/edit`, "POST", { expectedRevision })).outbox.find(row => row.id === item.id)!;
+        if (!currentView() || !saved.current()) return;
         const value = drafts.get(key(item.id))?.text ?? updated.text;
         setEditing({ id: item.id, revision: updated.revision }); setText(value);
-        drafts.set(key(item.id), { text: value, revision: updated.revision });
+        saved.set({ text: value, revision: updated.revision });
         await refresh();
       } else {
         let result = await api<SubmissionReceipt>(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
           action === "save" ? "PATCH" : action === "cancel" ? "DELETE" : "POST",
           { expectedRevision, ...(action === "save" ? { text } : {}) });
-        if (action === "send") {
-          const controller = new AbortController();receiptRead.current = controller;
+        if (controller) {
+          if (!currentView() || controller.signal.aborted) return;
           result = await waitForSubmission(result, signal => api<SubmissionReceipt>(`/api/tasks/${threadId}/messages/${item.id}`, "GET", undefined, { signal }), controller.signal);
-          if (receiptRead.current === controller) receiptRead.current = null;
+          if (!currentView() || controller.signal.aborted) return;
         }
         if (action === "send" && result.status === "accepted") onActivity?.();
-        drafts.delete(key(item.id)); setEditing(null);
-        await refresh();
+        // Settled saves can release their unchanged draft after leaving, but
+        // must never discard a newer edit made in a reopened view.
+        if (saved.clear() && currentView()) setEditing(null);
+        if (currentView()) await refresh();
       }
-    } catch (e) { setError((e as Error).message); }
-    finally { release(); setBusy(null); }
+    } catch (e) { if (currentView()) setError((e as Error).message); }
+    finally {
+      release();
+      if (controller && receiptRead.current === controller) receiptRead.current = null;
+      if (currentView()) setBusy(null);
+    }
   };
   const resumeQueue = async () => {
     if (!paused || busy) return;
@@ -83,7 +97,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
       {items.map(item => {
         const mutable = ["queued", "rejected", "editing"].includes(item.status);
         return <div className="outbox-item" key={item.id}>
-          {editing?.id === item.id ? <AutoTextarea aria-label="编辑待发消息" value={text} maxLength={16000}
+          {editing?.id === item.id ? <AutoTextarea aria-label="编辑待发消息" value={text} maxLength={16000} disabled={!!busy || disabled}
             onChange={e => { setText(e.target.value); drafts.set(key(item.id), { text: e.target.value, revision: editing.revision }); }} />
             : <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
           <div className="outbox-actions">

@@ -449,3 +449,26 @@ test('blocking question answers go through native response, never a new user tur
  const bad=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,answers:{unexpected:'A'}});assert.equal(bad.sent,false);
  assert.equal(f.calls.some(c=>c.method==='thread-follower-start-turn'),false);
 });
+test('blocking answers preserve the allowed Chinese and emoji input beyond 70000 UTF-8 bytes',async t=>{
+ const request={id:'long-question',method:'item/tool/requestUserInput',params:{threadId:id,turnId:'t',questions:[{id:'first',question:'First?'},{id:'second',question:'Second?'}]}};
+ const f=await fakeDesktop(t,[{...idle,requests:[request]}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ for(const second of ['字'.repeat(16000),'😀'.repeat(8000)]){
+  const answers={first:'汉'.repeat(16000),second};
+  assert.ok(Object.values(answers).every(text=>text.length<=16000));
+  assert.ok(JSON.stringify(answers).length<=40000);
+  const payload={operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,answers};
+  assert.ok(Buffer.byteLength(JSON.stringify(payload))>70000);
+  const r=await desktopRequest(payload);assert.equal(r.status,'accepted');
+  const call=f.calls.filter(c=>c.method==='thread-follower-submit-user-input').at(-1);
+  assert.deepEqual(call.params.response,{answers:{first:{answers:[answers.first]},second:{answers:[answers.second]}}});
+ }
+ assert.equal(f.calls.filter(c=>c.method==='thread-follower-submit-user-input').length,2);
+ assert.equal(f.calls.some(c=>c.method==='thread-follower-start-turn'),false);
+});
+test('oversized bridge payloads are explicitly rejected before contacting an owner',async t=>{
+ const f=await fakeDesktop(t,[idle]);
+ const r=await desktopRequest({operation:'send',threadId:id,codexHome:f.home,requestId,text:'x'.repeat(256*1024)});
+ assert.deepEqual(r,{ok:false,code:'payload_too_large',sent:false});
+ assert.equal(f.calls.length,0);
+});

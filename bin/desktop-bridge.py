@@ -12,6 +12,10 @@ CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-br
 sys.path.insert(0, CONFIG["ipcModuleDirectory"])
 from app_ipc import AppIPC
 
+# Blocking answers allow up to 40000 UTF-16 units in their JSON envelope.
+# Leave room for their UTF-8 encoding and trusted routing metadata.
+MAX_PAYLOAD_BYTES = 256 * 1024
+
 
 class NavigatorIPC(AppIPC):
     owner_lookup_timeout = None
@@ -255,7 +259,15 @@ def history(state):
 
 
 def main():
-    data = json.loads(sys.stdin.buffer.read(70000))
+    raw = sys.stdin.buffer.read(MAX_PAYLOAD_BYTES + 1)
+    if len(raw) > MAX_PAYLOAD_BYTES:
+        return {"ok": False, "code": "payload_too_large", "sent": False}
+    try:
+        data = json.loads(raw)
+    except (ValueError, UnicodeError):
+        return {"ok": False, "code": "invalid_payload", "sent": False}
+    if not isinstance(data, dict):
+        return {"ok": False, "code": "invalid_payload", "sent": False}
     thread_id = data["threadId"]
     info = plistlib.loads((Path(CONFIG["appPath"]) / "Contents/Info.plist").read_bytes())
     version = info.get("CFBundleShortVersionString", "") + ":" + info.get("CFBundleVersion", "")
