@@ -32,4 +32,4 @@ Pocket 使用自己的 initialize 客户端身份，不经 App Tools 管道、�
 
 真实 API 用同一受控对象验证原未读 true → 取得观察凭据 → POST read 约549毫秒返回 read → Pocket hasUnreadTurn/needsInput 均 false；原 owner 的 hasUnreadTurn 及原持久集合也独立回读为 false。随后重新置测试未读，通过实际 Pocket 网页打开内容，自动阅读再次将原集合与 owner 状态清除；未点击连接或发送消息，验收对象恢复原已读状态。证据 `live-api.json`、`live-native-before/after.json`、`live-ui-before/after.json`。
 
-发布身份以 `CURRENT.md` 为准。未作 iPhone 真机或长期跨设备并发验收；原生布尔 setter 的并发窗口仍按上节边界处理。
+公网源码 `edbeb9d`、Pages 部署 `5b8ffeee-83cb-4e39-970e-0acc4a207b97`，14 个公开文件匹配、功能检查与ready=true。公网标读约1秒返回read，原集合与运行owner状态均回读false，验收对象保持原已读状态；证据 `public-api.json` 和 `public-native-after.json`。当前发布身份以 `CURRENT.md` 为准。未作 iPhone 真机或长期跨设备并发验收；原生布尔 setter 的并发窗口仍按上节边界处理。
