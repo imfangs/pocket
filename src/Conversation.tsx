@@ -18,6 +18,8 @@ import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissi
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { connectionFailureHint, connectionFromHistory, newerConnection } from "./threadConnection";
 import type { OpenThreadResult, ThreadConnection } from "./threadConnection";
+import { displayedReadObservation, observeVisibleRead } from "./readObservation";
+import type { ReadAttempts, ReadObservation, ReadReceipt } from "./readObservation";
 export type QueryDraft = { text: string; requestId?: string; revision?: number };
 const statuses: Record<string, string> = {
   active: "正在运行",
@@ -40,6 +42,10 @@ export default function Conversation({
 }) {
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
     [transcript, setTranscript] = useState<SavedTranscript | null>(() => historyCache.get(thread.id)?.transcript ?? null),
+    [freshTranscript, setFreshTranscript] = useState<SavedTranscript | null>(null),
+    [readFeedback, setReadFeedback] = useState<{ version: string; status: ReadReceipt["status"] } | null>(null),
+    [readRetry, setReadRetry] = useState(0),
+    [retryingRead, setRetryingRead] = useState(false),
     [loading, setLoading] = useState(true),
     [draft, setDraft] = useState<QueryDraft>(
       () => drafts.get(thread.id) || { text: "" },
@@ -53,12 +59,27 @@ export default function Conversation({
     [historyError, setHistoryError] = useState(""),
     [notice, setNotice] = useState("");
   const messages = useRef<HTMLDivElement>(null),
+    readSentinel = useRef<HTMLDivElement>(null),
+    questionReadRoot = useRef<HTMLElement>(null),
+    questionReadSentinel = useRef<HTMLDivElement>(null),
+    attemptedReads = useRef<ReadAttempts>(new Map()),
+    latestReadObservation = useRef<ReadObservation | null>(null),
+    manualReadRetry = useRef<string | null>(null),
+    readViewGeneration = useRef(0),
     nearBottom = useRef(historyCache.get(thread.id)?.nearBottom ?? true),
     restoreScroll = useRef<number | null>(historyCache.get(thread.id)?.scrollTop ?? null),
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
-  const questions = currentQuestions(history, transcript);
+  const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
+  const renderedMessages = useMemo(() => shownMessages.filter(message => !message.isQuestion || !questions.some(q => q.sourceMessageId === message.id)), [shownMessages, questions]);
+  const readObservation = useMemo(() => displayedReadObservation(freshTranscript, shownMessages), [freshTranscript, shownMessages]);
+  const lastShown = shownMessages.at(-1);
+  const readTargetKind = lastShown?.isQuestion && questions.some(question => question.sourceMessageId === lastShown.id) ? "question" : "message";
+  const readVersion = readObservation?.visibleVersion, readItemId = readObservation?.lastVisibleItemId;
+  useLayoutEffect(() => { latestReadObservation.current = readObservation; }, [readObservation]);
+  const currentReadFeedback = thread.hasUnreadTurn !== false && readFeedback &&
+    (!readObservation || readFeedback.version === readObservation.visibleVersion) ? readFeedback : null;
   const observedConnection = connectionFromHistory(connection, history);
   const connecting = opening || observedConnection.status === "connecting";
   useReloadGuard(() => sending || connecting ? "操作尚未完成，请稍后更新。"
@@ -76,6 +97,26 @@ export default function Conversation({
   const connectionOpen = useRef<AbortController | null>(null);
   useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
   useEffect(() => () => connectionOpen.current?.abort(), [thread.id]);
+  useEffect(() => () => { readViewGeneration.current++; }, [thread.id]);
+  useEffect(() => {
+    const observation = latestReadObservation.current;
+    const root = readTargetKind === "question" ? questionReadRoot.current : messages.current;
+    const target = readTargetKind === "question" ? questionReadSentinel.current : readSentinel.current;
+    if (!observation || !root || !target) return;
+    return observeVisibleRead({
+      root, target, observation, getObservation: () => latestReadObservation.current, attempted: attemptedReads.current,
+      submit: (input, signal) => api<ReadReceipt>(`/api/tasks/${thread.id}/read`, "POST", input,
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]) }),
+      onRead: onActivity,
+      onResult(result) {
+        if (result.status === "read") setReadFeedback(null);
+        else {
+          setReadFeedback({ version: observation.visibleVersion, status: result.status });
+          if (result.status === "stale") void textFeed.current?.refresh();
+        }
+      },
+    });
+  }, [thread.id, readVersion, readItemId, readTargetKind, readRetry, onActivity]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine !== false);
     window.addEventListener("online", update);
@@ -119,6 +160,20 @@ export default function Conversation({
       onData(data) {
         rememberTranscript(historyCache, thread.id, data);
         setTranscript(data);
+        const observation = data.readObservation;
+        if (observation) {
+          const previous = attemptedReads.current.get(observation.visibleVersion);
+          if (manualReadRetry.current === observation.visibleVersion) {
+            manualReadRetry.current = null;
+            attemptedReads.current.delete(observation.visibleVersion);
+            setReadRetry(value => value + 1);
+          } else if (previous?.status === "stale" && previous.token !== observation.token) {
+            // Stale means definitely not written. A fresh token can be used even
+            // when only a completion event changed, leaving visible text intact.
+            setReadRetry(value => value + 1);
+          }
+        }
+        setFreshTranscript(data);
       },
       onError() { /* Keep readable content and let the native feed report connection state. */ },
     });
@@ -278,6 +333,23 @@ export default function Conversation({
       if (ownsView()) { connectionOpen.current = null; setOpening(false); }
     }
   };
+  const retryRead = async () => {
+    if (retryingRead) return;
+    const generation = readViewGeneration.current;
+    manualReadRetry.current = readObservation?.visibleVersion ?? currentReadFeedback?.version ?? null;
+    setRetryingRead(true);
+    try {
+      await textFeed.current?.refresh();
+    } finally {
+      if (generation === readViewGeneration.current) {
+        manualReadRetry.current = null;
+        setRetryingRead(false);
+        // A lost HTTP reply may follow a successful native write. A fresh
+        // transcript then has no token, so refresh the authoritative catalog too.
+        onActivity?.();
+      }
+    }
+  };
   return (
     <section className="conversation" aria-label="会话历史与发送">
       <div className="conversation-toolbar">
@@ -340,9 +412,10 @@ export default function Conversation({
             暂时没有可显示的消息
           </p>
         )}
-        {shownMessages.filter(message => !message.isQuestion || !questions.some(q => q.sourceMessageId === message.id)).map((message) => (
+        {renderedMessages.map((message) => (
           <ConversationMessage key={message.id} message={message} />
         ))}
+        <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
       </div>
       <div className="conversation-status">
         <p role="status" className={history?.canSend || history?.pendingRequests?.length ? "routine-hint" : undefined}>{connectionHint}</p>
@@ -367,8 +440,13 @@ export default function Conversation({
             {notice}
           </p>
         )}
+        {currentReadFeedback && <p className="inline-hint" role="status">
+          {currentReadFeedback.status === "stale" ? "进展已有更新，读取最新内容后再同步。" : currentReadFeedback.status === "unavailable" ? "暂时无法同步已读状态。" : "已读状态尚未确认。"}
+          {" "}<button type="button" className="text-button" disabled={!online || retryingRead} onClick={() => void retryRead()}>{retryingRead ? "正在核对…" : "同步已读"}</button>
+        </p>}
       </div>
-      <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || !history?.canSend} drafts={drafts} refresh={load} />
+      <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || !history?.canSend} drafts={drafts} refresh={load}
+        readMarker={readTargetKind === "question" && readItemId ? { sourceMessageId: readItemId, rootRef: questionReadRoot, markerRef: questionReadSentinel } : undefined} />
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
       <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>

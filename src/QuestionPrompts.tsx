@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { Ref } from "react";
 import AutoTextarea from "./AutoTextarea";
 import { api } from "./api";
 import type { AsyncQuestion } from "./conversationFeed";
@@ -6,8 +7,9 @@ import type { QueryDraft } from "./Conversation";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { captureDraft } from "./draftTransaction";
 
-type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; drafts: Map<string, QueryDraft>; refresh: () => Promise<void> | undefined };
-function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Props, "questions"> & { question: AsyncQuestion }) {
+type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; drafts: Map<string, QueryDraft>; refresh: () => Promise<void> | undefined;
+  readMarker?: { sourceMessageId: string; rootRef: Ref<HTMLElement>; markerRef: Ref<HTMLDivElement> } };
+function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker }: Omit<Props, "questions" | "readMarker"> & { question: AsyncQuestion; endMarker?: Ref<HTMLDivElement> }) {
   const key = `${threadId}/question/${question.key}`;
   const [draft, setDraft] = useState<QueryDraft>(() => drafts.get(key) || { text: "" });
   const [custom, setCustom] = useState(() => !question.options.length || !!draft.text && !question.options.includes(draft.text));
@@ -82,12 +84,15 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh }: Omit<Pr
       {busy ? "提交中…" : waiting ? "核对回答状态" : "提交回答"}
     </button></div>
     {error && <p className="inline-error" role="alert">{error}</p>}
+    {endMarker && <div ref={endMarker} aria-hidden="true" style={{ height: 1 }} />}
   </form>;
 }
 export default function QuestionPrompts(props: Props) {
   if (!props.questions.length) return null;
-  return <section className="question-prompts" aria-label="等待回答的问题">
+  const lastObserved = props.questions.reduce((last, question, index) => question.sourceMessageId === props.readMarker?.sourceMessageId ? index : last, -1);
+  return <section ref={props.readMarker?.rootRef} className="question-prompts" aria-label="等待回答的问题">
     <strong>Codex 想确认</strong>
-    {props.questions.map(question => <QuestionCard key={question.key} threadId={props.threadId} question={question} disabled={props.disabled} drafts={props.drafts} refresh={props.refresh} />)}
+    {props.questions.map((question, index) => <QuestionCard key={question.key} threadId={props.threadId} question={question} disabled={props.disabled} drafts={props.drafts} refresh={props.refresh}
+      endMarker={index === lastObserved ? props.readMarker?.markerRef : undefined} />)}
   </section>;
 }

@@ -28,6 +28,14 @@ export function readLocalUnreadState(global, codexHome) {
   try { return readUnreadState(global, JSON.parse(readFileSync(join(codexHome, 'auth.json'), 'utf8')).auth_mode); }
   catch { return unknown(); }
 }
+export function readLocalReadStateSnapshot(codexHome, threadId) {
+  const authMode = JSON.parse(readFileSync(join(codexHome, 'auth.json'), 'utf8')).auth_mode;
+  const global = JSON.parse(readFileSync(join(codexHome, '.codex-global-state.json'), 'utf8'));
+  const state = readUnreadState(global, authMode);
+  if (!state.available || state.source !== 'desktop-v1') throw new Error('read_state_unavailable');
+  return { identityKey: hash(['execution-storage', authMode]),
+    executionHostKey: 'local:' + hash(['local', 'local', null]), unread: state.ids.has(threadId) };
+}
 export function parseRecordedTurnState(text) {
   const lines = text.split('\n').filter(line => line.trim());
   let state = 'unknown', latestTurn = null, contextTurn = null;

@@ -14,6 +14,7 @@
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
 | 列表、分组、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
+| 阅读后清除未读、同步 Codex 蓝点 | [已读同步](docs/design/2026-10-05-read-state-sync.md)：前台可见阅读、观察凭据与原生回读 |
 | 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |
 | 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
 | Markdown、Codex 专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)、[图片契约](docs/IMAGES.md) |
@@ -28,6 +29,7 @@
 | 范围 | 主要文件 |
 | --- | --- |
 | 来源/元数据/列表 | `server/source.mjs`、`server/unread.mjs`、`server/store.mjs`、`src/App.tsx`、`src/catalogReader.ts` |
+| 已读同步 | `server/read-state.mjs`、`bin/read-state.py`、`src/readObservation.ts` |
 | 原桌面控制与账本 | `server/desktop.mjs`、`server/bridge-process.mjs`、`bin/desktop-bridge.py`、`bin/request_actions.py` |
 | 历史读取与展示合并 | `server/history.mjs`、`src/conversationFeed.ts`、`src/transcript.ts` |
 | 会话交互与回执 | `src/Conversation.tsx`、`src/Outbox.tsx`、`src/QuestionPrompts.tsx`、`src/RequestActions.tsx`、`src/submissionReceipt.ts` |

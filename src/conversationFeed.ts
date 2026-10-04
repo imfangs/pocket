@@ -1,4 +1,5 @@
 import type { ThreadConnection } from "./threadConnection";
+import type { ReadObservation } from "./readObservation";
 
 export type Message = {
   id: string;
@@ -68,6 +69,7 @@ export type SavedTranscript = {
   hasMore?: boolean;
   turnTiming?: TurnTiming | null;
   checkedAt: number;
+  readObservation?: ReadObservation | null;
 };
 
 export function rememberHistory(cache: HistoryCache, id: string, history: History) {

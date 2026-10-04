@@ -28,6 +28,15 @@ const message = (id, role, texts, kinds, extra = {}) => JSON.stringify({
     ...(kinds ? { internal_chat_message_metadata_passthrough: { content_item_kinds: kinds, ...extra } } : {}),
   },
 });
+test('saved lifecycle aliases preserve turn identity and completion for reading observations', () => {
+  const data = parseHistory([
+    event('2026-09-28T00:00:00Z', 'turn_started', { turn_id: 'alias-turn' }),
+    message('alias-answer', 'assistant', ['An older compatible reply'], ['unknown'], { turn_id: 'alias-turn' }),
+    event('2026-09-28T00:00:01Z', 'turn_complete', { turn_id: 'alias-turn' }),
+  ].join('\n'));
+  assert.equal(data.turnTiming?.turnId, 'alias-turn');
+  assert.equal(data.turnTiming?.status, 'completed');
+});
 test("provenance separates injected instructions from authored user text, including mixed content", () => {
   const data = parseHistoryLines([
     message("injected", "user", ["Repository rules", "Environment"], ["agents_md.instructions", "environments.environment_context"]),

@@ -10,6 +10,7 @@ import { NavigatorStore, AppError } from "./store.mjs";
 import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
+import { ReadStateService } from "./read-state.mjs";
 import { Notifications } from "./notifications.mjs";
 import { sendCatalog } from "./catalog-response.mjs";
 import { MessageImages } from "./message-images.mjs";
@@ -53,6 +54,7 @@ export function makeApp(options = {}) {
     options.readHistory,
     { openThread, connectionTimeoutMs: options.connectionTimeoutMs, connectionPollMs: options.connectionPollMs },
   );
+  const readState = new ReadStateService(store, codexHome, options.readState);
   const notifications = new Notifications(store, desktop, options.notifications);
   const images = new MessageImages();
   desktop.onAccepted = (id, turnId) => {
@@ -249,9 +251,18 @@ export function makeApp(options = {}) {
       const transcript = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/transcript$/i);
       if (transcript && method === "GET") {
         const start = performance.now();
-        const data = images.attach(store.thread(transcript[1]), desktop.transcript(transcript[1]));
+        const data = images.attach(store.thread(transcript[1]), readState.observeTranscript(transcript[1], () => desktop.transcript(transcript[1])));
         res.setHeader("Server-Timing", `transcript;dur=${(performance.now() - start).toFixed(1)}`);
         return sendCatalog(res, data, req.headers["accept-encoding"]);
+      }
+      const markRead = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/read$/i);
+      if (markRead && method === "POST") {
+        const result = await readState.markRead(markRead[1], await body(req, 2048));
+        if (result.status === "read") {
+          sync();
+          return json(res, 200, { ...result, thread: store.thread(markRead[1]) });
+        }
+        return json(res, 200, result);
       }
       const image = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/images\/([a-f0-9]{64})$/i);
       if (image && method === "GET") {

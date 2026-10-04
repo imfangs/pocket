@@ -106,6 +106,9 @@ export default function App({
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null);
   const syncing = useRef<Promise<Catalog | undefined> | null>(null);
+  useEffect(() => {
+    window.dispatchEvent(new Event("pocket-reading-visibility-change"));
+  }, [mobile, settings, groupDialog]);
   useReloadGuard(() => hasUpdateBlockingDraft(conversationDrafts.current, conversationHistory.current)
     ? "还有未完成的输入，请处理后再更新。" : busy ? "操作尚未完成，请稍后更新。" : null);
   const listPanel = useRef<HTMLElement>(null);

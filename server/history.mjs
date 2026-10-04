@@ -7,6 +7,7 @@ import {
   realpathSync,
 } from "node:fs";
 import { join, isAbsolute, sep } from "node:path";
+import { createHash } from "node:crypto";
 import { AppError } from "./store.mjs";
 
 const injectedKinds = new Set([
@@ -52,6 +53,7 @@ export function parseHistory(text, startOffset = 0) {
     try {
       const record = JSON.parse(line),
         item = record.payload;
+      const lifecycleType = item?.type === "turn_started" ? "task_started" : item?.type === "turn_complete" ? "task_complete" : item?.type;
       const timestamp = Date.parse(record.timestamp);
       if (Number.isFinite(timestamp)) observedAt = timestamp;
       if (record.type === "event_msg" && item?.type === "item_completed" && item.item?.type === "AgentMessage")
@@ -67,16 +69,16 @@ export function parseHistory(text, startOffset = 0) {
         )) summaryIds.add(lastAssistant.id);
       }
       if (record.type === "turn_context" && item?.turn_id) currentTurnId = item.turn_id;
-      if (record.type === "event_msg" && ["task_started", "task_complete", "turn_aborted"].includes(item?.type)) {
-        const id = item.turn_id || (item.type === "turn_aborted" ? currentTurnId : null);
+      if (record.type === "event_msg" && ["task_started", "task_complete", "turn_aborted"].includes(lifecycleType)) {
+        const id = item.turn_id || (lifecycleType === "turn_aborted" ? currentTurnId : null);
         if (id && Number.isFinite(timestamp)) {
           const turn = turns.get(id) || { turnId: id, startedAt: null, durationMs: null };
-          if (item.type === "task_started") {
+          if (lifecycleType === "task_started") {
             Object.assign(turn, { startedAt: timestamp, status: "inProgress", durationMs: null });
             currentTurnId = latestTurnId = id;
             lastAssistant = null;
           } else {
-            turn.status = item.type === "turn_aborted" ? "interrupted" : "completed";
+            turn.status = lifecycleType === "turn_aborted" ? "interrupted" : "completed";
             turn.durationMs = number(item.duration_ms) ?? (turn.startedAt == null ? null : number(timestamp - turn.startedAt));
             if (!latestTurnId || currentTurnId === id) latestTurnId = id;
           }
@@ -140,7 +142,7 @@ export function parseHistory(text, startOffset = 0) {
   return { messages: visible, turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
 }
 
-export function readPersistedHistory(codexHome, threadId) {
+function openHistorySource(codexHome, threadId) {
   const db = new DatabaseSync(join(codexHome, "state_5.sqlite"), {
     readOnly: true,
   });
@@ -167,12 +169,32 @@ export function readPersistedHistory(codexHome, threadId) {
     throw new AppError("会话历史位置不在允许的来源目录", 403);
   const fd = openSync(file, "r");
   try {
-    const size = fstatSync(fd).size;
+    const stat = fstatSync(fd, { bigint: true });
+    if (!stat.isFile()) throw new AppError("会话历史不是普通文件", 403);
+    const size = Number(stat.size);
     const header = Buffer.alloc(Math.min(size, 65536));
     readSync(fd, header, 0, header.length, 0);
     const meta = JSON.parse(header.toString("utf8").split("\n")[0]);
     if (meta.type !== "session_meta" || meta.payload?.id !== threadId)
       throw new AppError("会话历史身份不匹配", 409);
+    return { fd, stat };
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
+}
+
+export function readHistorySourceVersion(codexHome, threadId) {
+  const { fd, stat } = openHistorySource(codexHome, threadId);
+  try {
+    return createHash("sha256").update(JSON.stringify([stat.dev, stat.ino, stat.size, stat.mtimeNs].map(String))).digest("hex");
+  } finally { closeSync(fd); }
+}
+
+export function readPersistedHistory(codexHome, threadId) {
+  const { fd, stat } = openHistorySource(codexHome, threadId);
+  try {
+    const size = Number(stat.size);
     const start = Math.max(0, size - 4 * 1024 * 1024);
     const buffer = Buffer.alloc(size - start);
     readSync(fd, buffer, 0, buffer.length, start);
