@@ -31,6 +31,10 @@
 
 本机服务通过 FBT local 更新，用户分组、注释、既有待发与发送账本在重启前后未改变；来源同步设置按正常流程刷新。公网发布身份以 `CURRENT.md` 最终回读为准。
 
+公网源码 `7233fbe`，Pages 部署 `ff866726-fdaf-4ac5-a712-74b93e766b27`，14 个公开文件哈希匹配、功能检查及 ready=true。独立公网对原“修炼”任务 POST 连接约448毫秒返回 connecting，随后回读 connected、desktop/resumed/idle/canSend=true；没有向此私人任务发送测试正文。内置浏览器启动与 `pocket-build` meta 匹配，未见页面错误。
+
+收尾限制：真实验收对象完成后，恢复原归档被原桌面 App Server 的独占 writer 锁拒绝，独立回读确认仍未归档且内容未改变。已完成不等于 writer 已关闭；本轮保留原记录，未删除锁、重启 Codex 或反复重试。待原实例归档或正式释放后恢复，私有回执 `canary-archive-restored.json`。该边界已回流到 FBT 的归档文档。
+
 ## 同轮能力复核
 
 安装版本仍为 `26.903.71938:8576` / CLI `0.153.4`。FBT 于 10-04 已验证官方 CLI 的归档/恢复，以及 `codex exec --json` 创建独立持久任务；见 [codex-threads](../../../../fbt/experimental/codex-threads/README.md)。因此旧文档中笼统的“新建/归档均无接口”已过时。
