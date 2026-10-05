@@ -94,7 +94,15 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
       if (result.requestId !== requestId) throw new Error("操作回执编号不匹配。");
       receive(result);
     }
-    catch (error) { if (mounted.current) setErrors(previous => ({ ...previous, [requestId]: (error as Error).message })); }
+    catch (error) {
+      const operation = receipts.current.get(requestId);
+      // The original POST may never have reached the Mac. Explicitly stopping
+      // recovery must also work when no server-side operation was reserved.
+      // This does not delete or deny the existence of a possible conversation.
+      if ((error as Error & { status?: number }).status === 404 && operation?.operation === "create" && operation.status === "unknown")
+        receive({ ...operation, status: "cancelled" });
+      else if (mounted.current) setErrors(previous => ({ ...previous, [requestId]: (error as Error).message }));
+    }
     finally { commands.current.delete(requestId); }
   };
   const notices = operations.filter(operation => !dismissed.has(operation.requestId) && (activeOperation(operation) || watched.current.has(operation.requestId) &&
