@@ -42,6 +42,7 @@ export async function api<T>(
     if (!response.ok)
       throw Object.assign(new Error(data.error || "请求失败"), {
         status: response.status,
+        ...(typeof data.code === "string" ? { code: data.code } : {}),
       });
     return data;
   } finally {

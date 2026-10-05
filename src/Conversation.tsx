@@ -33,12 +33,16 @@ export default function Conversation({
   historyCache,
   onConnect,
   onActivity,
+  managementBlocked = false,
+  managementHint,
 }: {
   thread: Thread;
   drafts: Map<string, QueryDraft>;
   historyCache: HistoryCache;
   onConnect: () => Promise<OpenThreadResult>;
   onActivity?: () => void;
+  managementBlocked?: boolean;
+  managementHint?: string;
 }) {
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
     [transcript, setTranscript] = useState<SavedTranscript | null>(() => historyCache.get(thread.id)?.transcript ?? null),
@@ -123,24 +127,25 @@ export default function Conversation({
     window.addEventListener("offline", update);
     return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
   }, []);
-  const targetAvailable = !thread.archived && !thread.missing;
+  const targetAvailable = !thread.archived && !thread.missing && !managementBlocked;
   const canQueue = targetAvailable && history?.canQueue !== false;
   const canAttemptSend = targetAvailable && !!(history?.canAttemptSend ?? history?.canSend);
   const staleConnection = observedConnection.status === "connected" && history?.source !== "desktop" && (history?.checkedAt ?? 0) > observedConnection.checkedAt;
-  const connectionHint = !targetAvailable ? history?.hint : connecting
+  const connectionHint = managementHint || (thread.archived ? "会话已归档，恢复后可继续。" : !targetAvailable ? history?.hint : connecting
     ? "正在连接 Mac 中的原任务。可以继续输入，草稿和待发消息会保留。"
     : observedConnection.status === "failed" ? connectionFailureHint(observedConnection.code)
     : history?.readOnlyReason === "app_version_changed" ? history.hint
     : staleConnection ? "暂时无法读取原任务的实时状态。草稿和待发消息已保留，可以重试连接。"
     : observedConnection.status === "connected" && history?.source !== "desktop" ? "已连接 Mac 中的原任务，正在同步发送状态。"
     : history?.source === "desktop" && observedConnection.status === "connected" ? `已连接 Mac 中的原任务。${history.hint || ""}`
-    : history?.source !== "desktop" && history ? "正在显示已保存的历史。连接原任务，或提交消息后自动连接。" : history?.hint;
+    : history?.source !== "desktop" && history ? "正在显示已保存的历史。连接原任务，或提交消息后自动连接。" : history?.hint);
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
+  const sendAndConnect = enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
   const connectingId = observedConnection.status === "connecting" ? observedConnection.requestId : null;
   useEffect(() => {
-    if (!connectingId) return;
+    if (!connectingId || managementBlocked) return;
     const subscription = startConnectionFeed({
       request: signal => api<ThreadConnection>(`/api/tasks/${thread.id}/connection`, "GET", undefined, { signal }),
       onData(data) {
@@ -153,7 +158,7 @@ export default function Conversation({
       onError() { setConnectionError("暂时无法核对连接状态，联网后会继续核对。草稿和待发消息已保留。"); },
     });
     return () => subscription.stop();
-  }, [thread.id, connectingId, load]);
+  }, [thread.id, connectingId, load, managementBlocked]);
   useEffect(() => {
     const subscription = startTranscriptFeed({
       request: signal => api<SavedTranscript>(`/api/tasks/${thread.id}/transcript`, "GET", undefined, { signal }),
@@ -181,6 +186,7 @@ export default function Conversation({
     return () => { subscription.stop(); if (textFeed.current === subscription) textFeed.current = null; };
   }, [thread.id, historyCache]);
   useEffect(() => {
+    if (managementBlocked) { setLoading(false); return; }
     const subscription = startConversationFeed({
       request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
       onData(data) {
@@ -209,7 +215,7 @@ export default function Conversation({
       subscription.stop();
       if (feed.current === subscription) feed.current = null;
     };
-  }, [thread.id, drafts, historyCache, updateDraft]);
+  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
@@ -362,10 +368,10 @@ export default function Conversation({
         </span>
           <TurnDuration timing={history?.turnTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
         </div>
-          <ContextStatus threadId={thread.id} history={history} disabled={!online || thread.archived || thread.missing} refresh={load} />
+          <ContextStatus threadId={thread.id} history={history} disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} />
         </div>
         <div className="conversation-controls">
-          <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} notify={setNotice} />
+          <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} notify={setNotice} />
           <button
             className="icon-button"
             aria-label="跳到最新消息"
@@ -445,10 +451,10 @@ export default function Conversation({
           {" "}<button type="button" className="text-button" disabled={!online || retryingRead} onClick={() => void retryRead()}>{retryingRead ? "正在核对…" : "同步已读"}</button>
         </p>}
       </div>
-      <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || !history?.canSend} drafts={drafts} refresh={load}
+      <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked || !history?.canSend} drafts={drafts} refresh={load}
         readMarker={readTargetKind === "question" && readItemId ? { sourceMessageId: readItemId, rootRef: questionReadRoot, markerRef: questionReadSentinel } : undefined} />
-      <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing} refresh={load} />
-      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity} />
+      <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} />
+      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
           发送给原任务的消息
@@ -473,7 +479,7 @@ export default function Conversation({
             }
           >
             <Send size={15} />
-            {sending ? "提交中…" : draft.requestId ? "核对发送状态" : enqueue ? "加入队列" : "发送"}
+            {sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送并连接" : enqueue ? "加入队列" : "发送"}
           </button>
         </div>
       </form>

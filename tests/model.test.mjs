@@ -68,7 +68,7 @@ test("hierarchical grouping and Chinese multi-term search preserve one original 
     0,
   );
 });
-test("an intentionally saved later task stays discoverable after original archival", () => {
+test("archival preserves later-task metadata while listing it only in the archive view", () => {
   const archived = { ...t, archived: true };
   assert.equal(
     filterThreads([archived], groups, "all", null, "", "", false, "updated")
@@ -78,7 +78,7 @@ test("an intentionally saved later task stays discoverable after original archiv
   assert.equal(
     filterThreads([archived], groups, "later", null, "", "", false, "updated")
       .length,
-    1,
+    0,
   );
   assert.equal(
     filterThreads(
@@ -93,6 +93,10 @@ test("an intentionally saved later task stays discoverable after original archiv
     ).length,
     1,
   );
+  const found = filterThreads([archived], groups, "archived", null, "", "", false, "updated")[0];
+  assert.equal(found.intent, t.intent);
+  assert.equal(found.note, t.note);
+  assert.deepEqual(found.groupIds, t.groupIds);
 });
 test('waiting-for-input view includes only available ended unread tasks, not ordinary idle or archived tasks',()=>{
  const items=[{...t,id:'unread',hasUnreadTurn:true,needsInput:true},{...t,id:'read',needsInput:false},{...t,id:'running',hasUnreadTurn:true,needsInput:false},{...t,id:'archived',needsInput:true,archived:true},{...t,id:'missing',needsInput:true,missing:true}];

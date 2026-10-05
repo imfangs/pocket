@@ -60,6 +60,7 @@ export class Notifications {
     return { enabled: false };
   }
   followSubmission(id, turnId) {
+    if (this.desktop.isLifecycleBlocked?.(id)) return;
     if (this.stopped || !this.devices().length || typeof turnId !== 'string') return;
     const previous = this.store.db.prepare('SELECT * FROM push_watches WHERE thread_id=?').get(id);
     // An accepted submission is a baseline even if the first browser history read never completed.
@@ -71,6 +72,7 @@ export class Notifications {
     this.store.db.prepare('DELETE FROM push_watches WHERE thread_id NOT IN(SELECT thread_id FROM push_watches ORDER BY touched_at DESC LIMIT 100)').run();
   }
   watch(id, history) {
+    if (this.desktop.isLifecycleBlocked?.(id)) return;
     if (this.stopped || !this.devices().length) return;
     const thread = this.store.thread(id), state = stateOf(history), now = this.now();
     const previous = this.store.db.prepare('SELECT * FROM push_watches WHERE thread_id=?').get(id);
@@ -106,7 +108,7 @@ export class Notifications {
       if (this.stopped) return;
       const candidates = this.store.db.prepare('SELECT * FROM push_watches ORDER BY checked_at ASC').all().filter(w => {
         let t; try { t = this.store.thread(w.thread_id); } catch { return false; }
-        if (t.archived || t.missing || now - w.checked_at < 10000) return false;
+        if (t.archived || t.missing || this.desktop.isLifecycleBlocked?.(w.thread_id) || now - w.checked_at < 10000) return false;
         const state = w.state ? JSON.parse(w.state) : null;
         return !state || state.active || state.requests.length || t.updatedAt !== w.source_updated;
       }).slice(0, 4);
@@ -135,7 +137,13 @@ export class Notifications {
     const rows = this.store.db.prepare("SELECT p.*,d.subscription FROM push_deliveries p JOIN push_devices d ON d.id=p.device_id WHERE p.status='pending' AND p.next_at<=? ORDER BY p.created_at LIMIT 12").all(now);
     for (const row of rows) {
       if (this.stopped) return;
+      if (this.desktop.isLifecycleBlocked?.(row.thread_id)) continue;
       try {
+        const thread = this.store.thread(row.thread_id);
+        if (thread.archived || thread.missing) {
+          this.store.db.prepare("UPDATE push_deliveries SET status='resolved' WHERE id=? AND device_id=?").run(row.id, row.device_id);
+          continue;
+        }
         if (row.kind === 'attention') {
           const fresh = stateOf(await this.desktop.history(row.thread_id));
           if (this.stopped) return;

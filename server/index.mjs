@@ -11,6 +11,7 @@ import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
 import { ReadStateService } from "./read-state.mjs";
+import { LifecycleService } from "./lifecycle.mjs";
 import { Notifications } from "./notifications.mjs";
 import { sendCatalog } from "./catalog-response.mjs";
 import { MessageImages } from "./message-images.mjs";
@@ -62,6 +63,7 @@ export function makeApp(options = {}) {
     catch { /* Notification bookkeeping must not change an accepted send receipt. */ }
   };
   const readSource = options.readSource || (() => readCodexSource(codexHome));
+  const lifecycle = new LifecycleService(store, desktop, codexHome, sync, options.lifecycle);
   const csrf = randomBytes(24).toString("hex");
   const hosts = new Set(
     options.hosts || ["127.0.0.1", "localhost", "[::1]", "threads.local"],
@@ -209,6 +211,24 @@ export function makeApp(options = {}) {
         return json(res, 200, connection);
       if (method === "GET" && path === "/api/catalog")
         return sendCatalog(res, { ...store.catalog(), csrfToken: csrf }, req.headers["accept-encoding"]);
+      if (method === "GET" && path === "/api/tasks/create-options")
+        return json(res, 200, lifecycle.options());
+      if (method === "POST" && path === "/api/tasks") {
+        const result = lifecycle.startCreate(await body(req, 2048));
+        return json(res, result.status === "pending" ? 202 : 200, result);
+      }
+      if (method === "GET" && path === "/api/task-operations")
+        return json(res, 200, lifecycle.list());
+      const lifecycleOperation = path.match(/^\/api\/task-operations\/([a-f0-9-]{36})(\/cancel)?$/i);
+      if (lifecycleOperation && method === "GET" && !lifecycleOperation[2])
+        return json(res, 200, await lifecycle.get(lifecycleOperation[1]));
+      if (lifecycleOperation && method === "POST" && lifecycleOperation[2])
+        return json(res, 200, await lifecycle.cancel(lifecycleOperation[1]));
+      const archiveThread = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/archive$/i);
+      if (archiveThread && method === "POST") {
+        const result = lifecycle.startArchive(archiveThread[1], await body(req, 2048));
+        return json(res, result.status === "pending" ? 202 : 200, result);
+      }
       if (method === "GET" && path === "/api/notifications")
         return json(res, 200, notifications.config());
       if (path === "/api/notifications/subscription" && method === "POST")
@@ -326,6 +346,7 @@ export function makeApp(options = {}) {
       const open = path.match(/^\/api\/open\/([a-f0-9-]{36})$/i);
       if (open && method === "POST") {
         const t = store.thread(open[1]);
+        desktop.requireLifecycleOpen(t.id);
         if (t.missing)
           throw new AppError("来源中已找不到这条会话，请先同步", 409);
         if (t.archived) {
@@ -371,13 +392,14 @@ export function makeApp(options = {}) {
   });
   const close = () => {
     clearInterval(interval);
+    lifecycle.stop();
     notifications.stop();
     desktop.stopQueue();
     store.close();
   };
-  server.on("listening", () => { desktop.startQueue(); notifications.start(); });
+  server.on("listening", () => { desktop.startQueue(); notifications.start(); lifecycle.start(); });
   server.on("close", close);
-  return { server, store, sync, auth };
+  return { server, store, sync, auth, lifecycle };
 }
 if (
   process.argv[1] &&

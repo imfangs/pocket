@@ -9,6 +9,7 @@ import {
   Folder,
   AlertCircle,
   ChevronLeft,
+  Plus,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -29,6 +30,11 @@ import { hasUpdateBlockingDraft } from "./updateDrafts";
 import PocketUpdate from "./PocketUpdate";
 import { filterThreads, groupPath } from "./model";
 import type { Catalog, Group, Thread, View } from "./types";
+import NewConversationDialog from "./NewConversationDialog";
+import TaskOperationStatus from "./TaskOperationStatus";
+import useTaskOperations from "./useTaskOperations";
+import { activeOperation } from "./taskOperations";
+import "./task-operations.css";
 function readPrefs() {
   try {
     return JSON.parse(localStorage.getItem("navigator.view") || "{}");
@@ -97,6 +103,8 @@ export default function App({
       undefined,
     ),
     [settings, setSettings] = useState(false),
+    [newConversationOpen, setNewConversationOpen] = useState(false),
+    [createRequestId, setCreateRequestId] = useState<string | null>(null),
     [showSeparators, setShowSeparators] = useState(
       () => localStorage.getItem("navigator.separators") === "true",
     );
@@ -106,9 +114,10 @@ export default function App({
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null);
   const syncing = useRef<Promise<Catalog | undefined> | null>(null);
+  const createRequest = useRef<string | null>(null), newDialogOpen = useRef(false);
   useEffect(() => {
     window.dispatchEvent(new Event("pocket-reading-visibility-change"));
-  }, [mobile, settings, groupDialog]);
+  }, [mobile, settings, groupDialog, newConversationOpen]);
   useReloadGuard(() => hasUpdateBlockingDraft(conversationDrafts.current, conversationHistory.current)
     ? "还有未完成的输入，请处理后再更新。" : busy ? "操作尚未完成，请稍后更新。" : null);
   const listPanel = useRef<HTMLElement>(null);
@@ -164,6 +173,30 @@ export default function App({
     // it settles so a send acknowledged during that read is not missed.
     void (syncing.current ?? Promise.resolve()).catch(() => {}).then(() => syncTasks(true)).catch(() => {});
   }, [syncTasks]);
+  const openCreatedThread = (id: string) => {
+    setSelected(id); setView("all"); setGroupId(null); setProject(""); setQuery("");
+    setSearchOpen(false); setChecked(new Set()); setMobile(false);
+  };
+  const taskOperations = useTaskOperations(operation => {
+    catalogReader.invalidate();
+    if (operation.thread) setCatalog(previous => {
+      const found = previous.threads.some(thread => thread.id === operation.thread!.id);
+      return { ...previous, threads: found ? previous.threads.map(thread => thread.id === operation.thread!.id ? { ...thread, archived: operation.thread!.archived, missing: operation.thread!.missing } : thread)
+        : [...previous.threads, operation.thread!] };
+    });
+    refreshAfterActivity();
+    if (operation.operation === "create" && operation.threadId && newDialogOpen.current && createRequest.current === operation.requestId) {
+      openCreatedThread(operation.threadId);
+      newDialogOpen.current = false; setNewConversationOpen(false);
+    }
+  });
+  const showNewConversation = async () => {
+    await flushRef.current?.();
+    const existing = taskOperations.operations.find(operation => operation.operation === "create" && activeOperation(operation));
+    createRequest.current = existing?.requestId ?? null;
+    setCreateRequestId(createRequest.current);
+    newDialogOpen.current = true; setNewConversationOpen(true);
+  };
   useEffect(() => {
     catalogReader.resume();
     const syncIfVisible = () => {
@@ -231,6 +264,8 @@ export default function App({
     [catalog, view, groupId, query, project, showSeparators, sort],
   );
   const current = catalog.threads.find((t) => t.id === selected);
+  const currentOperation = current ? taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create" && activeOperation(operation))
+    || taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create") : undefined;
   const selectedGroup = catalog.groups.find((g) => g.id === groupId);
   const title = view === "group" ? selectedGroup?.name || "分组" : titles[view];
   const unreadKnown = catalog.sourceInfo?.unread?.available === true;
@@ -400,6 +435,13 @@ export default function App({
               </h1>
             </div>
             <button
+              className="new-conversation-button"
+              aria-label="新建会话"
+              onClick={() => void guard(showNewConversation)}
+            >
+              <Plus size={18} /><span>新建会话</span>
+            </button>
+            <button
               className={`sync-button ${busy ? "spinning" : ""}`}
               onClick={() => { void syncTasks().catch(() => {}); }}
               disabled={busy || loading}
@@ -497,6 +539,16 @@ export default function App({
             </button>
           </div>
         )}
+        {taskOperations.notices.length > 0 && <div className="task-operation-notices" aria-label="会话操作状态">
+            {taskOperations.notices.map(operation => <TaskOperationStatus key={operation.requestId} operation={operation}
+              title={operation.threadId ? catalog.threads.find(thread => thread.id === operation.threadId)?.title : undefined}
+              error={taskOperations.errors[operation.requestId]}
+              onCheck={() => void taskOperations.check(operation.requestId)} onCancel={() => void taskOperations.cancel(operation.requestId)}
+              onOpen={operation.threadId ? () => void guard(async () => {
+                await flush(); openCreatedThread(operation.threadId!); taskOperations.dismiss(operation.requestId);
+              }) : undefined}
+              onDismiss={() => taskOperations.dismiss(operation.requestId)} />)}
+        </div>}
         <div className="content">
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel}>
               <TaskList
@@ -551,6 +603,14 @@ export default function App({
               groups={catalog.groups}
               onSave={saveTask}
               onOpen={open}
+              operation={currentOperation}
+              operationError={currentOperation ? taskOperations.errors[currentOperation.requestId] : undefined}
+              onArchive={async (thread, archived) => {
+                if (taskOperations.operations.some(operation => operation.threadId === thread.id && activeOperation(operation))) return;
+                await taskOperations.start(archived ? "archive" : "restore", { archived }, thread.id);
+              }}
+              onCheckOperation={id => void taskOperations.check(id)}
+              onCancelOperation={id => void taskOperations.cancel(id)}
               onActivity={refreshAfterActivity}
               onClose={() =>
                 void guard(async () => {
@@ -618,6 +678,19 @@ export default function App({
           }}
         />
       )}
+      {newConversationOpen && <NewConversationDialog preferredCwd={current?.cwd || catalog.projects.find(item => item.id === project)?.paths[0]}
+        operation={taskOperations.operations.find(operation => operation.requestId === createRequestId)}
+        operationError={createRequestId ? taskOperations.errors[createRequestId] : undefined}
+        onCreate={async input => {
+          if (createRequest.current && activeOperation(taskOperations.operations.find(operation => operation.requestId === createRequest.current))) return;
+          const requestId = crypto.randomUUID(); createRequest.current = requestId; setCreateRequestId(requestId);
+          const result = await taskOperations.start("create", input, undefined, requestId);
+          if (result.requestId !== requestId) { createRequest.current = result.requestId; setCreateRequestId(result.requestId); }
+          return result;
+        }}
+        onCheck={() => { if (createRequestId) void taskOperations.check(createRequestId); }}
+        onCancelOperation={() => { if (createRequestId) void taskOperations.cancel(createRequestId); }}
+        onClose={() => { newDialogOpen.current = false; setNewConversationOpen(false); }} />}
       {settings && (
         <SettingsDialog
           catalog={catalog}

@@ -37,7 +37,7 @@ test('failed connection preserves queued text and draft, and offers an explicit 
 test('verified connection does not grant sending permission before a fresh desktop snapshot', () => {
   const { html } = render('connected', { outbox: [] });
   assert.match(html, /已连接 Mac 中的原任务，正在同步发送状态/);
-  assert.match(html, /加入队列/);
+  assert.match(html, /发送并连接/);
   assert.doesNotMatch(html, />发送<\/button>/);
 });
 

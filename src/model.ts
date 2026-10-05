@@ -49,7 +49,7 @@ export function filterThreads(
     .filter((t) => {
       if (!showSeparators && t.separator) return false;
       if (view === "archived" && !t.archived) return false;
-      if (["all", "pinned", "group", "unassigned", "unread"].includes(view) && t.archived)
+      if (view !== "archived" && t.archived)
         return false;
       if (view === "unread" && (!t.needsInput || t.missing || t.separator)) return false;
       if (project && t.projectId !== project) return false;

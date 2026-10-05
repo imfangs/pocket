@@ -21,6 +21,8 @@ import { bindInspectorSwipe, bindInspectorViewport } from "./mobileInspector";
 import type { HistoryCache } from "./conversationFeed";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import type { OpenThreadResult } from "./threadConnection";
+import { activeOperation, operationText, type TaskOperation } from "./taskOperations";
+import TaskOperationStatus from "./TaskOperationStatus";
 type Draft = {
   intent: Intent;
   note: string;
@@ -43,6 +45,11 @@ interface Props {
     patch: Draft & { expectedRevision: number },
   ) => Promise<Thread>;
   onOpen: (t: Thread) => Promise<OpenThreadResult>;
+  operation?: TaskOperation;
+  operationError?: string;
+  onArchive: (thread: Thread, archived: boolean) => Promise<void>;
+  onCheckOperation: (requestId: string) => void;
+  onCancelOperation: (requestId: string) => void;
   onClose: () => void;
   onActivity?: () => void;
   flushRef: MutableRefObject<(() => Promise<void>) | null>;
@@ -67,6 +74,7 @@ export default function Inspector(p: Props) {
     [error, setError] = useState("");
   const pendingSave = useRef<Promise<void> | null>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(base);
+  const managementBlocked = activeOperation(p.operation);
   useReloadGuard(() => saving || pendingSave.current ? "整理正在保存，请稍后更新。"
     : dirty ? "整理还有未保存的修改，请保存后再更新。" : null);
   useEffect(() => {
@@ -175,6 +183,8 @@ export default function Inspector(p: Props) {
           tab === "conversation" ? "inspector-conversation" : "inspector-body"
         }
       >
+        {p.operation && <TaskOperationStatus operation={p.operation} error={p.operationError}
+          onCheck={() => p.onCheckOperation(p.operation!.requestId)} onCancel={() => p.onCancelOperation(p.operation!.requestId)} />}
         <div className="inspector-summary">
           <div className="source-line">
             {p.thread.projectName}
@@ -187,7 +197,7 @@ export default function Inspector(p: Props) {
           <button
             className="primary open-primary"
             onClick={open}
-            disabled={saving || p.thread.missing}
+            disabled={saving || p.thread.missing || managementBlocked}
           >
             在 Mac 打开原任务
             <ArrowUpRight size={17} />
@@ -200,6 +210,8 @@ export default function Inspector(p: Props) {
             drafts={p.queryDrafts}
             historyCache={p.historyCache}
             onActivity={p.onActivity}
+            managementBlocked={managementBlocked}
+            managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
             onConnect={async () => {
               await save();
               return p.onOpen(p.thread);
@@ -340,6 +352,17 @@ export default function Inspector(p: Props) {
                 复制原会话链接
               </button>
             </details>
+            <div className="archive-conversation">
+              <button type="button" className="secondary" disabled={saving || p.thread.missing || managementBlocked}
+                onClick={async () => {
+                  try { await save(); await p.onArchive(p.thread, !p.thread.archived); }
+                  catch (failure) { setError((failure as Error).message); }
+                }}>
+                {p.thread.archived ? "恢复会话" : "归档会话"}
+              </button>
+              {p.operation?.code === "outbox_not_empty" && <button className="text-button" onClick={() => setTab("conversation")}>查看待发消息</button>}
+              <p className="field-help">{p.thread.archived ? "恢复原会话后可继续发送。" : "归档会同步到 Codex，已有草稿会保留。"}</p>
+            </div>
           </>
         )}
       </div>

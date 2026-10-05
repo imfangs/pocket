@@ -44,12 +44,26 @@ export class DesktopService {
     store.db.exec("CREATE TABLE IF NOT EXISTS request_responses(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,request_key TEXT NOT NULL,decision TEXT NOT NULL,status TEXT NOT NULL,code TEXT,created_at INTEGER NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS question_answers(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,question_key TEXT NOT NULL)");
   }
+  isLifecycleBlocked(id) { return this.lifecycleBlocked?.(id) === true; }
+  requireLifecycleOpen(id) {
+    if (this.isLifecycleBlocked(id)) throw new AppError("此会话正在等待归档或核对管理操作，请先取消或完成该操作", 409);
+  }
+  suspendConnection(id) {
+    this.cache.delete(id);
+    const entry = this.connections.get(id);
+    if (entry?.state.status === "connecting") {
+      entry.state.status = "failed";
+      entry.state.code = "lifecycle_pending";
+      entry.controller.abort();
+    }
+  }
   connection(id) {
     this.store.thread(id);
     const entry = this.connections.get(id);
     return entry ? { ...entry.state } : { status: "idle" };
   }
   connect(id, { open = true } = {}) {
+    this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing) throw new AppError("请先恢复这条原任务", 409);
     if (!this.openThread) throw new AppError("当前环境无法连接桌面原任务", 503);
@@ -116,6 +130,7 @@ export class DesktopService {
     }
   }
   connectForSubmission(id) {
+    if (this.isLifecycleBlocked(id)) return;
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing) return;
     if (!this.openThread || this.sending.has(id) || this.stops.pause(id) || this.stops.pending(id) || this.compactionPending(id)) return;
@@ -130,6 +145,13 @@ export class DesktopService {
   }
   async history(id) {
     this.store.thread(id);
+    if (this.isLifecycleBlocked(id)) {
+      let data;
+      try { data = this.readHistory(this.codexHome, id); }
+      catch { data = { source: "rollout", messages: [], runtime: "unavailable" }; }
+      return this.withActions(id, { ...data, canSend: false, canStop: false, canCompact: false,
+        hint: "此会话有待完成的归档或管理操作；可以阅读历史，取消后可继续。", checkedAt: Date.now() });
+    }
     const cached = this.cache.get(id);
     if (cached && (cached.pending || Date.now() - cached.at < (cached.runtime === "active" ? 750 : 3000)))
       return this.withActions(id, await cached.promise);
@@ -238,7 +260,7 @@ export class DesktopService {
     const queuePaused = this.stops.pause(id);
     const outbox = this.outbox(id);
     const thread = this.store.thread(id);
-    const targetAvailable = !thread.archived && !thread.missing;
+    const targetAvailable = !thread.archived && !thread.missing && !this.isLifecycleBlocked(id);
     const pendingRequests = (data.pendingRequests || []).map(request => ({ ...request,
       response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
     const asyncQuestions = (data.asyncQuestions || []).map(question => ({ ...question,
@@ -256,6 +278,7 @@ export class DesktopService {
       compactionRequest: action ? { requestId: action.id, status: action.status, code: action.code } : null };
   }
   async answer(id, questionKey, input) {
+    this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     if (!input || Object.keys(input).some(k => !["requestId", "text"].includes(k)) ||
         typeof input.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestId) ||
@@ -287,10 +310,12 @@ export class DesktopService {
     return this.getReceipt(id, input.requestId);
   }
   async stop(id, input) {
+    this.requireLifecycleOpen(id);
     try { return await this.stops.stop(id, input); }
     finally { this.cache.delete(id); }
   }
   async resumeQueue(id, input) {
+    this.requireLifecycleOpen(id);
     this.stops.resume(id, input);
     this.cache.delete(id);
     await this.processQueueForThread(id);
@@ -302,6 +327,7 @@ export class DesktopService {
     return row || { responseId, status: "not_found" };
   }
   async respond(id, requestKey, input) {
+    this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     const hasAnswers = input?.answers && typeof input.answers === "object" && !Array.isArray(input.answers);
     if (!input || Object.keys(input).some(k => !["responseId", "decision", "answers"].includes(k)) ||
@@ -331,6 +357,7 @@ export class DesktopService {
     return this.getResponseReceipt(id, input.responseId);
   }
   async compact(id, input) {
+    this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     if (!input || Object.keys(input).some(k => k !== "requestId") ||
         typeof input.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestId))
@@ -434,6 +461,7 @@ export class DesktopService {
     return { outbox: this.outbox(id) };
   }
   async dispatchQueued(id, requestId, input, delivery = "now", resumeAfterTurnId = null) {
+    this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing) throw new AppError("请先在 Mac 中恢复原任务", 409);
     if (this.compactionPending(id)) throw new AppError("请先核对上下文压缩状态", 409);
@@ -470,6 +498,7 @@ export class DesktopService {
     for (const id of ids) await this.processQueueForThread(id);
   }
   async processQueueForThread(id) {
+    if (this.isLifecycleBlocked(id)) return;
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pause(id) || this.stops.pending(id)) return;
     const head = this.outbox(id)[0];
@@ -505,6 +534,7 @@ export class DesktopService {
     }
   }
   async send(id, input) {
+    this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     if (thread.missing || thread.archived)
       throw new AppError("请先在 Mac 中恢复这条原任务", 409);
