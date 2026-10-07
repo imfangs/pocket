@@ -17,7 +17,13 @@ function nativeRequest(script,payload) {
 }
 
 export function creationLocations(store,codexHome) {
-  const candidates=new Map(), projects=[];
+  const candidates=new Map(), projects=[], paths=new Map();
+  const canonicalPath=path=>{
+    if(paths.has(path))return paths.get(path);
+    let cwd=null;
+    try { if(typeof path==='string'&&path.startsWith('/')&&statSync(path).isDirectory())cwd=realpathSync(path); }catch{}
+    paths.set(path,cwd);return cwd;
+  };
   let db;
   try {
     db=new DatabaseSync(join(codexHome,'state_5.sqlite'),{readOnly:true});
@@ -26,20 +32,19 @@ export function creationLocations(store,codexHome) {
   } catch { /* Recent verified directories remain usable without project metadata. */ }
   finally { db?.close(); }
   const add=(path,label,projectId=null,projectName=null)=>{
-    try {
-      if(typeof path!=='string'||!path.startsWith('/')||!statSync(path).isDirectory())return;
-      const cwd=realpathSync(path);
-      const id=digest([cwd,projectId]);
-      if(!candidates.has(id))candidates.set(id,{id,label:String(label||cwd).slice(0,220),cwd,projectId,projectName});
-    } catch { /* A removed directory is not a creation option. */ }
+    const cwd=canonicalPath(path);
+    if(!cwd)return;
+    const id=digest([cwd,projectId]);
+    if(!candidates.has(id))candidates.set(id,{id,label:String(label||cwd).slice(0,220),cwd,projectId,projectName});
+    return cwd;
   };
-  for(const p of projects)add(p.path,p.name,p.id,p.name);
+  const projectPaths=new Set();
+  for(const p of projects){const cwd=add(p.path,p.name,p.id,p.name);if(cwd)projectPaths.add(cwd);}
   const catalog=store.catalog();
-  const projectPaths=new Set(projects.map(p=>p.path));
   for(const project of catalog.projects)for(const path of project.paths||[])
-    if(!projectPaths.has(path))add(path,project.name);
+    if(!projectPaths.has(canonicalPath(path)))add(path,project.name);
   for(const thread of [...catalog.threads].sort((a,b)=>b.updatedAt-a.updatedAt))
-    if(!thread.missing&&!projectPaths.has(thread.cwd))add(thread.cwd,thread.cwd);
+    if(!thread.missing&&!projectPaths.has(canonicalPath(thread.cwd)))add(thread.cwd,thread.cwd);
   return [...candidates.values()].slice(0,200);
 }
 

@@ -14,7 +14,7 @@ export type TaskOperation = {
   createdAt?: number;
   updatedAt?: number;
 };
-export type CreateLocation = { id: string; label: string; cwd: string; projectId?: string; projectName?: string };
+export type CreateLocation = { id: string; label: string; cwd: string; projectId?: string | null; projectName?: string | null };
 const creationRecoveryKey = "pocket.pending-creation-ids.v1";
 const validId = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 export function readCreationRecoveryIds(storage?: Pick<Storage, "getItem">): string[] {
