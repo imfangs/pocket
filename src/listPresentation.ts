@@ -1,10 +1,19 @@
 import type { Thread, View } from "./types";
+import type { TaskStatus } from "./taskStatuses";
 
-export function threadListStates(thread: Thread, hasDraft = false) {
+export function threadListStates(thread: Thread, hasDraft = false, runtimeStatus?: TaskStatus) {
   const states: { key: string; label: string }[] = [];
   if (hasDraft) states.push({ key: "draft", label: "草稿" });
   if (thread.archived) states.push({ key: "archived", label: "已归档" });
-  else if (thread.needsInput && !thread.missing) states.push({ key: "unread", label: "未读" });
+  else if (!thread.missing) {
+    if (runtimeStatus === "running") states.push({ key: "running", label: "运行中" });
+    else if (runtimeStatus === "waiting_input") states.push({ key: "waiting_input", label: "等待回答" });
+    else if (runtimeStatus === "waiting_approval") states.push({ key: "waiting_approval", label: "等待确认" });
+    else {
+      if (runtimeStatus === "unknown") states.push({ key: "unknown", label: "状态待确认" });
+      if (thread.needsInput) states.push({ key: "unread", label: "未读" });
+    }
+  }
   if (thread.missing) states.push({ key: "missing", label: "来源待核对" });
   return states;
 }

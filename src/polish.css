@@ -83,12 +83,15 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .task-note-label { margin-right:5px; color:var(--text-secondary); }
 .pin-icon { width:12px; color:var(--muted); }
 .intent-dot { padding:1px 5px; border-radius:4px; }
-.intent-dot.active { color:var(--positive); background:var(--positive-soft); }
+.intent-dot.active { color:var(--text-secondary); background:var(--soft); }
 .intent-dot.later, .due-label { color:var(--warning); }
 .intent-dot.reference { color:var(--accent); }
 .task-state-badge { color:var(--warning); background:var(--warning-soft); border-radius:4px; padding:1px 5px; font-size:11px; }
 .task-state-badge[data-state="unread"] { color:var(--accent); background:var(--accent-soft); }
-.task-state-badge[data-state="archived"] { color:var(--muted); background:var(--soft); }
+.task-state-badge[data-state="archived"], .task-state-badge[data-state="unknown"] { color:var(--muted); background:var(--soft); }
+.task-state-badge[data-state="running"] { display:inline-flex; align-items:center; gap:5px; color:var(--positive); background:var(--positive-soft); }
+.task-state-badge[data-state="running"]::before { content:""; width:5px; height:5px; border-radius:50%; background:currentColor; }
+.task-runtime-availability { margin:0; padding:0 18px 10px; color:var(--muted); font-size:11px; line-height:1.5; }
 .list-end { color:var(--muted); padding:24px; font-size:11px; }
 .empty-list { padding:64px 28px; color:var(--muted); }
 .empty-list > svg { width:26px; color:var(--muted); }

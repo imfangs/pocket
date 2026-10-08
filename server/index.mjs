@@ -12,6 +12,7 @@ import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
 import { ReadStateService } from "./read-state.mjs";
 import { LifecycleService } from "./lifecycle.mjs";
+import { TaskStatusService } from "./task-statuses.mjs";
 import { Notifications } from "./notifications.mjs";
 import { sendCatalog } from "./catalog-response.mjs";
 import { MessageImages } from "./message-images.mjs";
@@ -64,6 +65,9 @@ export function makeApp(options = {}) {
   };
   const readSource = options.readSource || (() => readCodexSource(codexHome));
   const lifecycle = new LifecycleService(store, desktop, codexHome, sync, options.lifecycle);
+  const taskStatuses = new TaskStatusService({ codexHome, threads: () => store.catalog().threads,
+    excluded: () => lifecycle.blocked, ...options.taskStatuses });
+  lifecycle.onBlockedChange = () => taskStatuses.invalidate();
   const csrf = randomBytes(24).toString("hex");
   const hosts = new Set(
     options.hosts || ["127.0.0.1", "localhost", "[::1]", "threads.local"],
@@ -211,6 +215,8 @@ export function makeApp(options = {}) {
         return json(res, 200, connection);
       if (method === "GET" && path === "/api/catalog")
         return sendCatalog(res, { ...store.catalog(), csrfToken: csrf }, req.headers["accept-encoding"]);
+      if (method === "GET" && path === "/api/task-statuses")
+        return json(res, 200, await taskStatuses.snapshot());
       if (method === "GET" && path === "/api/tasks/create-options")
         return json(res, 200, lifecycle.options());
       if (method === "POST" && path === "/api/tasks") {
@@ -392,6 +398,7 @@ export function makeApp(options = {}) {
   });
   const close = () => {
     clearInterval(interval);
+    taskStatuses.stop();
     lifecycle.stop();
     notifications.stop();
     desktop.stopQueue();

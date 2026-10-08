@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import type { Group, Thread, View } from "./types";
 import { ago, today, groupPath } from "./model";
 import { emptyListContent, threadListStates } from "./listPresentation";
+import type { TaskStatus } from "./taskStatuses";
 interface Props {
   threads: Thread[];
   groups: Group[];
@@ -33,6 +34,9 @@ interface Props {
   onClearFilters?: () => void;
   hasFilters?: boolean;
   draftIds?: ReadonlySet<string>;
+  runtimeStates?: ReadonlyMap<string, TaskStatus>;
+  runtimeUnavailable?: boolean;
+  runtimeLoading?: boolean;
 }
 export default function TaskList(p: Props) {
   const [limit, setLimit] = useState(80);
@@ -104,6 +108,9 @@ export default function TaskList(p: Props) {
           </button>
         </div>
       )}
+      {(p.runtimeUnavailable || p.runtimeLoading) && <p className="task-runtime-availability" role="status">
+        {p.runtimeUnavailable ? "运行状态暂不可用" : "正在读取运行状态…"}
+      </p>}
       {p.threads.length === 0 ? (
         <div className="empty-list">
           {p.query ? <Search size={30} /> : <Inbox size={32} />}
@@ -118,7 +125,8 @@ export default function TaskList(p: Props) {
           {p.threads.slice(0, limit).map((t) => {
             const due =
               t.intent === "later" && t.reviewAt && t.reviewAt <= today();
-            const states = threadListStates(t, p.draftIds?.has(t.id));
+            const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
+            const states = threadListStates(t, p.draftIds?.has(t.id), runtime);
             return (
               <div
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${p.checked.has(t.id) ? "is-checked" : ""}`}

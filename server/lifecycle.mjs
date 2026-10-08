@@ -72,7 +72,9 @@ export class LifecycleService {
       try { for(const id of JSON.parse(row.plan||'{}').threadIds||[]){next.add(id);owners.set(id,row.id);} }catch{}
     }
     for(const id of next)if(!this.blocked.has(id))this.desktop.suspendConnection?.(id);
+    const changed=next.size!==this.blocked.size||[...next].some(id=>!this.blocked.has(id));
     this.blocked=next;this.blockedOwners=owners;
+    if(changed)this.onBlockedChange?.();
   }
   options() { return {available:true,locations:this.locations()}; }
   row(id) {

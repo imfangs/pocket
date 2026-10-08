@@ -24,6 +24,7 @@
 - `GET /api/auth/status`、`POST /api/auth/login`、`POST /api/auth/logout`：口令与浏览器会话。
 - `GET /api/connection`：认证后查看 Mac 隧道与固定入口登记状态。
 - `GET /api/catalog`：任务、分组、项目、来源时间/错误、当前会话 CSRF token。
+- `GET /api/task-statuses`：当前原桌面候选会话的短期执行状态；只读、共享、有界，来源与未知状态边界见[列表运行状态](design/2026-10-08-running-status.md)。
 - `POST /api/sync`：只读刷新来源。
 - `PATCH /api/tasks/:id`：intent、note、reviewAt、groupIds、expectedRevision；拒绝其他字段。
 - `POST /api/batch`：`{ids,change:{intent?,groupId?}}`，最多 2000 条。

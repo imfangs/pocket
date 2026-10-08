@@ -32,6 +32,7 @@ import type { Catalog, Group, Thread, View } from "./types";
 import NewConversationDialog from "./NewConversationDialog";
 import TaskOperationStatus from "./TaskOperationStatus";
 import useTaskOperations from "./useTaskOperations";
+import useTaskStatuses from "./useTaskStatuses";
 import { activeOperation } from "./taskOperations";
 import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import "./task-operations.css";
@@ -84,6 +85,7 @@ export default function App({
   footerActions?: React.ReactNode;
 }) {
   const [prefs] = useState(readPrefs);
+  const taskStatuses = useTaskStatuses();
   const [, setDraftIndicatorRevision] = useState(0);
   const [conversationDrafts] = useState(() => ({ current: createDraftMap(() => setDraftIndicatorRevision(value => value + 1)) }));
   const [narrow, setNarrow] = useState(() => matchMedia("(max-width:760px)").matches);
@@ -566,6 +568,9 @@ export default function App({
         <div className="content">
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}>
               <TaskList
+                runtimeStates={taskStatuses.runtimeStates}
+                runtimeUnavailable={taskStatuses.runtimeUnavailable}
+                runtimeLoading={taskStatuses.runtimeLoading}
                 onCreate={() => void guard(showNewConversation)}
                 onShowAll={() => switchView("all")}
                 onRefresh={() => void syncTasks().catch(() => {})}
