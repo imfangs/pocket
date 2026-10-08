@@ -58,3 +58,7 @@ node bin/verify-public.mjs https://x.fangs.cc
 口令文件直接在 Mac 本地打开后输入手机。请勿将口令放进 URL、仓库或分享截图。手机安装须用正式固定地址；旧 trycloudflare 地址会在连接器重启后失效。
 
 2026-10-08 发布回读发现旧 Quick Tunnel 持续返回 `Unauthorized: Tunnel not found`：连接器进程仍在，但 `/health` 的 connected/published 已为 false，登记已过期。按现有配置重启连接器后生成新通道并重新登记，随后独立回读健康200、公网认证目录200；Mac API与Codex未重启。静态文件已上传时仍使用同一部署的 `resume --publish --resume-verification`，没有再次上传。证据 `.local/qa/notion-polish-2026-10-08/` 的 `tunnel-recovered.json`、`resume.json`、`public-readback.json`。这次恢复不构成长期隧道稳定性保证。
+
+2026-10-08 同日后续，方帅反馈手机「Mac 暂时不可达」，随后确认「已经恢复」。日志记录13:44:27与Cloudflare边缘断线、13:44:34重连，之后还有重连与登记网络错误；检查时本机API和隧道直连均200。固定域名一度在Node/curl中连接超时：对DNS当时返回的两个地址做保留Host/SNI/TLS校验的临时对照，172.66.47.102返回200、172.66.44.154握手超时；没有修改DNS或固定IP。最后用普通域名回读 `/api/health` 为200（14.48秒）、匿名 `/api/catalog` 为401（4.18秒），与手机恢复反馈一致。本次未重启服务或重新发布；属于恢复已确认但时延仍偏高的公网链路波动。证据 `.local/qa/connection-outage-2026-10-08/`。
+
+此轮同时核对了诊断边界：本机连接器的 `ok` 只验证日志连接标志和未过期登记，并非手机端到端可达证明。Worker的「Mac暂时不可达」对应上游5xx/重定向，网络异常使用另一条提示；仅凭用户文案或进程存活不能确定根因。后续若继续改进连接器，应补充真实通路检测、失效隧道恢复和登记回执的代际保护，保留发送请求不自动重放的边界。
