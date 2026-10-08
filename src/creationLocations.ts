@@ -40,6 +40,15 @@ export function creationDirectoryChoices(directories: readonly CreationDirectory
     ? { ...choice, label: `${paths[index].basename} · ${choice.directory.cwd}` } : choice);
 }
 
+export function searchCreationDirectories(choices: ReturnType<typeof creationDirectoryChoices>, query: string) {
+  const terms = query.normalize("NFKC").toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!terms.length) return choices;
+  return choices.filter(choice => {
+    const text = `${choice.label} ${choice.directory.cwd}`.normalize("NFKC").toLocaleLowerCase();
+    return terms.every(term => text.includes(term));
+  });
+}
+
 export function initialCreationDirectory(directories: readonly CreationDirectory[], preferredCwd?: string) {
   return directories.find(directory => directory.cwd === preferredCwd)?.cwd || (directories.length === 1 ? directories[0].cwd : "");
 }

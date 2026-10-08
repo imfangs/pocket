@@ -1,8 +1,8 @@
 html, body { margin: 0; }
-:root { --boot-bg: #faf9fc; --boot-ink: #24242b; --boot-accent: #6254c7; --boot-muted: #737381; }
-html[data-theme="dark"] { --boot-bg: #18181e; --boot-ink: #eceaf2; --boot-accent: #b9a6ff; --boot-muted: #b2adbf; }
+:root { --boot-bg: #ffffff; --boot-ink: #292824; --boot-accent: #6f6e67; --boot-muted: #6f6e67; }
+html[data-theme="dark"] { --boot-bg: #191919; --boot-ink: #e9e9e5; --boot-accent: #a4a49b; --boot-muted: #bcbcb4; }
 @media (prefers-color-scheme: dark) {
-  html:not([data-theme]) { --boot-bg: #18181e; --boot-ink: #eceaf2; --boot-accent: #b9a6ff; --boot-muted: #b2adbf; }
+  html:not([data-theme]) { --boot-bg: #191919; --boot-ink: #e9e9e5; --boot-accent: #a4a49b; --boot-muted: #bcbcb4; }
 }
 .boot-screen {
   box-sizing: border-box; position: relative; min-height: 100dvh; width: 100%;

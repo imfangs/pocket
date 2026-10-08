@@ -1,5 +1,4 @@
 import {
-  Check,
   Clock3,
   Search,
   Pin,
@@ -10,6 +9,7 @@ import {
 import { useEffect, useState } from "react";
 import type { Group, Thread, View } from "./types";
 import { ago, today, groupPath } from "./model";
+import { emptyListContent, threadListStates } from "./listPresentation";
 interface Props {
   threads: Thread[];
   groups: Group[];
@@ -27,10 +27,19 @@ interface Props {
   busy: boolean;
   query: string;
   onClearQuery: () => void;
+  onCreate?: () => void;
+  onShowAll?: () => void;
+  onRefresh?: () => void;
+  onClearFilters?: () => void;
+  hasFilters?: boolean;
+  draftIds?: ReadonlySet<string>;
 }
 export default function TaskList(p: Props) {
   const [limit, setLimit] = useState(80);
   const [selecting, setSelecting] = useState(false);
+  const empty = emptyListContent({ view: p.view, query: p.query, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending });
+  const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll
+    : empty.action === "refresh" ? p.onRefresh : empty.action === "clearFilters" ? p.onClearFilters : p.onClearQuery;
   useEffect(() => setLimit(80), [p.threads.length, p.query, p.view]);
   return (
     <div
@@ -84,7 +93,7 @@ export default function TaskList(p: Props) {
               onChange={p.onCheckAll}
               aria-label="全选当前结果"
             />
-            任务
+            会话
           </label>
           <button
             className="mobile-selection-toggle"
@@ -98,39 +107,18 @@ export default function TaskList(p: Props) {
       {p.threads.length === 0 ? (
         <div className="empty-list">
           {p.query ? <Search size={30} /> : <Inbox size={32} />}
-          <h2>
-            {p.view === "unread" && !p.unreadAvailable
-              ? "暂时无法读取待输入状态"
-              : p.query
-              ? "没有找到相关任务"
-              : p.view === "unread"
-                ? "暂时没有待输入任务"
-              : p.view === "later"
-                ? "想以后继续的，留在这里"
-                : "这里还没有任务"}
-          </h2>
-          <p>
-            {p.view === "unread" && !p.unreadAvailable
-              ? "请稍后刷新重试。"
-              : p.query
-              ? "试试任务名、项目名或接续说明里的词。"
-              : p.view === "unread"
-                ? p.unreadPending ? "有未读任务尚未确认结束。" : "任务结束并有新提醒后，会出现在这里。"
-              : p.view === "later"
-                ? "选中一条任务，标记「稍后继续」。下次回来，从这里接上。"
-                : "可以切换视图，或把任务拖入这个分组。"}
-          </p>
-          {p.query && (
-            <button className="secondary" onClick={p.onClearQuery}>
-              清除搜索
-            </button>
-          )}
+          <h2>{empty.title}</h2>
+          <p>{empty.description}</p>
+          {emptyAction && empty.actionLabel && <div className="empty-list-actions">
+            <button className={empty.action === "create" ? "primary" : "secondary"} onClick={emptyAction} disabled={p.busy}>{empty.actionLabel}</button>
+          </div>}
         </div>
       ) : (
         <div className="task-list" role="list" aria-label="任务列表">
           {p.threads.slice(0, limit).map((t) => {
             const due =
               t.intent === "later" && t.reviewAt && t.reviewAt <= today();
+            const states = threadListStates(t, p.draftIds?.has(t.id));
             return (
               <div
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${p.checked.has(t.id) ? "is-checked" : ""}`}
@@ -152,13 +140,13 @@ export default function TaskList(p: Props) {
                 </label>
                 <button
                   className="task-select"
+                  data-thread-id={t.id}
                   onClick={() => p.onSelect(t.id)}
                   aria-pressed={p.selected === t.id}
                   title={t.title}
                 >
                   <div className="row-first">
                     <strong>{t.separator ? "分隔符会话" : t.title}</strong>
-                    {t.needsInput && !t.archived && !t.missing && <span className="unread-dot" role="img" aria-label="有未读进展" />}
                     {t.pinned && <Pin size={13} className="pin-icon" />}
                     <time dateTime={new Date(t.updatedAt).toISOString()}>
                       {ago(t.updatedAt)}
@@ -177,12 +165,11 @@ export default function TaskList(p: Props) {
                             : "参考"}
                       </span>
                     )}
-                    {t.archived && <span>已归档</span>}
+                    {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
                     {due && <span className="due-label">到回顾时间了</span>}
-                    {t.missing && <span className="due-label">来源待核对</span>}
                   </div>
                   {t.note && (
-                    <p className="note-preview">{t.note.replace(/\n/g, " ")}</p>
+                    <p className="note-preview"><span className="task-note-label">接续</span> {t.note.replace(/\n/g, " ")}</p>
                   )}
                 </button>
                 <button
@@ -206,8 +193,7 @@ export default function TaskList(p: Props) {
             </button>
           )}
           <div className="list-end">
-            <Check size={12} /> {Math.min(limit, p.threads.length)} /{" "}
-            {p.threads.length} 条任务
+            {p.threads.length <= limit ? "已显示全部" : `${limit} / ${p.threads.length} 条会话`}
           </div>
         </div>
       )}

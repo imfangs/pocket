@@ -25,6 +25,8 @@ export default function ContextStatus({
   refresh: () => Promise<void> | undefined;
 }) {
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { window.dispatchEvent(new Event("pocket-reading-visibility-change")); }, [open]);
   const [uncertainId, setUncertainId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const watchedRequest = useRef<string | null>(null);
@@ -81,7 +83,7 @@ export default function ContextStatus({
   };
   return (
     <div className="context-status">
-      <Popover.Root>
+      <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger className="context-trigger">
           {usage && (
             <svg
@@ -113,6 +115,7 @@ export default function ContextStatus({
         <Popover.Portal>
           <Popover.Content
             className="context-popover"
+            data-reading-overlay=""
             sideOffset={8}
             collisionPadding={16}
             align="start"

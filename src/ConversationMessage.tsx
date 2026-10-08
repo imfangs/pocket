@@ -35,11 +35,12 @@ export default function ConversationMessage({ message }: { message: Message }) {
       <div className="message-label">
         <strong>
           <Icon size={13} aria-hidden="true" />
-          {label}
+          <span className="message-role">{kind === "user" ? "你" : "Codex"}</span>
+          {kind !== "user" && <span className="message-phase">{message.isQuestion ? "问题" : progress ? "过程" : "回复"}</span>}
         </strong>
         <div className="message-meta">
           {message.timestamp && (
-            <time>
+            <time dateTime={new Date(message.timestamp).toJSON() ?? undefined}>
               {new Date(message.timestamp).toLocaleString("zh-CN", {
                 month: "numeric",
                 day: "numeric",
@@ -48,8 +49,8 @@ export default function ConversationMessage({ message }: { message: Message }) {
               })}
             </time>
           )}
-          {kind === "answer" && (
-            <CopyButton text={displayText} label="复制回复" />
+          {kind !== "progress" && (
+            <CopyButton text={displayText} label={kind === "user" ? "复制这条消息" : "复制回复"} />
           )}
         </div>
       </div>

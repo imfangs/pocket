@@ -16,10 +16,10 @@ export default function AutoTextarea(props: ComponentProps<"textarea">) {
       input.style.height = "0px";
       const natural = input.scrollHeight + border;
       const conversation = input.closest<HTMLElement>(".conversation");
-      const group = input.closest<HTMLElement>(".conversation-composer, .outbox, .question-prompts");
+      const group = input.closest<HTMLElement>(".conversation-composer, .outbox, .question-prompts, .request-actions");
       let available = Infinity;
       if (conversation && group) {
-        const fixed = [...conversation.children].filter(el => el !== group && !el.classList.contains("conversation-messages"))
+        const fixed = [...conversation.children].filter(el => el !== group && !el.classList.contains("conversation-messages") && !el.classList.contains("conversation-feed"))
           .reduce((sum, el) => sum + el.getBoundingClientRect().height, 0);
         const controls = group.scrollHeight - input.getBoundingClientRect().height;
         available = conversation.clientHeight - fixed - controls - 24;

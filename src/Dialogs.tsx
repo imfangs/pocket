@@ -4,43 +4,73 @@ import NotificationSettings from "./NotificationSettings";
 import type { Catalog, Group } from "./types";
 import { descendantIds, groupPath } from "./model";
 import { holdReload, useReloadGuard } from "./updateSafety";
+import { modalCloseDecision } from "./modalInteraction";
 export function Modal({
   title,
   onClose,
   children,
+  busy = false,
+  dirty = false,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  busy?: boolean;
+  dirty?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const [opener] = useState(() => typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const continueEditing = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    ref.current?.showModal();
-    ref.current?.querySelector<HTMLInputElement>("[data-autofocus]")?.focus();
-    return () => ref.current?.close();
-  }, []);
+    const dialog = ref.current;
+    dialog?.showModal();
+    dialog?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    return () => {
+      dialog?.close();
+      queueMicrotask(() => {
+        if (opener?.isConnected && (document.activeElement === document.body || !!dialog?.contains(document.activeElement))) opener.focus({ preventScroll: true });
+      });
+    };
+  }, [opener]);
+  useEffect(() => { if (confirmClose) continueEditing.current?.focus(); }, [confirmClose]);
+  const requestClose = (fromBackdrop = false) => {
+    const decision = modalCloseDecision(busy, dirty, fromBackdrop);
+    if (decision === "confirm") setConfirmClose(true);
+    else if (decision === "close") onClose();
+  };
   return (
     <dialog
       ref={ref}
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        requestClose();
       }}
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        if (e.target === ref.current) requestClose(true);
       }}
       aria-label={title}
+      aria-busy={busy || undefined}
     >
       <header>
         <h2>{title}</h2>
         <button
           className="icon-button"
-          onClick={onClose}
+          onClick={() => requestClose()}
+          disabled={busy}
           aria-label="关闭对话框"
         >
           <X size={19} />
         </button>
       </header>
+      {confirmClose && <div className="modal-close-confirm" role="alert">
+        <p>还有未提交的内容。</p>
+        <button ref={continueEditing} type="button" className="secondary" disabled={busy} onClick={() => {
+          setConfirmClose(false);
+          ref.current?.querySelector<HTMLElement>("[data-autofocus], input:not([type='hidden']), textarea, select")?.focus();
+        }}>继续编辑</button>
+        <button type="button" className="danger-button" disabled={busy} onClick={onClose}>放弃并关闭</button>
+      </div>}
       {children}
     </dialog>
   );
@@ -60,8 +90,9 @@ export function GroupDialog(p: {
     [error, setError] = useState(""),
     [confirmDelete, setConfirmDelete] = useState(false);
   const [initial] = useState(() => ({ name, parentId, color, position }));
+  const dirty = name !== initial.name || parentId !== initial.parentId || color !== initial.color || position !== initial.position;
   useReloadGuard(() => busy ? "分组操作尚未完成，请稍后更新。"
-    : name !== initial.name || parentId !== initial.parentId || color !== initial.color || position !== initial.position
+    : dirty
       ? "分组还有未保存的修改，请保存或取消后再更新。" : null);
   const unavailable = p.group ? descendantIds(p.groups, p.group.id) : new Set();
   const submit = async (e: React.FormEvent) => {
@@ -87,6 +118,8 @@ export function GroupDialog(p: {
     <Modal
       title={p.group ? "编辑分组" : "新建分组"}
       onClose={() => !busy && p.onClose()}
+      busy={busy}
+      dirty={dirty}
     >
       <form onSubmit={submit}>
         <label className="field-label" htmlFor="group-name">
@@ -230,7 +263,7 @@ export function SettingsDialog(p: {
     : pending ? "已选的备份尚未处理，请恢复或取消后再更新。" : null);
   const file = useRef<HTMLInputElement>(null);
   return (
-    <Modal title="设置" onClose={() => !busy && p.onClose()}>
+    <Modal title="设置" onClose={() => !busy && p.onClose()} busy={busy} dirty={!!pending}>
       <div className="settings-content">
         <NotificationSettings />
         <div className="data-summary">

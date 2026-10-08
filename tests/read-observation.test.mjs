@@ -140,3 +140,15 @@ test('a modal prevents acknowledging obscured content and closing it resumes vis
   assert.equal(f.posts.length, 1);
   f.stop();
 });
+
+test('a portal menu blocks a late visible reply until the menu has closed', async () => {
+  const f = fixture();
+  let open = true;
+  f.visibility.querySelector = selector => selector === '[data-reading-overlay]' && open ? {} : null;
+  f.intersect(true); await f.paint(); await f.paint();
+  assert.equal(f.posts.length, 0);
+  open = false; f.browser.dispatchEvent(new Event('pocket-reading-visibility-change'));
+  await f.paint(); await f.paint();
+  assert.equal(f.posts.length, 1);
+  f.stop();
+});

@@ -2,11 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 import { ArrowDown, RefreshCw } from "lucide-react";
 import { bindPullToRefresh } from "./pullToRefresh";
 
-export default function TaskListPanel({ children, busy, onRefresh, scrollRef }: {
+export default function TaskListPanel({ children, busy, onRefresh, scrollRef, inert = false }: {
   children: ReactNode;
   busy: boolean;
   onRefresh: () => Promise<void>;
   scrollRef?: RefObject<HTMLElement | null>;
+  inert?: boolean;
 }) {
   const ownPanel = useRef<HTMLElement>(null);
   const panel = scrollRef ?? ownPanel;
@@ -23,7 +24,7 @@ export default function TaskListPanel({ children, busy, onRefresh, scrollRef }: 
   }, []);
   const visible = pull.distance > 0 || pull.refreshing;
   return (
-    <section className="list-panel" ref={panel} aria-label="任务列表滚动区域">
+    <section className="list-panel" ref={panel} aria-label="任务列表滚动区域" inert={inert}>
       <div className="pull-refresh-indicator" data-loading={pull.refreshing || undefined}
         style={{ opacity: visible ? 1 : 0 }} role="status" aria-live="polite">
         {visible && <>{pull.refreshing ? <RefreshCw size={15} /> : <ArrowDown size={15} />}

@@ -10,7 +10,7 @@ const vite = await createServer({
   root: fileURLToPath(new URL("..", import.meta.url)),
   esbuild: { jsx: "automatic" },
   optimizeDeps: { noDiscovery: true, include: [] },
-  server: { middlewareMode: true },
+  server: { middlewareMode: true, hmr: false },
   appType: "custom",
 });
 after(() => vite.close());

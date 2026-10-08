@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Ref } from "react";
 import AutoTextarea from "./AutoTextarea";
 import { api } from "./api";
@@ -6,13 +6,15 @@ import type { AsyncQuestion } from "./conversationFeed";
 import type { QueryDraft } from "./Conversation";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { captureDraft } from "./draftTransaction";
+import { answerMode, editAnswer, hasAnswerText, switchAnswerMode } from "./questionDrafts";
 
 type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; drafts: Map<string, QueryDraft>; refresh: () => Promise<void> | undefined;
   readMarker?: { sourceMessageId: string; rootRef: Ref<HTMLElement>; markerRef: Ref<HTMLDivElement> } };
 function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker }: Omit<Props, "questions" | "readMarker"> & { question: AsyncQuestion; endMarker?: Ref<HTMLDivElement> }) {
   const key = `${threadId}/question/${question.key}`;
   const [draft, setDraft] = useState<QueryDraft>(() => drafts.get(key) || { text: "" });
-  const [custom, setCustom] = useState(() => !question.options.length || !!draft.text && !question.options.includes(draft.text));
+  const custom = answerMode(draft, question.options) === "custom";
+  const titleId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -22,7 +24,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
   useReloadGuard(() => {
     const saved = drafts.get(key);
     return busy ? "回答尚未提交完成，请稍后更新。"
-      : saved?.text || saved?.requestId ? "还有未提交或待核对的回答，请处理后再更新。" : null;
+      : hasAnswerText(saved) || saved?.requestId ? "还有未提交或待核对的回答，请处理后再更新。" : null;
   });
   useEffect(() => {
     const focus = (event: FocusEvent) => {
@@ -59,27 +61,29 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
       }
       if (result.status === "accepted") saved.clear();
       else if (["rejected", "not_found"].includes(result.status)) {
-        if (updateSubmitted({ text: draft.text }) && currentView()) setError("问题可能已经变化，请刷新后再回答。");
+        if (updateSubmitted({ ...draft, requestId: undefined }) && currentView()) setError("问题可能已经变化，请刷新后再回答。");
       }
       if (currentView()) await refresh();
     } catch (e) {
       const status = (e as Error & { status?: number }).status;
-      if (status && status < 500) updateSubmitted({ text: draft.text });
+      if (status && status < 500) updateSubmitted({ ...draft, requestId: undefined });
       if (currentView()) setError(status && status < 500 ? (e as Error).message : "回答结果待确认，请核对状态，避免重复提交。");
     } finally { release(); if (currentView()) setBusy(false); }
   };
   return <form ref={form} className="question-card" data-editing={editing || undefined} onSubmit={e => void submit(e)} aria-label={question.title}>
-    <p className="question-title">{question.title}</p>
+    <fieldset className="question-fields" disabled={disabled || busy || waiting}>
+    <legend className="question-title" id={titleId}>{question.title}</legend>
     {!custom && question.options.map(option => <label className="question-option" key={option}>
       <input type="radio" name={question.key} checked={!custom && draft.text === option} disabled={disabled || busy || waiting}
-        onChange={() => { setCustom(false); update({ text: option }); }} />
+        onChange={() => update(editAnswer(draft, question.options, option, "options"))} />
       <span>{option}</span>
     </label>)}
     {!!question.options.length && <button type="button" className="question-custom" disabled={disabled || busy || waiting}
-      onClick={() => { setCustom(!custom); update({ text: "" }); }}>{custom ? "改用选项" : "自己填写"}</button>}
-    {custom && <AutoTextarea aria-label="自行填写回答" value={draft.text} maxLength={16000} disabled={disabled || busy || waiting}
+      onClick={() => { setEditing(false); update(switchAnswerMode(draft, question.options, custom ? "options" : "custom")); }}>{custom ? "改用选项" : "自己填写"}</button>}
+    {custom && <AutoTextarea aria-label="自行填写回答" aria-labelledby={titleId} value={draft.text} maxLength={16000} disabled={disabled || busy || waiting}
       onFocus={() => setEditing(true)}
-      onChange={e => update({ text: e.target.value })} />}
+      onChange={e => update(editAnswer(draft, question.options, e.target.value, "custom"))} />}
+    </fieldset>
     <div className="question-submit"><button type="submit" className="primary" disabled={disabled || busy || (!waiting && !draft.text.trim())}>
       {busy ? "提交中…" : waiting ? "核对回答状态" : "提交回答"}
     </button></div>

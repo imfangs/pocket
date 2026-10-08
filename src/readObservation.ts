@@ -46,6 +46,7 @@ export function observeVisibleRead(options: Options) {
   };
   const unobstructed = () => {
     if (visibility.querySelector?.("dialog[open]")) return false;
+    if (visibility.querySelector?.("[data-reading-overlay]")) return false;
     const backdrop = visibility.querySelector?.(".sidebar-backdrop.shown")?.getBoundingClientRect();
     return !backdrop || backdrop.width === 0 || backdrop.height === 0;
   };

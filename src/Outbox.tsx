@@ -1,5 +1,5 @@
 import AutoTextarea from "./AutoTextarea";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "./conversationFeed";
 import type { QueryDraft } from "./Conversation";
 import { api } from "./api";
@@ -26,9 +26,30 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const key = (id: string) => `${threadId}/outbox/${id}`;
   const receiptRead = useRef<AbortController | null>(null);
   const viewGeneration = useRef(0);
+  const section = useRef<HTMLElement>(null);
+  const focusNext = useRef<{ id: string; target: "editor" | "action" } | null>(null);
   useReloadGuard(() => busy ? "待发消息的操作尚未完成，请稍后更新。"
     : editing ? "待发消息还在编辑，请保存或取消编辑后再更新。" : null);
   useEffect(() => () => { viewGeneration.current++; receiptRead.current?.abort(); }, [threadId]);
+  useLayoutEffect(() => {
+    if (busy || disabled || !focusNext.current) return;
+    const desired = focusNext.current;
+    const row = [...(section.current?.querySelectorAll<HTMLElement>("[data-outbox-id]") ?? [])]
+      .find(element => element.dataset.outboxId === desired.id);
+    const target = row?.querySelector<HTMLElement>(desired.target === "editor" ? "textarea" : '[data-outbox-action="edit"]');
+    if (target) {
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: "nearest" });
+    }
+    focusNext.current = null;
+  }, [editing, busy, disabled, items]);
+  useEffect(() => {
+    const leave = (event: FocusEvent) => {
+      if (focusNext.current?.target === "action" && event.target instanceof Node && !section.current?.contains(event.target)) focusNext.current = null;
+    };
+    document.addEventListener("focusin", leave);
+    return () => document.removeEventListener("focusin", leave);
+  }, []);
   useEffect(() => {
     if (!editing) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -53,9 +74,12 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
           (await api<{ outbox: QueuedMessage[] }>(`${base}/edit`, "POST", { expectedRevision })).outbox.find(row => row.id === item.id)!;
         if (!currentView() || !saved.current()) return;
         const value = drafts.get(key(item.id))?.text ?? updated.text;
+        focusNext.current = { id: item.id, target: "editor" };
         setEditing({ id: item.id, revision: updated.revision }); setText(value);
         saved.set({ text: value, revision: updated.revision });
-        await refresh();
+        // The pause response already owns this revision. A slow history read
+        // should not hold the editor disabled after that acknowledgement.
+        void refresh()?.catch(() => {});
       } else {
         let result = await api<SubmissionReceipt>(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
           action === "save" ? "PATCH" : action === "cancel" ? "DELETE" : "POST",
@@ -68,7 +92,10 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         if (action === "send" && result.status === "accepted") onActivity?.();
         // Settled saves can release their unchanged draft after leaving, but
         // must never discard a newer edit made in a reopened view.
-        if (saved.clear() && currentView()) setEditing(null);
+        if (saved.clear() && currentView()) {
+          if (editing?.id === item.id) focusNext.current = { id: item.id, target: "action" };
+          setEditing(null);
+        }
         if (currentView()) await refresh();
       }
     } catch (e) { if (currentView()) setError((e as Error).message); }
@@ -90,13 +117,13 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   };
   if (!items.length) return null;
   return (
-    <section className="outbox" aria-label="Pocket 待发消息">
+    <section ref={section} className="outbox" aria-label="Pocket 待发消息">
       <div className="outbox-heading"><strong>待发送 · {items.length}</strong><span>{items[0]?.status === "unknown" ? "等待核对首条消息，自动发送已暂停" : paused ? "自动发送已暂停" : connectionPending ? "已保存在 Mac，连接恢复后依次发送" : "当前轮完成后依次发送"}</span>
         {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
       </div>
-      {items.map(item => {
+      {items.map((item, index) => {
         const mutable = ["queued", "rejected", "editing"].includes(item.status);
-        return <div className="outbox-item" key={item.id}>
+        return <div className="outbox-item" key={item.id} data-outbox-id={item.id} role="group" aria-label={`待发消息 ${index + 1}`} aria-busy={busy === item.id}>
           {editing?.id === item.id ? <AutoTextarea aria-label="编辑待发消息" value={text} maxLength={16000} disabled={!!busy || disabled}
             onChange={e => { setText(e.target.value); drafts.set(key(item.id), { text: e.target.value, revision: editing.revision }); }} />
             : <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
@@ -109,9 +136,9 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
               <button disabled={!!busy || disabled || !text.trim()} onClick={() => void act(item, "save")}>保存</button>
               <button disabled={!!busy || disabled} onClick={() => void act(item, "resume")}>取消编辑</button>
             </> : mutable ? <>
-              <button disabled={!!busy || disabled} onClick={() => void act(item, "edit")}>{item.status === "editing" ? "继续编辑" : "编辑"}</button>
-              <button disabled={!!busy || disabled} onClick={() => void act(item, "cancel")}>删除</button>
-              <button disabled={!!busy || disabled || (!allowSend && item.status !== "editing")} onClick={() => void act(item, item.status === "editing" ? "resume" : "send")}>{item.status === "editing" ? "恢复排队" : "直接发送"}</button>
+              <button data-outbox-action="edit" aria-label={`${item.status === "editing" ? "继续编辑" : "编辑"}第 ${index + 1} 条待发消息`} disabled={!!busy || disabled} onClick={() => void act(item, "edit")}>{item.status === "editing" ? "继续编辑" : "编辑"}</button>
+              <button aria-label={`删除第 ${index + 1} 条待发消息`} disabled={!!busy || disabled} onClick={() => void act(item, "cancel")}>删除</button>
+              <button aria-label={`${item.status === "editing" ? "恢复排队" : "直接发送"}第 ${index + 1} 条消息`} disabled={!!busy || disabled || (!allowSend && item.status !== "editing")} onClick={() => void act(item, item.status === "editing" ? "resume" : "send")}>{item.status === "editing" ? "恢复排队" : "直接发送"}</button>
             </> : <button disabled={!!busy || disabled} onClick={() => void act(item, "check")}>核对状态</button>}
           </div>
         </div>;

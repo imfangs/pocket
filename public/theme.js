@@ -10,7 +10,7 @@
     root.dataset.theme = dark ? "dark" : "light";
     root.dataset.themePreference = preference;
     root.style.colorScheme = dark ? "dark" : "light";
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#18181e" : "#faf9fc");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#191919" : "#ffffff");
     window.dispatchEvent(new Event("pocket-theme-changed"));
   };
   window.addEventListener("pocket-set-theme", event => {

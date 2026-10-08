@@ -2,7 +2,6 @@ import {
   Menu,
   Search,
   RefreshCw,
-  ArrowDownWideNarrow,
   X,
   ArrowUpRight,
   PanelRightOpen,
@@ -15,11 +14,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import Sidebar from "./Sidebar";
+import ViewControls from "./ViewControls";
 import TaskList from "./TaskList";
 import TaskListPanel from "./TaskListPanel";
 import Inspector from "./Inspector";
 import BootSplash from "./BootSplash";
-import type { QueryDraft } from "./Conversation";
 import type { HistoryCache } from "./conversationFeed";
 import type { OpenThreadResult } from "./threadConnection";
 import { GroupDialog, SettingsDialog } from "./Dialogs";
@@ -34,6 +33,7 @@ import NewConversationDialog from "./NewConversationDialog";
 import TaskOperationStatus from "./TaskOperationStatus";
 import useTaskOperations from "./useTaskOperations";
 import { activeOperation } from "./taskOperations";
+import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import "./task-operations.css";
 function readPrefs() {
   try {
@@ -55,7 +55,7 @@ const empty: Catalog = {
   sourceError: null,
 };
 const titles: Record<View, string> = {
-  all: "全部任务",
+  all: "全部会话",
   unread: "待我输入",
   pinned: "置顶",
   active: "正在推进",
@@ -66,16 +66,37 @@ const titles: Record<View, string> = {
   unassigned: "未分组",
   group: "",
 };
+const descriptions: Record<View, string> = {
+  all: "所有想做的事，都有一个继续的地方。",
+  unread: "读读新的进展，再决定下一步。",
+  pinned: "把常常回来做的事，放在手边。",
+  active: "留住注意力，一件一件向前。",
+  later: "想法先留在这里，准备好时再继续。",
+  reference: "留住值得反复翻看的线索。",
+  recent: "回到你最近打开的对话。",
+  archived: "已经收好的对话，仍然可以找回来。",
+  unassigned: "给这些对话找到合适的位置。",
+  group: "把相关的想法和行动，放在一起。",
+};
 export default function App({
   footerActions,
 }: {
   footerActions?: React.ReactNode;
 }) {
   const [prefs] = useState(readPrefs);
+  const [, setDraftIndicatorRevision] = useState(0);
+  const [conversationDrafts] = useState(() => ({ current: createDraftMap(() => setDraftIndicatorRevision(value => value + 1)) }));
+  const [narrow, setNarrow] = useState(() => matchMedia("(max-width:760px)").matches);
+  useEffect(() => {
+    const media = matchMedia("(max-width:760px)");
+    const update = () => setNarrow(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const [catalog, setCatalog] = useState<Catalog>(empty),
     [loading, setLoading] = useState(true),
     [view, setView] = useState<View>(
-      Object.keys(titles).includes(prefs.view) ? prefs.view : "pinned",
+      Object.keys(titles).includes(prefs.view) ? prefs.view : "all",
     ),
     [groupId, setGroupId] = useState<string | null>(
       typeof prefs.groupId === "string" ? prefs.groupId : null,
@@ -110,7 +131,6 @@ export default function App({
     );
   const search = useRef<HTMLInputElement>(null),
     searchToggle = useRef<HTMLButtonElement>(null),
-    conversationDrafts = useRef(new Map<string, QueryDraft>()),
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null);
   const syncing = useRef<Promise<Catalog | undefined> | null>(null);
@@ -127,7 +147,7 @@ export default function App({
   });
   const openSearch = useCallback(() => {
     // Focus during the tap so iOS opens the keyboard on the first interaction.
-    flushSync(() => setSearchOpen(true));
+    flushSync(() => { setMobile(false); setSearchOpen(true); });
     search.current?.focus();
   }, []);
   const closeSearch = useCallback(() => {
@@ -223,14 +243,20 @@ export default function App({
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         if (document.querySelector("dialog[open]")) return;
         e.preventDefault();
-        openSearch();
+        if (matchMedia("(max-width:760px)").matches && selected) {
+          void (async () => {
+            await flushRef.current?.();
+            flushSync(() => setSelected(null));
+            openSearch();
+          })().catch(failure => setError((failure as Error).message));
+        } else openSearch();
       }
       if (e.key === "Escape" && !document.querySelector("dialog[open]"))
         setMobile(false);
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [openSearch]);
+  }, [openSearch, selected]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -397,6 +423,7 @@ export default function App({
   return (
     <div className="app-shell">
       <Sidebar
+        showSeparators={showSeparators}
         footerActions={footerActions}
         catalog={catalog}
         view={view}
@@ -408,8 +435,8 @@ export default function App({
         onDrop={(id, g) => void guard(() => batch([id], { groupId: g }))}
         onSettings={() => setSettings(true)}
       />
-      <main className={`workspace ${current ? "with-inspector" : ""}`}>
-        <header className="workspace-header">
+      <main className={`workspace ${current ? "with-inspector" : ""}`} inert={narrow && mobile}>
+        <header className="workspace-header" inert={narrow && !!current}>
           <PocketUpdate taskId={selected} />
           <div className="heading-line">
             <button
@@ -421,7 +448,7 @@ export default function App({
             </button>
             <div className="heading">
               <div className="breadcrumb">
-                Pocket
+                工作空间
                 {view === "group" && selectedGroup?.parentId && (
                   <>
                     <span>/</span>
@@ -433,6 +460,7 @@ export default function App({
                 {title}
                 <span>{view === "unread" && !unreadKnown ? "—" : threads.length}</span>
               </h1>
+              <p className="view-description">{descriptions[view]}</p>
             </div>
             <button
               className="new-conversation-button"
@@ -459,32 +487,6 @@ export default function App({
               {view !== "unread" && <small>{unreadKnown ? unreadCount : "—"}</small>}
             </button>
             <div className="list-controls">
-              <select
-                className="project-filter"
-                aria-label="筛选来源项目"
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-              >
-                <option value="">所有来源项目</option>
-                {catalog.projects
-                  .filter((p) => !p.separator)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
-              <label className="sort-control">
-                <ArrowDownWideNarrow size={16} />
-                <select
-                  aria-label="排序方式"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value)}
-                >
-                  <option value="pinned">置顶优先</option>
-                  <option value="updated">最近活动</option>
-                </select>
-              </label>
               <button
                 ref={searchToggle}
                 className="icon-button search-toggle"
@@ -494,15 +496,26 @@ export default function App({
                 aria-keyshortcuts="Control+K Meta+K"
                 onClick={searchOpen ? closeSearch : openSearch}
               >
-                <Search size={20} />
+                <Search size={17} /><span>搜索</span><kbd aria-hidden="true">⌘ K</kbd>
               </button>
+              <ViewControls projects={catalog.projects} project={project} sort={sort}
+                onProject={id => { setProject(id); setChecked(new Set()); }}
+                onSort={setSort} />
             </div>
           </div>
+          {project && <div className="active-filters" aria-label="已应用的筛选">
+            <button onClick={() => { setProject(""); setChecked(new Set()); }} aria-label="清除来源项目筛选">
+              <Folder size={13} aria-hidden="true" />{catalog.projects.find(item => item.id === project)?.name || "来源项目"}<X size={13} aria-hidden="true" />
+            </button>
+            <span>{threads.length} 条结果</span>
+          </div>}
           {searchOpen && <div className="search-box expanded-search" id="task-search-box">
             <Search size={17} aria-hidden="true" />
             <input
               ref={search}
               aria-label="搜索任务"
+              placeholder="搜索标题、项目、接续说明…"
+              aria-describedby="task-search-help"
               inputMode="search"
               enterKeyHint="search"
               autoComplete="off"
@@ -518,6 +531,7 @@ export default function App({
               <X size={17} />
             </button>
           </div>}
+          {searchOpen && <p id="task-search-help" className="search-scope">在当前视图内搜索；支持目录和分组名称</p>}
         </header>
         {(error || readError || catalog.sourceError) && (
           <div className="error-banner" role="alert">
@@ -550,8 +564,14 @@ export default function App({
               onDismiss={() => taskOperations.dismiss(operation.requestId)} />)}
         </div>}
         <div className="content">
-          <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel}>
+          <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}>
               <TaskList
+                onCreate={() => void guard(showNewConversation)}
+                onShowAll={() => switchView("all")}
+                onRefresh={() => void syncTasks().catch(() => {})}
+                onClearFilters={() => { setQuery(""); setProject(""); setChecked(new Set()); }}
+                hasFilters={!!(query.trim() || project)}
+                draftIds={draftThreadIds(conversationDrafts.current)}
                 threads={threads}
                 groups={catalog.groups}
                 selected={selected}
@@ -616,6 +636,7 @@ export default function App({
                 void guard(async () => {
                   await flush();
                   setSelected(null);
+                  requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`.task-select[data-thread-id="${current.id}"]`)?.focus({ preventScroll: true }));
                   refreshAfterActivity();
                 })
               }

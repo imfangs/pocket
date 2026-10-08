@@ -1,4 +1,3 @@
-.new-conversation-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 12px; border-radius: 9px; border: 1px solid var(--line); color: var(--ink); background: var(--surface, transparent); white-space: nowrap; }
 .task-operation-notices { flex: none; max-height: 28vh; overflow-y: auto; padding: 0 16px; }
 .task-operation-status { display: flex; flex-direction: column; gap: 5px; margin: 8px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
 .task-operation-status strong { color: var(--ink); font-weight: 600; }
@@ -8,4 +7,4 @@
 .archive-conversation { padding-top: 20px; }
 .archive-conversation > button { min-height: 44px; }
 .new-conversation-path { overflow-wrap: anywhere; }
-@media (max-width: 760px) { .new-conversation-button { padding: 8px; } .new-conversation-button span { display: none; } .task-operation-notices { padding: 0 12px; } }
+@media (max-width: 760px) { .task-operation-notices { padding: 0 12px; } }

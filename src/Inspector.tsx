@@ -1,20 +1,17 @@
 import {
   ArrowUpRight,
   ChevronLeft,
-  CalendarDays,
   Check,
   Clipboard,
-  Folder,
   GitBranch,
   MessageSquare,
+  MoreHorizontal,
   Save,
   X,
 } from "lucide-react";
-import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
+import { useEffect, useState, useCallback, useId, useRef, useLayoutEffect } from "react";
 import type { MutableRefObject } from "react";
 import type { Group, Intent, Thread } from "./types";
-import { intentLabels } from "./types";
-import { groupPath } from "./model";
 import Conversation from "./Conversation";
 import type { QueryDraft } from "./Conversation";
 import { bindInspectorSwipe, bindInspectorViewport } from "./mobileInspector";
@@ -23,6 +20,7 @@ import { holdReload, useReloadGuard } from "./updateSafety";
 import type { OpenThreadResult } from "./threadConnection";
 import { activeOperation, operationText, type TaskOperation } from "./taskOperations";
 import TaskOperationStatus from "./TaskOperationStatus";
+import ThreadProperties from "./ThreadProperties";
 type Draft = {
   intent: Intent;
   note: string;
@@ -57,6 +55,7 @@ interface Props {
 }
 export default function Inspector(p: Props) {
   const panel = useRef<HTMLElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
   const close = useRef(p.onClose);
   useLayoutEffect(() => { close.current = p.onClose; }, [p.onClose]);
   useLayoutEffect(() => {
@@ -65,7 +64,18 @@ export default function Inspector(p: Props) {
     const releaseSwipe = bindInspectorSwipe(panel.current, () => close.current());
     return () => { releaseViewport(); releaseSwipe(); };
   }, []);
+  useLayoutEffect(() => {
+    if (window.matchMedia("(max-width: 760px)").matches) closeButton.current?.focus({ preventScroll: true });
+  }, []);
   const [tab, setTab] = useState<"conversation" | "organize">("conversation");
+  const [managementOpen, setManagementOpen] = useState(false);
+  const accessibilityId = useId();
+  const tabButtons = useRef<{ conversation: HTMLButtonElement | null; organize: HTMLButtonElement | null }>({ conversation: null, organize: null });
+  const managementTrigger = useRef<HTMLButtonElement>(null), managementPanel = useRef<HTMLDivElement>(null);
+  const focusManagement = useRef(false);
+  useLayoutEffect(() => {
+    if (focusManagement.current && managementOpen && tab === "organize") { focusManagement.current = false; managementPanel.current?.focus({ preventScroll: true }); }
+  }, [managementOpen, tab]);
   const [draft, setDraft] = useState<Draft>(() => draftOf(p.thread)),
     [base, setBase] = useState<Draft>(() => draftOf(p.thread)),
     [baseRevision, setBaseRevision] = useState(p.thread.revision),
@@ -135,8 +145,6 @@ export default function Inspector(p: Props) {
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
   }, [dirty]);
-  const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
-    setDraft((old) => ({ ...old, [key]: value }));
   const open = async () => {
     try {
       await save();
@@ -150,10 +158,21 @@ export default function Inspector(p: Props) {
       <div className="inspector-header">
         <span className="inspector-desktop-label">
           <MessageSquare size={15} />
-          任务详情
+          会话详情
         </span>
         <strong className="inspector-mobile-title" title={p.thread.title}>{p.thread.separator ? "分隔符会话" : p.thread.title}</strong>
+        <div className="inspector-header-actions">
+          <button ref={managementTrigger} type="button" className="inspector-management-trigger"
+            aria-expanded={tab === "organize" && managementOpen} aria-controls={`${accessibilityId}-management`}
+            onClick={() => {
+              const opening = !(managementOpen && tab === "organize");
+              focusManagement.current = opening; setManagementOpen(opening); setTab("organize");
+            }}>
+            <MoreHorizontal size={17} aria-hidden="true" /><span>管理</span>
+          </button>
+        </div>
         <button
+          ref={closeButton}
           className="icon-button"
           aria-label="关闭详情"
           onClick={p.onClose}
@@ -162,16 +181,31 @@ export default function Inspector(p: Props) {
           <X size={18} className="inspector-close-icon" />
         </button>
       </div>
-      <div className="inspector-tabs" role="tablist" aria-label="任务详情视图">
+      <div className="inspector-tabs" role="tablist" aria-label="任务详情视图" aria-orientation="horizontal"
+        onKeyDown={event => {
+          if (event.altKey || event.ctrlKey || event.metaKey) return;
+          const next = event.key === "Home" ? "conversation" : event.key === "End" ? "organize"
+            : ["ArrowLeft", "ArrowRight"].includes(event.key) ? tab === "conversation" ? "organize" : "conversation" : null;
+          if (!next) return;
+          event.preventDefault(); setTab(next); tabButtons.current[next]?.focus();
+        }}>
         <button
+          ref={element => { tabButtons.current.conversation = element; }}
           role="tab"
+          id={`${accessibilityId}-tab-conversation`}
+          aria-controls={`${accessibilityId}-panel-conversation`}
+          tabIndex={tab === "conversation" ? 0 : -1}
           aria-selected={tab === "conversation"}
           onClick={() => setTab("conversation")}
         >
           会话
         </button>
         <button
+          ref={element => { tabButtons.current.organize = element; }}
           role="tab"
+          id={`${accessibilityId}-tab-organize`}
+          aria-controls={`${accessibilityId}-panel-organize`}
+          tabIndex={tab === "organize" ? 0 : -1}
           aria-selected={tab === "organize"}
           onClick={() => setTab("organize")}
         >
@@ -179,6 +213,10 @@ export default function Inspector(p: Props) {
         </button>
       </div>
       <div
+        id={`${accessibilityId}-panel-${tab}`}
+        role="tabpanel"
+        aria-labelledby={`${accessibilityId}-tab-${tab}`}
+        tabIndex={0}
         className={
           tab === "conversation" ? "inspector-conversation" : "inspector-body"
         }
@@ -219,84 +257,19 @@ export default function Inspector(p: Props) {
           />
         ) : (
           <>
-            <fieldset disabled={saving} className="inspector-fields">
-              <label className="field-label" htmlFor="intent">
-                分类
-              </label>
-              <div className="intent-options" id="intent">
-                {(["none", "active", "later", "reference"] as Intent[]).map(
-                  (intent) => (
-                    <button
-                      key={intent}
-                      type="button"
-                      className={draft.intent === intent ? "chosen" : ""}
-                      aria-pressed={draft.intent === intent}
-                      onClick={() => update("intent", intent)}
-                    >
-                      {intentLabels[intent]}
-                    </button>
-                  ),
-                )}
-              </div>
-              <label className="field-label">分组</label>
-              <div className="membership-list">
-                {p.groups.map((g) => (
-                  <label key={g.id}>
-                    <input
-                      type="checkbox"
-                      checked={draft.groupIds.includes(g.id)}
-                      onChange={(e) =>
-                        update(
-                          "groupIds",
-                          e.target.checked
-                            ? [...draft.groupIds, g.id]
-                            : draft.groupIds.filter((id) => id !== g.id),
-                        )
-                      }
-                    />
-                    <Folder size={14} color={g.color} />
-                    <span>{groupPath(p.groups, g.id)}</span>
-                  </label>
-                ))}
-                {!p.groups.length && (
-                  <p className="field-help">先在左侧新建一个分组。</p>
-                )}
-              </div>
-              <label className="field-label note-label" htmlFor="continuation">
-                接续说明
-              </label>
-              <textarea
-                id="continuation"
-                value={draft.note}
-                maxLength={12000}
-                rows={2}
-                onInput={(e) => update("note", e.currentTarget.value)}
-                onChange={(e) => update("note", e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                    e.preventDefault();
-                    void save().catch(() => {});
-                  }
-                }}
-              />
-              {draft.intent === "later" && (
-                <label className="review-date">
-                  <span>
-                    <CalendarDays size={15} />
-                    哪天再看 <small>可选</small>
-                  </span>
-                  <input
-                    type="date"
-                    aria-label="回顾日期"
-                    value={draft.reviewAt || ""}
-                    onInput={(e) =>
-                      update("reviewAt", e.currentTarget.value || null)
-                    }
-                    onChange={(e) => update("reviewAt", e.target.value || null)}
-                  />
-                </label>
-              )}
-            </fieldset>
+            {managementOpen && <div ref={managementPanel} id={`${accessibilityId}-management`} className="archive-conversation inspector-management-panel" tabIndex={-1} aria-label="原会话管理">
+              <strong>原会话管理</strong>
+              <p className="field-description">{p.thread.archived ? "恢复后可以继续这段对话。" : "归档会同步到 Codex，已有草稿会保留。"}</p>
+              <button type="button" className="secondary" disabled={saving || p.thread.missing || managementBlocked}
+                onClick={async () => {
+                  try { await save(); await p.onArchive(p.thread, !p.thread.archived); }
+                  catch (failure) { setError((failure as Error).message); }
+                }}>{p.thread.archived ? "恢复会话" : "归档会话"}</button>
+              {p.operation?.code === "outbox_not_empty" && <button className="text-button" onClick={() => setTab("conversation")}>查看待发消息</button>}
+              <button type="button" className="text-button" onClick={() => { setManagementOpen(false); managementTrigger.current?.focus(); }}>收起管理</button>
+            </div>}
+            <ThreadProperties value={draft} groups={p.groups} disabled={saving}
+              onChange={patch => setDraft(previous => ({ ...previous, ...patch }))} onSave={save} />
             {error && (
               <p className="inline-error" role="alert">
                 {error}
@@ -352,20 +325,12 @@ export default function Inspector(p: Props) {
                 复制原会话链接
               </button>
             </details>
-            <div className="archive-conversation">
-              <button type="button" className="secondary" disabled={saving || p.thread.missing || managementBlocked}
-                onClick={async () => {
-                  try { await save(); await p.onArchive(p.thread, !p.thread.archived); }
-                  catch (failure) { setError((failure as Error).message); }
-                }}>
-                {p.thread.archived ? "恢复会话" : "归档会话"}
-              </button>
-              {p.operation?.code === "outbox_not_empty" && <button className="text-button" onClick={() => setTab("conversation")}>查看待发消息</button>}
-              <p className="field-help">{p.thread.archived ? "恢复原会话后可继续发送。" : "归档会同步到 Codex，已有草稿会保留。"}</p>
-            </div>
+
           </>
         )}
       </div>
+      <div hidden role="tabpanel" id={`${accessibilityId}-panel-${tab === "conversation" ? "organize" : "conversation"}`}
+        aria-labelledby={`${accessibilityId}-tab-${tab === "conversation" ? "organize" : "conversation"}`} />
       {tab === "organize" && (
         <div className="save-row inspector-savebar">
           <span aria-live="polite">

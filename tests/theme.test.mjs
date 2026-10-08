@@ -8,7 +8,7 @@ function boot(saved,systemDark=false,storageFails=false){
  return {root,meta,values,set:value=>window.dispatchEvent(new CustomEvent('pocket-set-theme',{detail:value})),system:value=>{media.matches=value;media.dispatchEvent(new Event('change'));},storage:value=>{values.set('pocket.theme',value);const e=new Event('storage');e.key='pocket.theme';window.dispatchEvent(e);}};
 }
 test('theme restores before React mounts, persists choice and only follows OS when selected',()=>{
- const f=boot('dark',false);assert.equal(f.root.dataset.theme,'dark');assert.equal(f.meta.content,'#18181e');
+ const f=boot('dark',false);assert.equal(f.root.dataset.theme,'dark');assert.equal(f.meta.content,'#191919');
  f.system(false);assert.equal(f.root.dataset.theme,'dark');
  f.set('light');assert.equal(f.values.get('pocket.theme'),'light');assert.equal(f.root.style.colorScheme,'light');
  f.system(true);assert.equal(f.root.dataset.theme,'light');
@@ -20,10 +20,10 @@ test('invalid and unavailable browser storage never blocks theme selection',()=>
  const f=boot(null,false,true);f.set('dark');assert.equal(f.root.dataset.theme,'dark');
  f.set('invalid');assert.equal(f.root.dataset.theme,'dark');
 });
-test('dark primary, secondary, accent and inverse text retain readable contrast',()=>{
- const css=readFileSync(new URL('../src/theme.css',import.meta.url),'utf8');const block=css.match(/html\[data-theme="dark"\]\s*\{([^}]+)/)[1];
+for (const theme of ['light','dark']) test(`${theme} primary, secondary, status and inverse text retain readable contrast`,()=>{
+ const css=readFileSync(new URL(theme==='dark'?'../src/theme.css':'../src/styles.css',import.meta.url),'utf8');const block=css.match(theme==='dark'?/html\[data-theme="dark"\]\s*\{([^}]+)/:/:root\s*\{([^}]+)/)[1];
  const vars=Object.fromEntries([...block.matchAll(/(--[\w-]+):\s*(#[\da-f]{6})/g)].map(m=>[m[1],m[2]]));
  const lum=hex=>{const rgb=hex.slice(1).match(/../g).map(x=>parseInt(x,16)/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
  const ratio=(a,b)=>(Math.max(lum(a),lum(b))+.05)/(Math.min(lum(a),lum(b))+.05);
- for(const [fg,bg] of [['--ink','--surface'],['--text-secondary','--surface-raised'],['--muted','--surface-raised'],['--accent','--accent-soft'],['--on-strong','--ink']])assert.ok(ratio(vars[fg],vars[bg])>=4.5,`${fg} on ${bg}`);
+ for(const [fg,bg] of [['--ink','--surface'],['--text-secondary','--surface-raised'],['--muted','--surface-raised'],['--muted','--surface-soft'],['--accent','--accent-soft'],['--positive','--positive-soft'],['--warning','--warning-soft'],['--on-strong','--ink']])assert.ok(ratio(vars[fg],vars[bg])>=4.5,`${fg} on ${bg}`);
 });

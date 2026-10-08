@@ -17,9 +17,10 @@ import {
   Settings2,
   X,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Catalog, Group, View } from "./types";
 import { descendantIds } from "./model";
+import { groupAncestorIds, navigationViewCount } from "./navigationModel";
 interface Props {
   footerActions?: React.ReactNode;
   catalog: Catalog;
@@ -31,12 +32,14 @@ interface Props {
   onGroup: (g?: Group) => void;
   onDrop: (id: string, groupId: string) => void;
   onSettings: () => void;
+  showSeparators?: boolean;
 }
 export default function Sidebar(p: Props) {
   const [narrow, setNarrow] = useState(
     () => matchMedia("(max-width:760px)").matches,
   );
   const asideRef = useRef<HTMLElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null), wasOpen = useRef(false);
   useEffect(() => {
     const m = matchMedia("(max-width:760px)");
     const update = () => setNarrow(m.matches);
@@ -44,18 +47,20 @@ export default function Sidebar(p: Props) {
     return () => m.removeEventListener("change", update);
   }, []);
   useEffect(() => {
-    if (narrow && p.mobileOpen)
+    const isOpen = narrow && p.mobileOpen;
+    if (isOpen && !wasOpen.current) {
+      returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       asideRef.current
         ?.querySelector<HTMLButtonElement>(".brand button")
         ?.focus();
-  }, [narrow, p.mobileOpen]);
-  useEffect(() => {
-    if (p.view === "group" && p.groupId) {
-      asideRef.current
-        ?.querySelector(`[data-group-id="${CSS.escape(p.groupId)}"]`)
-        ?.scrollIntoView({ block: "nearest" });
+    } else if (!isOpen && wasOpen.current) {
+      const target = returnFocus.current;
+      const active = document.activeElement;
+      if (target?.isConnected && (active === document.body || asideRef.current?.contains(active)) && !document.querySelector("dialog[open]"))
+        target.focus({ preventScroll: true });
     }
-  }, [p.view, p.groupId, p.catalog.groups.length, p.mobileOpen]);
+    wasOpen.current = isOpen;
+  }, [narrow, p.mobileOpen]);
   const [collapsed, setCollapsed] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("navigator.collapsed") || "[]");
@@ -68,33 +73,48 @@ export default function Sidebar(p: Props) {
       ? collapsed.filter((x) => x !== id)
       : [...collapsed, id];
     setCollapsed(next);
-    localStorage.setItem("navigator.collapsed", JSON.stringify(next));
+    try { localStorage.setItem("navigator.collapsed", JSON.stringify(next)); } catch {}
   };
-  const active = p.catalog.threads.filter((t) => !t.archived && !t.separator);
-  const all = p.catalog.threads.filter((t) => !t.separator);
+  useEffect(() => {
+    if (p.view !== "group" || !p.groupId) return;
+    const ancestors = groupAncestorIds(p.catalog.groups, p.groupId);
+    setCollapsed(previous => {
+      const next = previous.filter(id => !ancestors.has(id));
+      if (next.length === previous.length) return previous;
+      try { localStorage.setItem("navigator.collapsed", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [p.view, p.groupId, p.catalog.groups]);
+  useEffect(() => {
+    if (p.view === "group" && p.groupId) asideRef.current
+      ?.querySelector(`[data-group-id="${CSS.escape(p.groupId)}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [p.view, p.groupId, p.catalog.groups.length, p.mobileOpen, collapsed]);
+  const counts = useMemo(() => Object.fromEntries((["all", "pinned", "active", "later", "reference", "recent", "unread", "archived", "unassigned"] as View[])
+    .map(view => [view, navigationViewCount(p.catalog, view, p.showSeparators)])), [p.catalog, p.showSeparators]);
+  const active = p.catalog.threads.filter((t) => !t.archived && (p.showSeparators || !t.separator));
   const navs: [View, string, typeof Layers3, number | string][] = [
-    ["unread", "待我输入", MessageCircle, p.catalog.sourceInfo?.unread?.available ? active.filter(t => t.needsInput && !t.missing).length : "—"],
-    ["all", "全部任务", Layers3, active.length],
-    ["pinned", "置顶", Pin, active.filter((t) => t.pinned).length],
+    ["unread", "待我输入", MessageCircle, p.catalog.sourceInfo?.unread?.available ? counts.unread : "—"],
+    ["all", "全部会话", Layers3, counts.all],
+    ["pinned", "置顶", Pin, counts.pinned],
+    ["recent", "最近打开", RotateCcw, counts.recent],
     [
       "active",
       "正在推进",
       CircleDashed,
-      all.filter((t) => t.intent === "active").length,
+      counts.active,
     ],
     [
       "later",
       "稍后继续",
       Clock3,
-      all.filter((t) => t.intent === "later").length,
+      counts.later,
     ],
     [
       "reference",
       "留作参考",
       BookOpen,
-      all.filter((t) => t.intent === "reference").length,
+      counts.reference,
     ],
-    ["recent", "最近打开", RotateCcw, all.filter((t) => t.lastOpenedAt).length],
   ];
   const renderGroup = (g: Group, depth = 0) => {
     const children = p.catalog.groups.filter((x) => x.parentId === g.id),
@@ -141,6 +161,7 @@ export default function Sidebar(p: Props) {
           </button>
           <button
             className="group-select"
+            aria-current={selected ? "page" : undefined}
             onClick={() => p.onView("group", g.id)}
             title={g.name}
           >
@@ -175,6 +196,9 @@ export default function Sidebar(p: Props) {
       <aside
         ref={asideRef}
         inert={narrow && !p.mobileOpen}
+        role={narrow ? "dialog" : undefined}
+        aria-modal={narrow && p.mobileOpen ? true : undefined}
+        aria-label="工作区导航"
         className={`sidebar ${p.mobileOpen ? "mobile-open" : ""}`}
         onKeyDown={(e) => {
           if (!narrow || !p.mobileOpen) return;
@@ -184,10 +208,10 @@ export default function Sidebar(p: Props) {
           }
           if (e.key === "Tab") {
             const els = Array.from(
-              asideRef.current?.querySelectorAll<HTMLButtonElement>(
-                "button:not([disabled])",
+              asideRef.current?.querySelectorAll<HTMLElement>(
+                "button, a[href], input, select, textarea, [tabindex]",
               ) || [],
-            ).filter((el) => el.offsetWidth > 0);
+            ).filter(el => el.tabIndex >= 0 && !el.matches(":disabled") && !el.closest("[hidden],[inert]") && el.getClientRects().length > 0);
             const first = els[0],
               last = els[els.length - 1];
             if (e.shiftKey && document.activeElement === first) {
@@ -216,11 +240,13 @@ export default function Sidebar(p: Props) {
             <X size={18} />
           </button>
         </div>
-        <nav aria-label="任务视图">
-          {navs.map(([v, label, Icon, n]) => (
+        <nav aria-label="会话视图">
+          {navs.map(([v, label, Icon, n], index) => (
+            <Fragment key={v}>
+            {index === 4 && <div className="sidebar-section-head sidebar-arrangements-heading"><span>我的安排</span></div>}
             <button
-              key={v}
               data-view={v}
+              aria-current={p.view === v ? "page" : undefined}
               className={`nav-item ${p.view === v ? "selected" : ""}`}
               onClick={() => p.onView(v)}
             >
@@ -228,6 +254,7 @@ export default function Sidebar(p: Props) {
               <span>{label}</span>
               <small>{n}</small>
             </button>
+            </Fragment>
           ))}
         </nav>
         <div className="sidebar-section-head">
@@ -247,11 +274,12 @@ export default function Sidebar(p: Props) {
             .map((g) => renderGroup(g))}
           <button
             className={`nav-item unassigned ${p.view === "unassigned" ? "selected" : ""}`}
+            aria-current={p.view === "unassigned" ? "page" : undefined}
             onClick={() => p.onView("unassigned")}
           >
             <CircleDashed size={16} />
             <span>未分组</span>
-            <small>{active.filter((t) => !t.groupIds.length).length}</small>
+            <small>{counts.unassigned}</small>
           </button>
         </div>
         <div className="sidebar-bottom">
@@ -259,15 +287,13 @@ export default function Sidebar(p: Props) {
           <div className="sidebar-tools">
             <button
               className={`nav-item ${p.view === "archived" ? "selected" : ""}`}
+              aria-current={p.view === "archived" ? "page" : undefined}
               onClick={() => p.onView("archived")}
             >
               <Archive size={17} />
               <span>归档</span>
               <small>
-                {
-                  p.catalog.threads.filter((t) => t.archived && !t.separator)
-                    .length
-                }
+                {counts.archived}
               </small>
             </button>
             <button

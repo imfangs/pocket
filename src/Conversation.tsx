@@ -20,7 +20,10 @@ import { connectionFailureHint, connectionFromHistory, newerConnection } from ".
 import type { OpenThreadResult, ThreadConnection } from "./threadConnection";
 import { displayedReadObservation, observeVisibleRead } from "./readObservation";
 import type { ReadAttempts, ReadObservation, ReadReceipt } from "./readObservation";
-export type QueryDraft = { text: string; requestId?: string; revision?: number };
+export type QueryDraft = {
+  text: string; requestId?: string; revision?: number;
+  answerMode?: "options" | "custom"; customText?: string; optionText?: string;
+};
 const statuses: Record<string, string> = {
   active: "正在运行",
   idle: "可继续",
@@ -61,7 +64,9 @@ export default function Conversation({
     [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false),
     [error, setError] = useState(""),
     [historyError, setHistoryError] = useState(""),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [awayFromLatest, setAwayFromLatest] = useState(() => historyCache.get(thread.id)?.nearBottom === false),
+    [hasNewContent, setHasNewContent] = useState(false);
   const messages = useRef<HTMLDivElement>(null),
     readSentinel = useRef<HTMLDivElement>(null),
     questionReadRoot = useRef<HTMLElement>(null),
@@ -72,6 +77,7 @@ export default function Conversation({
     readViewGeneration = useRef(0),
     nearBottom = useRef(historyCache.get(thread.id)?.nearBottom ?? true),
     restoreScroll = useRef<number | null>(historyCache.get(thread.id)?.scrollTop ?? null),
+    previousLatest = useRef<{ id: string; text: string } | null>(null),
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
@@ -97,6 +103,16 @@ export default function Conversation({
     [drafts, thread.id],
   );
   const load = useCallback(async () => { await Promise.all([feed.current?.refresh(), textFeed.current?.refresh()]); }, []);
+  const returnToLatest = useCallback(() => {
+    nearBottom.current = true;
+    setAwayFromLatest(false);
+    setHasNewContent(false);
+    const element = messages.current;
+    if (element) {
+      element.focus({ preventScroll: true });
+      element.scrollTop = element.scrollHeight;
+    }
+  }, []);
   const receiptRead = useRef<AbortController | null>(null);
   const connectionOpen = useRef<AbortController | null>(null);
   useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
@@ -219,8 +235,16 @@ export default function Conversation({
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
-    if (nearBottom.current) element.scrollTop = element.scrollHeight;
-    else if (restoreScroll.current !== null) element.scrollTop = restoreScroll.current;
+    const latest = shownMessages.at(-1), previous = previousLatest.current;
+    if (nearBottom.current) {
+      element.scrollTop = element.scrollHeight;
+      setAwayFromLatest(false);
+      setHasNewContent(false);
+    } else {
+      if (restoreScroll.current !== null) element.scrollTop = restoreScroll.current;
+      if (latest && previous && (latest.id !== previous.id || latest.text !== previous.text)) setHasNewContent(true);
+    }
+    previousLatest.current = latest ? { id: latest.id, text: latest.text } : null;
     restoreScroll.current = null;
   }, [shownMessages]);
   useLayoutEffect(() => {
@@ -375,11 +399,7 @@ export default function Conversation({
           <button
             className="icon-button"
             aria-label="跳到最新消息"
-            onClick={() => {
-              nearBottom.current = true;
-              if (messages.current)
-                messages.current.scrollTop = messages.current.scrollHeight;
-            }}
+            onClick={returnToLatest}
           >
             <ArrowDown size={16} />
           </button>
@@ -392,14 +412,20 @@ export default function Conversation({
           </button>
         </div>
       </div>
+      <div className="conversation-feed">
       <div
         className="conversation-messages"
+        role="region"
+        aria-label="会话正文"
+        tabIndex={0}
         ref={messages}
         onScroll={() => {
           const el = messages.current;
           if (el) {
             nearBottom.current =
               el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+            setAwayFromLatest(!nearBottom.current);
+            if (nearBottom.current) setHasNewContent(false);
             const cached = historyCache.get(thread.id);
             if (cached) {
               cached.scrollTop = el.scrollTop;
@@ -414,14 +440,20 @@ export default function Conversation({
           </p>
         )}
         {!loading && !historyError && !shownMessages.length && (
-          <p className="history-empty">
-            暂时没有可显示的消息
-          </p>
+          <div className="history-empty conversation-empty">
+            <h3>{targetAvailable ? "从一句话开始" : "暂时没有可显示的消息"}</h3>
+            {targetAvailable && <p>写下你想讨论或完成的事。</p>}
+          </div>
         )}
         {renderedMessages.map((message) => (
           <ConversationMessage key={message.id} message={message} />
         ))}
         <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
+      </div>
+      {awayFromLatest && <button type="button" className="conversation-latest" onClick={returnToLatest}>
+        <ArrowDown size={14} aria-hidden="true" />
+        {hasNewContent ? "有新内容 · 返回最新" : "返回最新消息"}
+      </button>}
       </div>
       <div className="conversation-status">
         <p role="status" className={history?.canSend || history?.pendingRequests?.length ? "routine-hint" : undefined}>{connectionHint}</p>
@@ -453,7 +485,7 @@ export default function Conversation({
       </div>
       <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked || !history?.canSend} drafts={drafts} refresh={load}
         readMarker={readTargetKind === "question" && readItemId ? { sourceMessageId: readItemId, rootRef: questionReadRoot, markerRef: questionReadSentinel } : undefined} />
-      <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} />
+      <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
       <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
@@ -462,6 +494,7 @@ export default function Conversation({
         <AutoTextarea
           id="user-query"
           aria-label="发送给原任务的消息"
+          placeholder={enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
           value={draft.text}
           maxLength={16000}
           disabled={sending}
