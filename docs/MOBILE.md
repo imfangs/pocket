@@ -1,6 +1,6 @@
 # 手机 PWA 与固定入口
 
-2026-09-27 用户授权：先做可添加主屏幕的 PWA，使用简单口令验证；随后指定固定地址 `https://x.fangs.cc`。09-28 追加最近历史与文本 query，具体能力和验证边界见 [CONVERSATION.md](CONVERSATION.md)；新建原任务仍未接入。
+2026-09-27 用户授权：先做可添加主屏幕的 PWA，使用简单口令验证；随后指定固定地址 `https://x.fangs.cc`。09-28 追加最近历史与文本 query，具体能力和验证边界见 [CONVERSATION.md](CONVERSATION.md)；后续新建/归档能力与当前版本统一见 [CURRENT.md](../CURRENT.md)。
 
 ## 运行路径
 
@@ -56,3 +56,5 @@ node bin/verify-public.mjs https://x.fangs.cc
 登记凭据的恢复：保留本机私有 `relay-registration.json`，不要用网站四位访问口令替代它。`node bin/registration-key.mjs` 会复用已有 key 并生成私有 `relay-registration.sha256` 文件，stdout 只显示路径。初次配置或丢失 key 后重新配对时，将 verifier 文件通过 stdin 配置为 Pages 生产环境的 `NAVIGATOR_REGISTRATION_SHA256` secret，再发布 Worker。发布操作仍使用管理凭据，运行时续登记不需要管理凭据。不要误轮换现有 key；换 key 必须同步云端 verifier。
 
 口令文件直接在 Mac 本地打开后输入手机。请勿将口令放进 URL、仓库或分享截图。手机安装须用正式固定地址；旧 trycloudflare 地址会在连接器重启后失效。
+
+2026-10-08 发布回读发现旧 Quick Tunnel 持续返回 `Unauthorized: Tunnel not found`：连接器进程仍在，但 `/health` 的 connected/published 已为 false，登记已过期。按现有配置重启连接器后生成新通道并重新登记，随后独立回读健康200、公网认证目录200；Mac API与Codex未重启。静态文件已上传时仍使用同一部署的 `resume --publish --resume-verification`，没有再次上传。证据 `.local/qa/notion-polish-2026-10-08/` 的 `tunnel-recovered.json`、`resume.json`、`public-readback.json`。这次恢复不构成长期隧道稳定性保证。
