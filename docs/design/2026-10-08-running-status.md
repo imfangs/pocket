@@ -29,3 +29,5 @@
 366项全量测试和构建通过。回归覆盖同请求共享、失败不保留旧状态、归档中取消与迟到回执、sourceClientId/host/thread身份、未知版本、尾读的新输入/结束边界、协议退订、状态过期及离线/后台恢复；不通过列表状态扩展执行权限。
 
 真实只读验证：本会话原owner返回 `active`、空activeFlags、`resumed`，列表投影为running，完整发现与读取约682ms。没有真实发送或任务管理操作。390px合成浏览器验证绿色运行、两类等待与手工推进的区别，以及结束后标记自动消失；来源不可用时撤下旧标签。证据 `.local/qa/running-status-2026-10-08/`，发布身份以 `CURRENT.md` 为准。其他App版本、CLI独立执行器和长期网络表现未在本轮验证。
+
+发布后回读：只更新Pocket本机API，未重启Codex或隧道。本机和公网匿名状态接口均401、认证后均200且available=true；该次快照均含5条running/17条idle，本任务为running。本机HTTP路径约1819ms。公开15个文件哈希匹配，Pages ready=true、功能检查通过；计数仅是该次观察，不是持续运行保证。回执见同目录 `restart.json`、`local-readback.json`、`public-readback.json` 及 `.local/pages-site.json`。
