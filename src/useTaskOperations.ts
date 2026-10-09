@@ -107,7 +107,7 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
   };
   const notices = operations.filter(operation => !dismissed.has(operation.requestId) && (activeOperation(operation) || watched.current.has(operation.requestId) &&
     (operation.status === "changed" || operation.status === "rejected" || operation.operation === "create" && operation.status === "succeeded")));
-  return { operations, notices, errors, start, check, cancel, dismiss: (id: string) => {
+  return { operations, notices, errors, start, check, cancel, get: (id: string) => receipts.current.get(id), dismiss: (id: string) => {
     watched.current.delete(id);
     saveCreationRecoveryIds(creationRecoveryIds(receipts.current.values(), watched.current));
     setDismissed(old => new Set(old).add(id));

@@ -33,6 +33,7 @@ import NewConversationDialog from "./NewConversationDialog";
 import QuickCreateButton from "./QuickCreateButton";
 import type { QuickCreateInput } from "./quickCreate";
 import { createSubmittedQueryStore, seedSubmittedQuery } from "./submittedQueries";
+import { prepareCreationDialog, type CreationClipboard } from "./creationQuery";
 import type { TaskOperation } from "./taskOperations";
 import TaskOperationStatus from "./TaskOperationStatus";
 import useTaskOperations from "./useTaskOperations";
@@ -136,7 +137,7 @@ export default function App({
     ),
     [settings, setSettings] = useState(false),
     [newConversationOpen, setNewConversationOpen] = useState(false),
-    [quickCreateDraft, setQuickCreateDraft] = useState<{ text: string; hint?: string } | null>(null),
+    [quickCreateDraft, setQuickCreateDraft] = useState<{ text: string; hint?: string; clipboardRead?: Promise<CreationClipboard> } | null>(null),
     [readingClipboard, setReadingClipboard] = useState(false),
     [createRequestId, setCreateRequestId] = useState<string | null>(null),
     [showSeparators, setShowSeparators] = useState(
@@ -237,9 +238,17 @@ export default function App({
   });
   useEffect(() => { taskOperations.operations.forEach(seedCreationMessage); }, [taskOperations.operations, submissions]);
   const showNewConversation = async () => {
-    await flushRef.current?.();
-    setQuickCreateDraft(null);
-    const existing = taskOperations.operations.find(operation => operation.operation === "create" && activeOperation(operation));
+    const prepared = await prepareCreationDialog({
+      existing: taskOperations.operations.find(operation => operation.operation === "create" && activeOperation(operation)),
+      getLatest: taskOperations.get,
+      readText: () => navigator.clipboard.readText(),
+      flush: async () => { await flushRef.current?.(); },
+    });
+    if (prepared.kind === "open") { seedCreationMessage(prepared.operation); openCreatedThread(prepared.threadId); return; }
+    const { operation: existing, clipboardRead } = prepared;
+    const existingQuery = existing ? creationQueries.current.get(existing.requestId) ??
+      (existing.threadId && submissions.getThread(existing.threadId).find(entry => entry.requestId === existing.initialMessage?.requestId)?.text) : "";
+    setQuickCreateDraft({ text: existingQuery || "", clipboardRead });
     createRequest.current = existing?.requestId ?? null;
     setCreateRequestId(createRequest.current);
     newDialogOpen.current = true; setNewConversationOpen(true);
@@ -772,7 +781,7 @@ export default function App({
         />
       )}
       {newConversationOpen && <NewConversationDialog preferredCwd={current?.cwd || catalog.projects.find(item => item.id === project)?.paths[0]}
-        initialQuery={quickCreateDraft?.text} queryHint={quickCreateDraft?.hint}
+        initialQuery={quickCreateDraft?.text} queryHint={quickCreateDraft?.hint} clipboardRead={quickCreateDraft?.clipboardRead}
         operation={taskOperations.operations.find(operation => operation.requestId === createRequestId)}
         operationError={createRequestId ? taskOperations.errors[createRequestId] : undefined}
         onCreate={startCreation}

@@ -23,8 +23,14 @@ export function frontendVersion(root) {
 export function versionManifest(id) {
   return {
     name: 'pocket-version', apply: 'build',
-    transformIndexHtml() {
-      return [{ tag: 'meta', attrs: { name: 'pocket-build', content: id }, injectTo: 'head' }];
+    transformIndexHtml(html) {
+      return {
+        // Old installed service workers cache the bare startup.css path. Their
+        // existing query bypass lets a new entry use its matching startup styles.
+        html: html.replace(/href=(["'])\/startup\.css(?:\?[^"']*)?\1/g,
+          (_match, quote) => `href=${quote}/startup.css?v=${encodeURIComponent(id)}${quote}`),
+        tags: [{ tag: 'meta', attrs: { name: 'pocket-build', content: id }, injectTo: 'head' }],
+      };
     },
     generateBundle(_options, bundle) {
       const assets = Object.keys(bundle).filter(path => /^assets\/[A-Za-z0-9_.-]+\.(?:js|css)$/.test(path)).sort().map(path => '/' + path);

@@ -50,6 +50,9 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .quick-create-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:7px 9px; border:1px solid var(--line); border-radius:6px; color:var(--text-secondary); background:var(--surface); font-size:12px; white-space:nowrap; }
 .quick-create-button:disabled { opacity:.55; }
 .quick-create-query { margin-bottom:18px; }
+.quick-create-query-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.quick-create-query-heading .field-label { margin:0; }
+.quick-create-query-heading .text-button { min-height:44px; min-width:44px; }
 .quick-create-query textarea { width:100%; min-height:88px; max-height:180px; padding:10px 12px; border:1px solid var(--line-strong); border-radius:7px; background:var(--surface); color:var(--ink); font:inherit; font-size:14px; resize:none; }
 .list-controls { margin-left:auto; display:flex; align-items:center; gap:6px; }
 .search-toggle, .view-options-trigger { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:36px; padding:7px 10px; width:auto; color:var(--muted); border-radius:6px; font-size:13px; }

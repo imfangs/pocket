@@ -48,7 +48,11 @@ test('repeated clicks and leaving the app cannot cause an extra or late reload',
 });
 test('build metadata contains only build IDs and emitted frontend asset paths',()=>{
  const emitted=[];versionManifest(newId).generateBundle.call({emitFile:v=>emitted.push(v)},null,{'assets/a.js':{},'assets/b.css':{},'index.html':{},'assets/a.js.map':{}});
- assert.equal(versionManifest(newId).transformIndexHtml()[0].attrs.content,newId);
+ const transformed=versionManifest(newId).transformIndexHtml('<link rel="stylesheet" href="/startup.css"><link rel="stylesheet" href="/other.css">');
+ assert.equal(transformed.tags[0].attrs.content,newId);
+ assert.ok(transformed.html.includes(`/startup.css?v=${newId}`));
+ assert.ok(transformed.html.includes('href="/other.css"'));
+ assert.equal(versionManifest(newId).transformIndexHtml('<link href="/startup.css?v=old">').html,`<link href="/startup.css?v=${newId}">`);
  assert.equal(emitted[0].fileName,'pocket-version.json');assert.deepEqual(JSON.parse(emitted[0].source),{id:newId,assets:['/assets/a.js','/assets/b.css']});
  const root=mkdtempSync('/tmp/pocket-version-test-');
  try{for(const dir of ['src','public','bin','.local'])mkdirSync(join(root,dir));for(const file of ['src/a.ts','public/icon.svg','index.html','package.json','package-lock.json','vite.config.ts','bin/build-version.mjs'])writeFileSync(join(root,file),'original');

@@ -60,6 +60,11 @@ test("worker handles real fetch failures and 502 navigations with only the publi
     respondWith: () => (intercepted = true),
   });
   assert.equal(intercepted, false);
+  handlers.fetch({
+    request: { url: "https://example.test/startup.css?v=new-build", method: "GET", mode: "cors" },
+    respondWith: () => (intercepted = true),
+  });
+  assert.equal(intercepted, false, "versioned startup styles must bypass an old installed worker cache");
 });
 
 test('push shows a notification without caching private data and click reuses a window without reloading drafts',async()=>{
