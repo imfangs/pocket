@@ -57,6 +57,7 @@ export interface Catalog {
 export type View =
   | "all"
   | "unread"
+  | "running"
   | "pinned"
   | "active"
   | "later"

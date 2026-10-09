@@ -61,6 +61,18 @@ class NavigatorIPC(AppIPC):
             self._owner_deadline = None
             self.socket.settimeout(previous_timeout)
 
+    def start(self, thread_id, owner, message_id, prompt, initial_title=False):
+        if not initial_title:
+            return super().start(thread_id, owner, message_id, prompt)
+        # The pinned owner's ordinary start route uses this context field to
+        # request its own title service after accepting the first message.
+        return self.request("thread-follower-start-turn", {
+            "conversationId": thread_id,
+            "turnStart": {"request": {"threadId": thread_id,
+                "clientUserMessageId": message_id,
+                "input": [{"type": "text", "text": prompt, "text_elements": []}]},
+                "context": {"inheritThreadSettings": True, "threadStartKind": "default"}}}, 2, owner)
+
 
 def ordered_turns(state):
     history = state.get("turnHistory", {})
@@ -69,6 +81,18 @@ def ordered_turns(state):
     h = history["history"]
     return [h["entitiesByKey"][e["value"]] for island in h["islands"]
             for e in island["entries"] if e["value"] in h["entitiesByKey"]]
+
+
+def needs_initial_title(state):
+    # Empty visible history alone cannot prove this is a first message. Only
+    # complete owner history qualifies; existing/special tasks keep their names.
+    return (state.get("title") is None and not ordered_turns(state)
+            and state.get("turnsPagination", {}).get("hasLoadedOldest") is True
+            and state.get("threadStartKind") in (None, "default")
+            and state.get("threadSource") in (None, "user")
+            and state.get("mode") in (None, "default")
+            and not state.get("ephemeral") and not state.get("sideConversation")
+            and not state.get("parentThreadId") and not state.get("forkedFromId"))
 
 
 def input_text(content):
@@ -381,7 +405,7 @@ def main():
                     "clientUserMessageId": message_id, "input": [{"type": "text", "text": data["text"], "text_elements": []}],
                     "restoreMessage": restore, "attachments": []}, 1, owner)
             else:
-                client.start(thread_id, owner, message_id, data["text"])
+                client.start(thread_id, owner, message_id, data["text"], initial_title=needs_initial_title(fresh))
             return {"ok": True, "status": "accepted", "turnId": turns[-1].get("turnId") if active and turns else None}
     except Exception as error:
         # Expose bounded reason codes, never exception text or private IPC data.

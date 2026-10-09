@@ -4,7 +4,7 @@ import RequestActions from "./RequestActions";
 import StopExecution from "./StopExecution";
 import TurnDuration from "./TurnDuration";
 import QuestionPrompts from "./QuestionPrompts";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowDown, RefreshCw, Send, Link2 } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
@@ -23,6 +23,9 @@ import type { ReadAttempts, ReadObservation, ReadReceipt } from "./readObservati
 import { createSubmissionFeedbackTracker, SEND_FEEDBACK_EXIT_MS } from "./submissionFeedback";
 import type { AcceptedFeedback } from "./submissionFeedback";
 import SubmissionFeedbackNotice from "./SubmissionFeedbackNotice";
+import SubmittedQueryCards from "./SubmittedQueryCards";
+import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, withSubmittedQueryPost } from "./submittedQueries";
+import type { SubmittedQuery, SubmittedQueryStore, SubmittedQueryReceipt } from "./submittedQueries";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   answerMode?: "options" | "custom"; customText?: string; optionText?: string;
@@ -37,6 +40,7 @@ export default function Conversation({
   thread,
   drafts,
   historyCache,
+  submissions: providedSubmissions,
   onConnect,
   onActivity,
   managementBlocked = false,
@@ -45,11 +49,15 @@ export default function Conversation({
   thread: Thread;
   drafts: Map<string, QueryDraft>;
   historyCache: HistoryCache;
+  submissions?: SubmittedQueryStore;
   onConnect: () => Promise<OpenThreadResult>;
   onActivity?: () => void;
   managementBlocked?: boolean;
   managementHint?: string;
 }) {
+  const [localSubmissions] = useState(createSubmittedQueryStore);
+  const submissions = providedSubmissions ?? localSubmissions;
+  const submitted = useSyncExternalStore(submissions.subscribe, () => submissions.getThread(thread.id), () => submissions.getThread(thread.id));
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
     [transcript, setTranscript] = useState<SavedTranscript | null>(() => historyCache.get(thread.id)?.transcript ?? null),
     [freshTranscript, setFreshTranscript] = useState<SavedTranscript | null>(null),
@@ -110,6 +118,10 @@ export default function Conversation({
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
+  const shownOutbox = useMemo(() => submittedOutbox(submitted, shownMessages, history?.outbox ?? []), [submitted, shownMessages, history?.outbox]);
+  const visibleSubmissions = useMemo(() => visibleSubmittedQueries(submitted, shownMessages, shownOutbox), [submitted, shownMessages, shownOutbox]);
+  useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
+  useEffect(() => { submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted]);
   const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
   const renderedMessages = useMemo(() => shownMessages.filter(message => !message.isQuestion || !questions.some(q => q.sourceMessageId === message.id)), [shownMessages, questions]);
   const readObservation = useMemo(() => displayedReadObservation(freshTranscript, shownMessages), [freshTranscript, shownMessages]);
@@ -122,7 +134,7 @@ export default function Conversation({
   const observedConnection = connectionFromHistory(connection, history);
   const connecting = opening || observedConnection.status === "connecting";
   useReloadGuard(() => sending || connecting ? "操作尚未完成，请稍后更新。"
-    : draft.text || draft.requestId ? "还有未发送或待核对的消息，请处理后再更新。" : null);
+    : draft.text || draft.requestId ? "还有未发送或待核对的消息，请处理后再更新。" : submissions.reloadBlocker());
   const updateDraft = useCallback(
     (next: QueryDraft) => {
       setDraft(next);
@@ -143,8 +155,10 @@ export default function Conversation({
     }
   }, []);
   const receiptRead = useRef<AbortController | null>(null);
+  const checkingSubmissions = useRef(new Map<string, AbortController>());
   const connectionOpen = useRef<AbortController | null>(null);
   useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
+  useEffect(() => () => { checkingSubmissions.current.forEach(controller => controller.abort()); checkingSubmissions.current.clear(); }, [thread.id]);
   useEffect(() => () => connectionOpen.current?.abort(), [thread.id]);
   useEffect(() => () => { readViewGeneration.current++; }, [thread.id]);
   useEffect(() => {
@@ -188,6 +202,26 @@ export default function Conversation({
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
   const sendAndConnect = enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
+  const checkSubmissionReceipt = useCallback(async (requestId: string) => {
+    if (checkingSubmissions.current.has(requestId)) return;
+    const controller = new AbortController();
+    checkingSubmissions.current.set(requestId, controller);
+    try {
+      const receipt = await api<SubmittedQueryReceipt>(`/api/tasks/${thread.id}/messages/${requestId}`, "GET", undefined,
+        { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) });
+      if (receipt.requestId !== requestId) throw new Error("回执与这条消息不匹配，请重新核对。");
+      // The shared store knows whether the original POST is still in flight,
+      // even if this view has changed or several checks returned not_found.
+      submissions.receipt(thread.id, receipt);
+      if (!controller.signal.aborted && receipt.status === "accepted") {
+        confirmAccepted({ requestId, status: "accepted" }); onActivity?.();
+      }
+    } finally { if (checkingSubmissions.current.get(requestId) === controller) checkingSubmissions.current.delete(requestId); }
+  }, [thread.id, submissions, confirmAccepted, onActivity]);
+  const checkSubmitted = async (item: SubmittedQuery) => {
+    if (!["accepted", "not_queued"].includes(item.status)) await checkSubmissionReceipt(item.requestId);
+    await load();
+  };
   const connectingId = observedConnection.status === "connecting" ? observedConnection.requestId : null;
   useEffect(() => {
     if (!connectingId || managementBlocked) return;
@@ -236,6 +270,15 @@ export default function Conversation({
       request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
       onData(data) {
         feedbackTracker.observeHistory(data).forEach(showAcceptedFeedback);
+        const queueChecks = new Set(submissions.observeQueue(thread.id, data.outbox ?? []));
+        if (data.source === "desktop") for (const message of data.messages) {
+          if (message.role === "user" && message.clientMessageId) submissions.receipt(thread.id, { requestId: message.clientMessageId, status: "accepted" });
+        }
+        const queuedIds = new Set((data.outbox ?? []).map(item => item.id));
+        for (const entry of submissions.getThread(thread.id)) {
+          if (!entry.echoed && !entry.dismissed && (queueChecks.has(entry.requestId) || (!queuedIds.has(entry.requestId) && ["pending", "queued"].includes(entry.status))))
+            void checkSubmissionReceipt(entry.requestId).catch(() => {});
+        }
         rememberHistory(historyCache, thread.id, data);
         setHistory(data);
         setConnection(previous => connectionFromHistory(newerConnection(previous, data.connection), data));
@@ -244,8 +287,8 @@ export default function Conversation({
         setLoading(false);
         const saved = drafts.get(thread.id);
         if (
-          saved?.requestId &&
-          data.messages.some((m) => m.clientMessageId === saved.requestId)
+          saved?.requestId && data.source === "desktop" &&
+          data.messages.some((m) => m.role === "user" && m.clientMessageId === saved.requestId && !m.truncated && m.text.trim() === saved.text.trim())
         ) {
           updateDraft({ text: "" });
           if (data.source === "desktop" && data.messages.some(message => message.role === "user" && message.clientMessageId === saved.requestId)) {
@@ -264,7 +307,7 @@ export default function Conversation({
       subscription.stop();
       if (feed.current === subscription) feed.current = null;
     };
-  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked, feedbackTracker, showAcceptedFeedback, confirmAccepted]);
+  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked, feedbackTracker, showAcceptedFeedback, confirmAccepted, submissions, checkSubmissionReceipt]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
@@ -279,7 +322,7 @@ export default function Conversation({
     }
     previousLatest.current = latest ? { id: latest.id, text: latest.text } : null;
     restoreScroll.current = null;
-  }, [shownMessages]);
+  }, [shownMessages, visibleSubmissions]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
@@ -293,24 +336,24 @@ export default function Conversation({
   }, []);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (draft.text) {
+      if (draft.text || submissions.reloadBlocker()) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [draft.text]);
+  }, [draft.text, submissions]);
   useEffect(() => {
     if (!/^(消息已交给|已加入(?: Mac )?待发|已在原任务历史|当前执行已中断|这一轮已经结束)/.test(notice)) return;
     const timer = setTimeout(() => setNotice(""), 4000);
     return () => clearTimeout(timer);
   }, [notice]);
   const receive = (receipt: Receipt) => {
+    submissions.receipt(thread.id, receipt);
     if (receipt.status === "accepted" || receipt.status === "queued") {
       if (receipt.status === "accepted") { onActivity?.(); confirmAccepted(receipt); }
       else feedbackTracker.trackQueued(receipt.requestId);
-      updateDraft({ text: "" });
       setNotice(receipt.status === "queued" && !feedbackTracker.hasAccepted(receipt.requestId)
         ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入 Mac 待发列表，正在连接原任务；确认可接收后发送。" : "");
       nearBottom.current = true;
@@ -318,7 +361,6 @@ export default function Conversation({
       receipt.status === "rejected" ||
       receipt.status === "not_found"
     ) {
-      updateDraft({ text: draft.text });
       setError(
         receipt.status === "not_found"
           ? "未收到这次提交，可以重新发送。"
@@ -337,11 +379,15 @@ export default function Conversation({
     setAcceptedNotice(null);
     const controller = new AbortController();
     const requestId = draft.requestId || crypto.randomUUID();
+    const submittedText = draft.text;
     receiptRead.current = controller;
-    // A submission belongs to this view and this exact draft. Leaving must not
-    // let its late response rewrite a newer draft held by the next view.
-    const ownsDraft = () => !controller.signal.aborted && receiptRead.current === controller &&
-      drafts.get(thread.id)?.requestId === requestId;
+    nearBottom.current = true;
+    // Capture before clearing the composer. Every later receipt updates this
+    // request's immutable snapshot, never whatever the user is typing next.
+    submissions.seed({ threadId: thread.id, requestId, text: submittedText,
+      status: draft.requestId ? "unknown" : sendAndConnect ? "connecting" : "submitting" });
+    updateDraft({ text: "" });
+    const ownsView = () => !controller.signal.aborted && receiptRead.current === controller;
     try {
       let receipt: Receipt;
       if (draft.requestId) {
@@ -349,25 +395,26 @@ export default function Conversation({
             `/api/tasks/${thread.id}/messages/${requestId}`,
           );
       } else {
-        updateDraft({ ...draft, requestId });
-        receipt = await api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
-            text: draft.text,
+        receipt = await withSubmittedQueryPost(submissions, thread.id, requestId, () => api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
+            text: submittedText,
             requestId,
             ...(enqueue ? { enqueue: true } : {}),
-          });
+          }));
       }
-      if (!ownsDraft()) return;
       if (receipt.requestId !== requestId) throw new Error("回执与当前消息不匹配，请重新核对。");
+      submissions.receipt(thread.id, receipt);
+      if (!ownsView()) return;
       if (receipt.status === "pending") setNotice("Pocket 已收到，正在确认原任务…");
       const confirmed = await waitForSubmission(receipt, signal => api<Receipt>(`/api/tasks/${thread.id}/messages/${requestId}`, "GET", undefined, { signal }), controller.signal);
-      if (!ownsDraft()) return;
+      submissions.receipt(thread.id, confirmed);
+      if (!ownsView()) return;
       receive(confirmed);
       void load();
     } catch (e) {
-      if (!ownsDraft()) return;
       const status = (e as Error & { status?: number }).status;
+      submissions.receipt(thread.id, { requestId, status: status && status < 500 ? "rejected" : "unknown" });
+      if (!ownsView()) return;
       if (status && status < 500) {
-        updateDraft({ text: draft.text });
         setError((e as Error).message);
       } else
         setNotice("连接中断，发送结果尚未确认。请核对状态，避免重复提交。");
@@ -475,7 +522,7 @@ export default function Conversation({
             仅显示最近的对话
           </p>
         )}
-        {!loading && !historyError && !shownMessages.length && (
+        {!loading && !historyError && !shownMessages.length && !visibleSubmissions.length && !shownOutbox.length && (
           <div className="history-empty conversation-empty">
             <h3>{targetAvailable ? "从一句话开始" : "暂时没有可显示的消息"}</h3>
             {targetAvailable && <p>写下你想讨论或完成的事。</p>}
@@ -486,6 +533,8 @@ export default function Conversation({
             recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />
         ))}
         <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
+        <SubmittedQueryCards items={visibleSubmissions} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
+          disabled={!online || managementBlocked} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} />
       </div>
       {awayFromLatest && <button type="button" className="conversation-latest" onClick={returnToLatest}>
         <ArrowDown size={14} aria-hidden="true" />
@@ -524,7 +573,7 @@ export default function Conversation({
       <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked || !history?.canSend} drafts={drafts} refresh={load}
         readMarker={readTargetKind === "question" && readItemId ? { sourceMessageId: readItemId, rootRef: questionReadRoot, markerRef: questionReadSentinel } : undefined} />
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
-      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity}
+      <Outbox threadId={thread.id} items={shownOutbox} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
         onAccepted={receipt => confirmAccepted(receipt, "queue")} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
@@ -536,7 +585,6 @@ export default function Conversation({
           placeholder={enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
           value={draft.text}
           maxLength={16000}
-          disabled={sending}
           onChange={(e) => updateDraft({ text: e.target.value })}
           onInput={(e) => updateDraft({ text: e.currentTarget.value })}
         />

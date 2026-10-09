@@ -1,4 +1,5 @@
 import type { Group, Thread, View } from "./types";
+import type { TaskStatus } from "./taskStatuses";
 export function descendantIds(groups: Group[], id: string): Set<string> {
   const ids = new Set([id]);
   let changed = true;
@@ -32,6 +33,7 @@ export function filterThreads(
   project: string,
   showSeparators: boolean,
   sort: string,
+  runtimeStates?: ReadonlyMap<string, TaskStatus>,
 ) {
   const ids = groupId ? descendantIds(groups, groupId) : new Set<string>();
   const terms = query
@@ -52,6 +54,7 @@ export function filterThreads(
       if (view !== "archived" && t.archived)
         return false;
       if (view === "unread" && (!t.needsInput || t.missing || t.separator)) return false;
+      if (view === "running" && (t.missing || t.separator || runtimeStates?.get(t.id) !== "running")) return false;
       if (project && t.projectId !== project) return false;
       if (view === "pinned" && !t.pinned) return false;
       if (view === "recent" && !t.lastOpenedAt) return false;

@@ -30,6 +30,10 @@ import PocketUpdate from "./PocketUpdate";
 import { filterThreads, groupPath } from "./model";
 import type { Catalog, Group, Thread, View } from "./types";
 import NewConversationDialog from "./NewConversationDialog";
+import QuickCreateButton from "./QuickCreateButton";
+import type { QuickCreateInput } from "./quickCreate";
+import { createSubmittedQueryStore, seedSubmittedQuery } from "./submittedQueries";
+import type { TaskOperation } from "./taskOperations";
 import TaskOperationStatus from "./TaskOperationStatus";
 import useTaskOperations from "./useTaskOperations";
 import useTaskStatuses from "./useTaskStatuses";
@@ -58,6 +62,7 @@ const empty: Catalog = {
 const titles: Record<View, string> = {
   all: "全部会话",
   unread: "待我输入",
+  running: "运行中",
   pinned: "置顶",
   active: "正在推进",
   later: "稍后继续",
@@ -70,6 +75,7 @@ const titles: Record<View, string> = {
 const descriptions: Record<View, string> = {
   all: "所有想做的事，都有一个继续的地方。",
   unread: "读读新的进展，再决定下一步。",
+  running: "查看 Mac 上已确认正在运行的任务。",
   pinned: "把常常回来做的事，放在手边。",
   active: "留住注意力，一件一件向前。",
   later: "想法先留在这里，准备好时再继续。",
@@ -88,6 +94,9 @@ export default function App({
   const taskStatuses = useTaskStatuses();
   const [, setDraftIndicatorRevision] = useState(0);
   const [conversationDrafts] = useState(() => ({ current: createDraftMap(() => setDraftIndicatorRevision(value => value + 1)) }));
+  const [submissions] = useState(createSubmittedQueryStore);
+  const creationQueries = useRef(new Map<string, string>());
+  useReloadGuard(() => submissions.reloadBlocker());
   const [narrow, setNarrow] = useState(() => matchMedia("(max-width:760px)").matches);
   useEffect(() => {
     const media = matchMedia("(max-width:760px)");
@@ -127,6 +136,8 @@ export default function App({
     ),
     [settings, setSettings] = useState(false),
     [newConversationOpen, setNewConversationOpen] = useState(false),
+    [quickCreateDraft, setQuickCreateDraft] = useState<{ text: string; hint?: string } | null>(null),
+    [readingClipboard, setReadingClipboard] = useState(false),
     [createRequestId, setCreateRequestId] = useState<string | null>(null),
     [showSeparators, setShowSeparators] = useState(
       () => localStorage.getItem("navigator.separators") === "true",
@@ -199,7 +210,19 @@ export default function App({
     setSelected(id); setView("all"); setGroupId(null); setProject(""); setQuery("");
     setSearchOpen(false); setChecked(new Set()); setMobile(false);
   };
+  const seedCreationMessage = (operation: TaskOperation) => {
+    const text = creationQueries.current.get(operation.requestId);
+    if (operation.threadId && operation.creationStatus === "created" && operation.initialMessage) {
+      if (text) {
+        seedSubmittedQuery(submissions, { threadId: operation.threadId, requestId: operation.initialMessage.requestId,
+          text, status: operation.initialMessage.status, code: operation.initialMessage.code });
+        creationQueries.current.delete(operation.requestId);
+      }
+      submissions.receipt(operation.threadId, operation.initialMessage);
+    }
+  };
   const taskOperations = useTaskOperations(operation => {
+    seedCreationMessage(operation);
     catalogReader.invalidate();
     if (operation.thread) setCatalog(previous => {
       const found = previous.threads.some(thread => thread.id === operation.thread!.id);
@@ -212,12 +235,34 @@ export default function App({
       newDialogOpen.current = false; setNewConversationOpen(false);
     }
   });
+  useEffect(() => { taskOperations.operations.forEach(seedCreationMessage); }, [taskOperations.operations, submissions]);
   const showNewConversation = async () => {
     await flushRef.current?.();
+    setQuickCreateDraft(null);
     const existing = taskOperations.operations.find(operation => operation.operation === "create" && activeOperation(operation));
     createRequest.current = existing?.requestId ?? null;
     setCreateRequestId(createRequest.current);
     newDialogOpen.current = true; setNewConversationOpen(true);
+  };
+  const startCreation = async (input: { locationId: string; name?: string; initialQuery?: string }) => {
+    if (createRequest.current && activeOperation(taskOperations.operations.find(operation => operation.requestId === createRequest.current))) return;
+    const requestId = crypto.randomUUID(); createRequest.current = requestId; setCreateRequestId(requestId);
+    if (input.initialQuery) creationQueries.current.set(requestId, input.initialQuery);
+    const result = await taskOperations.start("create", input, undefined, requestId);
+    seedCreationMessage(result);
+    if (result.status === "rejected") creationQueries.current.delete(requestId);
+    if (result.requestId !== requestId) { createRequest.current = result.requestId; setCreateRequestId(result.requestId); }
+    return result;
+  };
+  const prepareQuickDialog = async (text: string, hint?: string) => {
+    await flushRef.current?.();
+    createRequest.current = null; setCreateRequestId(null);
+    setQuickCreateDraft({ text, hint });
+    newDialogOpen.current = true; setNewConversationOpen(true);
+  };
+  const quickCreate = async (input: QuickCreateInput) => {
+    await prepareQuickDialog(input.initialQuery);
+    return startCreation(input);
   };
   useEffect(() => {
     catalogReader.resume();
@@ -288,8 +333,9 @@ export default function App({
         project,
         showSeparators,
         sort,
+        taskStatuses.runtimeLoading || taskStatuses.runtimeUnavailable ? undefined : taskStatuses.runtimeStates,
       ),
-    [catalog, view, groupId, query, project, showSeparators, sort],
+    [catalog, view, groupId, query, project, showSeparators, sort, taskStatuses],
   );
   const current = catalog.threads.find((t) => t.id === selected);
   const currentOperation = current ? taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create" && activeOperation(operation))
@@ -298,6 +344,9 @@ export default function App({
   const title = view === "group" ? selectedGroup?.name || "分组" : titles[view];
   const unreadKnown = catalog.sourceInfo?.unread?.available === true;
   const unreadCount = catalog.threads.filter(t => t.needsInput && !t.archived && !t.missing && !t.separator).length;
+  const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
+  const runningCount = filterThreads(catalog.threads, catalog.groups, "running", null, "", "", false, "updated",
+    runtimeKnown ? taskStatuses.runtimeStates : undefined).length;
   const flush = async () => {
     await flushRef.current?.();
   };
@@ -309,13 +358,14 @@ export default function App({
       setError((e as Error).message);
     }
   };
-  const openUnread = () => {
-    if (view === "unread") return;
+  const openActivity = (target: "unread" | "running") => {
+    if (view === target) return;
     void guard(async () => {
       await flush();
-      returnView.current = { view, groupId, project, query, searchOpen, sort, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
+      if (view !== "unread" && view !== "running")
+        returnView.current = { view, groupId, project, query, searchOpen, sort, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
       restoreScroll.current = 0;
-      setView("unread");
+      setView(target);
       setGroupId(null);
       setProject("");
       setQuery("");
@@ -327,7 +377,7 @@ export default function App({
       refreshAfterActivity();
     });
   };
-  const returnFromUnread = () => void guard(async () => {
+  const returnFromActivity = () => void guard(async () => {
     await flush();
     const previous = returnView.current;
     restoreScroll.current = previous.scrollTop;
@@ -342,9 +392,9 @@ export default function App({
     refreshAfterActivity();
   });
   const switchView = (v: View, id?: string) => {
-    if (v === "unread") return openUnread();
-    if (view === "unread" && v === returnView.current.view && (id || null) === returnView.current.groupId)
-      return returnFromUnread();
+    if (v === "unread" || v === "running") return openActivity(v);
+    if ((view === "unread" || view === "running") && v === returnView.current.view && (id || null) === returnView.current.groupId)
+      return returnFromActivity();
     void guard(async () => {
       await flush();
       setView(v);
@@ -460,13 +510,14 @@ export default function App({
               </div>
               <h1>
                 {title}
-                <span>{view === "unread" && !unreadKnown ? "—" : threads.length}</span>
+                <span>{view === "unread" && !unreadKnown || view === "running" && !runtimeKnown ? "—" : threads.length}</span>
               </h1>
               <p className="view-description">{descriptions[view]}</p>
             </div>
             <button
               className="new-conversation-button"
               aria-label="新建会话"
+              disabled={readingClipboard}
               onClick={() => void guard(showNewConversation)}
             >
               <Plus size={18} /><span>新建会话</span>
@@ -482,13 +533,23 @@ export default function App({
             </button>
           </div>
           <div className="filter-row">
-            <button className="needs-input-toggle" data-inbox={view === "unread"} onClick={view === "unread" ? returnFromUnread : openUnread}
+            <div className="activity-filters">
+            <button className="needs-input-toggle" data-inbox={view === "unread"} onClick={view === "unread" ? returnFromActivity : () => openActivity("unread")}
               title={view === "unread" ? "返回之前的列表、搜索与位置" : "查看所有项目的待输入任务"}>
               {view === "unread" ? <ChevronLeft size={16} aria-hidden="true" /> : <span className="unread-dot" aria-hidden="true" />}
               <span>{view === "unread" ? "返回列表" : "待我输入"}</span>
               {view !== "unread" && <small>{unreadKnown ? unreadCount : "—"}</small>}
             </button>
+            <button className="needs-input-toggle running-toggle" data-inbox={view === "running"} aria-pressed={view === "running"}
+              title={view === "running" ? "返回之前的列表、搜索与位置" : "查看所有项目中已确认运行的任务"}
+              onClick={view === "running" ? returnFromActivity : () => openActivity("running")}>
+              <span className="running-dot" aria-hidden="true" />
+              <span>运行中</span><small>{runtimeKnown ? runningCount : "—"}</small>
+            </button>
+            </div>
             <div className="list-controls">
+              <QuickCreateButton disabled={loading || newConversationOpen || taskOperations.operations.some(operation => operation.operation === "create" && activeOperation(operation))}
+                onCreate={quickCreate} onFallback={prepareQuickDialog} onError={message => notify(message)} onBusyChange={setReadingClipboard} />
               <button
                 ref={searchToggle}
                 className="icon-button search-toggle"
@@ -562,7 +623,11 @@ export default function App({
               error={taskOperations.errors[operation.requestId]}
               onCheck={() => void taskOperations.check(operation.requestId)} onCancel={() => void taskOperations.cancel(operation.requestId)}
               onOpen={operation.threadId ? () => void guard(async () => {
-                await flush(); openCreatedThread(operation.threadId!); taskOperations.dismiss(operation.requestId);
+                await flush();
+                if (activeOperation(operation)) await syncTasks(true);
+                seedCreationMessage(operation);
+                openCreatedThread(operation.threadId!);
+                if (!activeOperation(operation)) taskOperations.dismiss(operation.requestId);
               }) : undefined}
               onDismiss={() => taskOperations.dismiss(operation.requestId)} />)}
         </div>}
@@ -625,6 +690,7 @@ export default function App({
               key={current.id}
               thread={current}
               queryDrafts={conversationDrafts.current}
+              submissions={submissions}
               historyCache={conversationHistory.current}
               groups={catalog.groups}
               onSave={saveTask}
@@ -706,15 +772,10 @@ export default function App({
         />
       )}
       {newConversationOpen && <NewConversationDialog preferredCwd={current?.cwd || catalog.projects.find(item => item.id === project)?.paths[0]}
+        initialQuery={quickCreateDraft?.text} queryHint={quickCreateDraft?.hint}
         operation={taskOperations.operations.find(operation => operation.requestId === createRequestId)}
         operationError={createRequestId ? taskOperations.errors[createRequestId] : undefined}
-        onCreate={async input => {
-          if (createRequest.current && activeOperation(taskOperations.operations.find(operation => operation.requestId === createRequest.current))) return;
-          const requestId = crypto.randomUUID(); createRequest.current = requestId; setCreateRequestId(requestId);
-          const result = await taskOperations.start("create", input, undefined, requestId);
-          if (result.requestId !== requestId) { createRequest.current = result.requestId; setCreateRequestId(result.requestId); }
-          return result;
-        }}
+        onCreate={startCreation}
         onCheck={() => { if (createRequestId) void taskOperations.check(createRequestId); }}
         onCancelOperation={() => { if (createRequestId) void taskOperations.cancel(createRequestId); }}
         onClose={() => { newDialogOpen.current = false; setNewConversationOpen(false); }} />}

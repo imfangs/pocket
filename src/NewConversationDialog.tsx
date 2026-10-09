@@ -7,10 +7,12 @@ import TaskOperationStatus from "./TaskOperationStatus";
 import { useReloadGuard } from "./updateSafety";
 import { creationDirectories, creationDirectoryChoices, creationLocation, creationProjectChoices, searchCreationDirectories } from "./creationLocations";
 import { initialCreationSelection, readCreationPreference, saveCreationPreference } from "./creationPreference";
+import AutoTextarea from "./AutoTextarea";
 
-export default function NewConversationDialog({ preferredCwd, operation, operationError, onCreate, onCheck, onCancelOperation, onClose }: {
+export default function NewConversationDialog({ preferredCwd, initialQuery, queryHint, operation, operationError, onCreate, onCheck, onCancelOperation, onClose }: {
   preferredCwd?: string; operation?: TaskOperation; operationError?: string;
-  onCreate: (input: { locationId: string; name?: string }) => Promise<unknown>;
+  initialQuery?: string; queryHint?: string;
+  onCreate: (input: { locationId: string; name?: string; initialQuery?: string }) => Promise<unknown>;
   onCheck: () => void; onCancelOperation: () => void; onClose: () => void;
 }) {
   const [locations, setLocations] = useState<CreateLocation[]>([]), [directoryCwd, setDirectoryCwd] = useState("");
@@ -19,6 +21,8 @@ export default function NewConversationDialog({ preferredCwd, operation, operati
   const [directorySearchOpen, setDirectorySearchOpen] = useState(false);
   const [rememberedSelection] = useState(readCreationPreference);
   const [rememberedUnavailable, setRememberedUnavailable] = useState(false);
+  const [query, setQuery] = useState(initialQuery ?? "");
+  const hasInitialQuery = initialQuery !== undefined;
   const [available, setAvailable] = useState(false);
   const [name, setName] = useState(""), [loading, setLoading] = useState(true), [error, setError] = useState("");
   const submitting = useRef(false), [busy, setBusy] = useState(false);
@@ -33,7 +37,7 @@ export default function NewConversationDialog({ preferredCwd, operation, operati
   const selectedLocation = creationLocation(directories, directoryCwd, projectLocationId);
   const projects = directory ? creationProjectChoices(directory) : [];
   const locked = busy || activeOperation(operation);
-  const dirty = !activeOperation(operation) && (!!name || selectionTouched);
+  const dirty = !activeOperation(operation) && (!!name || selectionTouched || !!query);
   useEffect(() => { if (directorySearchOpen) directorySearch.current?.focus(); }, [directorySearchOpen]);
   useReloadGuard(() => busy ? "会话正在创建，请稍后更新。" : dirty ? "新会话还有未提交的内容，请先处理。" : null);
   useEffect(() => {
@@ -54,15 +58,21 @@ export default function NewConversationDialog({ preferredCwd, operation, operati
   }, []);
   return <Modal title="新建会话" onClose={() => !busy && onClose()} busy={busy} dirty={dirty}>
     <form onSubmit={async event => {
-      event.preventDefault(); if (!available || !selectedLocation || locked || submitting.current) return;
+      event.preventDefault(); if (!available || !selectedLocation || locked || submitting.current || hasInitialQuery && !query.trim()) return;
       submitting.current = true; setBusy(true); setError("");
       try {
         saveCreationPreference({ cwd: selectedLocation.cwd, locationId: selectedLocation.id });
-        await onCreate({ locationId: selectedLocation.id, ...(name.trim() ? { name: name.trim() } : {}) });
+        await onCreate({ locationId: selectedLocation.id, ...(name.trim() ? { name: name.trim() } : {}), ...(hasInitialQuery ? { initialQuery: query.trim() } : {}) });
       }
       catch (failure) { setError((failure as Error).message); }
       finally { submitting.current = false; setBusy(false); }
     }}>
+      {hasInitialQuery && <div className="quick-create-query">
+        <label className="field-label" htmlFor="quick-create-query">首条消息</label>
+        <AutoTextarea id="quick-create-query" value={query} disabled={locked} maxLength={16000} required
+          placeholder="在这里粘贴要发送的内容" onChange={event => setQuery(event.target.value)} />
+        {queryHint && <p className="field-help">{queryHint}</p>}
+      </div>}
       <div className="new-directory-heading">
         <label className="field-label" htmlFor="new-conversation-location">工作目录</label>
         <button type="button" className="text-button directory-search-toggle" aria-expanded={directorySearchOpen} aria-controls="new-directory-search"
@@ -116,7 +126,7 @@ export default function NewConversationDialog({ preferredCwd, operation, operati
       {error && <p className="inline-error" role="alert">{error}</p>}
       <footer>
         <button type="button" className="secondary" disabled={busy} onClick={onClose}>{activeOperation(operation) ? "返回列表" : "取消"}</button>
-        <button className="primary" disabled={loading || !available || locked || !selectedLocation}>{busy || operation?.status === "pending" ? "正在创建…" : "创建会话"}</button>
+        <button className="primary" disabled={loading || !available || locked || !selectedLocation || hasInitialQuery && !query.trim()}>{busy || operation?.status === "pending" ? "正在创建…" : hasInitialQuery ? "创建并发送" : "创建会话"}</button>
       </footer>
     </form>
   </Modal>;

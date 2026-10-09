@@ -13,6 +13,8 @@ export type TaskOperation = {
   message?: string;
   createdAt?: number;
   updatedAt?: number;
+  creationStatus?: "created";
+  initialMessage?: { requestId: string; status: "not_queued" | "queued" | "pending" | "accepted" | "unknown" | "rejected" | "editing" | "cancelled"; code?: string };
 };
 export type CreateLocation = { id: string; label: string; cwd: string; projectId?: string | null; projectName?: string | null };
 const creationRecoveryKey = "pocket.pending-creation-ids.v1";
@@ -38,11 +40,27 @@ export function mergeOperation(current: TaskOperation | undefined, incoming: Tas
   if (current.requestId !== incoming.requestId || current.operation !== incoming.operation) return current;
   if (current.threadId && incoming.threadId && current.threadId !== incoming.threadId) return current;
   if (current.updatedAt !== undefined && incoming.updatedAt !== undefined && incoming.updatedAt < current.updatedAt) return current;
-  if (["succeeded", "cancelled", "changed", "rejected"].includes(current.status)) return current;
+  if (["succeeded", "cancelled", "changed", "rejected"].includes(current.status)) {
+    if (current.status === "succeeded" && incoming.status === "succeeded" && incoming.initialMessage &&
+      (!current.initialMessage || current.initialMessage.requestId === incoming.initialMessage.requestId))
+      return { ...current, initialMessage: incoming.initialMessage };
+    return current;
+  }
   return { ...current, ...incoming };
 }
 export function operationText(operation: TaskOperation) {
   const action = operation.operation === "create" ? "新建" : operation.operation === "restore" ? "恢复" : "归档";
+  if (operation.operation === "create" && operation.creationStatus === "created" && operation.initialMessage && operation.status !== "cancelled") {
+    const status = operation.initialMessage.status;
+    if (status === "accepted") return "会话已创建，首条消息已发送。";
+    if (status === "queued") return "会话已创建，首条消息已保存在待发队列。";
+    if (status === "pending") return "会话已创建，正在确认首条消息的发送结果。";
+    if (status === "editing") return "会话已创建，首条消息正在编辑。";
+    if (status === "cancelled") return "会话已创建，首条消息已取消。";
+    if (status === "rejected") return "会话已创建，首条消息发送未完成，请打开处理。";
+    if (status === "unknown") return "会话已创建，首条消息结果待确认，请打开核对。";
+    return "会话已创建，首条消息尚未交给发送队列，请核对操作状态。";
+  }
   if (operation.status === "waiting") return `等待 Codex 释放会话，释放后自动${action}，可取消。`;
   if (operation.status === "pending") return `正在${action}会话…`;
   if (operation.status === "unknown") return `${action}结果尚未确认，请核对状态。`;

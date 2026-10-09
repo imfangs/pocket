@@ -178,6 +178,56 @@ test("desktop bridge sends text to the existing owner with inherited settings on
     "codex-navigator",
   );
 });
+test("first message in a confirmed empty untitled task requests native title generation", async (t) => {
+  for (const turnHistory of [undefined, {
+    kind: "canonical",
+    history: { entitiesByKey: {}, islands: [] },
+  }]) {
+    await t.test(turnHistory ? "canonical history" : "legacy history", async (t) => {
+      const state = { ...idle, title: null, turnHistory, turnsPagination: { hasLoadedOldest: true } };
+      const f = await fakeDesktop(t, [state]);
+      const r = await desktopRequest({ operation: "send", threadId: id, codexHome: f.home,
+        text: "Build a small timer", requestId });
+      assert.equal(r.status, "accepted");
+      const sends = f.calls.filter(c => c.method === "thread-follower-start-turn");
+      assert.equal(sends.length, 1);
+      assert.equal(sends[0].targetClientId, "desktop-fixture");
+      assert.deepEqual(sends[0].params.turnStart.context, {
+        inheritThreadSettings: true, threadStartKind: "default",
+      });
+      assert.deepEqual(Object.keys(sends[0].params.turnStart.request).sort(), ["clientUserMessageId", "input", "threadId"]);
+      assert.equal(f.calls.some(c => /title|name|generate/.test(c.method ?? "")), false);
+    });
+  }
+});
+test("native initial title request is withheld for named, existing, incomplete, and special tasks", async (t) => {
+  const empty = { ...idle, title: null, turnsPagination: { hasLoadedOldest: true } };
+  const cases = [
+    ["manual title", { title: "My chosen title" }],
+    ["empty string title", { title: "" }],
+    ["existing turn", { turns: [{ turnId: "earlier", status: "completed", items: [] }] }],
+    ["canonical existing turn", { turnHistory: { kind: "canonical", history: {
+      entitiesByKey: { earlier: { turnId: "earlier", status: "completed", items: [] } },
+      islands: [{ entries: [{ value: "earlier" }] }],
+    } } }],
+    ["history not complete", { turnsPagination: { hasLoadedOldest: false } }],
+    ["history completeness unknown", { turnsPagination: undefined }],
+    ["automation", { threadSource: "automation" }],
+    ["voice chat", { threadStartKind: "realtime_voice" }],
+    ["durable task", { mode: "durable" }],
+    ["ephemeral", { ephemeral: true }],
+    ["side conversation", { sideConversation: true }],
+    ["fork", { forkedFromId: "original" }],
+  ];
+  for (const [name, change] of cases) await t.test(name, async (t) => {
+    const f = await fakeDesktop(t, [empty, { ...empty, ...change }]);
+    const r = await desktopRequest({ operation: "send", threadId: id, codexHome: f.home,
+      text: "Continue the task", requestId });
+    assert.equal(r.status, "accepted");
+    const send = f.calls.find(c => c.method === "thread-follower-start-turn");
+    assert.deepEqual(send.params.turnStart.context, { inheritThreadSettings: true });
+  });
+});
 test("desktop bridge defers a task that starts running before submission", async (t) => {
   const f = await fakeDesktop(t, [
     idle,

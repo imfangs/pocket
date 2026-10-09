@@ -21,6 +21,7 @@ import type { OpenThreadResult } from "./threadConnection";
 import { activeOperation, operationText, type TaskOperation } from "./taskOperations";
 import TaskOperationStatus from "./TaskOperationStatus";
 import ThreadProperties from "./ThreadProperties";
+import type { SubmittedQueryStore } from "./submittedQueries";
 type Draft = {
   intent: Intent;
   note: string;
@@ -35,6 +36,7 @@ const draftOf = (t: Thread): Draft => ({
 });
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
+  submissions?: SubmittedQueryStore;
   historyCache: HistoryCache;
   thread: Thread;
   groups: Group[];
@@ -246,6 +248,7 @@ export default function Inspector(p: Props) {
             key={p.thread.id}
             thread={p.thread}
             drafts={p.queryDrafts}
+            submissions={p.submissions}
             historyCache={p.historyCache}
             onActivity={p.onActivity}
             managementBlocked={managementBlocked}

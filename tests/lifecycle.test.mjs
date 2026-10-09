@@ -192,3 +192,15 @@ test('an unresolved creation can stop tracking without replaying or deleting a p
   const result=await f.call(`/api/task-operations/${rid(17)}/cancel`,'POST',{});
   assert.equal(result.status,'cancelled');assert.equal(f.state.creates,1);assert.equal(f.state.archives,0);
 });
+
+test('quick creation accepts a 16000-character query over the authenticated HTTP endpoint',async t=>{
+  const f=await fixture(t),initialQuery='合'.repeat(16000);
+  const started=await f.call('/api/tasks','POST',{requestId:rid(18),locationId:'location',initialQuery});
+  assert.equal(started.http,202);
+  const done=await f.settled(rid(18));
+  assert.equal(done.status,'succeeded');assert.equal(done.creationStatus,'created');assert.equal(done.initialMessage.status,'queued');
+  assert.equal(f.app.lifecycle.desktop.outbox(created)[0].text,initialQuery);
+  assert.equal(JSON.stringify(done).includes(initialQuery),false);
+  const invalid=await f.call('/api/tasks','POST',{requestId:rid(19),locationId:'location',initialQuery:initialQuery+'合'});
+  assert.equal(invalid.http,400);assert.equal(f.state.creates,1);
+});

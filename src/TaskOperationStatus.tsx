@@ -16,7 +16,8 @@ export default function TaskOperationStatus({ operation, title, error, onCheck, 
   }, [operation.requestId, operation.operation]);
   useLayoutEffect(() => {
     dismiss.current = onDismiss;
-    notice.current?.update(operation, autoDismissEnabled && !error && !!onOpen && !!onDismiss);
+    const needsMessageCheck = operation.initialMessage && ["not_queued", "unknown", "rejected"].includes(operation.initialMessage.status);
+    notice.current?.update(operation, autoDismissEnabled && !error && !needsMessageCheck && !!onOpen && !!onDismiss);
   }, [operation, autoDismissEnabled, error, onOpen, onDismiss]);
   const cancelLabel = operationCancelLabel(operation);
   return <div ref={root} className="task-operation-status" role="status" data-status={operation.status}>
@@ -27,7 +28,7 @@ export default function TaskOperationStatus({ operation, title, error, onCheck, 
     <div className="task-operation-actions">
       {cancelLabel && <button className="text-button" onClick={onCancel}>{cancelLabel}</button>}
       {operation.status === "unknown" && <button className="text-button" onClick={onCheck}>核对操作状态</button>}
-      {operation.operation === "create" && operation.status === "succeeded" && onOpen && <button className="text-button" onClick={() => { notice.current?.stop(); onOpen(); }}>打开新会话</button>}
+      {operation.operation === "create" && (operation.status === "succeeded" || operation.creationStatus === "created") && onOpen && <button className="text-button" onClick={() => { notice.current?.stop(); onOpen(); }}>{operation.status === "succeeded" ? "打开新会话" : "查看已创建会话"}</button>}
       {!activeOperation(operation) && onDismiss && <button className="text-button" onClick={() => { notice.current?.stop(); onDismiss(); }}>关闭提示</button>}
     </div>
     {error && <small className="inline-error" role="alert">{error}</small>}

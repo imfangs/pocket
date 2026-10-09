@@ -16,7 +16,7 @@
 
 每条编辑带 expectedRevision，冲突返回 409；批量操作是一个事务，任一无效任务/分组使整个批次回滚。成功编辑与分组操作后写本机 JSON 备份。导入先验证版本、ID、引用和树无环，再备份、事务恢复。数据库和 JSON 备份使用私人文件权限。
 
-服务定期只读刷新来源，前端定期读取目录。原版归档只影响普通列表；用户明确标成稍后/推进/参考的任务仍保留在相应视图。运行状态、更新时间不被推断为接续意图。
+服务定期只读刷新来源，前端定期读取目录。原版已归档任务只在归档视图中出现，手工安排不改变原归档状态。运行状态、更新时间不被推断为接续意图。
 
 ## HTTP
 
@@ -26,6 +26,9 @@
 - `GET /api/catalog`：任务、分组、项目、来源时间/错误、当前会话 CSRF token。
 - `GET /api/task-statuses`：当前原桌面候选会话的短期执行状态；只读、共享、有界，来源与未知状态边界见[列表运行状态](design/2026-10-08-running-status.md)。
 - `POST /api/sync`：只读刷新来源。
+- `GET /api/tasks/create-options`：当前规范化目录与原项目组合，提交使用精确locationId。
+- `POST /api/tasks`：`{requestId,locationId,name?,initialQuery?}`；可创建空任务，或创建后将1–16000字首条消息持久入队。创建与首条发送分别回读，重复requestId不重复创建或首发，见[快速新建](design/2026-10-09-quick-create-and-continuity.md)。
+- `GET /api/task-operations`、`GET /api/task-operations/:id`、`POST /api/task-operations/:id/cancel`：生命周期回执与停止核对；`creationStatus`和`initialMessage.status`分开表达已创建与发送结果。
 - `PATCH /api/tasks/:id`：intent、note、reviewAt、groupIds、expectedRevision；拒绝其他字段。
 - `POST /api/batch`：`{ids,change:{intent?,groupId?}}`，最多 2000 条。
 - `POST /api/groups`、`PATCH /api/groups/:id`、`DELETE /api/groups/:id`：导航分组。

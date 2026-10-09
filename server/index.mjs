@@ -220,7 +220,7 @@ export function makeApp(options = {}) {
       if (method === "GET" && path === "/api/tasks/create-options")
         return json(res, 200, lifecycle.options());
       if (method === "POST" && path === "/api/tasks") {
-        const result = lifecycle.startCreate(await body(req, 2048));
+        const result = lifecycle.startCreate(await body(req, 70000));
         return json(res, result.status === "pending" ? 202 : 200, result);
       }
       if (method === "GET" && path === "/api/task-operations")

@@ -10,6 +10,11 @@ const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const active=new Set(['pending','waiting','unknown']);
 const safeCode=code=>typeof code==='string'&&/^[a-z0-9_]{1,100}$/.test(code)?code:null;
+const planOf=row=>{try{return JSON.parse(row.plan||'{}')||{};}catch{return {};}};
+const initialMessageId=id=>{
+  const hash=digest(['pocket.initial-query.v1',id]);
+  return `${hash.slice(0,8)}-${hash.slice(8,12)}-8${hash.slice(13,16)}-${((parseInt(hash[16],16)&3)|8).toString(16)}${hash.slice(17,20)}-${hash.slice(20,32)}`;
+};
 
 function nativeRequest(script,payload) {
   const config=JSON.parse(readFileSync(new URL('../config/desktop-bridge.json',import.meta.url),'utf8'));
@@ -67,7 +72,10 @@ export class LifecycleService {
   }
   refreshBlocked() {
     const next=new Set(),owners=new Map();
-    for(const row of this.store.db.prepare("SELECT id,thread_id,plan FROM lifecycle_operations WHERE status IN('pending','waiting','unknown') AND thread_id IS NOT NULL").all()){
+    for(const row of this.store.db.prepare("SELECT id,operation,thread_id,plan FROM lifecycle_operations WHERE status IN('pending','waiting','unknown') AND thread_id IS NOT NULL").all()){
+      // A verified, stopped creator no longer owns the native thread. Its
+      // remaining first-message handoff must use the ordinary desktop queue.
+      if(row.operation==='create'&&planOf(row).creationStatus==='created')continue;
       next.add(row.thread_id);owners.set(row.thread_id,row.id);
       try { for(const id of JSON.parse(row.plan||'{}').threadIds||[]){next.add(id);owners.set(id,row.id);} }catch{}
     }
@@ -92,8 +100,22 @@ export class LifecycleService {
         try { const thread=this.store.thread(row.thread_id);result.thread={...thread,...this.store.annotation(row.thread_id,thread)}; }catch{}
       }
     }
-    try { const plan=JSON.parse(row.plan||'{}');if(Number.isInteger(plan.descendantCount))result.descendantCount=plan.descendantCount; }catch{}
+    const plan=planOf(row);
+    if(Number.isInteger(plan.descendantCount))result.descendantCount=plan.descendantCount;
+    if(row.operation==='create'){
+      if(plan.creationStatus==='created'||row.status==='succeeded')result.creationStatus='created';
+      const payload=JSON.parse(row.payload);
+      if(payload.initialQuery!==undefined)result.initialMessage=this.initialMessage(row);
+    }
     return result;
+  }
+  initialMessage(row) {
+    const requestId=initialMessageId(row.id);
+    const saved=this.store.db.prepare('SELECT thread_id,status,code FROM dispatches WHERE id=?').get(requestId);
+    if(saved&&saved.thread_id!==row.thread_id)return {requestId,status:'unknown',code:'initial_message_conflict'};
+    if(saved)return {requestId,status:saved.status,...(safeCode(saved.code)?{code:saved.code}:{})};
+    return {requestId,status:planOf(row).initialMessagePersisted?'unknown':'not_queued',
+      ...(planOf(row).initialMessagePersisted?{code:'initial_message_receipt_missing'}:{})};
   }
   list() {
     // Waiting/unknown requests cannot fall out of the recovery view behind newer completed work.
@@ -126,14 +148,17 @@ export class LifecycleService {
     this.running.set(id,promise);return promise;
   }
   startCreate(input) {
-    if(!input||Object.keys(input).some(k=>!['requestId','locationId','name'].includes(k))||typeof input.locationId!=='string'||
+    if(!input||Object.keys(input).some(k=>!['requestId','locationId','name','initialQuery'].includes(k))||typeof input.locationId!=='string'||
       (input.name!==undefined&&(typeof input.name!=='string'||!input.name.trim()||input.name.length>220||input.name.includes('\0'))))
       throw new AppError('请选择工作目录；名称最多220字',400);
+    if(input.initialQuery!==undefined&&(typeof input.initialQuery!=='string'||!input.initialQuery.trim()||input.initialQuery.length>16000))
+      throw new AppError('首条消息需为1–16000字',400);
     // Use the original validated payload for an idempotent retry even if locations subsequently change.
     const existing=typeof input.requestId==='string'?this.store.db.prepare('SELECT * FROM lifecycle_operations WHERE id=?').get(input.requestId):null;
     const selected=this.locations().find(location=>location.id===input.locationId);
     if(!selected&&!existing)throw new AppError('工作目录已变化，请刷新后重新选择',409);
-    const payload={locationId:input.locationId,...(input.name===undefined?{}:{name:input.name.trim()})};
+    const payload={locationId:input.locationId,...(input.name===undefined?{}:{name:input.name.trim()}),
+      ...(input.initialQuery===undefined?{}:{initialQuery:input.initialQuery.trim()})};
     const oldPayload=existing?JSON.parse(existing.payload):null;
     const full={...payload,cwd:selected?.cwd??oldPayload?.cwd,...((selected?.projectId??oldPayload?.projectId)?{projectId:selected?.projectId??oldPayload?.projectId}:{})};
     const reserved=this.reserve(input.requestId,'create',null,full);
@@ -142,16 +167,47 @@ export class LifecycleService {
   }
   async createStep(id,recover=false) {
     const row=this.row(id),payload=JSON.parse(row.payload),receiptPath=join(this.receiptDirectory,id+'.json');
+    // Once native creation was independently verified, recovery must never run
+    // the empty-thread creator again: the first message may already be running.
+    if(planOf(row).creationStatus==='created'){await this.finishCreate(id);return;}
     if(recover&&!existsSync(receiptPath))return;
     const result=await this.create({requestId:id,codexHome:this.codexHome,cwd:payload.cwd,receiptPath,
       ...(payload.name?{name:payload.name}:{}),...(payload.projectId?{projectId:payload.projectId}:{})});
     if(this.stopped)return;
     if(result.status==='created'&&result.verified===true&&result.processStopped===true&&uuid.test(result.threadId)){
-      this.update(id,'unknown',null,{threadId:result.threadId});
-      this.sync();this.store.thread(result.threadId);
-      this.update(id,'succeeded');
+      if(row.thread_id&&row.thread_id!==result.threadId){this.update(id,'unknown','create_thread_mismatch');return;}
+      this.update(id,'pending',null,{threadId:result.threadId,plan:{...planOf(row),creationStatus:'created'}});
+      await this.finishCreate(id);
     } else this.update(id,['rejected','unavailable'].includes(result.status)||(!result.status&&result.sent===false)?'rejected':'unknown',result.code||'create_unconfirmed',
       uuid.test(result.threadId||'')?{threadId:result.threadId}:{});
+  }
+  async finishCreate(id) {
+    const row=this.row(id),payload=JSON.parse(row.payload),plan=planOf(row);
+    if(this.stopped||!['pending','unknown'].includes(row.status)||plan.creationStatus!=='created'||!row.thread_id)return;
+    this.sync();this.store.thread(row.thread_id);
+    if(payload.initialQuery===undefined){this.update(id,'succeeded');return;}
+    let message=this.initialMessage(row),attempted=false;
+    if(message.status==='not_queued'){
+      attempted=true;
+      try {
+        await this.desktop.send(row.thread_id,{requestId:message.requestId,text:payload.initialQuery,enqueue:true});
+      } catch { /* Read the durable queue before deciding whether handoff failed. */ }
+      if(this.stopped)return;
+      message=this.initialMessage(row);
+    }
+    const queued=this.store.db.prepare('SELECT 1 FROM outgoing_messages WHERE id=? AND thread_id=?').get(message.requestId,row.thread_id);
+    // An existing edited/cancelled queue entry remains the user's decision.
+    // A bare pending/unknown dispatch without durable text is not replayable.
+    const persisted=message.code!=='initial_message_conflict'&&(queued||message.status==='accepted'||message.status==='cancelled');
+    if(!persisted){
+      this.update(id,'unknown',message.status==='not_queued'?'initial_message_not_queued':message.code||'initial_message_unconfirmed');
+      return;
+    }
+    this.update(id,'succeeded',null,{plan:{...plan,initialMessagePersisted:true}});
+    if(!attempted&&message.status==='queued'){
+      try { this.desktop.connectForSubmission(row.thread_id); }
+      catch { /* The durable queue and its ordinary retry controls remain intact. */ }
+    }
   }
   archiveBlock(id) {
     if(this.desktop.outbox(id).length)return 'outbox_not_empty';
@@ -251,8 +307,16 @@ export class LifecycleService {
     if(this.stopped||this.ticking)return;
     this.ticking=true;
     try {
-      const rows=this.store.db.prepare("SELECT id FROM lifecycle_operations WHERE status='waiting' ORDER BY created_at LIMIT 50").all();
-      for(const row of rows){if(this.stopped)break;await this.work(row.id,()=>this.archiveStep(row.id));}
+      const rows=this.store.db.prepare(`SELECT id,operation,plan FROM lifecycle_operations
+        WHERE status='waiting' OR (operation='create' AND status='unknown' AND thread_id IS NOT NULL
+          AND CASE WHEN json_valid(plan) THEN json_extract(plan,'$.creationStatus') END='created')
+        ORDER BY CASE WHEN status='waiting' THEN 0 ELSE 1 END,created_at LIMIT 50`).all();
+      for(const row of rows){
+        if(this.stopped)break;
+        if(row.operation==='create'){
+          if(planOf(row).creationStatus==='created')await this.work(row.id,()=>this.finishCreate(row.id));
+        }else await this.work(row.id,()=>this.archiveStep(row.id));
+      }
     }finally{this.ticking=false;}
   }
   start(){this.timer=setInterval(()=>void this.tick(),this.tickMs);this.timer.unref();}

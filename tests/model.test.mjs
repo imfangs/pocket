@@ -115,3 +115,64 @@ test('search keeps Unicode matching and sees renamed group paths on the next cat
   assert.deepEqual(search(renamed, '游戏'), []);
   assert.deepEqual(search(renamed, '领域 阅读'), ['second', 'first']);
 });
+
+test('running view includes only confirmed execution and always excludes unavailable or separator tasks', () => {
+  const items = [
+    { ...t, id: 'executing', intent: 'none', needsInput: false },
+    { ...t, id: 'manual-active', intent: 'active' },
+    { ...t, id: 'waiting-input' }, { ...t, id: 'waiting-approval' },
+    { ...t, id: 'unknown' }, { ...t, id: 'not-observed' },
+    { ...t, id: 'archived', archived: true },
+    { ...t, id: 'missing', missing: true },
+    { ...t, id: 'separator', separator: true },
+  ];
+  const states = new Map([
+    ['executing', 'running'], ['manual-active', 'idle'],
+    ['waiting-input', 'waiting_input'], ['waiting-approval', 'waiting_approval'], ['unknown', 'unknown'],
+    ['archived', 'running'], ['missing', 'running'], ['separator', 'running'],
+  ]);
+  for (const showSeparators of [false, true])
+    assert.deepEqual(filterThreads(items, groups, 'running', null, '', '', showSeparators, 'updated', states).map(row => row.id), ['executing']);
+  assert.deepEqual(filterThreads(items, groups, 'active', null, '', '', false, 'updated', states).map(row => row.id), ['manual-active']);
+});
+
+test('running counts and lists share the same project and normalized multi-term search scope', () => {
+  const items = [
+    { ...t, id: 'scoped', title: 'ＡＢＣ', projectId: 'p' },
+    { ...t, id: 'another-project', title: 'ＡＢＣ', projectId: 'other' },
+    { ...t, id: 'another-query', title: 'Different', projectId: 'p' },
+    { ...t, id: 'waiting', title: 'ＡＢＣ', projectId: 'p' },
+  ];
+  const states = new Map(items.map(item => [item.id, item.id === 'waiting' ? 'waiting_input' : 'running']));
+  const result = filterThreads(items, groups, 'running', null, 'abc 游戏', 'p', false, 'updated', states);
+  assert.deepEqual(result.map(row => row.id), ['scoped']);
+  assert.equal(result.length, 1);
+  assert.equal(filterThreads(items, groups, 'running', null, 'abc 游戏', '', false, 'updated', states).length, 2);
+  assert.equal(filterThreads(items, groups, 'running', null, '', 'p', false, 'updated', states).length, 2);
+});
+
+test('running filtering retains recent and native pin ordering without modifying persisted threads or runtime observations', () => {
+  const older = Object.freeze({ ...t, id: 'older', pinnedOrder: 0, updatedAt: 10 });
+  const pinned = Object.freeze({ ...t, id: 'pinned', pinnedOrder: 1, updatedAt: 20 });
+  const newer = Object.freeze({ ...t, id: 'newer', pinned: false, updatedAt: 30 });
+  const items = Object.freeze([older, newer, pinned]);
+  const states = new Map(items.map(item => [item.id, 'running'])), before = [...states];
+  const list = sort => filterThreads(items, groups, 'running', null, '', '', false, sort, states);
+  assert.deepEqual(list('updated').map(row => row.id), ['newer', 'pinned', 'older']);
+  assert.deepEqual(list('pinned').map(row => row.id), ['older', 'pinned', 'newer']);
+  assert.equal(list('pinned')[0], older);
+  assert.deepEqual(items.map(row => row.id), ['older', 'newer', 'pinned']);
+  assert.deepEqual([...states], before);
+  assert.equal('runtime' in older, false);assert.equal(older.intent, 'later');
+});
+
+test('missing or withdrawn runtime evidence removes running results without inferring idle or changing ordinary views', () => {
+  const items = [{ ...t, id: 'one', intent: 'active' }];
+  const list = states => filterThreads(items, groups, 'running', null, '', '', false, 'updated', states);
+  assert.equal(list(new Map([['one', 'running']])).length, 1);
+  for (const states of [undefined, new Map(), new Map([['one', 'unknown']]), new Map([['one', 'waiting_input']])])
+    assert.deepEqual(list(states), []);
+  assert.equal(filterThreads(items, groups, 'all', null, '', '', false, 'updated')[0], items[0]);
+  assert.equal(filterThreads(items, groups, 'active', null, '', '', false, 'updated')[0], items[0]);
+  assert.equal('runtime' in items[0], false);
+});

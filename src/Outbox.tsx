@@ -7,10 +7,12 @@ import { waitForSubmission, type SubmissionReceipt } from "./submissionReceipt";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { captureDraft } from "./draftTransaction";
 import { queueFeedbackState, queueHeadState } from "./submissionFeedback";
+import type { SubmittedQueryReceipt, SubmittedQueryStore } from "./submittedQueries";
+import { withSubmittedQueryPost } from "./submittedQueries";
 import "./submission-feedback.css";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
-export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, onActivity, onAccepted }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, onActivity, onAccepted }: {
   threadId: string;
   items: QueuedMessage[];
   paused?: { stopId: string } | null;
@@ -21,6 +23,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   onAccepted?: (receipt: SubmissionReceipt) => void;
   refresh: () => Promise<void> | undefined;
   drafts: Map<string, QueryDraft>;
+  submissions?: SubmittedQueryStore;
 }) {
   const [editing, setEditing] = useState<{ id: string; revision: number } | null>(null);
   const [text, setText] = useState("");
@@ -67,15 +70,27 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
     const currentView = () => viewGeneration.current === generation;
     const saved = captureDraft(drafts, key(item.id));
     const controller = action === "send" ? new AbortController() : null;
+    submissions?.observeQueue(threadId, [item]);
+    if (action === "send") submissions?.receipt(threadId, { requestId: item.id, status: "pending" });
     if (controller) receiptRead.current = controller;
     setBusy(item.id); setError("");
     try {
       const base = `/api/tasks/${threadId}/outbox/${item.id}`;
       const expectedRevision = editing?.id === item.id ? editing.revision : item.revision;
-      if (action === "check") await refresh();
+      if (action === "check") {
+        const result = await api<SubmittedQueryReceipt>(`/api/tasks/${threadId}/messages/${item.id}`);
+        if (result.requestId !== item.id) throw new Error("回执与这条待发消息不匹配，请核对状态。");
+        submissions?.receipt(threadId, result);
+        if (currentView() && result.status === "accepted") {
+          setAcceptedItems(previous => new Set(previous).add(item.id));
+          onActivity?.(); onAccepted?.({ requestId: item.id, status: "accepted" });
+        }
+        if (currentView()) await refresh();
+      }
       else if (action === "edit") {
         const updated = item.status === "editing" ? item :
           (await api<{ outbox: QueuedMessage[] }>(`${base}/edit`, "POST", { expectedRevision })).outbox.find(row => row.id === item.id)!;
+        submissions?.observeQueue(threadId, [updated]);
         if (!currentView() || !saved.current()) return;
         const value = drafts.get(key(item.id))?.text ?? updated.text;
         focusNext.current = { id: item.id, target: "editor" };
@@ -85,13 +100,21 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         // should not hold the editor disabled after that acknowledgement.
         void refresh()?.catch(() => {});
       } else {
-        let result = await api<SubmissionReceipt>(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
+        let result = await withSubmittedQueryPost(action === "send" ? submissions : undefined, threadId, item.id,
+          () => api<SubmissionReceipt & { outbox?: QueuedMessage[] }>(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
           action === "save" ? "PATCH" : action === "cancel" ? "DELETE" : "POST",
-          { expectedRevision, ...(action === "save" ? { text } : {}) });
+          { expectedRevision, ...(action === "save" ? { text } : {}) }));
+        if (result.outbox) submissions?.observeQueue(threadId, result.outbox);
+        if (action === "cancel") {
+          submissions?.receipt(threadId, { requestId: item.id, status: "cancelled" });
+          submissions?.dismiss(threadId, item.id);
+        }
+        if (result.requestId === item.id) submissions?.receipt(threadId, result);
         if (controller) {
           if (!currentView() || controller.signal.aborted) return;
           if (result.requestId !== item.id) throw new Error("回执与这条待发消息不匹配，请核对状态。");
           result = await waitForSubmission(result, signal => api<SubmissionReceipt>(`/api/tasks/${threadId}/messages/${item.id}`, "GET", undefined, { signal }), controller.signal);
+          submissions?.receipt(threadId, result);
           if (!currentView() || controller.signal.aborted) return;
         }
         if (action === "send" && result.status === "accepted") {
@@ -106,7 +129,10 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         }
         if (currentView()) await refresh();
       }
-    } catch (e) { if (currentView()) setError((e as Error).message); }
+    } catch (e) {
+      if (action === "send") submissions?.receipt(threadId, { requestId: item.id, status: "unknown" });
+      if (currentView()) setError((e as Error).message);
+    }
     finally {
       release();
       if (controller && receiptRead.current === controller) receiptRead.current = null;
