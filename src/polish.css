@@ -228,7 +228,17 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .inspector-savebar { background:var(--surface); border-top:1px solid var(--line); }
 .question-card, .outbox-item { border:1px solid var(--line); background:var(--surface-soft); border-radius:8px; }
 .question-prompts, .request-actions { font-size:13px; }
-.question-prompts { max-height:68%; }
+.question-prompts { margin:8px 0 16px; }
+.question-prompts > strong { display:block; margin-bottom:6px; font-size:11px; font-weight:500; }
+.question-card[data-question-state="compact"], .question-card[data-question-state="ignored"] { padding:4px 0; border:0; background:transparent; }
+.question-presentation-actions { display:flex; align-items:center; flex-wrap:wrap; gap:4px 12px; }
+.question-presentation-actions button { min-height:44px; padding:6px 0; border:0; background:transparent; color:var(--accent); font-size:12px; }
+.question-presentation-actions button:last-child, .question-presentation-actions small { color:var(--muted); }
+.question-card[data-question-state="ignored"] .question-title { color:var(--text-secondary); }
+.question-card[data-question-state="ignored"] .question-presentation-actions button { color:var(--accent); }
+.question-ignored-label { color:var(--muted); font-size:11px; }
+.question-submit { align-items:center; gap:12px; }
+.question-submit .question-ignore { background:transparent; border:0; color:var(--muted); padding:8px 10px; }
 .question-title { color:var(--ink); font-weight:550; line-height:1.7; }
 .question-fields { border:0; padding:0; margin:0; min-width:0; }
 .question-fields legend { float:none; width:100%; padding:0 0 8px; }

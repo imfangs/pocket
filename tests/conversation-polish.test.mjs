@@ -58,3 +58,40 @@ test('a restored reading position exposes a keyboard-accessible return to latest
   assert.match(html, /class="conversation-latest"/);
   assert.match(html, /返回最新消息/);
 });
+
+test('optional questions stay at their message position while later progress and the composer remain visible', () => {
+  const id = 'thread';
+  const question = { key: 'question-key', sourceMessageId: 'question-message', turnId: 'turn', title: 'Prefer A or B?', options: ['A', 'B'] };
+  const history = { source: 'desktop', runtime: 'active', checkedAt: 1, canSend: true,
+    turnTiming: { turnId: 'turn' }, asyncQuestions: [question], messages: [
+      { id: 'question-message', role: 'assistant', text: question.title, isQuestion: true },
+      { id: 'later-progress', role: 'assistant', phase: 'commentary', text: 'Continuing the independent work.' },
+    ] };
+  const html = renderToStaticMarkup(createElement(Conversation, { thread: { id }, drafts: new Map(), historyCache: new Map([[id, { history }]]), onConnect: async () => ({}) }));
+  const prompt = html.indexOf('Codex 想确认');
+  assert.ok(prompt > html.indexOf('aria-label="会话正文"'));
+  assert.ok(prompt < html.indexOf('Continuing the independent work.'), 'question controls precede later progress in the same transcript');
+  assert.ok(prompt < html.indexOf('class="conversation-status"'), 'question controls belong to the scrollable transcript');
+  assert.match(html, /class="conversation-composer"/);
+});
+
+test('an actionable question retains any surrounding source-message explanation', () => {
+  const id = 'thread';
+  const history = { source: 'desktop', runtime: 'idle', checkedAt: 1, canSend: true, turnTiming: { turnId: 'turn' },
+    asyncQuestions: [{ key: 'question-key', sourceMessageId: 'question-message', turnId: 'turn', title: 'Which output?', options: [] }],
+    messages: [{ id: 'question-message', role: 'assistant', isQuestion: true, text: 'The draft is ready. Which output?' }] };
+  const html = renderToStaticMarkup(createElement(Conversation, { thread: { id }, drafts: new Map(), historyCache: new Map([[id, { history }]]), onConnect: async () => ({}) }));
+  assert.match(html, /The draft is ready\./);
+});
+
+test('inline questions retain referenced images and the source truncation warning', () => {
+  const id = 'thread';
+  const imageUrl = '/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/images/' + 'a'.repeat(64);
+  const history = { source: 'desktop', runtime: 'idle', checkedAt: 1, canSend: true, turnTiming: { turnId: 'turn' },
+    asyncQuestions: [{ key: 'question-key', sourceMessageId: 'question-message', turnId: 'turn', title: 'Which image?', options: [] }],
+    messages: [{ id: 'question-message', role: 'assistant', isQuestion: true, truncated: true,
+      text: 'Compare this image: ![Candidate](/workspace/candidate.png)', images: { '/workspace/candidate.png': imageUrl } }] };
+  const html = renderToStaticMarkup(createElement(Conversation, { thread: { id }, drafts: new Map(), historyCache: new Map([[id, { history }]]), onConnect: async () => ({}) }));
+  assert.ok(html.includes(imageUrl));
+  assert.match(html, /内容较长，此处已截取/);
+});

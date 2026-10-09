@@ -106,8 +106,6 @@ export default function Conversation({
   }, [recentAccepted]);
   const messages = useRef<HTMLDivElement>(null),
     readSentinel = useRef<HTMLDivElement>(null),
-    questionReadRoot = useRef<HTMLElement>(null),
-    questionReadSentinel = useRef<HTMLDivElement>(null),
     attemptedReads = useRef<ReadAttempts>(new Map()),
     latestReadObservation = useRef<ReadObservation | null>(null),
     manualReadRetry = useRef<string | null>(null),
@@ -123,10 +121,15 @@ export default function Conversation({
   useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
   useEffect(() => { submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted]);
   const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
-  const renderedMessages = useMemo(() => shownMessages.filter(message => !message.isQuestion || !questions.some(q => q.sourceMessageId === message.id)), [shownMessages, questions]);
-  const readObservation = useMemo(() => displayedReadObservation(freshTranscript, shownMessages), [freshTranscript, shownMessages]);
-  const lastShown = shownMessages.at(-1);
-  const readTargetKind = lastShown?.isQuestion && questions.some(question => question.sourceMessageId === lastShown.id) ? "question" : "message";
+  const questionsByMessage = useMemo(() => {
+    const groups = new Map<string, typeof questions>();
+    for (const question of questions) groups.set(question.sourceMessageId, [...(groups.get(question.sourceMessageId) ?? []), question]);
+    return groups;
+  }, [questions]);
+  const unplacedQuestions = useMemo(() => questions.filter(question => !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages]);
+  // If the native question arrives before its source message, still offer it
+  // inline but wait for matching visible text before marking the task as read.
+  const readObservation = useMemo(() => unplacedQuestions.length ? null : displayedReadObservation(freshTranscript, shownMessages), [freshTranscript, shownMessages, unplacedQuestions]);
   const readVersion = readObservation?.visibleVersion, readItemId = readObservation?.lastVisibleItemId;
   useLayoutEffect(() => { latestReadObservation.current = readObservation; }, [readObservation]);
   const currentReadFeedback = thread.hasUnreadTurn !== false && readFeedback &&
@@ -163,8 +166,8 @@ export default function Conversation({
   useEffect(() => () => { readViewGeneration.current++; }, [thread.id]);
   useEffect(() => {
     const observation = latestReadObservation.current;
-    const root = readTargetKind === "question" ? questionReadRoot.current : messages.current;
-    const target = readTargetKind === "question" ? questionReadSentinel.current : readSentinel.current;
+    const root = messages.current;
+    const target = readSentinel.current;
     if (!observation || !root || !target) return;
     return observeVisibleRead({
       root, target, observation, getObservation: () => latestReadObservation.current, attempted: attemptedReads.current,
@@ -179,7 +182,7 @@ export default function Conversation({
         }
       },
     });
-  }, [thread.id, readVersion, readItemId, readTargetKind, readRetry, onActivity]);
+  }, [thread.id, readVersion, readItemId, readRetry, onActivity]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine !== false);
     window.addEventListener("online", update);
@@ -528,10 +531,15 @@ export default function Conversation({
             {targetAvailable && <p>写下你想讨论或完成的事。</p>}
           </div>
         )}
-        {renderedMessages.map((message) => (
-          <ConversationMessage key={message.id} message={message}
-            recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />
-        ))}
+        {shownMessages.map(message => {
+          const messageQuestions = questionsByMessage.get(message.id);
+          return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceTruncated={message.truncated}
+            disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} />
+            : <ConversationMessage key={message.id} message={message}
+              recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />;
+        })}
+        {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
+          disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} />}
         <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
         <SubmittedQueryCards items={visibleSubmissions} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
           disabled={!online || managementBlocked} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} />
@@ -570,8 +578,6 @@ export default function Conversation({
           {" "}<button type="button" className="text-button" disabled={!online || retryingRead} onClick={() => void retryRead()}>{retryingRead ? "正在核对…" : "同步已读"}</button>
         </p>}
       </div>
-      <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked || !history?.canSend} drafts={drafts} refresh={load}
-        readMarker={readTargetKind === "question" && readItemId ? { sourceMessageId: readItemId, rootRef: questionReadRoot, markerRef: questionReadSentinel } : undefined} />
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
       <Outbox threadId={thread.id} items={shownOutbox} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
         onAccepted={receipt => confirmAccepted(receipt, "queue")} />

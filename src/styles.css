@@ -1988,7 +1988,7 @@ hr {
   .task-row { min-height: 72px; }
 }
 
-.question-prompts { flex-shrink: 1; min-height: 90px; max-height: 48%; overflow: auto; overscroll-behavior: contain; padding: 8px 0; font-size: 12px; }
+.question-prompts { padding: 8px 0; font-size: 12px; }
 .question-prompts > strong { color: var(--text-secondary); }
 .question-card { padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface-soft); margin-top: 7px; }
 .question-title { line-height: 1.6; margin: 0 0 10px; overflow-wrap: anywhere; }
@@ -2000,12 +2000,6 @@ hr {
 .question-submit { display: flex; justify-content: flex-end; margin-top: 8px; }
 .question-submit button, .question-custom { min-height: 40px; touch-action: manipulation; }
 @media (pointer: coarse) { .question-submit button, .question-option { min-height: 44px; } }
-
-@media (max-width: 760px) {
-  .inspector[data-keyboard-open] .conversation:has(.question-card[data-editing] textarea) .conversation-composer,
-  .inspector[data-keyboard-open] .conversation:has(.question-card[data-editing] textarea) .conversation-feed { display: none; }
-  .inspector[data-keyboard-open] .conversation:has(.question-card[data-editing] textarea) .question-prompts { max-height: none; flex: 1; }
-}
 
 .inspector #continuation { min-height: 0; height: auto; line-height: 1.5; resize: vertical; }
 
