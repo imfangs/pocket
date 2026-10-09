@@ -20,6 +20,9 @@ import { connectionFailureHint, connectionFromHistory, newerConnection } from ".
 import type { OpenThreadResult, ThreadConnection } from "./threadConnection";
 import { displayedReadObservation, observeVisibleRead } from "./readObservation";
 import type { ReadAttempts, ReadObservation, ReadReceipt } from "./readObservation";
+import { createSubmissionFeedbackTracker, SEND_FEEDBACK_EXIT_MS } from "./submissionFeedback";
+import type { AcceptedFeedback } from "./submissionFeedback";
+import SubmissionFeedbackNotice from "./SubmissionFeedbackNotice";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   answerMode?: "options" | "custom"; customText?: string; optionText?: string;
@@ -67,6 +70,32 @@ export default function Conversation({
     [notice, setNotice] = useState(""),
     [awayFromLatest, setAwayFromLatest] = useState(() => historyCache.get(thread.id)?.nearBottom === false),
     [hasNewContent, setHasNewContent] = useState(false);
+  const [feedbackTracker] = useState(createSubmissionFeedbackTracker);
+  const [acceptedNotice, setAcceptedNotice] = useState<(AcceptedFeedback & { leaving?: boolean }) | null>(null);
+  const [recentAccepted, setRecentAccepted] = useState(new Map<string, number>());
+  const showAcceptedFeedback = useCallback((feedback: AcceptedFeedback) => {
+    setRecentAccepted(previous => new Map(previous).set(feedback.requestId, feedback.expiresAt));
+    setAcceptedNotice(feedback);
+    setNotice(previous => /^(已加入|消息已交给|已在原任务历史)/.test(previous) ? "" : previous);
+  }, []);
+  const confirmAccepted = useCallback((receipt: Receipt, source: AcceptedFeedback["source"] = "composer") => {
+    const feedback = feedbackTracker.accept(receipt, source);
+    if (feedback) showAcceptedFeedback(feedback);
+  }, [feedbackTracker, showAcceptedFeedback]);
+  useEffect(() => {
+    if (!acceptedNotice) return;
+    const { requestId, expiresAt } = acceptedNotice;
+    const remaining = Math.max(0, expiresAt - Date.now());
+    const fade = setTimeout(() => setAcceptedNotice(current => current?.requestId === requestId ? { ...current, leaving: true } : current), remaining);
+    const remove = setTimeout(() => setAcceptedNotice(current => current?.requestId === requestId ? null : current), remaining + SEND_FEEDBACK_EXIT_MS);
+    return () => { clearTimeout(fade); clearTimeout(remove); };
+  }, [acceptedNotice?.requestId, acceptedNotice?.expiresAt]);
+  useEffect(() => {
+    if (!recentAccepted.size) return;
+    const timer = setTimeout(() => setRecentAccepted(current => new Map([...current].filter(([, expiresAt]) => expiresAt > Date.now()))),
+      Math.max(0, Math.min(...recentAccepted.values()) - Date.now()) + 1);
+    return () => clearTimeout(timer);
+  }, [recentAccepted]);
   const messages = useRef<HTMLDivElement>(null),
     readSentinel = useRef<HTMLDivElement>(null),
     questionReadRoot = useRef<HTMLElement>(null),
@@ -206,6 +235,7 @@ export default function Conversation({
     const subscription = startConversationFeed({
       request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
       onData(data) {
+        feedbackTracker.observeHistory(data).forEach(showAcceptedFeedback);
         rememberHistory(historyCache, thread.id, data);
         setHistory(data);
         setConnection(previous => connectionFromHistory(newerConnection(previous, data.connection), data));
@@ -218,7 +248,10 @@ export default function Conversation({
           data.messages.some((m) => m.clientMessageId === saved.requestId)
         ) {
           updateDraft({ text: "" });
-          setNotice("已在原任务历史中确认这条消息。");
+          if (data.source === "desktop" && data.messages.some(message => message.role === "user" && message.clientMessageId === saved.requestId)) {
+            confirmAccepted({ requestId: saved.requestId, status: "accepted" });
+            setNotice("");
+          } else setNotice("已在原任务历史中确认这条消息。");
         }
       },
       onError(error) {
@@ -231,7 +264,7 @@ export default function Conversation({
       subscription.stop();
       if (feed.current === subscription) feed.current = null;
     };
-  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked]);
+  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked, feedbackTracker, showAcceptedFeedback, confirmAccepted]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
@@ -275,9 +308,11 @@ export default function Conversation({
   }, [notice]);
   const receive = (receipt: Receipt) => {
     if (receipt.status === "accepted" || receipt.status === "queued") {
-      if (receipt.status === "accepted") onActivity?.();
+      if (receipt.status === "accepted") { onActivity?.(); confirmAccepted(receipt); }
+      else feedbackTracker.trackQueued(receipt.requestId);
       updateDraft({ text: "" });
-      setNotice(receipt.status === "queued" ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入 Mac 待发列表，正在连接原任务；确认可接收后发送。" : "消息已交给 Mac 中的原任务。");
+      setNotice(receipt.status === "queued" && !feedbackTracker.hasAccepted(receipt.requestId)
+        ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入 Mac 待发列表，正在连接原任务；确认可接收后发送。" : "");
       nearBottom.current = true;
     } else if (
       receipt.status === "rejected" ||
@@ -299,6 +334,7 @@ export default function Conversation({
     setSending(true);
     setError("");
     setNotice("");
+    setAcceptedNotice(null);
     const controller = new AbortController();
     const requestId = draft.requestId || crypto.randomUUID();
     receiptRead.current = controller;
@@ -446,7 +482,8 @@ export default function Conversation({
           </div>
         )}
         {renderedMessages.map((message) => (
-          <ConversationMessage key={message.id} message={message} />
+          <ConversationMessage key={message.id} message={message}
+            recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />
         ))}
         <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
       </div>
@@ -474,10 +511,11 @@ export default function Conversation({
           </p>
         )}
         {notice && (
-          <p className="message-notice" role="status">
+          <p className={`message-notice${/^已加入(?: Mac )?待发/.test(notice) ? " queue-receipt-notice" : ""}`} role="status">
             {notice}
           </p>
         )}
+        {acceptedNotice && <SubmissionFeedbackNotice feedback={acceptedNotice} leaving={acceptedNotice.leaving} />}
         {currentReadFeedback && <p className="inline-hint" role="status">
           {currentReadFeedback.status === "stale" ? "进展已有更新，读取最新内容后再同步。" : currentReadFeedback.status === "unavailable" ? "暂时无法同步已读状态。" : "已读状态尚未确认。"}
           {" "}<button type="button" className="text-button" disabled={!online || retryingRead} onClick={() => void retryRead()}>{retryingRead ? "正在核对…" : "同步已读"}</button>
@@ -486,7 +524,8 @@ export default function Conversation({
       <QuestionPrompts threadId={thread.id} questions={questions} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked || !history?.canSend} drafts={drafts} refresh={load}
         readMarker={readTargetKind === "question" && readItemId ? { sourceMessageId: readItemId, rootRef: questionReadRoot, markerRef: questionReadSentinel } : undefined} />
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
-      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity} />
+      <Outbox threadId={thread.id} items={history?.outbox ?? []} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} onActivity={onActivity}
+        onAccepted={receipt => confirmAccepted(receipt, "queue")} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
         <label className="sr-only" htmlFor="user-query">
           发送给原任务的消息

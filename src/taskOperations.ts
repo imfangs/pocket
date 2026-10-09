@@ -61,3 +61,107 @@ export function operationCancelLabel(operation: TaskOperation) {
   if (operation.status === "unknown") return "停止后续尝试";
   return operation.status === "waiting" ? `取消等待${operation.operation === "restore" ? "恢复" : "归档"}` : null;
 }
+
+type CreationNoticeOptions = {
+  requestId: string;
+  target: HTMLElement;
+  onDismiss: () => void;
+  browser?: Window;
+  visibility?: Document;
+  Observer?: typeof IntersectionObserver;
+  now?: () => number;
+};
+
+// A successful create retains its recovery action until the user has had eight
+// visible, interactive seconds to use it. Polling updates never renew that time.
+export function observeCreationNotice(options: CreationNoticeOptions) {
+  const browser = options.browser ?? window, visibility = options.visibility ?? document;
+  const Observer = options.Observer ?? globalThis.IntersectionObserver;
+  if (!Observer) return { update: (_operation: TaskOperation, _enabled: boolean) => {}, stop: () => {} };
+  const now = options.now ?? (() => performance.now()), target = options.target;
+  let stopped = false, enabled = false, visible = false, pageShown = true;
+  let pageFocused = visibility.hasFocus?.() !== false;
+  let focused = target.contains(visibility.activeElement);
+  let hovered = !!browser.matchMedia?.("(hover: hover)").matches && target.matches(":hover");
+  let remaining = 8000, startedAt: number | undefined, timer: number | undefined;
+  const pause = () => {
+    if (startedAt !== undefined) remaining = Math.max(0, remaining - Math.max(0, now() - startedAt));
+    startedAt = undefined;
+    browser.clearTimeout(timer); timer = undefined;
+  };
+  const unobstructed = () => {
+    if (target.closest("[inert], [hidden], [aria-hidden='true']")) return false;
+    if (visibility.querySelector("dialog[open], [data-reading-overlay]")) return false;
+    const backdrop = visibility.querySelector(".sidebar-backdrop.shown")?.getBoundingClientRect();
+    return !backdrop || backdrop.width === 0 || backdrop.height === 0;
+  };
+  const ready = () => !stopped && enabled && visible && pageShown && pageFocused && !hovered && !focused &&
+    visibility.visibilityState === "visible" && unobstructed();
+  const schedule = () => {
+    if (!ready()) { pause(); return; }
+    if (startedAt !== undefined) return;
+    if (remaining <= 0) { stop(); options.onDismiss(); return; }
+    startedAt = now();
+    timer = browser.setTimeout(() => { pause(); schedule(); }, remaining);
+  };
+  const pointerEnter = (event: PointerEvent) => {
+    if (event.pointerType === "touch") return;
+    hovered = true; schedule();
+  };
+  const pointerLeave = (event: PointerEvent) => {
+    if (event.pointerType === "touch") return;
+    hovered = false; schedule();
+  };
+  const focusIn = () => { focused = true; schedule(); };
+  const focusOut = (event: FocusEvent) => { focused = target.contains(event.relatedTarget as Node | null); schedule(); };
+  const refreshInteraction = () => {
+    focused = target.contains(visibility.activeElement);
+    hovered = !!browser.matchMedia?.("(hover: hover)").matches && target.matches(":hover");
+  };
+  const visibilityChange = () => {
+    if (visibility.visibilityState === "visible") { pageFocused = visibility.hasFocus?.() !== false; refreshInteraction(); }
+    schedule();
+  };
+  const pageHide = () => { pageShown = false; schedule(); };
+  const pageShow = () => { pageShown = true; pageFocused = visibility.hasFocus?.() !== false; refreshInteraction(); schedule(); };
+  const pageBlur = () => { pageFocused = false; schedule(); };
+  const pageFocus = () => { pageFocused = true; refreshInteraction(); schedule(); };
+  const observer = new Observer(entries => {
+    for (const entry of entries) if (entry.target === target) visible = entry.isIntersecting && entry.intersectionRatio >= 1;
+    schedule();
+  }, { threshold: 1 });
+  function stop() {
+    if (stopped) return;
+    stopped = true; pause(); observer.disconnect();
+    visibility.removeEventListener("visibilitychange", visibilityChange);
+    browser.removeEventListener("pagehide", pageHide);
+    browser.removeEventListener("pageshow", pageShow);
+    browser.removeEventListener("blur", pageBlur);
+    browser.removeEventListener("focus", pageFocus);
+    browser.removeEventListener("pocket-reading-visibility-change", schedule);
+    target.removeEventListener("pointerenter", pointerEnter);
+    target.removeEventListener("pointerleave", pointerLeave);
+    target.removeEventListener("pointercancel", pointerLeave);
+    target.removeEventListener("focusin", focusIn);
+    target.removeEventListener("focusout", focusOut);
+  }
+  visibility.addEventListener("visibilitychange", visibilityChange);
+  browser.addEventListener("pagehide", pageHide);
+  browser.addEventListener("pageshow", pageShow);
+  browser.addEventListener("blur", pageBlur);
+  browser.addEventListener("focus", pageFocus);
+  browser.addEventListener("pocket-reading-visibility-change", schedule);
+  target.addEventListener("pointerenter", pointerEnter);
+  target.addEventListener("pointerleave", pointerLeave);
+  target.addEventListener("pointercancel", pointerLeave);
+  target.addEventListener("focusin", focusIn);
+  target.addEventListener("focusout", focusOut);
+  observer.observe(target);
+  return {
+    update(operation: TaskOperation, canDismiss: boolean) {
+      enabled = canDismiss && operation.requestId === options.requestId && operation.operation === "create" && operation.status === "succeeded";
+      schedule();
+    },
+    stop,
+  };
+}

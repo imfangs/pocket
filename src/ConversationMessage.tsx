@@ -1,4 +1,4 @@
-import { MessageSquareText, MoreHorizontal, UserRound } from "lucide-react";
+import { Check, MessageSquareText, MoreHorizontal, UserRound } from "lucide-react";
 import CopyButton from "./CopyButton";
 import MessageMarkdown from "./MessageMarkdown";
 import { readableQuestionReply } from "./questionReply";
@@ -7,7 +7,7 @@ import { formatDuration } from "./TurnDuration";
 import { readableCodexMarkdown } from "./codexMarkup";
 import { useMemo } from "react";
 
-export default function ConversationMessage({ message }: { message: Message }) {
+export default function ConversationMessage({ message, recentlySent = false }: { message: Message; recentlySent?: boolean }) {
   const displayText = useMemo(() => message.role === "user"
     ? readableQuestionReply(message.text) : readableCodexMarkdown(message.text), [message.role, message.text]);
   const progress =
@@ -27,9 +27,10 @@ export default function ConversationMessage({ message }: { message: Message }) {
             : "Codex · 回复";
   const Icon =
     kind === "user" ? UserRound : progress ? MoreHorizontal : MessageSquareText;
+  const confirmed = kind === "user" && recentlySent;
   return (
     <article
-      className={`conversation-message ${message.role} message-${kind}`}
+      className={`conversation-message ${message.role} message-${kind}${confirmed ? " is-recently-sent" : ""}`}
       aria-label={label}
     >
       <div className="message-label">
@@ -39,6 +40,7 @@ export default function ConversationMessage({ message }: { message: Message }) {
           {kind !== "user" && <span className="message-phase">{message.isQuestion ? "问题" : progress ? "过程" : "回复"}</span>}
         </strong>
         <div className="message-meta">
+          {confirmed && <span className="message-send-confirmed"><Check size={13} aria-hidden="true" />已发送</span>}
           {message.timestamp && (
             <time dateTime={new Date(message.timestamp).toJSON() ?? undefined}>
               {new Date(message.timestamp).toLocaleString("zh-CN", {

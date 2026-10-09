@@ -557,6 +557,7 @@ export default function App({
         )}
         {taskOperations.notices.length > 0 && <div className="task-operation-notices" aria-label="会话操作状态">
             {taskOperations.notices.map(operation => <TaskOperationStatus key={operation.requestId} operation={operation}
+              autoDismissEnabled={!(narrow && (mobile || !!current))}
               title={operation.threadId ? catalog.threads.find(thread => thread.id === operation.threadId)?.title : undefined}
               error={taskOperations.errors[operation.requestId]}
               onCheck={() => void taskOperations.check(operation.requestId)} onCancel={() => void taskOperations.cancel(operation.requestId)}

@@ -6,9 +6,11 @@ import { api } from "./api";
 import { waitForSubmission, type SubmissionReceipt } from "./submissionReceipt";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { captureDraft } from "./draftTransaction";
+import { queueFeedbackState, queueHeadState } from "./submissionFeedback";
+import "./submission-feedback.css";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
-export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, onActivity }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, onActivity, onAccepted }: {
   threadId: string;
   items: QueuedMessage[];
   paused?: { stopId: string } | null;
@@ -16,6 +18,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   allowSend: boolean;
   connectionPending?: boolean;
   onActivity?: () => void;
+  onAccepted?: (receipt: SubmissionReceipt) => void;
   refresh: () => Promise<void> | undefined;
   drafts: Map<string, QueryDraft>;
 }) {
@@ -23,6 +26,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const [text, setText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [acceptedItems, setAcceptedItems] = useState(new Set<string>());
   const key = (id: string) => `${threadId}/outbox/${id}`;
   const receiptRead = useRef<AbortController | null>(null);
   const viewGeneration = useRef(0);
@@ -86,10 +90,14 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
           { expectedRevision, ...(action === "save" ? { text } : {}) });
         if (controller) {
           if (!currentView() || controller.signal.aborted) return;
+          if (result.requestId !== item.id) throw new Error("回执与这条待发消息不匹配，请核对状态。");
           result = await waitForSubmission(result, signal => api<SubmissionReceipt>(`/api/tasks/${threadId}/messages/${item.id}`, "GET", undefined, { signal }), controller.signal);
           if (!currentView() || controller.signal.aborted) return;
         }
-        if (action === "send" && result.status === "accepted") onActivity?.();
+        if (action === "send" && result.status === "accepted") {
+          setAcceptedItems(previous => new Set(previous).add(item.id));
+          onActivity?.(); onAccepted?.(result);
+        }
         // Settled saves can release their unchanged draft after leaving, but
         // must never discard a newer edit made in a reopened view.
         if (saved.clear() && currentView()) {
@@ -116,19 +124,23 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
     finally { release(); setBusy(null); }
   };
   if (!items.length) return null;
+  const { editing: headEditing, blocked: headBlocked } = queueHeadState(items[0], editing?.id);
+  const remainingCount = items.filter(item => item.status !== "accepted" && !acceptedItems.has(item.id)).length;
   return (
     <section ref={section} className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading"><strong>待发送 · {items.length}</strong><span>{items[0]?.status === "unknown" ? "等待核对首条消息，自动发送已暂停" : paused ? "自动发送已暂停" : connectionPending ? "已保存在 Mac，连接恢复后依次发送" : "当前轮完成后依次发送"}</span>
+      <div className="outbox-heading"><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong><span>{!remainingCount ? "原任务已接收，正在同步历史" : items[0]?.status === "unknown" ? "等待核对首条消息，自动发送已暂停" : paused ? "自动发送已暂停" : headEditing ? "首条正在编辑，自动发送已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理后继续" : connectionPending ? "已保存在 Mac，连接恢复后依次发送" : "当前轮完成后依次发送"}</span>
         {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
       </div>
       {items.map((item, index) => {
-        const mutable = ["queued", "rejected", "editing"].includes(item.status);
-        return <div className="outbox-item" key={item.id} data-outbox-id={item.id} role="group" aria-label={`待发消息 ${index + 1}`} aria-busy={busy === item.id}>
+        const accepted = item.status === "accepted" || acceptedItems.has(item.id);
+        const mutable = !accepted && ["queued", "rejected", "editing"].includes(item.status);
+        const feedback = queueFeedbackState(item, { accepted, paused: !!paused, editing: editing?.id === item.id, busy: busy === item.id, disabled, headBlocked });
+        return <div className={`outbox-item queue-feedback${feedback.breathing ? " is-queue-breathing" : ""}`} key={item.id} data-feedback-state={feedback.state} data-outbox-id={item.id} role="group" aria-label={`待发消息 ${index + 1}`} aria-busy={busy === item.id}>
           {editing?.id === item.id ? <AutoTextarea aria-label="编辑待发消息" value={text} maxLength={16000} disabled={!!busy || disabled}
             onChange={e => { setText(e.target.value); drafts.set(key(item.id), { text: e.target.value, revision: editing.revision }); }} />
             : <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
           <div className="outbox-actions">
-            <small>{busy === item.id || item.status === "pending" ? "正在提交…" :
+            <small>{accepted ? "原任务已接收" : busy === item.id || item.status === "pending" ? "正在提交…" :
               item.status === "unknown" ? "结果待确认，不会自动重发" :
               item.status === "editing" ? "编辑中，已暂停发送" :
               item.status === "rejected" ? "发送未完成，可编辑后重试" : paused ? "已暂停" : "排队中"}</small>

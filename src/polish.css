@@ -206,6 +206,9 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .group-picker-search, .directory-search { display:flex; align-items:center; gap:8px; margin:8px 0; }
 .group-picker-search input, .directory-search input { width:100%; min-width:0; min-height:40px; border:1px solid var(--line-strong); border-radius:6px; padding:8px 10px; background:var(--surface); }
 .directory-search-feedback, .directory-search-result { color:var(--muted); font-size:12px; }
+.new-directory-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; }
+.new-directory-heading .field-label { margin:0; }
+.directory-search-toggle { display:inline-flex; align-items:center; gap:5px; min-height:36px; padding:4px 0 4px 8px; color:var(--muted); font-size:12px; }
 .intent-options button { min-height:36px; border:1px solid var(--line); background:var(--surface); border-radius:6px; color:var(--text-secondary); }
 .intent-options button.chosen { background:var(--soft); border-color:var(--line-strong); color:var(--ink); }
 .membership-list { border:1px solid var(--line); border-radius:7px; padding:5px; }
@@ -386,6 +389,7 @@ dialog .group-options { color:var(--text-secondary); }
   .composer-actions .primary, .copy-button, .context-trigger, .conversation-latest, .outbox-actions button { min-height:44px; }
   .copy-button { min-width:44px; }
   .view-options-trigger, .search-toggle, .new-conversation-button { min-height:44px; }
+  .directory-search-toggle { min-height:44px; }
   .list-caption, .mobile-selection-toggle { min-height:44px; }
   .row-open { min-width:44px; min-height:44px; }
 }
