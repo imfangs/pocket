@@ -36,3 +36,9 @@ Python仅在原生附件元数据与精确文件包装一致时还原原Query，
 ## 验证入口
 
 相关回归位于 `tests/attachments.test.mjs`、`tests/desktop-protocol.test.mjs`、`tests/edge.test.mjs` 与前端附件/提交状态测试。真实流程和受控模型验收证据在 `.local/qa/attachments-2026-10-10/`；发布身份、通过结果及仍待真机验证的范围统一看 [CURRENT.md](../../CURRENT.md)。
+
+本轮最终628项回归及构建、25项合成浏览器流程通过。原owner实际读取随机图片数字，只有userMessage/agentMessage，native输入为text/localImage；普通文件通过公网上传并由原任务一次只读sed调用读出其独有验证码，两轮completed且原设置/归档已恢复。公网隔离Chrome也通过真实选图上传、512px解码、原件字节hash和删除验证，没有发送消息。
+
+慢上传验收最初的Node流式HTTP/2请求返回NGHTTP2_PROTOCOL_ERROR；独立GET确认uploadId为404、requestId为not_found，未重放消息。随后使用有明确文件长度的curl HTTP/1.1限速64字节/秒，耗时36.6秒、HTTP200并逐字节回读，确认上传没有被旧20秒网关预算截断。浏览器File上传路线独立通过，不把该脚本的传输错误当作手机上传失败。
+
+合成浏览器/临时API均已停止。原生看图验收所引用的小测试文件保留在已记录的私有fixture目录，避免破坏该原会话中的路径；真实公网文件测试附件继续由生产引用关系保存。原始回执和路径只在私有QA目录，不进入公开构建。

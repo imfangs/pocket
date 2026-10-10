@@ -1,5 +1,7 @@
 # Pocket 当前状态
 
+2026-10-10 手机图片与文件发送已上线：已有会话输入框旁可选择附件或粘贴图片，直接上传到Mac，再交给原owner；支持纯附件、上传预览、跨会话草稿、待发编辑/取消、未知回执核对及失败重新编辑。图片原生localImage，普通文件依原权限读取；HEIC本机转JPEG，列表用512px私有缩略图，点击仍原图。每条6个/单文件20MiB，私有文件与绑定关系持久保存；取消队列回到可见草稿。628项回归、构建、25项合成浏览器流程通过。真实原会话读出仅在图片像素里的随机数字（0工具），公网36.6秒限速文件上传200，原会话只读该文件并返回验证码；两轮均completed、原模型/cwd/权限不变，验收会话已重新归档。公网Chrome实际上传/缩略图解码/原件哈希/移除通过，0次浏览器消息发送；原文件重启后仍可读，退出后401。Mac API已更新，分组/说明/置顶及旧unknown回执保持；未重启Codex或连接器。详见[附件发送](docs/design/2026-10-10-attachments.md)，证据 `.local/qa/attachments-2026-10-10/`，iPhone系统选择器和长期网络仍待实机反馈。
+
 2026-10-10 置顶图钉来源区分已发布：Pocket主动置顶显示红色小图钉，Codex同步置顶仍为灰色；暗色主题使用更亮的红色，可访问名称说明来源。图钉尺寸/位置、左划蓝色操作与排序保持。559项回归和构建、320/390px亮暗主题四组浏览器/视觉检查通过，无横向溢出，红色图钉对比度5.27:1/6.79:1；公网15文件及功能检查通过。本轮0次真实API写入/发送，不重启Mac服务。详见[图钉区分](docs/design/2026-10-10-swipe-and-pocket-pins.md#2026-10-10-置顶图钉来源区分)，证据 `.local/qa/pin-indicator-2026-10-10/`。
 
 2026-10-10 桌面升级兼容已修复并在Mac侧生效：方帅升级到Codex `26.1007.21159:20052` 后，旧精确版本保护使发送与运行状态失效。已核对新版ASAR协议，原owner连接/发送和已读协议版本均保持；更新兼容配置，并适配内置CLI迁到 `codex-cli/bin/codex`、实际进程迁入 `CodexCLI.app` 的新布局，保留精确版本与原任务设置。559项全量回归及构建通过，新CLI隔离home验证新建持久化、项目归属、归档/恢复等流程。本机与公网恢复desktop/resumed/canSend，运行状态available；公网一次受控消息的准确requestId、回复与completed原轮均回读，0工具，验收会话已重新归档且模型/cwd/权限不变。桥接按请求加载，无需重启Mac API、Codex或连接器；前端未变，不重复发布Pages。详见[升级兼容](docs/research/2026-10-10-desktop-upgrade-compatibility.md)，证据 `.local/qa/desktop-upgrade-2026-10-10/`。
@@ -53,12 +55,12 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端源码 | `21d6576bfcd931cc3cba97a353b3de28badcd184`（Pocket红色图钉与Codex灰色图钉）；包含此前Query设置折叠与蓝色左划功能。后续文档commit不代表部署更新 |
-| Mac桥接兼容源码 | `9ccec4a373f3742f93de5c13d633f200e71d7530`；精确适配App `26.1007.21159:20052`、CLI `0.162.0-alpha.17.2`，按请求加载生效，无需重启服务 |
-| Pages 部署 | `91926353-ae87-4c6e-b1bd-d8905964bc53`；20:04回读ready=true，15个公开文件匹配，功能检查通过 |
-| 前端 build ID | `921c467acb2e5834e2fbce891090b72a3d65307d3fbc0afc7c3cbb4608d1e315`，公开 `pocket-version.json` 与本地构建一致；HTML及公开资源哈希匹配 |
-| 验证快照 | 当前559项全量回归及构建通过。红/灰图钉320/390px亮暗四组浏览器检查及受控视觉预览通过，原图标几何与蓝块保持，证据 `.local/qa/pin-indicator-2026-10-10/`。此前新版CLI隔离生命周期、25项独立手势、12项完整置顶、14项折叠新建证据仍在各自QA目录 |
-| 最后健康复核 | 前端20:04公网文件及功能检查通过。本机/公网发送链路最近为10-10 16:22：history为desktop、resumed、canSend=true，运行状态available、13条候选状态；一次公网受控回显在原轮completed，0工具，验收会话恢复原归档，ID/模型/provider/cwd/权限/名称保持。见 `.local/qa/desktop-upgrade-2026-10-10/after-public.json`、`echo-native-verification.json`、`canary-preservation.json` |
+| 已发布前端与网关源码 | `ffedca89c868f9bf92067e5597edcbf0fd6a6b2f`（手机图片/文件附件及上传专属180秒转发预算）；包含此前图钉来源区分与界面功能。后续文档commit不代表部署更新 |
+| Mac API与桥接源码 | `1bb897f046e32600cdcf6b45d8137221d6005efd`（附件及未绑定原App附件占位）；精确适配App `26.1007.21159:20052` / CLI `0.162.0-alpha.17.2`。服务最终PID 74579，配置仍在 `config/local-service.json` |
+| Pages 部署 | `96c9ef0e-e427-4d9a-a69f-13fb15a4a581`；21:14回读ready=true，15个公开文件匹配，功能检查通过 |
+| 前端 build ID | `051eea71bb0b2568ae5753ad699978caaf00aa9b2dec23128d06a8669c746c17`，公开 `pocket-version.json` 与本地构建一致；HTML及公开资源哈希匹配 |
+| 验证快照 | 当前628项全量回归及构建通过，25项合成浏览器流程涵盖附件草稿、上传/派发、队列、取消恢复、丢回执、失败取回、320px暗色与小图解码；另有公网真实Chrome上传/原件核验/移除。图片看图与普通文件读取分别在原验收会话完成，证据 `.local/qa/attachments-2026-10-10/`；之前界面和生命周期证据保留 |
+| 最后健康复核 | 10-10 21:23：公网history为desktop、resumed、canSend=true，运行状态available；已发送测试文件在Mac API重启后由rollout历史正确显示附件、原Query保持，认证下载hash匹配，退出后401，公网build匹配。验收会话已归档、原设置保持。见 `final-public-status.json`、`final-file-readback.json`、`canary-preservation.json`；全部位于 `.local/qa/attachments-2026-10-10/` |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；原App门槛和Python/FBT路径以 `config/desktop-bridge.json` 为准，内置CLI布局/版本由 `bin/bundled_cli.py` 解析。App升级后先复核，勿直接去掉版本限制 |
 
 需要确认今天的在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。
@@ -74,6 +76,7 @@
 - **运行过滤**：待输入右侧显示全局已确认运行数量，一键列出；状态不可用显示破折号，未知不当空闲。进入后可继续按项目/搜索筛选；再次点击恢复原列表状态。
 - **阅读**：认证后的落盘正文与原桌面状态独立刷新，最近可见消息有界合并；Markdown、Codex 常见专用标记、任务目录内已引用的静态图片可读。用户、过程与最终回复有明确视觉区分。
 - **发送与控制**：原任务空闲时发送，运行中默认 Pocket 排队；尚未加载时，明确提交可触发一次原桌面接入，失败保留待发与明确重试入口；可编辑、删除、直接发送、按 turn 中断及恢复队列。上下文用量与空闲时压缩可用，待发列表不必清空。
+- **图片与文件**：已有会话可从回形针选择附件或粘贴图片，上传到Mac后与Query一起或单独发送；每条最多6个、单文件20MiB。照片/HEIC支持私有小图预览，普通文件下载原件；待发和未知消息保留附件，取消队列返回可见草稿，确定未提交的失败卡可重新编辑。Mac仅按已绑定附件记录提供认证URL，详情和存储/备份边界见[附件发送](docs/design/2026-10-10-attachments.md)。
 - **发送反馈**：明确接收后即时绿色确认并短暂高亮对应Query，队列等待使用蓝色背景呼吸；暂停、编辑、未知与失败静态，减少动态效果时全部保留静态颜色。状态不扩展发送权限，历史中的旧消息不重复高亮。
 - **提交原文**：从点击发送起独立保留Query与requestId，在等待连接/提交/同步时持续展示；新草稿不受旧回执影响。队列接管或accepted且完整回显后去重，截断/rollout不核销未知发送，尚未同步的本地内容参与更新保护。
 - **提问与审批**：最新一轮异步问题随正文显示，可本设备忽略并重新回答，正文/普通输入保留；在途或未知回答不能忽略。同步阻塞问题，以及命令、文件、本轮权限审批已接入，仍由用户明确响应。MCP 自定义表单和未知类型仍在 Mac 处理。
@@ -104,6 +107,7 @@
 | 已保存历史/连接任务/自动接入 | [连接恢复](docs/design/2026-10-05-connection-recovery.md) |
 | 桌面升级后不能发送、运行状态或生命周期失效 | [桌面升级兼容](docs/research/2026-10-10-desktop-upgrade-compatibility.md) |
 | 长会话发送/未知回执 | [发送修复](docs/design/2026-09-30-send-reliability.md) |
+| 手机上传、图片/文件输入、附件恢复和私有文件清理 | [附件发送](docs/design/2026-10-10-attachments.md) |
 | 正文更新慢/迟到快照 | [文字优先](docs/design/2026-09-30-transcript-first.md) |
 | 键盘收起后输入悬空、露出列表 | [详情高度恢复](docs/design/2026-10-10-keyboard-recovery.md) |
 | 刷新、草稿、输入高度与阅读位置 | [连续性修复](docs/design/2026-09-30-steady-interaction.md) |
