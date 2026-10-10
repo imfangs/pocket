@@ -89,6 +89,7 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .row-second:empty { display:none; }
 .note-preview { color:var(--muted); font-size:12px; line-height:1.55; margin-top:5px; }
 .pin-icon { width:12px; color:var(--muted); }
+.pin-icon[data-pin-source="pocket"] { color:var(--pin-highlight); }
 .intent-dot { padding:1px 5px; border-radius:4px; }
 .intent-dot.active { color:var(--text-secondary); background:var(--soft); }
 .intent-dot.later, .due-label { color:var(--warning); }

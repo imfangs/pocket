@@ -20,6 +20,7 @@ html[data-theme="dark"] {
   --warning-soft: #3a3021;
   --danger: #f0ac9d;
   --danger-soft: #402923;
+  --pin-highlight: #f08080;
   --shadow: 0 14px 48px #0005, 0 2px 8px #0003;
 }
 .theme-switch { display:flex; gap:3px; padding:3px; margin:8px 0; border:1px solid var(--line); border-radius:8px; }

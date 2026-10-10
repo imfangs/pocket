@@ -164,7 +164,9 @@ export default function TaskList(p: Props) {
                 >
                   <div className="row-first">
                     <strong>{t.separator ? "分隔符会话" : t.title}</strong>
-                    {t.pinned && p.view !== "pinned" && <Pin size={13} className="pin-icon" />}
+                    {t.pinned && p.view !== "pinned" && <Pin size={13} className="pin-icon"
+                      data-pin-source={t.pinSource ?? "codex"} role="img"
+                      aria-label={t.pinSource === "pocket" ? "Pocket 置顶" : "Codex 置顶"} />}
                     <time dateTime={new Date(t.updatedAt).toISOString()}>
                       {ago(t.updatedAt)}
                     </time>

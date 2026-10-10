@@ -25,6 +25,7 @@
   --warning-soft: #fbf4e8;
   --danger: #a54235;
   --danger-soft: #fff1ed;
+  --pin-highlight: #c23b3b;
   --green: var(--accent);
   --radius: 8px;
   --ease: cubic-bezier(.2,.8,.2,1);
