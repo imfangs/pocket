@@ -1,5 +1,7 @@
 # Pocket 当前状态
 
+2026-10-10 桌面升级兼容已修复并在Mac侧生效：方帅升级到Codex `26.1007.21159:20052` 后，旧精确版本保护使发送与运行状态失效。已核对新版ASAR协议，原owner连接/发送和已读协议版本均保持；更新兼容配置，并适配内置CLI迁到 `codex-cli/bin/codex`、实际进程迁入 `CodexCLI.app` 的新布局，保留精确版本与原任务设置。559项全量回归及构建通过，新CLI隔离home验证新建持久化、项目归属、归档/恢复等流程。本机与公网恢复desktop/resumed/canSend，运行状态available；公网一次受控消息的准确requestId、回复与completed原轮均回读，0工具，验收会话已重新归档且模型/cwd/权限不变。桥接按请求加载，无需重启Mac API、Codex或连接器；前端未变，不重复发布Pages。详见[升级兼容](docs/research/2026-10-10-desktop-upgrade-compatibility.md)，证据 `.local/qa/desktop-upgrade-2026-10-10/`。
+
 2026-10-10 Query默认折叠设置与左划置顶已发布：新建默认只显示Query，目录/项目/可选标题收进“更多设置”，复用上次有效选择；缺失或失效设置按需展开并定位，保留Query。列表左划露出84px蓝色置顶/取消置顶，点击才执行；仅保存Pocket排序，刷新和备份可保留，不修改Codex原置顶。补齐横滑与下拉刷新冲突、未知回复只读核对、迟到保存不覆盖置顶，以及等待保存时切换运行/待输入的返回排序。554项回归、生产构建、25项独立手势、12项完整置顶流程及14项折叠新建浏览器检查通过。仅重启Pocket Mac API，分组/说明哈希和账本计数保持；公网15文件、功能与认证pin接口回读通过，0次真实创建/发送/置顶。首次上传后的3个资源短暂返回旧HTML，沿用同一部署resume后全部匹配，没有重复上传。详见[左划与Pocket置顶](docs/design/2026-10-10-swipe-and-pocket-pins.md)及[默认只起笔](docs/design/2026-10-09-startup-and-query-entry.md#2026-10-10默认只起笔)，证据 `.local/qa/pocket-pins-2026-10-10/`。临时fixture、端口与拆分发布worktree已清理；iPhone真机手感仍待使用反馈。
 
 2026-10-10 整体界面减法已发布：删除列表常驻“会话/选择”栏、末尾重复统计、页面口号/固定面包屑/页尾同步；批量操作从筛选菜单按需进入，项目与安排等已明确上下文不逐行重复。详情统一标题和同轮用时，新建减少重复说明；主题/安装/退出集中设置，来源信息折叠。异常、运行、草稿、回执、工作目录及备份后果保留；补齐安装事件跨入口保留、选择模式内搜索和导入期间账户保护。521项回归与构建、16项浏览器流程及导入/长标题验收通过；同尺寸第一条任务上移44px。公网15文件、功能和认证接口回读通过，0次真实创建/发送，不重启Mac API或Codex。详见[界面减法](docs/design/2026-10-10-interface-subtraction.md)，对照及证据 `.local/qa/ui-subtraction-2026-10-10/`。
@@ -49,12 +51,13 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布产品源码 | `c9d875f71d4ddea48e5cd1b11744b48c09498874`（蓝色左划与Pocket置顶），包含 `4b7aff2` 的Query设置默认折叠；后续文档 commit 不代表部署更新 |
+| 已发布前端源码 | `c9d875f71d4ddea48e5cd1b11744b48c09498874`（蓝色左划与Pocket置顶），包含 `4b7aff2` 的Query设置默认折叠；后续文档 commit 不代表部署更新 |
+| Mac桥接兼容源码 | `9ccec4a373f3742f93de5c13d633f200e71d7530`；精确适配App `26.1007.21159:20052`、CLI `0.162.0-alpha.17.2`，按请求加载生效，无需重启服务 |
 | Pages 部署 | `0e43294c-e632-4aa0-8a08-046eef607361`；同次部署resume后ready=true，15个公开文件匹配，功能检查通过 |
 | 前端 build ID | `e68b4ad32c93268e13816c317f90893d9aa701186def15f499c17149d16d9c11`，公开 `pocket-version.json` 与本地构建一致；HTML及公开资源哈希匹配 |
-| 验证快照 | 554项全量回归及构建通过；25项独立手势、12项完整置顶流程、14项折叠新建浏览器检查。覆盖320/390px、竖向滚动/多指/键盘/低动态、置顶/取消/刷新/备份、丢回复只读核对及迟到保存保护。证据 `.local/qa/pocket-pins-2026-10-10/`、`.local/qa/row-swipe-2026-10-10/`、`.local/qa/query-only-create-2026-10-10/` |
-| 最后健康复核 | 10-10 11:07：公网匿名目录401、认证目录/健康200，错误pin参数400、确认不存在的目标404，公网build匹配。11:05仅重启Pocket API至PID 88619，12个分组/25条说明及哈希保持，新pin覆盖表为空。0次真实创建/发送/置顶，未重启Codex或连接器。见 `.local/qa/pocket-pins-2026-10-10/public-readback.json`、`local-restart.json` 与 `data-before.json`/`data-after.json` |
-| 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；原 App 版本门槛和 Python/FBT 路径以 `config/desktop-bridge.json` 为准。App升级后先复核，勿直接去掉版本限制 |
+| 验证快照 | 当前559项全量回归及构建通过，新增CLI布局及精确版本拒绝回归；新版官方CLI隔离home生命周期验收通过。前端保留25项独立手势、12项完整置顶、14项折叠新建浏览器证据。最新 `.local/qa/desktop-upgrade-2026-10-10/`，前端 `.local/qa/pocket-pins-2026-10-10/`、`.local/qa/row-swipe-2026-10-10/`、`.local/qa/query-only-create-2026-10-10/` |
+| 最后健康复核 | 10-10 16:22：本机/公网history为desktop、resumed、canSend=true，运行状态available、13条候选状态；一次公网受控回显在原轮completed，0工具，验收会话已恢复原归档，ID/模型/provider/cwd/权限/名称均保持。见 `.local/qa/desktop-upgrade-2026-10-10/after-public.json`、`echo-native-verification.json`、`canary-preservation.json`。本次未重启服务或重发未知消息；前端build仍沿用11:07核验版本 |
+| 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；原App门槛和Python/FBT路径以 `config/desktop-bridge.json` 为准，内置CLI布局/版本由 `bin/bundled_cli.py` 解析。App升级后先复核，勿直接去掉版本限制 |
 
 需要确认今天的在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。
 
@@ -97,6 +100,7 @@
 | 新建/归档/恢复、等待取消与回执恢复 | [会话生命周期](docs/design/2026-10-05-thread-lifecycle.md) |
 | 阅读后未读未消失、双端蓝点 | [已读同步](docs/design/2026-10-05-read-state-sync.md) |
 | 已保存历史/连接任务/自动接入 | [连接恢复](docs/design/2026-10-05-connection-recovery.md) |
+| 桌面升级后不能发送、运行状态或生命周期失效 | [桌面升级兼容](docs/research/2026-10-10-desktop-upgrade-compatibility.md) |
 | 长会话发送/未知回执 | [发送修复](docs/design/2026-09-30-send-reliability.md) |
 | 正文更新慢/迟到快照 | [文字优先](docs/design/2026-09-30-transcript-first.md) |
 | 键盘收起后输入悬空、露出列表 | [详情高度恢复](docs/design/2026-10-10-keyboard-recovery.md) |
