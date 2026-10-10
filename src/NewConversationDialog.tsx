@@ -10,9 +10,9 @@ import { initialCreationSelection, readCreationPreference, saveCreationPreferenc
 import AutoTextarea from "./AutoTextarea";
 import { applyCreationClipboard, creationQueryPayload, editCreationQuery, type CreationClipboard, type CreationQueryDraft } from "./creationQuery";
 
-export default function NewConversationDialog({ preferredCwd, initialQuery, queryHint, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose }: {
+export default function NewConversationDialog({ preferredCwd, initialQuery, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose }: {
   preferredCwd?: string; operation?: TaskOperation; operationError?: string;
-  initialQuery?: string; queryHint?: string;
+  initialQuery?: string;
   clipboardRead?: Promise<CreationClipboard>;
   onCreate: (input: { locationId: string; name?: string; initialQuery?: string }) => Promise<unknown>;
   onCheck: () => void; onCancelOperation: () => void; onClose: () => void;
@@ -89,7 +89,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, quer
         <AutoTextarea id="quick-create-query" data-autofocus value={query} disabled={locked} maxLength={16000}
           aria-invalid={queryTooLong || undefined} placeholder="写下想讨论或完成的事，也可以粘贴内容"
           onChange={event => { const text = event.target.value; setQueryDraft(draft => editCreationQuery(draft, text)); }} />
-        {(queryDraft.hint || queryHint) && <p className="field-help">{queryDraft.hint || queryHint}</p>}
+        {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
         {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}
       </div>
       <div className="new-directory-heading">

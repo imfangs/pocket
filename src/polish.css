@@ -47,8 +47,6 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .activity-filters { display:flex; align-items:center; gap:5px; }
 .running-dot { width:7px; height:7px; border-radius:50%; background:var(--positive); flex:none; }
 .running-toggle[data-inbox="true"] { color:var(--positive); background:var(--positive-soft); }
-.quick-create-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:7px 9px; border:1px solid var(--line); border-radius:6px; color:var(--text-secondary); background:var(--surface); font-size:12px; white-space:nowrap; }
-.quick-create-button:disabled { opacity:.55; }
 .quick-create-query { margin-bottom:18px; }
 .quick-create-query-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .quick-create-query-heading .field-label { margin:0; }
@@ -363,6 +361,9 @@ dialog .group-options { color:var(--text-secondary); }
   .nav-item { padding:11px; min-height:44px; font-size:14px; border-radius:7px; }
   .group-select { font-size:14px; }
   .group-edit { min-width:36px; min-height:44px; }
+  /* Cover the list throughout keyboard animation, independently of the
+     temporary height used to keep the detail composer above the keyboard. */
+  .workspace.with-inspector::before { content:''; position:fixed; inset:0; z-index:11; background:var(--surface); }
   .with-inspector .inspector { background:var(--surface); border:0; }
   .inspector-header { height:calc(54px + env(safe-area-inset-top,0px)); padding:env(safe-area-inset-top,0px) 14px 0 8px; gap:8px; }
   .inspector-header .icon-button { width:36px; min-height:44px; }
@@ -410,8 +411,6 @@ dialog .group-options { color:var(--text-secondary); }
   .copy-button { min-width:44px; }
   .view-options-trigger, .search-toggle, .new-conversation-button { min-height:44px; }
   .directory-search-toggle { min-height:44px; }
-  .quick-create-button { min-height:44px; padding:7px; }
-  .quick-create-button span { display:none; }
   .quick-create-query textarea { font-size:16px; }
   .list-caption, .mobile-selection-toggle { min-height:44px; }
   .row-open { min-width:44px; min-height:44px; }

@@ -1,52 +1,115 @@
-// The layout viewport can remain full-sized while Safari's keyboard covers it.
-// Track the visible viewport, including Safari's focus-induced vertical pan.
+// CSS owns the full-height layout. Only a confirmed software keyboard gets a
+// temporary visual-viewport override; stale Safari measurements must not pin it.
 export function bindInspectorViewport(panel: HTMLElement, browser = window) {
   const viewport = browser.visualViewport;
   const narrow = browser.matchMedia("(max-width: 760px)");
-  let frame = 0;
-  let keyboardOpen = false;
+  let frame = 0, stopped = false, keyboardOpen = false;
+  let closedHeight = 0, width = browser.innerWidth;
+  let blurredAt: number | null = null;
+  let resumedAt: number | null = null;
+  let suspended: { height: number; top: number } | null = null;
+  let timers: number[] = [];
+  const now = () => browser.performance.now();
   const clear = () => {
     panel.style.removeProperty("--inspector-viewport-height");
     panel.style.removeProperty("--inspector-viewport-top");
     panel.removeAttribute("data-keyboard-open");
-    keyboardOpen = false;
+    keyboardOpen = false; blurredAt = null;
+  };
+  const cancel = () => {
+    if (frame) browser.cancelAnimationFrame(frame);
+    frame = 0;
+    timers.forEach(timer => browser.clearTimeout(timer)); timers = [];
   };
   const update = () => {
     frame = 0;
-    if (!narrow.matches || (viewport && Math.abs(viewport.scale - 1) > 0.05)) {
-      clear();
-      return;
+    if (stopped) return;
+    if (browser.document.visibilityState === "hidden" || !narrow.matches ||
+        (viewport && (!Number.isFinite(viewport.scale) || Math.abs(viewport.scale - 1) > 0.05))) {
+      clear(); return;
     }
-    const height = viewport?.height ?? browser.innerHeight;
-    panel.style.setProperty("--inspector-viewport-height", `${height}px`);
-    panel.style.setProperty("--inspector-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+    const height = viewport?.height ?? browser.innerHeight, offset = viewport?.offsetTop ?? 0;
+    if (!Number.isFinite(height) || height <= 0 || !Number.isFinite(offset)) { clear(); return; }
+    const layoutHeight = Math.max(browser.innerHeight, browser.document.documentElement.clientHeight);
+    if (!Number.isFinite(layoutHeight) || layoutHeight <= 0) { clear(); return; }
+    // Width changes invalidate the old orientation's closed-keyboard baseline.
+    if (width !== browser.innerWidth) { width = browser.innerWidth; closedHeight = 0; clear(); }
     const active = browser.document.activeElement;
-    const editing = !!active && panel.contains(active) &&
-      active.matches("input, textarea, [contenteditable='true']");
-    // Keep the layout steady during the tap that blurs an input to submit it.
-    // Release it when the keyboard's viewport actually returns.
-    const obscured = browser.innerHeight - height > 80;
-    keyboardOpen = (editing && (obscured || height < 520)) || (keyboardOpen && obscured);
-    panel.toggleAttribute("data-keyboard-open", keyboardOpen);
+    const editing = !!active && panel.contains(active) && active.matches("input, textarea, [contenteditable='true']");
+    const obscured = Math.max(closedHeight, layoutHeight) - height > 80;
+    // A retained textarea focus after app switching is not fresh keyboard evidence.
+    // A changed measurement, new viewport event, or new input focus releases this.
+    if (suspended && suspended.height === height && suspended.top === offset && obscured) { clear(); return; }
+    suspended = null;
+    if (editing) blurredAt = null;
+    else if (keyboardOpen && blurredAt === null) blurredAt = now();
+    const closing = keyboardOpen && blurredAt !== null && now() - blurredAt < 400;
+    if (!obscured || (!editing && !closing)) {
+      if (!editing || !obscured) closedHeight = Math.max(layoutHeight, height);
+      clear(); return;
+    }
+    keyboardOpen = true;
+    const visibleHeight = Math.min(height, layoutHeight);
+    const top = Math.max(0, Math.min(offset, layoutHeight - visibleHeight));
+    const set = (key: string, value: string) => { if (panel.style.getPropertyValue(key) !== value) panel.style.setProperty(key, value); };
+    set("--inspector-viewport-height", `${visibleHeight}px`);
+    set("--inspector-viewport-top", `${top}px`);
+    panel.toggleAttribute("data-keyboard-open", true);
   };
-  const schedule = () => {
-    if (!frame) frame = browser.requestAnimationFrame(update);
+  const scheduleFrame = () => { if (!stopped && !frame) frame = browser.requestAnimationFrame(update); };
+  const settle = () => {
+    if (stopped || browser.document.visibilityState === "hidden") return;
+    scheduleFrame();
+    timers.forEach(timer => browser.clearTimeout(timer));
+    // Safari may publish the final dimensions after the event that announced
+    // closing/rotation. Sample briefly, then stop; never poll in the background.
+    timers = [80, 240, 480, 1000].map(delay => browser.setTimeout(scheduleFrame, delay));
   };
-  viewport?.addEventListener("resize", schedule);
-  viewport?.addEventListener("scroll", schedule);
-  browser.addEventListener("resize", schedule);
-  browser.document.addEventListener("focusin", schedule);
-  browser.document.addEventListener("focusout", schedule);
-  narrow.addEventListener("change", schedule);
+  const freshViewport = () => { suspended = null; settle(); };
+  const freshFocus = () => { suspended = null; settle(); };
+  const blur = () => {
+    // Start the grace period at the event, even if rendering is suspended until
+    // all delayed samples have fired. A late first frame must not start it anew.
+    if (keyboardOpen) blurredAt = now();
+    settle();
+  };
+  const suspend = () => {
+    cancel(); resumedAt = null; suspended = { height: viewport?.height ?? browser.innerHeight, top: viewport?.offsetTop ?? 0 }; clear();
+  };
+  const resume = () => {
+    // pageshow, visibility and window focus can arrive in one recovery burst.
+    // Reset once, preserving any fresh input/viewport evidence received between.
+    const time = now();
+    if (resumedAt === null || time - resumedAt > 1000) suspend();
+    resumedAt = time; settle();
+  };
+  const visibility = () => browser.document.visibilityState === "hidden" ? suspend() : resume();
+  const rotate = () => { cancel(); closedHeight = 0; clear(); settle(); };
+  viewport?.addEventListener("resize", freshViewport);
+  viewport?.addEventListener("scroll", freshViewport);
+  browser.addEventListener("resize", freshViewport);
+  browser.addEventListener("orientationchange", rotate);
+  browser.addEventListener("pageshow", resume);
+  browser.addEventListener("pagehide", suspend);
+  browser.addEventListener("focus", resume);
+  browser.document.addEventListener("visibilitychange", visibility);
+  browser.document.addEventListener("focusin", freshFocus);
+  browser.document.addEventListener("focusout", blur);
+  narrow.addEventListener("change", freshViewport);
   update();
   return () => {
-    if (frame) browser.cancelAnimationFrame(frame);
-    viewport?.removeEventListener("resize", schedule);
-    viewport?.removeEventListener("scroll", schedule);
-    browser.removeEventListener("resize", schedule);
-    browser.document.removeEventListener("focusin", schedule);
-    browser.document.removeEventListener("focusout", schedule);
-    narrow.removeEventListener("change", schedule);
+    stopped = true; cancel();
+    viewport?.removeEventListener("resize", freshViewport);
+    viewport?.removeEventListener("scroll", freshViewport);
+    browser.removeEventListener("resize", freshViewport);
+    browser.removeEventListener("orientationchange", rotate);
+    browser.removeEventListener("pageshow", resume);
+    browser.removeEventListener("pagehide", suspend);
+    browser.removeEventListener("focus", resume);
+    browser.document.removeEventListener("visibilitychange", visibility);
+    browser.document.removeEventListener("focusin", freshFocus);
+    browser.document.removeEventListener("focusout", blur);
+    narrow.removeEventListener("change", freshViewport);
     clear();
   };
 }

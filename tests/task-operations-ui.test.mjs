@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import { activeOperation, creationRecoveryIds, mergeOperation, operationCancelLabel, operationText, pollOperation, readCreationRecoveryIds, saveCreationRecoveryIds } from '../src/taskOperations.ts';
 import { filterThreads } from '../src/model.ts';
 
+test('created and first-message delivery are distinct; terminal creation only updates the matching message receipt', () => {
+  const current={requestId:'create',operation:'create',status:'succeeded',creationStatus:'created',threadId:'task',initialMessage:{requestId:'first',status:'queued'}};
+  assert.doesNotMatch(operationText(current),/已发送/);
+  const accepted=mergeOperation(current,{...current,initialMessage:{requestId:'first',status:'accepted'}});
+  assert.equal(accepted.status,'succeeded');assert.match(operationText(accepted),/已发送/);
+  assert.equal(mergeOperation(current,{...current,initialMessage:{requestId:'different',status:'accepted'}}),current);
+  const unknown={...current,status:'unknown',initialMessage:{requestId:'first',status:'not_queued'}};
+  assert.match(operationText(unknown),/已创建/);assert.doesNotMatch(operationText(unknown),/已发送/);
+});
+
 const operation = status => ({ requestId: 'one', operation: 'archive', status, threadId: 'thread' });
 test('waiting archive remains active and pollable, while unknown offers only explicit receipt checking', () => {
   assert.equal(activeOperation(operation('waiting')), true);

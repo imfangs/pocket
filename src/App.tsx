@@ -30,8 +30,6 @@ import PocketUpdate from "./PocketUpdate";
 import { filterThreads, groupPath } from "./model";
 import type { Catalog, Group, Thread, View } from "./types";
 import NewConversationDialog from "./NewConversationDialog";
-import QuickCreateButton from "./QuickCreateButton";
-import type { QuickCreateInput } from "./quickCreate";
 import { createSubmittedQueryStore, seedSubmittedQuery } from "./submittedQueries";
 import { prepareCreationDialog, type CreationClipboard } from "./creationQuery";
 import type { TaskOperation } from "./taskOperations";
@@ -137,8 +135,7 @@ export default function App({
     ),
     [settings, setSettings] = useState(false),
     [newConversationOpen, setNewConversationOpen] = useState(false),
-    [quickCreateDraft, setQuickCreateDraft] = useState<{ text: string; hint?: string; clipboardRead?: Promise<CreationClipboard> } | null>(null),
-    [readingClipboard, setReadingClipboard] = useState(false),
+    [newConversationDraft, setNewConversationDraft] = useState<{ text: string; clipboardRead?: Promise<CreationClipboard> } | null>(null),
     [createRequestId, setCreateRequestId] = useState<string | null>(null),
     [showSeparators, setShowSeparators] = useState(
       () => localStorage.getItem("navigator.separators") === "true",
@@ -248,7 +245,7 @@ export default function App({
     const { operation: existing, clipboardRead } = prepared;
     const existingQuery = existing ? creationQueries.current.get(existing.requestId) ??
       (existing.threadId && submissions.getThread(existing.threadId).find(entry => entry.requestId === existing.initialMessage?.requestId)?.text) : "";
-    setQuickCreateDraft({ text: existingQuery || "", clipboardRead });
+    setNewConversationDraft({ text: existingQuery || "", clipboardRead });
     createRequest.current = existing?.requestId ?? null;
     setCreateRequestId(createRequest.current);
     newDialogOpen.current = true; setNewConversationOpen(true);
@@ -262,16 +259,6 @@ export default function App({
     if (result.status === "rejected") creationQueries.current.delete(requestId);
     if (result.requestId !== requestId) { createRequest.current = result.requestId; setCreateRequestId(result.requestId); }
     return result;
-  };
-  const prepareQuickDialog = async (text: string, hint?: string) => {
-    await flushRef.current?.();
-    createRequest.current = null; setCreateRequestId(null);
-    setQuickCreateDraft({ text, hint });
-    newDialogOpen.current = true; setNewConversationOpen(true);
-  };
-  const quickCreate = async (input: QuickCreateInput) => {
-    await prepareQuickDialog(input.initialQuery);
-    return startCreation(input);
   };
   useEffect(() => {
     catalogReader.resume();
@@ -526,7 +513,6 @@ export default function App({
             <button
               className="new-conversation-button"
               aria-label="新建会话"
-              disabled={readingClipboard}
               onClick={() => void guard(showNewConversation)}
             >
               <Plus size={18} /><span>新建会话</span>
@@ -557,8 +543,6 @@ export default function App({
             </button>
             </div>
             <div className="list-controls">
-              <QuickCreateButton disabled={loading || newConversationOpen || taskOperations.operations.some(operation => operation.operation === "create" && activeOperation(operation))}
-                onCreate={quickCreate} onFallback={prepareQuickDialog} onError={message => notify(message)} onBusyChange={setReadingClipboard} />
               <button
                 ref={searchToggle}
                 className="icon-button search-toggle"
@@ -781,7 +765,7 @@ export default function App({
         />
       )}
       {newConversationOpen && <NewConversationDialog preferredCwd={current?.cwd || catalog.projects.find(item => item.id === project)?.paths[0]}
-        initialQuery={quickCreateDraft?.text} queryHint={quickCreateDraft?.hint} clipboardRead={quickCreateDraft?.clipboardRead}
+        initialQuery={newConversationDraft?.text} clipboardRead={newConversationDraft?.clipboardRead}
         operation={taskOperations.operations.find(operation => operation.requestId === createRequestId)}
         operationError={createRequestId ? taskOperations.errors[createRequestId] : undefined}
         onCreate={startCreation}
