@@ -8,7 +8,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import PwaInstall from "./PwaInstall";
+import PwaInstall, { usePwaInstallController } from "./PwaInstall";
 import ThemeSwitch from "./ThemeSwitch";
 import BootSplash from "./BootSplash";
 import { api } from "./api";
@@ -37,6 +37,7 @@ export default function AccessGate() {
     [visible, setVisible] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const installController = usePwaInstallController();
   useReloadGuard(() => busy ? "登录操作尚未完成，请稍后更新。"
     : passphrase ? "访问口令尚未提交，请登录或清空后再更新。" : null);
   const [checks] = useState(() => createAccessCheck({
@@ -139,7 +140,7 @@ export default function AccessGate() {
             footerActions={
               <div className="access-actions">
                 <ThemeSwitch />
-                <PwaInstall />
+                <PwaInstall controller={installController} />
                 <button
                   className="pwa-install"
                   onClick={() => void logout()}
@@ -166,16 +167,7 @@ export default function AccessGate() {
           <Pocket size={25} />
           <span>Pocket</span>
         </div>
-        <h1>
-          把想做的事，
-          <br />
-          好好接上。
-        </h1>
-        <p className="access-intro">
-          连接这台 Mac 上的 Codex 任务。
-          <br />
-          你的分组和接续说明，随时可见。
-        </p>
+        <h1>连接 Codex</h1>
         {state === "offline" ? (
           <div className="access-offline">
             <WifiOff size={24} />
@@ -232,9 +224,8 @@ export default function AccessGate() {
           </form>
         )}
         <div className="access-install">
-          <PwaInstall />
+          <PwaInstall controller={installController} />
         </div>
-        <p className="access-privacy">私人任务 · 口令保护</p>
         <ThemeSwitch />
       </section>
     </main>

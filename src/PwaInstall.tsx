@@ -1,55 +1,28 @@
 import { Download, Share2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Modal } from "./Dialogs";
-type InstallEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: string }>;
-};
-export default function PwaInstall() {
-  const [workerReady, setWorkerReady] = useState(
-    document.documentElement.dataset.pwaState === "ready",
-  );
+import { createPwaInstallController, type PwaInstallController } from "./pwaInstallController";
+
+export function usePwaInstallController() {
+  const [controller] = useState(() => createPwaInstallController(typeof window === "undefined" ? undefined : window));
   useEffect(() => {
-    const update = () =>
-      setWorkerReady(document.documentElement.dataset.pwaState === "ready");
-    window.addEventListener("navigator-pwa-state", update);
-    return () => window.removeEventListener("navigator-pwa-state", update);
-  }, []);
-  const [prompt, setPrompt] = useState<InstallEvent | null>(null),
-    [guide, setGuide] = useState(false),
-    [installed, setInstalled] = useState(
-      () =>
-        matchMedia("(display-mode: standalone)").matches ||
-        !!(navigator as Navigator & { standalone?: boolean }).standalone,
-    );
-  useEffect(() => {
-    const before = (e: Event) => {
-      e.preventDefault();
-      setPrompt(e as InstallEvent);
-    };
-    const done = () => {
-      setInstalled(true);
-      setPrompt(null);
-    };
-    window.addEventListener("beforeinstallprompt", before);
-    window.addEventListener("appinstalled", done);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", before);
-      window.removeEventListener("appinstalled", done);
-    };
-  }, []);
+    controller.start();
+    return () => controller.stop();
+  }, [controller]);
+  return controller;
+}
+
+export default function PwaInstall({ controller }: { controller: PwaInstallController }) {
+  const [guide, setGuide] = useState(false);
+  const { installed, busy } = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const install = async () => {
-    if (prompt) {
-      await prompt.prompt();
-      const choice = await prompt.userChoice;
-      if (choice.outcome === "accepted") setInstalled(true);
-      setPrompt(null);
-    } else setGuide(true);
+    const result = await controller.install();
+    if (result === "unavailable" || result === "failed") setGuide(true);
   };
   if (installed) return null;
   return (
     <>
-      <button className="pwa-install" onClick={() => void install()}>
+      <button type="button" className="pwa-install" disabled={busy} onClick={() => void install()}>
         <Download size={16} />
         <span>添加到主屏幕</span>
       </button>
@@ -69,12 +42,7 @@ export default function PwaInstall() {
               <li>从菜单选择“安装应用”或“添加到主屏幕”。</li>
             </ol>
             <small>
-              {workerReady
-                ? "离线提示页已准备好。"
-                : "正在准备离线提示页；不影响在线使用。"}
-              <br />
-              主屏幕第一次打开可能需要再次登录。Mac
-              需要保持联网运行；离线时不会缓存或显示私人任务数据。
+              主屏幕首次打开可能需要重新登录。任务同步与执行需要 Mac 在线。
             </small>
           </div>
         </Modal>

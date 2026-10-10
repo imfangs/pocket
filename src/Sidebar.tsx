@@ -22,7 +22,6 @@ import type { Catalog, Group, View } from "./types";
 import { descendantIds } from "./model";
 import { groupAncestorIds, navigationViewCount } from "./navigationModel";
 interface Props {
-  footerActions?: React.ReactNode;
   catalog: Catalog;
   view: View;
   groupId: string | null;
@@ -230,7 +229,6 @@ export default function Sidebar(p: Props) {
           </div>
           <div>
             <strong>Pocket</strong>
-            <span>Codex 随身入口</span>
           </div>
           <button
             className="icon-button mobile-only"
@@ -283,7 +281,6 @@ export default function Sidebar(p: Props) {
           </button>
         </div>
         <div className="sidebar-bottom">
-          {p.footerActions}
           <div className="sidebar-tools">
             <button
               className={`nav-item ${p.view === "archived" ? "selected" : ""}`}

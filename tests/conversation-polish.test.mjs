@@ -13,6 +13,43 @@ const { default: Requests } = await vite.ssrLoadModule('/src/RequestActions.tsx'
 const { default: Conversation } = await vite.ssrLoadModule('/src/Conversation.tsx');
 after(() => vite.close());
 
+function renderConversation(history) {
+  const id = 'thread';
+  return renderToStaticMarkup(createElement(Conversation, { thread: { id, archived: false, missing: false }, drafts: new Map(),
+    historyCache: new Map([[id, { history, nearBottom: true, scrollTop: 0 }]]), onConnect: async () => ({}) }));
+}
+
+test('a completed turn duration appears once beside its final reply while unmatched and running timing remains visible', () => {
+  const history = { source: 'desktop', runtime: 'idle', canSend: true, checkedAt: 1, hint: '',
+    turnTiming: { turnId: 'current-turn', status: 'completed', startedAt: 0, observedAt: 64000, durationMs: 64000 },
+    messages: [{ id: 'final', turnId: 'current-turn', role: 'assistant', phase: 'final_answer', text: 'The reply', turnDurationMs: 64000 }] };
+  const same = renderConversation(history);
+  assert.equal((same.match(/总用时/g) || []).length, 1);
+  assert.match(same, /class="message-duration"/);
+  const missingReply = renderConversation({ ...history, messages: [] });
+  assert.equal((missingReply.match(/总用时/g) || []).length, 1);
+  assert.match(missingReply, /class="turn-duration"/);
+  const olderReply = renderConversation({ ...history, messages: [{ ...history.messages[0], turnId: 'older-turn' }] });
+  assert.equal((olderReply.match(/总用时/g) || []).length, 2, 'timings for different turns are not duplicate information');
+  const running = renderConversation({ ...history, runtime: 'active', turnTiming: { ...history.turnTiming, status: 'inProgress', durationMs: null } });
+  assert.match(running, /class="turn-duration"/);
+  assert.match(renderConversation({ ...history, runtime: 'active' }), /class="turn-duration"/, 'active runtime still retains timing when turn metadata lags');
+});
+
+test('only known sendable desktop boilerplate is omitted; permission and unfamiliar hints remain visible', () => {
+  const base = { source: 'desktop', resumeState: 'resumed', runtime: 'idle', canSend: true, messages: [], checkedAt: 2,
+    connection: { status: 'connected', requestId: 'connect', startedAt: 0, checkedAt: 2 } };
+  for (const hint of ['消息会在 Mac 的原任务中运行，沿用原模型与权限。', '正在运行，新消息默认进入 Pocket 待发列表。']) {
+    const html = renderConversation({ ...base, hint });
+    assert.equal(html.includes(hint), false);
+    assert.doesNotMatch(html, /已连接 Mac 中的原任务/);
+    assert.equal(renderConversation({ ...base, hint, canSend: false }).includes(hint), true);
+  }
+  for (const hint of ['请先处理原任务中的确认。', '正在压缩上下文，完成后可继续。', '需要核对的新状态'])
+    assert.equal(renderConversation({ ...base, hint, canSend: false }).includes(hint), true);
+  assert.equal(renderConversation({ ...base, hint: '需要核对的新状态' }).includes('需要核对的新状态'), true);
+});
+
 test('user text is copyable while message phase remains separate from the author', () => {
   const user = renderToStaticMarkup(createElement(Message, { message: { id: 'user', role: 'user', text: 'A user message', timestamp: 1 } }));
   assert.match(user, /aria-label="复制这条消息"/);

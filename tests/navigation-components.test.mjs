@@ -25,7 +25,7 @@ test('a row has one readable unread indicator, draft context and a stable focus 
   assert.doesNotMatch(html, /unread-dot/);
   assert.match(html, /data-state="draft"/);
   assert.match(html, new RegExp(`data-thread-id="${thread.id}"`));
-  assert.match(html, /已显示全部/);
+  assert.doesNotMatch(html, /已显示全部|class="list-caption"/);
   assert.doesNotMatch(html, /条任务/);
 });
 test('the inspector exposes a management entry and linked tab panels without a one-tap archive action', () => {

@@ -3,8 +3,6 @@ import {
   Search,
   RefreshCw,
   X,
-  ArrowUpRight,
-  PanelRightOpen,
   Folder,
   AlertCircle,
   ChevronLeft,
@@ -71,19 +69,6 @@ const titles: Record<View, string> = {
   unassigned: "未分组",
   group: "",
 };
-const descriptions: Record<View, string> = {
-  all: "所有想做的事，都有一个继续的地方。",
-  unread: "读读新的进展，再决定下一步。",
-  running: "查看 Mac 上已确认正在运行的任务。",
-  pinned: "把常常回来做的事，放在手边。",
-  active: "留住注意力，一件一件向前。",
-  later: "想法先留在这里，准备好时再继续。",
-  reference: "留住值得反复翻看的线索。",
-  recent: "回到你最近打开的对话。",
-  archived: "已经收好的对话，仍然可以找回来。",
-  unassigned: "给这些对话找到合适的位置。",
-  group: "把相关的想法和行动，放在一起。",
-};
 export default function App({
   footerActions,
 }: {
@@ -130,6 +115,7 @@ export default function App({
     [readError, setReadError] = useState(""),
     [mobile, setMobile] = useState(false),
     [checked, setChecked] = useState<Set<string>>(new Set()),
+    [selecting, setSelecting] = useState(false),
     [groupDialog, setGroupDialog] = useState<Group | null | undefined>(
       undefined,
     ),
@@ -144,6 +130,7 @@ export default function App({
     searchToggle = useRef<HTMLButtonElement>(null),
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null);
+  useEffect(() => { setSelecting(false); }, [view, groupId]);
   const syncing = useRef<Promise<Catalog | undefined> | null>(null);
   const createRequest = useRef<string | null>(null), newDialogOpen = useRef(false);
   useEffect(() => {
@@ -458,6 +445,7 @@ export default function App({
       catalogReader.invalidate();
       setCatalog(c);
       setChecked(new Set());
+      setSelecting(false);
       notify(
         change.groupId
           ? `已将 ${ids.length} 条任务加入分组`
@@ -472,7 +460,6 @@ export default function App({
     <div className="app-shell">
       <Sidebar
         showSeparators={showSeparators}
-        footerActions={footerActions}
         catalog={catalog}
         view={view}
         groupId={groupId}
@@ -495,20 +482,11 @@ export default function App({
               <Menu size={20} />
             </button>
             <div className="heading">
-              <div className="breadcrumb">
-                工作空间
-                {view === "group" && selectedGroup?.parentId && (
-                  <>
-                    <span>/</span>
-                    {groupPath(catalog.groups, selectedGroup.parentId)}
-                  </>
-                )}
-              </div>
+              {view === "group" && selectedGroup?.parentId && <div className="breadcrumb">{groupPath(catalog.groups, selectedGroup.parentId)}</div>}
               <h1>
                 {title}
                 <span>{view === "unread" && !unreadKnown || view === "running" && !runtimeKnown ? "—" : threads.length}</span>
               </h1>
-              <p className="view-description">{descriptions[view]}</p>
             </div>
             <button
               className="new-conversation-button"
@@ -556,21 +534,19 @@ export default function App({
               </button>
               <ViewControls projects={catalog.projects} project={project} sort={sort}
                 onProject={id => { setProject(id); setChecked(new Set()); }}
-                onSort={setSort} />
+                onSort={setSort} onSelectTasks={() => setSelecting(true)} selectionDisabled={!threads.length || busy} />
             </div>
           </div>
           {project && <div className="active-filters" aria-label="已应用的筛选">
             <button onClick={() => { setProject(""); setChecked(new Set()); }} aria-label="清除来源项目筛选">
               <Folder size={13} aria-hidden="true" />{catalog.projects.find(item => item.id === project)?.name || "来源项目"}<X size={13} aria-hidden="true" />
             </button>
-            <span>{threads.length} 条结果</span>
           </div>}
           {searchOpen && <div className="search-box expanded-search" id="task-search-box">
-            <Search size={17} aria-hidden="true" />
             <input
               ref={search}
               aria-label="搜索任务"
-              placeholder="搜索标题、项目、接续说明…"
+              placeholder={`搜索${title || "当前分组"}…`}
               aria-describedby="task-search-help"
               inputMode="search"
               enterKeyHint="search"
@@ -587,7 +563,7 @@ export default function App({
               <X size={17} />
             </button>
           </div>}
-          {searchOpen && <p id="task-search-help" className="search-scope">在当前视图内搜索；支持目录和分组名称</p>}
+          {searchOpen && <p id="task-search-help" className="sr-only">在当前视图内搜索标题、项目、目录、分组和接续说明。</p>}
         </header>
         {(error || readError || catalog.sourceError) && (
           <div className="error-banner" role="alert">
@@ -637,6 +613,8 @@ export default function App({
                 hasFilters={!!(query.trim() || project)}
                 draftIds={draftThreadIds(conversationDrafts.current)}
                 threads={threads}
+                projectScope={project}
+                selecting={selecting}
                 groups={catalog.groups}
                 selected={selected}
                 view={view}
@@ -672,7 +650,7 @@ export default function App({
                 onBatch={(change) =>
                   void guard(() => batch([...checked], change))
                 }
-                onClear={() => setChecked(new Set())}
+                onClear={() => { setChecked(new Set()); setSelecting(false); }}
                 busy={busy}
                 query={query}
                 onClearQuery={() => setQuery("")}
@@ -710,32 +688,10 @@ export default function App({
             />
           ) : (
             <aside className="inspector-placeholder">
-              <div className="placeholder-symbol">
-                <PanelRightOpen size={30} />
-              </div>
-              <h2>继续一段对话</h2>
-              <p>
-                选择左侧任务，查看进展或发一条新消息。
-              </p>
-              <div>
-                <Folder size={15} />
-                拖动任务到左侧，快速加入分组
-              </div>
-              <div>
-                <ArrowUpRight size={15} />
-                始终打开原来的会话
-              </div>
+              <p>选择会话，查看进展</p>
             </aside>
           )}
         </div>
-        <footer className="workspace-footer">
-          <span>
-            <i />
-            {catalog.sourceInfo
-              ? `最近同步 ${new Date(catalog.sourceInfo.syncedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
-              : "等待来源"}
-          </span>
-        </footer>
       </main>
       {groupDialog !== undefined && (
         <GroupDialog
@@ -774,6 +730,7 @@ export default function App({
         onClose={() => { newDialogOpen.current = false; setNewConversationOpen(false); }} />}
       {settings && (
         <SettingsDialog
+          accountActions={footerActions}
           catalog={catalog}
           showSeparators={showSeparators}
           onSeparators={(b) => {

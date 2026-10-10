@@ -138,9 +138,8 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         </select>
       </> : projects.length === 1 ? <p className="field-help">归属项目：{projects[0].label}</p> : null}
       <label className="field-label" htmlFor="new-conversation-name">标题 <small>可选</small></label>
-      <input id="new-conversation-name" value={name} disabled={locked} maxLength={220} placeholder="留空，由 Codex 自动命名"
-        aria-describedby="new-conversation-name-help" onChange={event => setName(event.target.value)} />
-      <p className="field-help" id="new-conversation-name-help">标题可留空，交给 Codex 根据对话命名。</p>
+      <input id="new-conversation-name" value={name} disabled={locked} maxLength={220} placeholder="留空自动命名"
+        onChange={event => setName(event.target.value)} />
       {operation && <TaskOperationStatus operation={operation} error={operationError} onCheck={onCheck} onCancel={onCancelOperation} />}
       {error && <p className="inline-error" role="alert">{error}</p>}
       <footer>

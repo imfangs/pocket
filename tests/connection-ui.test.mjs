@@ -49,7 +49,7 @@ test('a newer fallback read does not keep claiming an old verified connection is
 
 test('a fresh resumed desktop clears an old failed connection without overriding approval restrictions', () => {
   const { html } = render('failed', { source: 'desktop', resumeState: 'resumed', checkedAt: 100, canSend: false, canAttemptSend: false, hint: '请先处理原任务中的确认。', pendingRequests: [{ key: 'k', kind: 'unsupported', reason: '请在 Mac 处理', choices: [] }] });
-  assert.match(html, /已连接 Mac 中的原任务/);
+  assert.doesNotMatch(html, /已连接 Mac 中的原任务/);
   assert.doesNotMatch(html, /连接原任务超时|重试连接/);
   assert.match(html, /请先处理原任务中的确认/);
   assert.doesNotMatch(html, />发送<\/button>/);

@@ -247,6 +247,7 @@ export function GroupDialog(p: {
   );
 }
 export function SettingsDialog(p: {
+  accountActions?: React.ReactNode;
   catalog: Catalog;
   showSeparators: boolean;
   onSeparators: (b: boolean) => void;
@@ -265,8 +266,9 @@ export function SettingsDialog(p: {
   return (
     <Modal title="设置" onClose={() => !busy && p.onClose()} busy={busy} dirty={!!pending}>
       <div className="settings-content">
+        {p.accountActions && <fieldset className="settings-account" disabled={busy} aria-label="外观与账户">{p.accountActions}</fieldset>}
         <NotificationSettings />
-        <div className="data-summary">
+        <details className="settings-source"><summary>连接与来源</summary><div className="data-summary">
           <span>最近成功同步</span>
           <strong>
             {p.catalog.sourceInfo
@@ -275,7 +277,7 @@ export function SettingsDialog(p: {
           </strong>
           <span>来源范围</span>
           <p>{p.catalog.sourceInfo?.scope || "等待 Codex 来源"}</p>
-        </div>
+        </div></details>
         <label className="setting-switch">
           <span>
             显示横线分隔符会话

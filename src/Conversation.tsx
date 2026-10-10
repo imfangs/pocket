@@ -36,6 +36,10 @@ const statuses: Record<string, string> = {
   systemError: "上次运行出错",
   unavailable: "已保存的历史",
 };
+const routineDesktopHints = new Set([
+  "消息会在 Mac 的原任务中运行，沿用原模型与权限。",
+  "正在运行，新消息默认进入 Pocket 待发列表。",
+]);
 export default function Conversation({
   thread,
   drafts,
@@ -116,6 +120,9 @@ export default function Conversation({
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
+  const toolbarTiming = history?.turnTiming && history.runtime !== "active" && history.turnTiming.status !== "inProgress" && history.turnTiming.turnId &&
+    shownMessages.some(message => message.role === "assistant" && message.turnId === history.turnTiming!.turnId &&
+      ["final", "final_answer"].includes(message.phase || "") && message.turnDurationMs != null) ? null : history?.turnTiming;
   const shownOutbox = useMemo(() => submittedOutbox(submitted, shownMessages, history?.outbox ?? []), [submitted, shownMessages, history?.outbox]);
   const visibleSubmissions = useMemo(() => visibleSubmittedQueries(submitted, shownMessages, shownOutbox), [submitted, shownMessages, shownOutbox]);
   useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
@@ -193,14 +200,15 @@ export default function Conversation({
   const canQueue = targetAvailable && history?.canQueue !== false;
   const canAttemptSend = targetAvailable && !!(history?.canAttemptSend ?? history?.canSend);
   const staleConnection = observedConnection.status === "connected" && history?.source !== "desktop" && (history?.checkedAt ?? 0) > observedConnection.checkedAt;
+  const desktopHint = history?.source === "desktop" && history.canSend && routineDesktopHints.has(history.hint) ? undefined : history?.hint;
   const connectionHint = managementHint || (thread.archived ? "会话已归档，恢复后可继续。" : !targetAvailable ? history?.hint : connecting
     ? "正在连接 Mac 中的原任务。可以继续输入，草稿和待发消息会保留。"
     : observedConnection.status === "failed" ? connectionFailureHint(observedConnection.code)
     : history?.readOnlyReason === "app_version_changed" ? history.hint
     : staleConnection ? "暂时无法读取原任务的实时状态。草稿和待发消息已保留，可以重试连接。"
     : observedConnection.status === "connected" && history?.source !== "desktop" ? "已连接 Mac 中的原任务，正在同步发送状态。"
-    : history?.source === "desktop" && observedConnection.status === "connected" ? `已连接 Mac 中的原任务。${history.hint || ""}`
-    : history?.source !== "desktop" && history ? "正在显示已保存的历史。连接原任务，或提交消息后自动连接。" : history?.hint);
+    : history?.source === "desktop" && observedConnection.status === "connected" ? desktopHint
+    : history?.source !== "desktop" && history ? "正在显示已保存的历史。连接原任务，或提交消息后自动连接。" : desktopHint);
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
@@ -476,7 +484,7 @@ export default function Conversation({
             ? shownMessages.length ? "正在同步状态…" : "正在读取历史…"
             : historyError ? "等待重连" : history?.pendingRequests?.length ? "等待确认" : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断" : statuses[history?.runtime || ""] || "任务状态"}
         </span>
-          <TurnDuration timing={history?.turnTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
+          <TurnDuration timing={toolbarTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
         </div>
           <ContextStatus threadId={thread.id} history={history} disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} />
         </div>
@@ -550,7 +558,7 @@ export default function Conversation({
       </button>}
       </div>
       <div className="conversation-status">
-        <p role="status" className={history?.canSend || history?.pendingRequests?.length ? "routine-hint" : undefined}>{connectionHint}</p>
+        {connectionHint && <p role="status">{connectionHint}</p>}
         {targetAvailable && (history || historyError) && (history?.source !== "desktop" || connecting || observedConnection.status === "failed" || !!connectionError) && (
           <button
             className="secondary"

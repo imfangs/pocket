@@ -232,10 +232,6 @@ button:not(:disabled):active,
   .inspector-savebar {
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
-  .workspace-footer {
-    height: calc(32px + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
   .toast {
     bottom: calc(25px + env(safe-area-inset-bottom, 0px));
   }

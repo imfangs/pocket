@@ -4,7 +4,6 @@ import {
   Check,
   Clipboard,
   GitBranch,
-  MessageSquare,
   MoreHorizontal,
   Save,
   X,
@@ -158,11 +157,7 @@ export default function Inspector(p: Props) {
   return (
     <aside className="inspector" aria-label="接续详情" ref={panel}>
       <div className="inspector-header">
-        <span className="inspector-desktop-label">
-          <MessageSquare size={15} />
-          会话详情
-        </span>
-        <strong className="inspector-mobile-title" title={p.thread.title}>{p.thread.separator ? "分隔符会话" : p.thread.title}</strong>
+        <h2 className="inspector-title" title={p.thread.title}>{p.thread.separator ? "分隔符会话" : p.thread.title}</h2>
         <div className="inspector-header-actions">
           <button ref={managementTrigger} type="button" className="inspector-management-trigger"
             aria-expanded={tab === "organize" && managementOpen} aria-controls={`${accessibilityId}-management`}
@@ -230,7 +225,6 @@ export default function Inspector(p: Props) {
             {p.thread.projectName}
             {p.thread.archived && <span>已归档</span>}
           </div>
-          <h2>{p.thread.separator ? "分隔符会话" : p.thread.title}</h2>
           {p.thread.separator && (
             <p className="inline-hint">原版用作分隔符的会话，历史仍然保留。</p>
           )}

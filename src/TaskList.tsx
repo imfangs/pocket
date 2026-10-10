@@ -4,7 +4,6 @@ import {
   Pin,
   ArrowUpRight,
   Inbox,
-  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Group, Thread, View } from "./types";
@@ -13,6 +12,8 @@ import { emptyListContent, threadListStates } from "./listPresentation";
 import type { TaskStatus } from "./taskStatuses";
 interface Props {
   threads: Thread[];
+  selecting?: boolean;
+  projectScope?: string;
   groups: Group[];
   selected: string | null;
   view: View;
@@ -40,7 +41,7 @@ interface Props {
 }
 export default function TaskList(p: Props) {
   const [limit, setLimit] = useState(80);
-  const [selecting, setSelecting] = useState(false);
+  const selecting = !!p.selecting || p.checked.size > 0;
   const empty = emptyListContent({ view: p.view, query: p.query, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
     runtimeAvailable: !p.runtimeLoading && !p.runtimeUnavailable, runtimeLoading: p.runtimeLoading });
   const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll
@@ -50,9 +51,11 @@ export default function TaskList(p: Props) {
     <div
       className={`task-list-surface ${selecting || p.checked.size ? "is-selecting" : ""}`}
     >
-      {p.checked.size > 0 ? (
-        <div className="batch-bar">
-          <span>已选 {p.checked.size} 条</span>
+      {selecting && (
+        <div className="batch-bar" role="region" aria-label="批量操作">
+          <label className="select-all"><input type="checkbox" checked={p.threads.length > 0 && p.threads.every(t => p.checked.has(t.id))}
+            onChange={p.onCheckAll} aria-label="全选当前结果" />全选</label>
+          {p.checked.size > 0 && <><span>已选 {p.checked.size} 条</span>
           <button
             onClick={() => p.onBatch({ intent: "later" })}
             disabled={p.busy}
@@ -75,48 +78,18 @@ export default function TaskList(p: Props) {
               </option>
             ))}
           </select>
-          <button
-            className="icon-button"
-            aria-label="清除选择"
-            onClick={() => {
-              p.onClear();
-              setSelecting(false);
-            }}
-          >
-            <X size={15} />
-          </button>
-        </div>
-      ) : (
-        <div className="list-caption">
-          <label className="select-all">
-            <input
-              type="checkbox"
-              checked={
-                p.threads.length > 0 &&
-                p.threads.every((t) => p.checked.has(t.id))
-              }
-              onChange={p.onCheckAll}
-              aria-label="全选当前结果"
-            />
-            会话
-          </label>
-          <button
-            className="mobile-selection-toggle"
-            aria-pressed={selecting}
-            onClick={() => setSelecting(!selecting)}
-          >
-            {selecting ? "完成" : "选择"}
-          </button>
+          </>}
+          <button type="button" className="text-button selection-done" onClick={p.onClear} aria-label="完成选择">完成</button>
         </div>
       )}
-      {(p.runtimeUnavailable || p.runtimeLoading) && <p className="task-runtime-availability" role="status">
-        {p.runtimeUnavailable ? "运行状态暂不可用" : "正在读取运行状态…"}
+      {p.threads.length > 0 && p.runtimeUnavailable && <p className="task-runtime-availability" role="status">
+        运行状态暂不可用
       </p>}
       {p.threads.length === 0 ? (
         <div className="empty-list">
           {p.query ? <Search size={30} /> : <Inbox size={32} />}
           <h2>{empty.title}</h2>
-          <p>{empty.description}</p>
+          {empty.description && <p>{empty.description}</p>}
           {emptyAction && empty.actionLabel && <div className="empty-list-actions">
             <button className={empty.action === "create" ? "primary" : "secondary"} onClick={emptyAction} disabled={p.busy}>{empty.actionLabel}</button>
           </div>}
@@ -150,22 +123,22 @@ export default function TaskList(p: Props) {
                 <button
                   className="task-select"
                   data-thread-id={t.id}
-                  onClick={() => p.onSelect(t.id)}
-                  aria-pressed={p.selected === t.id}
+                  onClick={() => selecting ? p.onCheck(t.id) : p.onSelect(t.id)}
+                  aria-pressed={selecting ? p.checked.has(t.id) : p.selected === t.id}
                   title={t.title}
                 >
                   <div className="row-first">
                     <strong>{t.separator ? "分隔符会话" : t.title}</strong>
-                    {t.pinned && <Pin size={13} className="pin-icon" />}
+                    {t.pinned && p.view !== "pinned" && <Pin size={13} className="pin-icon" />}
                     <time dateTime={new Date(t.updatedAt).toISOString()}>
                       {ago(t.updatedAt)}
                     </time>
                   </div>
                   <div className="row-second">
-                    <span className="project-label">
+                    {!p.projectScope && <span className="project-label">
                       {t.projectName === "无项目" ? "独立会话" : t.projectName}
-                    </span>
-                    {t.intent !== "none" && (
+                    </span>}
+                    {t.intent !== "none" && t.intent !== p.view && (
                       <span className={`intent-dot ${t.intent}`}>
                         {t.intent === "active"
                           ? "推进中"
@@ -174,11 +147,11 @@ export default function TaskList(p: Props) {
                             : "参考"}
                       </span>
                     )}
-                    {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
+                    {states.filter(state => state.key !== "archived" || p.view !== "archived").map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
                     {due && <span className="due-label">到回顾时间了</span>}
                   </div>
                   {t.note && (
-                    <p className="note-preview"><span className="task-note-label">接续</span> {t.note.replace(/\n/g, " ")}</p>
+                    <p className="note-preview">{t.note.replace(/\n/g, " ")}</p>
                   )}
                 </button>
                 <button
@@ -201,9 +174,6 @@ export default function TaskList(p: Props) {
               显示更多 · 还有 {p.threads.length - limit} 条
             </button>
           )}
-          <div className="list-end">
-            {p.threads.length <= limit ? "已显示全部" : `${limit} / ${p.threads.length} 条会话`}
-          </div>
         </div>
       )}
     </div>

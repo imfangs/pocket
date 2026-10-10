@@ -3,12 +3,14 @@ import { SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Project } from "./types";
 
-export default function ViewControls({ projects, project, sort, onProject, onSort }: {
+export default function ViewControls({ projects, project, sort, onProject, onSort, onSelectTasks, selectionDisabled }: {
   projects: Project[];
   project: string;
   sort: string;
   onProject: (id: string) => void;
   onSort: (sort: string) => void;
+  onSelectTasks?: () => void;
+  selectionDisabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => { window.dispatchEvent(new Event("pocket-reading-visibility-change")); }, [open]);
@@ -16,12 +18,10 @@ export default function ViewControls({ projects, project, sort, onProject, onSor
     <Popover.Trigger className="view-options-trigger" data-filtered={!!project || undefined} aria-label="筛选与排序">
       <SlidersHorizontal size={17} aria-hidden="true" />
       <span>筛选</span>
-      {project && <span className="filter-count">1</span>}
     </Popover.Trigger>
     <Popover.Portal>
       <Popover.Content className="view-options-popover" data-reading-overlay="" align="end" sideOffset={8} collisionPadding={12} aria-label="筛选与排序">
-        <header><strong>当前视图</strong><Popover.Close className="icon-button" aria-label="关闭筛选"><X size={16} /></Popover.Close></header>
-        <label className="field-label" htmlFor="view-project">来源项目</label>
+        <header><label className="field-label" htmlFor="view-project">来源项目</label><Popover.Close className="icon-button" aria-label="关闭筛选"><X size={16} /></Popover.Close></header>
         <select id="view-project" value={project} onChange={event => onProject(event.target.value)}>
           <option value="">所有来源项目</option>
           {projects.filter(item => !item.separator).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -31,7 +31,9 @@ export default function ViewControls({ projects, project, sort, onProject, onSor
           <option value="updated">最近活动</option>
           <option value="pinned">置顶优先</option>
         </select>
-        <footer><span>更改后立即生效</span>{project && <button type="button" className="text-button" onClick={() => onProject("")}>清除筛选</button>}</footer>
+        <footer>{project && <button type="button" className="text-button" onClick={() => onProject("")}>清除筛选</button>}
+          {onSelectTasks && <button type="button" className="text-button" disabled={selectionDisabled} onClick={() => { setOpen(false); onSelectTasks(); }}>批量选择</button>}
+        </footer>
       </Popover.Content>
     </Popover.Portal>
   </Popover.Root>;

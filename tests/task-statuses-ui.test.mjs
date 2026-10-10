@@ -175,7 +175,7 @@ test('the list renders running separately from manual intent, and failure is not
   const failed = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: states, runtimeUnavailable: true }));
   assert.match(failed, /运行状态暂不可用/); assert.doesNotMatch(failed, /data-state="running"|空闲/);
   const loading = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: states, runtimeLoading: true }));
-  assert.match(loading, /正在读取运行状态/); assert.doesNotMatch(loading, /data-state="running"/);
+  assert.doesNotMatch(loading, /正在读取运行状态|data-state="running"|空闲/);
   const unknown = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: new Map([['thread', 'unknown']]) }));
   assert.match(unknown, /data-state="unknown">状态待确认/); assert.match(unknown, /data-state="unread"/);
   const unobserved = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: new Map() }));
