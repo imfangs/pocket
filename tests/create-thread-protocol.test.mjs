@@ -8,6 +8,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, realpathSync, rmSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bundledCli } from './helpers/bundled-cli.mjs';
 
 const config = JSON.parse(readFileSync(new URL('../config/desktop-bridge.json', import.meta.url), 'utf8'));
 const script = fileURLToPath(new URL('../bin/create-thread.py', import.meta.url));
@@ -84,7 +85,7 @@ test('an empty thread preserves the explicitly selected original project and cwd
   await exec(config.python, ['-c', `import importlib.util,sys\nfrom pathlib import Path\nspec=importlib.util.spec_from_file_location('create_thread',sys.argv[1]); module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)\nwith module.StdioServer(module.binary_for(Path(sys.argv[2])),Path(sys.argv[2]),Path(sys.argv[3])): pass`, script, home, cwd], { timeout: 15000 });
   const metadata = '/Users/fangs/workspace/fbt/experimental/codex-threads/scripts/metadata_cli.py';
   const created = await exec(config.python, [metadata, 'project-create', '--codex-home', home,
-    '--codex-bin', join(config.appPath, 'Contents/Resources/codex'), '--name', 'Fixture project',
+    '--codex-bin', bundledCli, '--name', 'Fixture project',
     '--project-root', cwd, '--idempotency-key', randomUUID(), '--json'], { timeout: 20000 });
   const project = JSON.parse(created.stdout);
   assert.equal(project.ok, true);

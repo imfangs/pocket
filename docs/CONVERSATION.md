@@ -64,7 +64,7 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 `server/desktop.mjs` 从已导入的 ID 查找目标，调用 `bin/desktop-bridge.py`；后者复用 FBT `experimental/codex-retry/scripts/app_ipc.py` 的长度前缀 Unix socket 客户端。身份为 `codex-navigator`，不改变 FBT 重试守护策略或配置。
 
-已只读核验的桌面版本是 `26.903.71938:8576`；使用 initialize v0、owner discovery v1、following v1、snapshot v11、follower start turn v2、follower steer turn v1。`config/desktop-bridge.json` 固定版本与依赖路径。App 升级或协议变化后发送关闭，需要重新核验。它是版本限定的内部协议，不是官方承诺稳定的公共 SDK。
+2026-10-10已适配并实测桌面版本 `26.1007.21159:20052`；initialize v0、owner discovery v1、following v1、snapshot v11、follower start turn v2、follower steer turn v1 与前版一致。`config/desktop-bridge.json` 固定已验证版本与依赖路径，App升级或协议变化后仍需重新核验。公网消息已通过原owner完成受控回显，原模型/权限不变；内置CLI的新打包位置由 `bin/bundled_cli.py` 解析。协议依据与生命周期隔离验收见[桌面升级兼容](research/2026-10-10-desktop-upgrade-compatibility.md)。这是版本限定的内部协议，不是官方承诺稳定的公共SDK。
 
 官方 [App Server 文档](https://learn.chatgpt.com/docs/app-server) 已核对 `thread/read`、`turn/start`、`turn/steer` 与审批生命周期。本项目使用现有桌面 owner 的 IPC，不启动另一个 app-server 读写同一任务。
 

@@ -12,9 +12,12 @@ import stat
 import subprocess
 import sys
 
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bundled_cli import bundled_cli
+
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
 FBT_ARCHIVE = Path(CONFIG["ipcModuleDirectory"]).resolve().parents[1] / "codex-threads/scripts"
-sys.dont_write_bytecode = True
 sys.path.insert(0, str(FBT_ARCHIVE))
 from archive_cli import ArchiveError, Store, identity
 
@@ -155,7 +158,8 @@ def readiness(store, tree, root_only=None):
 def official(binary, operation, root_id, store):
     env = {**os.environ, "CODEX_HOME": str(store.home), "CODEX_SQLITE_HOME": str(store.sqlite_home)}
     version = subprocess.run([str(binary), "--version"], cwd=store.home, env=env, capture_output=True, text=True, timeout=5)
-    if version.returncode or version.stdout.strip() != "codex-cli 0.153.4":
+    expected = bundled_cli(CONFIG["appPath"], CONFIG["supportedVersion"])["version"]
+    if version.returncode or version.stdout.strip() != expected:
         raise ArchiveError("cli_version_changed", "The supported official CLI version is unavailable")
     print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
     return subprocess.run([str(binary), "archive" if operation == "archive" else "unarchive", root_id,
@@ -207,10 +211,11 @@ def execute(data, run_cli=official):
         status, code = readiness(store, fresh, root_id if operation == "restore" else None)
         if status != "ready":
             return receipt(fresh, status, code)
+        binary = bundled_cli(CONFIG["appPath"], version)["entrypoint"]
         attempted = True
         result = None
         try:
-            result = run_cli(Path(CONFIG["appPath"]) / "Contents/Resources/codex", operation, root_id, store)
+            result = run_cli(binary, operation, root_id, store)
         except ArchiveError as error:
             if error.code == "cli_version_changed":
                 return receipt(tree, "unavailable", "cli_version_changed")

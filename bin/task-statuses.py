@@ -13,6 +13,7 @@ import time
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bundled_cli import bundled_cli
 _spec = importlib.util.spec_from_file_location("pocket_status_bridge", Path(__file__).with_name("desktop-bridge.py"))
 _bridge = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_bridge)
@@ -47,7 +48,7 @@ def verify_app():
     version = info.get("CFBundleShortVersionString", "") + ":" + info.get("CFBundleVersion", "")
     if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
         raise ValueError("app_version_changed")
-    return {"binary": str((app / "Contents/Resources/codex").resolve()),
+    return {"binary": str(bundled_cli(app, version)["executable"]),
             "main": str((app / "Contents/MacOS" / info["CFBundleExecutable"]).resolve())}
 
 

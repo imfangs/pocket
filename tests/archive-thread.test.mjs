@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { bundledCli as cli } from './helpers/bundled-cli.mjs';
 
-const cli = '/Applications/ChatGPT.app/Contents/Resources/codex';
 const bridge = new URL('../bin/archive-thread.py', import.meta.url).pathname;
 const sha = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 function command(executable, args, { input = '', env = process.env, cwd } = {}) {

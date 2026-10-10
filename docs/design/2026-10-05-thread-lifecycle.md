@@ -16,7 +16,7 @@
 
 ## 官方创建路线
 
-固定桌面包 CLI `0.153.4` 与 App `26.903.71938:8576`。PATH 上的另一个 CLI 版本不作为此实现依据。
+最初验证固定桌面包CLI `0.153.4` 与App `26.903.71938:8576`。2026-10-10已更新到App `26.1007.21159:20052` / CLI `0.162.0-alpha.17.2`，重新完成隔离空home的持久化、归档和恢复验收；新旧打包路径按精确已验证版本在 `bin/bundled_cli.py` 解析，当前启用版本以 `config/desktop-bridge.json` 为准。PATH上的其他CLI不作为依据。见[升级兼容](../research/2026-10-10-desktop-upgrade-compatibility.md)。
 
 通过短生命周期官方 stdio 进程 `thread/start(ephemeral:false, historyMode:paginated)` 创建空会话。该版本必须显式物化空历史；带名称时 `thread/name/set` 后 `thread/read(includeTurns:true)` 可完成。无名称时，仅对固定版本的精确 `-32601 / list_turns is not supported yet` 分支继续核验：该调用已物化 session_meta，退出 creator 后另起官方 metadata-only read 补齐索引。其余错误不能当成功。
 

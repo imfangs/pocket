@@ -14,8 +14,11 @@ import tempfile
 import time
 import uuid
 
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bundled_cli import bundled_cli, BundledCLIError
+
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
-SUPPORTED_CLI = "codex-cli 0.153.4"
 ALLOWED_METHODS = {"initialize", "project/read", "thread/start", "thread/name/set", "thread/read", "thread/metadata/update"}
 
 
@@ -188,10 +191,14 @@ def binary_for(home):
     version = info.get("CFBundleShortVersionString", "") + ":" + info.get("CFBundleVersion", "")
     if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
         raise CreateError("app_version_changed", "unavailable")
-    binary = app / "Contents/Resources/codex"
+    try:
+        cli = bundled_cli(app, version)
+    except BundledCLIError as error:
+        raise CreateError(error.code, "unavailable") from error
+    binary = cli["entrypoint"]
     result = subprocess.run([str(binary), "--version"], env=child_environment(home), cwd=home,
                             capture_output=True, text=True, timeout=5)
-    if result.returncode or result.stdout.strip() != SUPPORTED_CLI:
+    if result.returncode or result.stdout.strip() != cli["version"]:
         raise CreateError("cli_version_changed", "unavailable")
     return binary
 
