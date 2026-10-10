@@ -1,5 +1,7 @@
 # Pocket：PWA 与自用 iOS App 的取舍
 
+2026-10-10接续：附件与会话能力、真实输入摩擦及openGym工具链已有变化，当前判断见[openGym封装评估](2026-10-10-opengym-ios-wrapper-assessment.md)。下文保留09-29的事实基线与当时取舍。
+
 核验日期：2026-09-29。范围：对照当前 Pocket 代码、项目事实源与 Apple / WebKit 官方资料，研究形态和分发选择；没有创建 App、开启通知、修改认证、配对设备或操作 App Store Connect。研究建议须先讨论选定，再实施。
 
 ## 判断
