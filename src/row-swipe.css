@@ -1,0 +1,28 @@
+.task-row-swipe { position:relative; --row-pin-blue:#1769c2; }
+.row-swipe-track { position:relative; overflow:hidden; background:var(--surface); }
+.row-swipe-track > .task-row { z-index:1; background:var(--surface); transform:translateX(var(--row-swipe-x,0px)); transition:transform 180ms var(--ease,ease); }
+.row-swipe-track[data-swipe-enabled="true"] > .task-row { touch-action:pan-y pinch-zoom; }
+.row-swipe-track[data-swiping] > .task-row { transition:none; }
+.row-swipe-track > .task-row.is-selected, .row-swipe-track > .task-row.is-checked { background:var(--surface-soft); }
+.row-pin-action { position:absolute; inset:0 0 0 auto; width:84px; padding:8px; border:0; border-radius:0; background:var(--row-pin-blue); color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:550; }
+.row-pin-action:disabled { opacity:1; color:#fff; }
+.row-pin-action:focus-visible { outline:3px solid var(--ink); outline-offset:-4px; }
+.task-row .row-pin-shortcut { position:absolute; width:1px; height:1px; min-width:0; min-height:0; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.task-row .row-pin-shortcut:focus-visible { position:static; width:32px; height:36px; min-height:36px; clip-path:none; overflow:visible; align-self:center; margin-left:8px; opacity:1; flex-shrink:0; }
+.task-row .row-pin-shortcut[aria-hidden="true"] { opacity:0; pointer-events:none; }
+.row-pin-pending { color:var(--muted); }
+.row-pin-error { display:flex; align-items:center; gap:10px; padding:7px 20px; color:var(--danger,#b42318); font-size:12px; line-height:1.5; }
+.row-pin-error > span { flex:1; overflow-wrap:anywhere; }
+.row-pin-error > button { min-width:32px; min-height:32px; flex-shrink:0; }
+.row-pin-spinner { animation:row-pin-spin 900ms linear infinite; }
+@keyframes row-pin-spin { to { transform:rotate(360deg); } }
+@media (hover:hover) and (pointer:fine) {
+  .row-swipe-track > .task-row:hover { background:var(--surface-soft); }
+  .task-row .row-pin-shortcut { position:static; width:28px; height:36px; min-width:28px; min-height:36px; padding:0; overflow:visible; clip-path:none; align-self:center; margin-left:7px; opacity:0; flex-shrink:0; }
+  .task-row:hover .row-pin-shortcut, .task-row:focus-within .row-pin-shortcut { opacity:1; }
+  .task-row .row-pin-shortcut[aria-hidden="true"] { opacity:0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .row-swipe-track > .task-row { transition:none; }
+  .row-pin-spinner { animation:none; }
+}

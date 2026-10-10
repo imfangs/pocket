@@ -5,11 +5,12 @@ import {
   ArrowUpRight,
   Inbox,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Group, Thread, View } from "./types";
 import { ago, today, groupPath } from "./model";
 import { emptyListContent, threadListStates } from "./listPresentation";
 import type { TaskStatus } from "./taskStatuses";
+import SwipeTaskRow from "./SwipeTaskRow";
 interface Props {
   threads: Thread[];
   selecting?: boolean;
@@ -21,6 +22,7 @@ interface Props {
   unreadPending?: number;
   onSelect: (id: string) => void;
   onOpen: (t: Thread) => void;
+  onPin?: (t: Thread) => Promise<void>;
   checked: Set<string>;
   onCheck: (id: string) => void;
   onCheckAll: () => void;
@@ -41,7 +43,40 @@ interface Props {
 }
 export default function TaskList(p: Props) {
   const [limit, setLimit] = useState(80);
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const [pinningId, setPinningId] = useState<string | null>(null);
+  const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
+  const pinning = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
   const selecting = !!p.selecting || p.checked.size > 0;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { setOpenRowId(null); }, [selecting, p.view, p.query, p.projectScope]);
+  useEffect(() => {
+    if (openRowId && !p.threads.some(thread => thread.id === openRowId)) setOpenRowId(null);
+  }, [p.threads, openRowId]);
+  useEffect(() => {
+    if (!openRowId) return;
+    const outside = (event: Event) => {
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-swipe-row-id]") : null;
+      if (!target || !list.current?.contains(target) || target.dataset.swipeRowId !== openRowId) setOpenRowId(null);
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("focusin", outside);
+    return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("focusin", outside); };
+  }, [openRowId]);
+  const clearPinError = (id: string) => setPinErrors(previous => { const next = { ...previous }; delete next[id]; return next; });
+  const pin = async (thread: Thread) => {
+    if (!p.onPin || selecting || p.busy || pinning.current) return;
+    pinning.current = thread.id; setPinningId(thread.id); setOpenRowId(thread.id); clearPinError(thread.id);
+    try {
+      await p.onPin(thread);
+      if (mounted.current) setOpenRowId(current => current === thread.id ? null : current);
+    } catch (failure) {
+      if (mounted.current) setPinErrors(previous => ({ ...previous, [thread.id]: failure instanceof Error ? failure.message : "置顶未完成，请重试。" }));
+    } finally {
+      pinning.current = null;
+      if (mounted.current) setPinningId(null);
+    }
+  };
   const empty = emptyListContent({ view: p.view, query: p.query, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
     runtimeAvailable: !p.runtimeLoading && !p.runtimeUnavailable, runtimeLoading: p.runtimeLoading });
   const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll
@@ -49,6 +84,7 @@ export default function TaskList(p: Props) {
   useEffect(() => setLimit(80), [p.threads.length, p.query, p.view]);
   return (
     <div
+      ref={list}
       className={`task-list-surface ${selecting || p.checked.size ? "is-selecting" : ""}`}
     >
       {selecting && (
@@ -102,15 +138,14 @@ export default function TaskList(p: Props) {
             const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
             const states = threadListStates(t, p.draftIds?.has(t.id), runtime);
             return (
-              <div
+              <SwipeTaskRow
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${p.checked.has(t.id) ? "is-checked" : ""}`}
                 key={t.id}
-                role="listitem"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("application/x-codex-thread", t.id);
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
+                threadId={t.id} title={t.title} pinned={t.pinned} open={openRowId === t.id}
+                disabled={selecting || p.busy || !!pinningId} pending={pinningId === t.id} error={pinErrors[t.id]}
+                onPin={p.onPin ? () => void pin(t) : undefined}
+                onOpenChange={value => setOpenRowId(current => value ? t.id : current === t.id ? null : current)}
+                onClaim={() => setOpenRowId(current => current === t.id ? current : null)} onDismissError={() => clearPinError(t.id)}
               >
                 <label className="row-check">
                   <input
@@ -123,7 +158,7 @@ export default function TaskList(p: Props) {
                 <button
                   className="task-select"
                   data-thread-id={t.id}
-                  onClick={() => selecting ? p.onCheck(t.id) : p.onSelect(t.id)}
+                  onClick={() => { setOpenRowId(null); selecting ? p.onCheck(t.id) : p.onSelect(t.id); }}
                   aria-pressed={selecting ? p.checked.has(t.id) : p.selected === t.id}
                   title={t.title}
                 >
@@ -149,6 +184,7 @@ export default function TaskList(p: Props) {
                     )}
                     {states.filter(state => state.key !== "archived" || p.view !== "archived").map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
                     {due && <span className="due-label">到回顾时间了</span>}
+                    {pinningId === t.id && <span className="row-pin-pending" role="status">正在处理置顶…</span>}
                   </div>
                   {t.note && (
                     <p className="note-preview">{t.note.replace(/\n/g, " ")}</p>
@@ -163,7 +199,7 @@ export default function TaskList(p: Props) {
                 >
                   <ArrowUpRight size={18} />
                 </button>
-              </div>
+              </SwipeTaskRow>
             );
           })}
           {p.threads.length > limit && (

@@ -24,6 +24,8 @@ export interface Thread {
   archived: boolean;
   pinned: boolean;
   pinnedOrder: number;
+  pinRevision?: number;
+  pinSource?: "pocket" | "codex";
   separator: boolean;
   source: string;
   createdAt: number;

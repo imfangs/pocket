@@ -29,10 +29,12 @@ export function bindPullToRefresh(panel: HTMLElement, options: Options, browser 
   const move = (event: TouchEvent) => {
     if (!start || refreshing) return;
     if (event.touches.length !== 1 || !options.canRefresh() || selected()) return reset();
+    if (event.defaultPrevented) { moved = false; return reset(); }
     const dx = event.touches[0].clientX - start.x;
     const dy = event.touches[0].clientY - start.y;
+    if (Math.abs(dx) > Math.max(16, Math.abs(dy))) { moved = false; return reset(); }
     moved ||= Math.hypot(dx, dy) >= 12;
-    if (dy < -8 || Math.abs(dx) > Math.max(16, Math.abs(dy))) return reset();
+    if (dy < -8) return reset();
     distance = Math.max(0, dy);
     emit();
   };
@@ -51,8 +53,14 @@ export function bindPullToRefresh(panel: HTMLElement, options: Options, browser 
     });
   };
   const click = (event: MouseEvent) => {
-    // Safari may synthesize a row click after a short drag.
-    if (Date.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); }
+    // Only the synthesized main-row click belongs to a pull. Row actions and
+    // keyboard clicks must remain usable after an unrelated horizontal swipe.
+    const source = event as MouseEvent & { sourceCapabilities?: { firesTouchEvents: boolean } | null; pointerType?: string };
+    if (event.detail <= 0 || source.sourceCapabilities?.firesTouchEvents === false || source.pointerType && source.pointerType !== "touch") return;
+    const target = event.target as Element | null;
+    if (Date.now() < suppressClickUntil && target?.closest?.("button.task-select")) {
+      suppressClickUntil = 0; event.preventDefault(); event.stopPropagation();
+    }
   };
   panel.addEventListener("touchstart", begin, { passive: true });
   panel.addEventListener("touchmove", move, { passive: true });

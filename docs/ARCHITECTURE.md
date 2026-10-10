@@ -8,13 +8,17 @@
 
 源 SQLite 用 `readOnly:true` 和 query_only，global state 仅 readFile。扫描本机 CLI/桌面/独立执行来源，排除标明 subagent 的记录；不用 `has_user_event` 推断有效任务，因为本机该字段不具备筛选效力。最近可见历史按需读取而不持久导入；不提取模型总结，不读取云端或其他 remote host 的任务。手机访问通过口令保护的 HTTPS 转发，见 `docs/MOBILE.md`。历史与 query 桥接、状态限制及防重语义见 `docs/CONVERSATION.md`。
 
-`source_threads` 缓存来源元数据；`annotations` 存意图、备注、回顾日期、组 ID、最后打开时间和编辑 revision；`groups` 存独立树。默认继承来源分组只在 sourceProjectId 非空时成立，手动分组不会捕获全部无项目任务。用户明确的空组数组表示取消归组，以后同步不重新附加。
+`source_threads` 缓存来源元数据；`annotations` 存意图、备注、回顾日期、组 ID、最后打开时间和编辑 revision；`groups` 存独立树。`pin_overrides` 仅在 Pocket 保存用户明确设置的置顶/取消置顶及顺序，不写 Codex 原 pin。未设置的任务继续沿用 Mac pin；设置后来源同步不覆盖，新增 Pocket pin 以递减负顺序排在原 pin 前。同值重试不改变顺序或写入时间，原任务更新时间保持不变。目录与单任务返回统一采用有效 pin。默认继承来源分组只在 sourceProjectId 非空时成立，手动分组不会捕获全部无项目任务。用户明确的空组数组表示取消归组，以后同步不重新附加。
 
 首次成功导入才建立来源分组。分组删除不会在下一次同步重建；子分组上移、任务和备注保留。源失败保留上次快照；源中消失的 ID 标记 missing，仍保留接续数据，重新出现后恢复来源关联。
 
 ## 写入和恢复
 
 每条编辑带 expectedRevision，冲突返回 409；批量操作是一个事务，任一无效任务/分组使整个批次回滚。成功编辑与分组操作后写本机 JSON 备份。导入先验证版本、ID、引用和树无环，再备份、事务恢复。数据库和 JSON 备份使用私人文件权限。
+
+版本 1 备份新增可选 `pins` 数组，包含 `{thread_id,pinned,position,updated_at}`；`pinned` 为布尔值，置顶的 `position` 为唯一负整数，取消置顶为 `null`。新导出始终包含该数组；导入旧备份未含 `pins` 时保留当前 Pocket 置顶，显式 `pins: []` 清除全部 override 并重新沿用 Mac 状态。置顶、分组和说明在同一恢复事务内更新；来源中暂不存在的置顶记录保留，来源再次出现后生效。
+
+所有有效任务返回 `pinSource: "pocket" | "codex"` 和持久的全局 `pinRevision`：每次实际修改置顶、显式恢复不同的 `pins` 记录，或来源同步改变未 override 任务的有效置顶/顺序时递增；重复同值、相同备份、来源其他字段变化保持编号。清空 override 也保留并递增编号，备份不能将编号倒退。前端可用它避免迟到的任务/目录响应覆盖较新的置顶字段；未知请求的只读核对还须确认 `pinSource` 为 `pocket`，不能把 Mac 原状态同值当作本地操作已完成。该编号不代替说明编辑的 `revision`。
 
 服务定期只读刷新来源，前端定期读取目录。原版已归档任务只在归档视图中出现，手工安排不改变原归档状态。运行状态、更新时间不被推断为接续意图。
 
@@ -30,6 +34,7 @@
 - `POST /api/tasks`：`{requestId,locationId,name?,initialQuery?}`；可创建空任务，或创建后将1–16000字首条消息持久入队。创建与首条发送分别回读，重复requestId不重复创建或首发，见[快速新建](design/2026-10-09-quick-create-and-continuity.md)。
 - `GET /api/task-operations`、`GET /api/task-operations/:id`、`POST /api/task-operations/:id/cancel`：生命周期回执与停止核对；`creationStatus`和`initialMessage.status`分开表达已创建与发送结果。
 - `PATCH /api/tasks/:id`：intent、note、reviewAt、groupIds、expectedRevision；拒绝其他字段。
+- `POST /api/tasks/:id/pin`：仅接受 `{pinned:boolean}`，设定 Pocket 置顶并返回确认后的有效任务；重复同值幂等，不调用原桌面、不改变原会话的运行或归档状态。
 - `POST /api/batch`：`{ids,change:{intent?,groupId?}}`，最多 2000 条。
 - `POST /api/groups`、`PATCH /api/groups/:id`、`DELETE /api/groups/:id`：导航分组。
 - `POST /api/open/:id`：只接受已导入原 ID，调用系统 `open codex://threads/:id`，返回 `handoff_requested`，不发送消息或新建会话。

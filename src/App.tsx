@@ -9,6 +9,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { SetStateAction } from "react";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import Sidebar from "./Sidebar";
@@ -36,6 +37,7 @@ import useTaskOperations from "./useTaskOperations";
 import useTaskStatuses from "./useTaskStatuses";
 import { activeOperation } from "./taskOperations";
 import { createDraftMap, draftThreadIds } from "./draftIndicators";
+import { preserveNewerPins } from "./threadPins";
 import "./task-operations.css";
 function readPrefs() {
   try {
@@ -88,7 +90,7 @@ export default function App({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
-  const [catalog, setCatalog] = useState<Catalog>(empty),
+  const [catalog, setCatalogState] = useState<Catalog>(empty),
     [loading, setLoading] = useState(true),
     [view, setView] = useState<View>(
       Object.keys(titles).includes(prefs.view) ? prefs.view : "all",
@@ -104,7 +106,7 @@ export default function App({
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
     [project, setProject] = useState(""),
-    [sort, setSort] = useState(
+    [sort, setSortState] = useState(
       prefs.sortVersion === 2 &&
         ["pinned", "updated"].includes(prefs.sort)
         ? prefs.sort
@@ -130,6 +132,11 @@ export default function App({
     searchToggle = useRef<HTMLButtonElement>(null),
     conversationHistory = useRef<HistoryCache>(new Map()),
     flushRef = useRef<(() => Promise<void>) | null>(null);
+  const latestSort = useRef<string>(sort);
+  const setSort = useCallback((value: string) => { latestSort.current = value; setSortState(value); }, []);
+  const setCatalog = useCallback((update: SetStateAction<Catalog>) => {
+    setCatalogState(current => preserveNewerPins(current, typeof update === "function" ? update(current) : update));
+  }, []);
   useEffect(() => { setSelecting(false); }, [view, groupId]);
   const syncing = useRef<Promise<Catalog | undefined> | null>(null);
   const createRequest = useRef<string | null>(null), newDialogOpen = useRef(false);
@@ -346,7 +353,7 @@ export default function App({
     void guard(async () => {
       await flush();
       if (view !== "unread" && view !== "running")
-        returnView.current = { view, groupId, project, query, searchOpen, sort, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
+        returnView.current = { view, groupId, project, query, searchOpen, sort: latestSort.current, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
       restoreScroll.current = 0;
       setView(target);
       setGroupId(null);
@@ -454,6 +461,31 @@ export default function App({
     } finally {
       setBusy(false);
     }
+  };
+  const pinThread = async (thread: Thread) => {
+    const pinned = !thread.pinned;
+    let result: Thread;
+    try {
+      result = await api<Thread>(`/api/tasks/${thread.id}/pin`, "POST", { pinned }, { signal: AbortSignal.timeout(15000) });
+    } catch (error) {
+      const status = (error as Error & { status?: number }).status;
+      if (status && status < 500) throw error;
+      // A lost reply may follow a committed metadata write. Only read back;
+      // retrying from the row will still set an explicit boolean, never toggle.
+      try {
+        const fresh = await api<Catalog>("/api/catalog", "GET", undefined, { signal: AbortSignal.timeout(15000) });
+        const confirmed = fresh.threads.find(item => item.id === thread.id);
+        if (!confirmed || confirmed.pinned !== pinned || confirmed.pinSource !== "pocket" || !Number.isSafeInteger(confirmed.pinRevision)) throw error;
+        result = confirmed;
+      } catch { throw new Error("置顶结果暂未确认，请刷新列表后再试。"); }
+    }
+    if (result.id !== thread.id || result.pinned !== pinned || result.pinSource !== "pocket" || !Number.isSafeInteger(result.pinRevision))
+      throw new Error("置顶状态尚未确认，请刷新列表后再试。");
+    catalogReader.invalidate();
+    setCatalog(current => ({ ...current, threads: current.threads.map(item => item.id === thread.id
+      ? { ...item, pinned: result.pinned, pinnedOrder: result.pinnedOrder, pinRevision: result.pinRevision, pinSource: result.pinSource } : item) }));
+    if (pinned) { setSort("pinned"); returnView.current = { ...returnView.current, sort: "pinned" }; }
+    void refresh().catch(() => {});
   };
   if (loading) return <BootSplash />;
   return (
@@ -603,6 +635,7 @@ export default function App({
         <div className="content">
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}>
               <TaskList
+                onPin={pinThread}
                 runtimeStates={taskStatuses.runtimeStates}
                 runtimeUnavailable={taskStatuses.runtimeUnavailable}
                 runtimeLoading={taskStatuses.runtimeLoading}

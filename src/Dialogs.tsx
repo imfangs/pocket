@@ -292,7 +292,7 @@ export function SettingsDialog(p: {
         <hr />
         <h3>备份</h3>
         <p className="field-help">
-          导出分组和接续说明，不包含完整聊天记录。导入会替换当前整理，导入前会自动备份。
+          导出置顶、分组和接续说明，不包含完整聊天记录。导入会替换当前整理，导入前会自动备份。
         </p>
         <div className="backup-actions">
           <a className="secondary" href="/api/export" download>
@@ -331,7 +331,7 @@ export function SettingsDialog(p: {
         </div>
         {pending && (
           <div className="import-confirm">
-            <p>用「{pending.name}」恢复分组和说明？现有原会话不会被修改。</p>
+            <p>用「{pending.name}」恢复置顶、分组和说明？原会话不会被修改，旧备份未包含的置顶会保留。</p>
             <button
               className="secondary"
               onClick={() => setPending(null)}

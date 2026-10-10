@@ -23,6 +23,16 @@ const validDate = (s) =>
   Number.isFinite(Date.parse(s)) &&
   new Date(s).toISOString().slice(0, 10) === s;
 export const intents = ["none", "active", "later", "reference"];
+function pinFromRow(source, row, pinRevision) {
+  if (row.pocket_pinned == null) return { ...source, pinRevision, pinSource: "codex" };
+  return {
+    ...source,
+    pinRevision,
+    pinSource: "pocket",
+    pinned: row.pocket_pinned === 1,
+    pinnedOrder: row.pocket_pinned === 1 ? row.pocket_position : -1,
+  };
+}
 function annotationFromRow(a, source, groups) {
   const defaults = groups
     .filter((g) => g.sourceProjectId && g.sourceProjectId === source?.projectId)
@@ -52,6 +62,7 @@ export class NavigatorStore {
       CREATE TABLE IF NOT EXISTS source_threads(id TEXT PRIMARY KEY,data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS groups(id TEXT PRIMARY KEY,name TEXT NOT NULL,parent_id TEXT,color TEXT NOT NULL,position INTEGER NOT NULL,source_project_id TEXT);
       CREATE TABLE IF NOT EXISTS annotations(thread_id TEXT PRIMARY KEY,intent TEXT NOT NULL DEFAULT 'none',note TEXT NOT NULL DEFAULT '',review_at TEXT,group_ids TEXT,last_opened_at INTEGER,updated_at INTEGER NOT NULL,revision INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS pin_overrides(thread_id TEXT PRIMARY KEY,pinned INTEGER NOT NULL CHECK(pinned IN (0,1)),position INTEGER,updated_at INTEGER NOT NULL,CHECK((pinned=1 AND position IS NOT NULL AND position<0) OR (pinned=0 AND position IS NULL)));
     `);
     this.lastError = null;
   }
@@ -89,6 +100,9 @@ export class NavigatorStore {
       throw new AppError("来源格式无效");
     this.db.exec("BEGIN IMMEDIATE");
     try {
+      const previousRows = this.db.prepare("SELECT s.id,s.data,p.pinned AS pocket_pinned FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id").all();
+      const previousById = new Map(previousRows.map(row => [row.id, row]));
+      let pinsChanged = false;
       const upsert = this.db.prepare(
         "INSERT INTO source_threads VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
       );
@@ -96,11 +110,16 @@ export class NavigatorStore {
       for (const t of source.threads) {
         if (seen.has(t.id)) throw new AppError("来源包含重复 ID");
         seen.add(t.id);
+        const previous = previousById.get(t.id);
+        if (previous && previous.pocket_pinned == null) {
+          const old = JSON.parse(previous.data);
+          if (Boolean(old.pinned) !== Boolean(t.pinned) ||
+              (t.pinned && old.pinnedOrder !== t.pinnedOrder))
+            pinsChanged = true;
+        }
         upsert.run(t.id, JSON.stringify({ ...t, missing: false }));
       }
-      for (const row of this.db
-        .prepare("SELECT id,data FROM source_threads")
-        .all()) {
+      for (const row of previousRows) {
         if (!seen.has(row.id))
           upsert.run(
             row.id,
@@ -135,6 +154,7 @@ export class NavigatorStore {
       }
       this.set("projects", source.projects);
       this.set("sourceInfo", source.sourceInfo);
+      if (pinsChanged) this.advancePinRevision();
       this.db.exec("COMMIT");
       this.lastError = null;
     } catch (e) {
@@ -153,20 +173,23 @@ export class NavigatorStore {
   }
   thread(id) {
     const row = this.db
-      .prepare("SELECT data FROM source_threads WHERE id=?")
+      .prepare("SELECT s.data,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id WHERE s.id=?")
       .get(id);
     if (!row) throw new AppError("找不到原会话", 404);
-    return JSON.parse(row.data);
+    return pinFromRow(JSON.parse(row.data), row, parse(row.pin_revision, 0));
   }
   catalog() {
     const groups = this.groups();
-    const threads = this.db
-      .prepare("SELECT s.data,a.* FROM source_threads s LEFT JOIN annotations a ON a.thread_id=s.id")
-      .all()
-      .map((row) => {
-        const t = JSON.parse(row.data);
-        return { ...t, ...annotationFromRow(row, t, groups) };
-      });
+    // The uncorrelated revision lookup runs once in the same SQLite snapshot
+    // as the pin rows, including when another process updates this database.
+    const rows = this.db
+      .prepare("SELECT s.data,a.*,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision FROM source_threads s LEFT JOIN annotations a ON a.thread_id=s.id LEFT JOIN pin_overrides p ON p.thread_id=s.id")
+      .all();
+    const pinRevision = parse(rows[0]?.pin_revision, 0);
+    const threads = rows.map((row) => {
+      const t = pinFromRow(JSON.parse(row.data), row, pinRevision);
+      return { ...t, ...annotationFromRow(row, t, groups) };
+    });
     return {
       threads,
       groups,
@@ -174,6 +197,45 @@ export class NavigatorStore {
       sourceInfo: this.setting("sourceInfo"),
       sourceError: this.lastError,
     };
+  }
+  advancePinRevision() {
+    const previous = this.setting("pinRevision", 0);
+    if (!Number.isSafeInteger(previous) || previous < 0 || previous >= Number.MAX_SAFE_INTEGER)
+      throw new AppError("置顶修订编号已超出可用范围");
+    this.set("pinRevision", previous + 1);
+  }
+  setPin(id, input) {
+    if (!input || typeof input !== "object" || Array.isArray(input) ||
+        Object.keys(input).some((key) => key !== "pinned") ||
+        typeof input.pinned !== "boolean")
+      throw new AppError("置顶请求只接受 pinned 布尔值");
+    let changed = false;
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.thread(id);
+      const previous = this.db.prepare("SELECT pinned FROM pin_overrides WHERE thread_id=?").get(id);
+      // Explicitly choosing the source's current value still creates an
+      // override, so a later source refresh cannot undo the user's choice.
+      if (previous?.pinned !== Number(input.pinned)) {
+        const position = input.pinned
+          ? Math.min(0, this.db.prepare("SELECT MIN(position) AS minimum FROM pin_overrides").get().minimum ?? 0) - 1
+          : null;
+        if (position !== null && !Number.isSafeInteger(position))
+          throw new AppError("置顶顺序已超出可用范围");
+        this.db.prepare(`INSERT INTO pin_overrides(thread_id,pinned,position,updated_at) VALUES(?,?,?,?)
+          ON CONFLICT(thread_id) DO UPDATE SET pinned=excluded.pinned,position=excluded.position,updated_at=excluded.updated_at`)
+          .run(id, Number(input.pinned), position, Date.now());
+        this.advancePinRevision();
+        changed = true;
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    if (changed) this.backup();
+    const source = this.thread(id);
+    return { ...source, ...this.annotation(id, source) };
   }
   patchThread(id, patch, makeBackup = true) {
     const source = this.thread(id),
@@ -355,7 +417,12 @@ export class NavigatorStore {
       exportedAt: new Date().toISOString(),
       groups: this.groups(),
       annotations: this.db.prepare("SELECT * FROM annotations").all(),
+      pins: this.pins(),
     };
+  }
+  pins() {
+    return this.db.prepare("SELECT * FROM pin_overrides ORDER BY thread_id").all()
+      .map((pin) => ({ ...pin, pinned: pin.pinned === 1 }));
   }
   backup() {
     const directory = join(this.directory, "backups");
@@ -380,6 +447,26 @@ export class NavigatorStore {
       data.annotations.length > 20000
     )
       throw new AppError("不是支持的 Pocket 备份");
+    const restorePins = Object.hasOwn(data, "pins");
+    if (restorePins) {
+      if (!Array.isArray(data.pins) || data.pins.length > 20000)
+        throw new AppError("备份置顶格式无效");
+      const pinIds = new Set(), positions = new Set();
+      for (const pin of data.pins) {
+        if (!pin || typeof pin !== "object" || Array.isArray(pin) ||
+            Object.keys(pin).some((key) => !["thread_id", "pinned", "position", "updated_at"].includes(key)) ||
+            typeof pin.thread_id !== "string" || pin.thread_id.length > 120 ||
+            !/^[-a-zA-Z0-9:]+$/.test(pin.thread_id) || pinIds.has(pin.thread_id) ||
+            typeof pin.pinned !== "boolean" ||
+            !Number.isSafeInteger(pin.updated_at) || pin.updated_at < 0 ||
+            (pin.pinned
+              ? !Number.isSafeInteger(pin.position) || pin.position >= 0 || positions.has(pin.position)
+              : pin.position !== null))
+          throw new AppError("备份置顶格式无效");
+        pinIds.add(pin.thread_id);
+        if (pin.pinned) positions.add(pin.position);
+      }
+    }
     const ids = new Set(data.groups.map((g) => g.id));
     if (ids.size !== data.groups.length)
       throw new AppError("备份中分组 ID 重复");
@@ -433,6 +520,10 @@ export class NavigatorStore {
     this.backup();
     this.db.exec("BEGIN IMMEDIATE");
     try {
+      const importedPins = restorePins ? data.pins.map(pin => ({
+        thread_id: pin.thread_id, pinned: pin.pinned, position: pin.position, updated_at: pin.updated_at,
+      })).sort((a, b) => a.thread_id < b.thread_id ? -1 : a.thread_id > b.thread_id ? 1 : 0) : null;
+      const pinsChanged = restorePins && JSON.stringify(this.pins()) !== JSON.stringify(importedPins);
       // A restore must invalidate snapshots from before it, including tasks
       // whose annotations disappear from the imported backup. Keep default
       // rows for those tasks so their revision cannot fall back to zero.
@@ -449,6 +540,13 @@ export class NavigatorStore {
         return revision + 1;
       };
       this.db.exec("DELETE FROM groups; DELETE FROM annotations;");
+      if (pinsChanged) {
+        this.db.exec("DELETE FROM pin_overrides");
+        const pin = this.db.prepare("INSERT INTO pin_overrides(thread_id,pinned,position,updated_at) VALUES(?,?,?,?)");
+        for (const entry of data.pins)
+          pin.run(entry.thread_id, Number(entry.pinned), entry.position, entry.updated_at);
+        this.advancePinRevision();
+      }
       const g = this.db.prepare("INSERT INTO groups VALUES(?,?,?,?,?,?)");
       data.groups.forEach((x) =>
         g.run(
