@@ -5,6 +5,7 @@ import { AppError } from "./store.mjs";
 import { readPersistedHistory } from "./history.mjs";
 import { ExecutionStops } from "./execution-stops.mjs";
 import { runBridge } from "./bridge-process.mjs";
+import { Attachments, messageFingerprint } from "./attachments.mjs";
 
 export function desktopRequest(payload) {
   const config = JSON.parse(
@@ -26,7 +27,7 @@ export class DesktopService {
     codexHome,
     request = desktopRequest,
     readHistory = readPersistedHistory,
-    { openThread, connectionTimeoutMs = 45000, connectionPollMs = 500 } = {},
+    { openThread, connectionTimeoutMs = 45000, connectionPollMs = 500, attachmentOptions } = {},
   ) {
     Object.assign(this, { store, codexHome, request, readHistory });
     Object.assign(this, { openThread, connectionTimeoutMs, connectionPollMs });
@@ -43,6 +44,7 @@ export class DesktopService {
     store.db.exec("CREATE TABLE IF NOT EXISTS compactions(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,status TEXT NOT NULL,baseline_id TEXT,code TEXT,created_at INTEGER NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS request_responses(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,request_key TEXT NOT NULL,decision TEXT NOT NULL,status TEXT NOT NULL,code TEXT,created_at INTEGER NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS question_answers(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,question_key TEXT NOT NULL)");
+    this.attachments = new Attachments(store, attachmentOptions);
   }
   isLifecycleBlocked(id) { return this.lifecycleBlocked?.(id) === true; }
   requireLifecycleOpen(id) {
@@ -175,8 +177,8 @@ export class DesktopService {
     const saved = this.readHistory(this.codexHome, id);
     // Display data only. Never promote saved text into live permissions or
     // reconcile pending sends/approvals from this fast path.
-    return { source: "rollout", messages: saved.messages || [], hasMore: !!saved.hasMore,
-      turnTiming: saved.turnTiming || null, checkedAt: Date.now() };
+    return this.attachments.enrich(id, { source: "rollout", messages: saved.messages || [], hasMore: !!saved.hasMore,
+      turnTiming: saved.turnTiming || null, checkedAt: Date.now() });
   }
   async loadHistory(id) {
     const now = Date.now();
@@ -191,7 +193,7 @@ export class DesktopService {
       ownerLookupTimeoutMs: retrying ? 10000 : 2000,
     });
     let data;
-    if (result.ok) data = result;
+    if (result.ok) data = { source: "desktop", ...result };
     else {
       try {
         data = this.readHistory(this.codexHome, id);
@@ -230,7 +232,7 @@ export class DesktopService {
       for (const response of responses) if (!keys.has(response.request_key))
         this.store.db.prepare("UPDATE request_responses SET status='resolved',code=NULL WHERE id=?").run(response.id);
     }
-    for (const message of data.messages || []) {
+    for (const message of data.source === "desktop" ? data.messages || [] : []) {
       if (message.clientMessageId)
         this.store.db
           .prepare(
@@ -265,7 +267,7 @@ export class DesktopService {
       response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
     const asyncQuestions = (data.asyncQuestions || []).map(question => ({ ...question,
       response: this.store.db.prepare("SELECT d.id AS requestId,d.status FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? ORDER BY d.created_at DESC LIMIT 1").get(id, question.key) || null }));
-    return { ...data, connection: this.connection(id), outbox, pendingRequests, canCompact: targetAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
+    return { ...this.attachments.enrich(id, data), connection: this.connection(id), outbox, pendingRequests, canCompact: targetAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
       canAttemptCompact: targetAvailable && !blocked && !this.sending.has(id) &&
         (!!data.canCompact || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
       asyncQuestions,
@@ -403,15 +405,17 @@ export class DesktopService {
     return row ? this.receipt(row) : { requestId, status: "not_found" };
   }
   outbox(id) {
-    return this.store.db.prepare("SELECT o.id,o.text,o.revision,d.status,d.code,d.created_at AS createdAt FROM outgoing_messages o JOIN dispatches d ON d.id=o.id WHERE o.thread_id=? ORDER BY d.created_at,d.rowid").all(id);
+    return this.store.db.prepare("SELECT o.id,o.text,o.revision,d.status,d.code,d.created_at AS createdAt FROM outgoing_messages o JOIN dispatches d ON d.id=o.id WHERE o.thread_id=? ORDER BY d.created_at,d.rowid").all(id)
+      .map(row => ({ ...row, attachments: this.attachments.forDispatch(id, row.id).map(a => this.attachments.public(a)) }));
   }
   queueSize(id, saved = this.outbox(id).length) {
     return saved + (this.queueReservations.has(id) ? 1 : 0);
   }
   queue(id, requestId, text) {
-    if (this.queueSize(id) >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
+    const saved = this.outbox(id);
+    if (!saved.some(row => row.id === requestId) && this.queueSize(id, saved.length) >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
     this.transaction(() => {
-      this.store.db.prepare("INSERT INTO outgoing_messages(id,thread_id,text) VALUES(?,?,?)").run(requestId, id, text);
+      this.store.db.prepare("INSERT INTO outgoing_messages(id,thread_id,text) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET text=excluded.text").run(requestId, id, text);
       this.store.db.prepare("UPDATE dispatches SET status='queued',code=NULL WHERE id=?").run(requestId);
     });
     this.cache.delete(id);
@@ -431,14 +435,17 @@ export class DesktopService {
   }
   editQueued(id, requestId, input) {
     if (!input || Object.keys(input).some(k => !["text", "expectedRevision"].includes(k)) ||
-        typeof input.text !== "string" || !input.text.trim() || input.text.length > 16000)
+        typeof input.text !== "string" || input.text.length > 16000)
       throw new AppError("消息需为 1–16000 字", 400);
     const text = input.text.trim();
     this.transaction(() => {
       this.queued(id, requestId, input.expectedRevision, ["queued", "rejected", "editing"]);
+      const attachments = this.attachments.forDispatch(id, requestId);
+      if (!text && !attachments.length) throw new AppError("请输入消息或添加附件");
       this.store.db.prepare("UPDATE outgoing_messages SET text=?,revision=revision+1 WHERE id=?").run(text, requestId);
       this.store.db.prepare("UPDATE dispatches SET text_hash=?,status='queued',code=NULL WHERE id=?")
-        .run(createHash("sha256").update(text).digest("hex"), requestId);
+        .run(messageFingerprint(text, attachments), requestId);
+      this.attachments.updateText(requestId, text);
     });
     return { outbox: this.outbox(id) };
   }
@@ -448,6 +455,7 @@ export class DesktopService {
       this.queued(id, requestId, input.expectedRevision, ["queued", "rejected", "editing"]);
       this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(requestId);
       this.store.db.prepare("UPDATE dispatches SET status='cancelled',code=NULL WHERE id=?").run(requestId);
+      this.attachments.release(requestId);
     });
     return { outbox: this.outbox(id) };
   }
@@ -475,8 +483,14 @@ export class DesktopService {
     if (!claim.changes) { this.sending.delete(id); throw new AppError("待发消息已变化，请刷新", 409); }
     let result;
     try {
-      result = await this.request({ operation: "send", threadId: id, codexHome: this.codexHome,
-        text: row.text, requestId, delivery, ...(resumeAfterTurnId ? { resumeAfterTurnId } : {}) });
+      const saved = this.attachments.forDispatch(id, requestId);
+      let attachments = [];
+      if (saved.length) {
+        try { attachments = await this.attachments.prepare(saved); }
+        catch { result = { ok: false, code: "attachment_unavailable", sent: false }; }
+      }
+      if (!result) result = await this.request({ operation: "send", threadId: id, codexHome: this.codexHome,
+        text: row.text, requestId, delivery, ...(attachments.length ? { attachments } : {}), ...(resumeAfterTurnId ? { resumeAfterTurnId } : {}) });
     } catch { result = { ok: false, code: "dispatch_unknown", sent: null }; }
     finally { this.sending.delete(id); }
     const observed = this.getReceipt(id, requestId);
@@ -540,10 +554,10 @@ export class DesktopService {
       throw new AppError("请先在 Mac 中恢复这条原任务", 409);
     if (
       !input ||
-      Object.keys(input).some((k) => !["text", "requestId", "enqueue"].includes(k)) ||
+      Object.keys(input).some((k) => !["text", "requestId", "enqueue", "attachments"].includes(k)) ||
       (input.enqueue !== undefined && input.enqueue !== true) ||
       typeof input.text !== "string" ||
-      !input.text.trim() ||
+      (!input.text.trim() && !input.attachments?.length) ||
       input.text.length > 16000 ||
       typeof input.requestId !== "string" ||
       !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
@@ -552,7 +566,8 @@ export class DesktopService {
     )
       throw new AppError("消息需为 1–16000 字，且带有效请求编号", 400);
     const text = input.text.trim(),
-      hash = createHash("sha256").update(text).digest("hex");
+      uploaded = this.attachments.resolve(id, input.attachments === undefined ? [] : input.attachments, input.requestId),
+      hash = messageFingerprint(text, uploaded);
     const old = this.store.db
       .prepare("SELECT * FROM dispatches WHERE id=?")
       .get(input.requestId);
@@ -564,12 +579,15 @@ export class DesktopService {
     if ((this.sending.has(id) || this.compactionPending(id) || this.stops.pending(id)) && !input.enqueue && !this.outbox(id).length)
       throw new AppError("这条任务正在提交消息，请稍后再试", 409);
     if (this.queueSize(id) >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
-    this.store.db
-      .prepare(
-        "INSERT INTO dispatches(id,thread_id,text_hash,status,created_at) VALUES(?,?,?,'pending',?)",
-      )
-      .run(input.requestId, id, hash, Date.now());
-    if (input.enqueue || this.outbox(id).length) {
+    const queueInitially = input.enqueue || this.outbox(id).length > 0;
+    this.transaction(() => {
+      this.store.db.prepare("INSERT INTO dispatches(id,thread_id,text_hash,status,created_at) VALUES(?,?,?,'pending',?)")
+        .run(input.requestId, id, hash, Date.now());
+      this.attachments.bind(id, input.requestId, text, uploaded);
+      if (uploaded.length)
+        this.store.db.prepare("INSERT INTO outgoing_messages(id,thread_id,text) VALUES(?,?,?)").run(input.requestId, id, text);
+    });
+    if (queueInitially) {
       this.queue(id, input.requestId, text);
       this.connectForSubmission(id);
       return this.getReceipt(id, input.requestId);
@@ -578,14 +596,20 @@ export class DesktopService {
     this.sending.add(id);
     // Keep room for this submission if a slow preflight finds an active turn.
     // Later explicit enqueues must not consume its fallback slot.
-    this.queueReservations.add(id);
+    if (!uploaded.length) this.queueReservations.add(id);
     try {
-      result = await this.request({
+      let attachments = [];
+      if (uploaded.length) {
+        try { attachments = await this.attachments.prepare(uploaded); }
+        catch { result = { ok: false, code: "attachment_unavailable", sent: false }; }
+      }
+      if (!result) result = await this.request({
         operation: "send",
         threadId: id,
         codexHome: this.codexHome,
         text,
         requestId: input.requestId,
+        ...(attachments.length ? { attachments } : {}),
       });
     } catch {
       result = { ok: false, code: "dispatch_unknown", sent: null };
@@ -612,6 +636,7 @@ export class DesktopService {
       .prepare("UPDATE dispatches SET status=?,turn_id=?,code=? WHERE id=?")
       .run(status, result.turnId || observed.turnId || null, status === "accepted" ? null : result.code || null, input.requestId);
     if (status === "accepted") this.onAccepted?.(id, result.turnId);
+    if (status === "accepted") this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(input.requestId);
     this.cache.delete(id);
     return this.receipt(
       this.store.db

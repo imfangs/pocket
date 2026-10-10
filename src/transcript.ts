@@ -6,7 +6,7 @@ function bounded(messages: Message[]) {
     const text = message.text.slice(0, Math.max(0, Math.min(24000, remaining)));
     remaining -= text.length;
     return text === message.text ? message : { ...message, text, truncated: true };
-  }).filter(message => message.text).reverse();
+  }).filter(message => message.text || message.attachments?.length).reverse();
 }
 
 // Merge only display text, never runtime/capability fields. Shared IDs establish
@@ -38,7 +38,7 @@ export function displayMessages(history: History | null, transcript: SavedTransc
     if (!next || next.role !== message.role || !next.text.startsWith(message.text)) return message;
     return { ...next, ...message, text: next.text, truncated: next.truncated,
       phase: next.phase ?? message.phase, turnDurationMs: next.turnDurationMs ?? message.turnDurationMs,
-      images: next.images ?? message.images };
+      images: next.images ?? message.images, attachments: next.attachments?.length ? next.attachments : message.attachments };
   });
   if (index.get(saved[anchor].id) === live.length - 1) merged.push(...saved.slice(anchor + 1));
   return bounded(merged);

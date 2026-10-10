@@ -99,6 +99,8 @@ export default {
           headers.set(key, request.headers.get(key));
       if (origin) headers.set("Origin", upstream.origin);
       const target = new URL(url.pathname + url.search, upstream.origin);
+      const uploading = request.method === "PUT" &&
+        /^\/api\/tasks\/[a-f0-9-]{36}\/attachments\/[a-f0-9-]{36}$/i.test(url.pathname);
       const response = await fetch(target, {
         method: request.method,
         headers,
@@ -106,7 +108,7 @@ export default {
           ? undefined
           : request.body,
         redirect: "manual",
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(uploading ? 180000 : 20000),
       });
       if (
         response.status >= 500 ||

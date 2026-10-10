@@ -6,6 +6,7 @@ import type { Message } from "./conversationFeed";
 import { formatDuration } from "./TurnDuration";
 import { readableCodexMarkdown } from "./codexMarkup";
 import { useMemo } from "react";
+import AttachmentList from "./AttachmentList";
 
 export default function ConversationMessage({ message, recentlySent = false }: { message: Message; recentlySent?: boolean }) {
   const displayText = useMemo(() => message.role === "user"
@@ -51,7 +52,7 @@ export default function ConversationMessage({ message, recentlySent = false }: {
               })}
             </time>
           )}
-          {kind !== "progress" && (
+          {kind !== "progress" && displayText.trim() && (
             <CopyButton text={displayText} label={kind === "user" ? "复制这条消息" : "复制回复"} />
           )}
         </div>
@@ -61,6 +62,7 @@ export default function ConversationMessage({ message, recentlySent = false }: {
         text={displayText}
         codex={false}
       />
+      <AttachmentList attachments={message.attachments} />
       {final && message.turnDurationMs != null && (
         <div className="message-duration">总用时 <time>{formatDuration(message.turnDurationMs)}</time></div>
       )}

@@ -24,10 +24,13 @@ import { createSubmissionFeedbackTracker, SEND_FEEDBACK_EXIT_MS } from "./submis
 import type { AcceptedFeedback } from "./submissionFeedback";
 import SubmissionFeedbackNotice from "./SubmissionFeedbackNotice";
 import SubmittedQueryCards from "./SubmittedQueryCards";
-import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, withSubmittedQueryPost } from "./submittedQueries";
+import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, withSubmittedAttachments, withSubmittedQueryPost } from "./submittedQueries";
 import type { SubmittedQuery, SubmittedQueryStore, SubmittedQueryReceipt } from "./submittedQueries";
+import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATTACHMENTS, readyAttachments, sameAttachments, type DraftAttachment } from "./attachments";
+import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
+  attachments?: readonly DraftAttachment[];
   answerMode?: "options" | "custom"; customText?: string; optionText?: string;
 };
 const statuses: Record<string, string> = {
@@ -62,6 +65,11 @@ export default function Conversation({
   const [localSubmissions] = useState(createSubmittedQueryStore);
   const submissions = providedSubmissions ?? localSubmissions;
   const submitted = useSyncExternalStore(submissions.subscribe, () => submissions.getThread(thread.id), () => submissions.getThread(thread.id));
+  const [uploads] = useState(() => attachmentDraftController(drafts));
+  const subscribeAttachments = useCallback((listener: () => void) => uploads.subscribe(thread.id, listener), [uploads, thread.id]);
+  const attachments = useSyncExternalStore(subscribeAttachments, () => uploads.get(thread.id), () => uploads.get(thread.id));
+  const [attachmentError, setAttachmentError] = useState("");
+  const [attachmentRecoveryNeeded, setAttachmentRecoveryNeeded] = useState(false);
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
     [transcript, setTranscript] = useState<SavedTranscript | null>(() => historyCache.get(thread.id)?.transcript ?? null),
     [freshTranscript, setFreshTranscript] = useState<SavedTranscript | null>(null),
@@ -119,7 +127,10 @@ export default function Conversation({
     previousLatest = useRef<{ id: string; text: string } | null>(null),
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
-  const shownMessages = useMemo(() => displayMessages(history, transcript), [history, transcript]);
+  const shownMessages = useMemo(() => displayMessages(
+    history ? { ...history, messages: withSubmittedAttachments(history.messages, submitted) } : null,
+    transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
+  ), [history, transcript, submitted]);
   const toolbarTiming = history?.turnTiming && history.runtime !== "active" && history.turnTiming.status !== "inProgress" && history.turnTiming.turnId &&
     shownMessages.some(message => message.role === "assistant" && message.turnId === history.turnTiming!.turnId &&
       ["final", "final_answer"].includes(message.phase || "") && message.turnDurationMs != null) ? null : history?.turnTiming;
@@ -144,15 +155,26 @@ export default function Conversation({
   const observedConnection = connectionFromHistory(connection, history);
   const connecting = opening || observedConnection.status === "connecting";
   useReloadGuard(() => sending || connecting ? "操作尚未完成，请稍后更新。"
-    : draft.text || draft.requestId ? "还有未发送或待核对的消息，请处理后再更新。" : submissions.reloadBlocker());
+    : draft.text || draft.requestId || attachments.length ? "还有未发送或待核对的消息，请处理后再更新。" : submissions.reloadBlocker());
   const updateDraft = useCallback(
-    (next: QueryDraft) => {
-      setDraft(next);
-      if (next.text) drafts.set(thread.id, next);
+    (next: QueryDraft, preserveAttachments = true) => {
+      const files = preserveAttachments ? uploads.get(thread.id) : next.attachments;
+      const value = { ...next, attachments: files?.length ? files : undefined };
+      setDraft(value);
+      if (value.text || value.requestId || hasDraftAttachments(value)) drafts.set(thread.id, value);
       else drafts.delete(thread.id);
+      uploads.notify(thread.id);
     },
-    [drafts, thread.id],
+    [drafts, thread.id, uploads],
   );
+  const addFiles = (files: File[]) => {
+    try { uploads.add(thread.id, files); setAttachmentError(""); }
+    catch (failure) { setAttachmentError((failure as Error).message); }
+  };
+  const recoverAttachments = async () => {
+    try { await uploads.recover(thread.id); setAttachmentError(""); setAttachmentRecoveryNeeded(false); }
+    catch (failure) { setAttachmentError((failure as Error).message); setAttachmentRecoveryNeeded(true); }
+  };
   const load = useCallback(async () => { await Promise.all([feed.current?.refresh(), textFeed.current?.refresh()]); }, []);
   const returnToLatest = useCallback(() => {
     nearBottom.current = true;
@@ -197,6 +219,14 @@ export default function Conversation({
     return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
   }, []);
   const targetAvailable = !thread.archived && !thread.missing && !managementBlocked;
+  useEffect(() => {
+    if (!targetAvailable) return;
+    const recover = () => { void uploads.recover(thread.id).catch(failure => {
+      setAttachmentError(failure?.message || "暂时无法载入已上传附件，请重试。"); setAttachmentRecoveryNeeded(true);
+    }); };
+    recover(); window.addEventListener("online", recover);
+    return () => window.removeEventListener("online", recover);
+  }, [uploads, thread.id, targetAvailable]);
   const canQueue = targetAvailable && history?.canQueue !== false;
   const canAttemptSend = targetAvailable && !!(history?.canAttemptSend ?? history?.canSend);
   const staleConnection = observedConnection.status === "connected" && history?.source !== "desktop" && (history?.checkedAt ?? 0) > observedConnection.checkedAt;
@@ -232,6 +262,13 @@ export default function Conversation({
   const checkSubmitted = async (item: SubmittedQuery) => {
     if (!["accepted", "not_queued"].includes(item.status)) await checkSubmissionReceipt(item.requestId);
     await load();
+  };
+  const restoreSubmitted = async (item: SubmittedQuery) => {
+    if (!["rejected", "not_found"].includes(item.status)) return;
+    const generation = readViewGeneration.current;
+    const value = await uploads.restoreDraft(thread.id, item, () => generation === readViewGeneration.current);
+    setDraft(value);
+    submissions.dismiss(thread.id, item.requestId); setAttachmentError("");
   };
   const connectingId = observedConnection.status === "connecting" ? observedConnection.requestId : null;
   useEffect(() => {
@@ -281,6 +318,8 @@ export default function Conversation({
       request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
       onData(data) {
         feedbackTracker.observeHistory(data).forEach(showAcceptedFeedback);
+        const cancelledRequests = new Set(submissions.getThread(thread.id).filter(item => item.status === "cancelled").map(item => item.requestId));
+        uploads.claim(thread.id, [...(data.outbox ?? []).filter(item => !cancelledRequests.has(item.id)).flatMap(item => item.attachments?.map(file => file.id) ?? []), ...data.messages.flatMap(message => message.attachments?.map(file => file.id) ?? [])]);
         const queueChecks = new Set(submissions.observeQueue(thread.id, data.outbox ?? []));
         if (data.source === "desktop") for (const message of data.messages) {
           if (message.role === "user" && message.clientMessageId) submissions.receipt(thread.id, { requestId: message.clientMessageId, status: "accepted" });
@@ -299,9 +338,10 @@ export default function Conversation({
         const saved = drafts.get(thread.id);
         if (
           saved?.requestId && data.source === "desktop" &&
-          data.messages.some((m) => m.role === "user" && m.clientMessageId === saved.requestId && !m.truncated && m.text.trim() === saved.text.trim())
+          data.messages.some((m) => m.role === "user" && m.clientMessageId === saved.requestId && !m.truncated && m.text.trim() === saved.text.trim()
+            && sameAttachments(attachmentRefs(saved.attachments ?? []), m.attachments))
         ) {
-          updateDraft({ text: "" });
+          updateDraft({ text: "" }, false);
           if (data.source === "desktop" && data.messages.some(message => message.role === "user" && message.clientMessageId === saved.requestId)) {
             confirmAccepted({ requestId: saved.requestId, status: "accepted" });
             setNotice("");
@@ -318,7 +358,7 @@ export default function Conversation({
       subscription.stop();
       if (feed.current === subscription) feed.current = null;
     };
-  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked, feedbackTracker, showAcceptedFeedback, confirmAccepted, submissions, checkSubmissionReceipt]);
+  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked, feedbackTracker, showAcceptedFeedback, confirmAccepted, submissions, checkSubmissionReceipt, uploads]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
@@ -347,14 +387,14 @@ export default function Conversation({
   }, []);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (draft.text || submissions.reloadBlocker()) {
+      if (draft.text || uploads.get(thread.id).length || submissions.reloadBlocker()) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [draft.text, submissions]);
+  }, [draft.text, submissions, uploads, thread.id]);
   useEffect(() => {
     if (!/^(消息已交给|已加入(?: Mac )?待发|已在原任务历史|当前执行已中断|这一轮已经结束)/.test(notice)) return;
     const timer = setTimeout(() => setNotice(""), 4000);
@@ -382,7 +422,7 @@ export default function Conversation({
   };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sending || !draft.text.trim()) return;
+    if (sending || (!draft.requestId && ((!draft.text.trim() && !attachments.length) || !readyAttachments(attachments)))) return;
     const release = holdReload();
     setSending(true);
     setError("");
@@ -391,13 +431,15 @@ export default function Conversation({
     const controller = new AbortController();
     const requestId = draft.requestId || crypto.randomUUID();
     const submittedText = draft.text;
+    const submittedAttachments = attachmentRefs(attachments);
     receiptRead.current = controller;
     nearBottom.current = true;
     // Capture before clearing the composer. Every later receipt updates this
     // request's immutable snapshot, never whatever the user is typing next.
     submissions.seed({ threadId: thread.id, requestId, text: submittedText,
-      status: draft.requestId ? "unknown" : sendAndConnect ? "connecting" : "submitting" });
-    updateDraft({ text: "" });
+      attachments: submittedAttachments, status: draft.requestId ? "unknown" : sendAndConnect ? "connecting" : "submitting" });
+    uploads.claim(thread.id, submittedAttachments.map(item => item.id));
+    updateDraft({ text: "" }, false); setAttachmentError("");
     const ownsView = () => !controller.signal.aborted && receiptRead.current === controller;
     try {
       let receipt: Receipt;
@@ -409,6 +451,7 @@ export default function Conversation({
         receipt = await withSubmittedQueryPost(submissions, thread.id, requestId, () => api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
             text: submittedText,
             requestId,
+            ...(submittedAttachments.length ? { attachments: submittedAttachments.map(item => item.id) } : {}),
             ...(enqueue ? { enqueue: true } : {}),
           }));
       }
@@ -550,7 +593,7 @@ export default function Conversation({
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} />}
         <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
         <SubmittedQueryCards items={visibleSubmissions} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
-          disabled={!online || managementBlocked} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} />
+          disabled={!online || managementBlocked} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} />
       </div>
       {awayFromLatest && <button type="button" className="conversation-latest" onClick={returnToLatest}>
         <ArrowDown size={14} aria-hidden="true" />
@@ -588,8 +631,13 @@ export default function Conversation({
       </div>
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
       <Outbox threadId={thread.id} items={shownOutbox} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
-        onAccepted={receipt => confirmAccepted(receipt, "queue")} />
+        onAccepted={receipt => confirmAccepted(receipt, "queue")} onAttachmentRecovery={(recovered, error) => {
+          setAttachmentError(error ?? ""); setAttachmentRecoveryNeeded(!!error);
+          setNotice(error ? "待发消息已删除，附件可重新载入草稿。" : recovered ? "待发消息已删除，附件已放回草稿。" : "待发消息已删除。");
+        }} />
       <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
+        <DraftAttachmentList threadId={thread.id} items={attachments} controller={uploads} disabled={!online || !targetAvailable || !!draft.requestId} error={attachmentError}
+          onRecover={attachmentRecoveryNeeded ? () => void recoverAttachments() : undefined} />
         <label className="sr-only" htmlFor="user-query">
           发送给原任务的消息
         </label>
@@ -601,14 +649,20 @@ export default function Conversation({
           maxLength={16000}
           onChange={(e) => updateDraft({ text: e.target.value })}
           onInput={(e) => updateDraft({ text: e.currentTarget.value })}
+          onPaste={event => {
+            const files = [...event.clipboardData.items].filter(item => item.kind === "file" && item.type.startsWith("image/")).flatMap(item => { const file = item.getAsFile(); return file ? [file] : []; });
+            if (files.length) { event.preventDefault(); if (targetAvailable && !draft.requestId) addFiles(files); }
+          }}
         />
         <div className="composer-actions">
+          <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} />
           <button
             className="primary"
             disabled={
               sending ||
               !online ||
-              !draft.text.trim() ||
+              (!draft.text.trim() && !attachments.length) ||
+              (!draft.requestId && !readyAttachments(attachments)) ||
               (!draft.requestId && (enqueue ? !canQueue : !targetAvailable || !history?.canSend))
             }
           >

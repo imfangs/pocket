@@ -35,6 +35,7 @@
 - `GET /api/task-operations`、`GET /api/task-operations/:id`、`POST /api/task-operations/:id/cancel`：生命周期回执与停止核对；`creationStatus`和`initialMessage.status`分开表达已创建与发送结果。
 - `PATCH /api/tasks/:id`：intent、note、reviewAt、groupIds、expectedRevision；拒绝其他字段。
 - `POST /api/tasks/:id/pin`：仅接受 `{pinned:boolean}`，设定 Pocket 置顶并返回确认后的有效任务；重复同值幂等，不调用原桌面、不改变原会话的运行或归档状态。
+- `PUT/GET/DELETE /api/tasks/:id/attachments/:uploadId`、`GET /api/tasks/:id/attachments`：私有上传、元数据核对、读取/删除及草稿恢复，见[附件协议](design/2026-10-10-attachments.md)。文件和消息绑定存于独立附件表，不进入整理元数据JSON导出。
 - `POST /api/batch`：`{ids,change:{intent?,groupId?}}`，最多 2000 条。
 - `POST /api/groups`、`PATCH /api/groups/:id`、`DELETE /api/groups/:id`：导航分组。
 - `POST /api/open/:id`：只接受已导入原 ID，调用系统 `open codex://threads/:id`，返回 `handoff_requested`，不发送消息或新建会话。

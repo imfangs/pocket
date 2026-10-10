@@ -1,11 +1,12 @@
 import type { QueryDraft } from "./Conversation";
+import { hasDraftAttachments } from "./attachments.ts";
 
 function rootThreadId(key: string) {
   return key.split("/", 1)[0];
 }
 
 function unsubmitted(draft: QueryDraft) {
-  return !draft.requestId && [draft.text, draft.customText, draft.optionText].some(text => !!text?.trim());
+  return !draft.requestId && (hasDraftAttachments(draft) || [draft.text, draft.customText, draft.optionText].some(text => !!text?.trim()));
 }
 
 export function draftThreadIds(drafts: ReadonlyMap<string, QueryDraft>): Set<string> {

@@ -79,3 +79,27 @@ test("gateway rejects cross-site requests and arbitrary upstream targets before 
     globalThis.fetch = original;
   }
 });
+
+test("attachment uploads retain their stream and get time for mobile transfer and local image conversion", async () => {
+  const originalFetch = globalThis.fetch, originalTimeout = AbortSignal.timeout;
+  const budgets = [], calls = [];
+  AbortSignal.timeout = milliseconds => { budgets.push(milliseconds); return new AbortController().signal; };
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url: String(url), method: options.method, bytes: options.body ? await new Response(options.body).text() : null });
+    return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+  };
+  const id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  try {
+    const attachment=`/api/tasks/${id}/attachments/${id}`;
+    const put=await worker.fetch(new Request('https://x.fangs.cc'+attachment+'?name=photo.heic', {
+      method:'PUT',headers:{Origin:'https://x.fangs.cc','Content-Type':'image/heic'},body:'synthetic original bytes'
+    }),env);
+    assert.equal(put.status,200);
+    assert.equal(calls[0].bytes,'synthetic original bytes');
+    assert.ok(calls[0].url.endsWith(attachment+'?name=photo.heic'));
+    assert.equal(budgets[0],180000);
+    for (const [method,path] of [['GET',attachment+'?metadata=1'],['POST',`/api/tasks/${id}/messages`],['PUT','/api/unsupported']])
+      await worker.fetch(new Request('https://x.fangs.cc'+path,{method,headers:{Origin:'https://x.fangs.cc'}}),env);
+    assert.deepEqual(budgets.slice(1),[20000,20000,20000]);
+  } finally { globalThis.fetch=originalFetch; AbortSignal.timeout=originalTimeout; }
+});

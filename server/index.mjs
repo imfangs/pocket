@@ -54,7 +54,7 @@ export function makeApp(options = {}) {
     codexHome,
     options.desktopRequest,
     options.readHistory,
-    { openThread, connectionTimeoutMs: options.connectionTimeoutMs, connectionPollMs: options.connectionPollMs },
+    { openThread, connectionTimeoutMs: options.connectionTimeoutMs, connectionPollMs: options.connectionPollMs, attachmentOptions: options.attachments },
   );
   const readState = new ReadStateService(store, codexHome, options.readState);
   const notifications = new Notifications(store, desktop, options.notifications);
@@ -263,6 +263,31 @@ export function makeApp(options = {}) {
         return json(res, 200, store.batch(b.ids, b.change));
       }
       const task = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)$/);
+      const attachment = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/attachments(?:\/([a-f0-9-]{36}))?$/i);
+      if (attachment) {
+        const [, threadId, uploadId] = attachment;
+        if (method === "GET" && !uploadId)
+          return json(res, 200, desktop.attachments.list(threadId));
+        if (method === "PUT" && uploadId) {
+          if ([...url.searchParams.keys()].some(key => key !== "name")) throw new AppError("附件参数无效");
+          if (Number(req.headers["content-length"]) > desktop.attachments.maxBytes) throw new AppError("每个附件最多 20 MiB", 413);
+          req.setTimeout(120000, () => req.destroy());
+          return json(res, 200, await desktop.attachments.upload(threadId, uploadId, url.searchParams.get("name"), req.headers["content-type"], req));
+        }
+        if (method === "DELETE" && uploadId)
+          return json(res, 200, desktop.attachments.remove(threadId, uploadId));
+        if (method === "GET" && uploadId) {
+          if (url.searchParams.get("metadata") === "1")
+            return json(res, 200, desktop.attachments.metadata(threadId, uploadId));
+          const data = await desktop.attachments.read(threadId, uploadId, url.searchParams.get("preview") === "1");
+          res.writeHead(200, {
+            "Content-Type": data.mime, "Content-Length": data.bytes.length,
+            "Content-Disposition": `${data.kind === "image" ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(data.name)}`,
+            "Cross-Origin-Resource-Policy": "same-origin", "Content-Security-Policy": "default-src 'none'; sandbox",
+          });
+          return res.end(data.bytes);
+        }
+      }
       const taskPin = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)\/pin$/);
       if (taskPin && method === "POST")
         return json(res, 200, store.setPin(taskPin[1], await body(req, 2048)));

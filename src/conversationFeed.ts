@@ -1,5 +1,6 @@
 import type { ThreadConnection } from "./threadConnection";
 import type { ReadObservation } from "./readObservation";
+import type { PublicAttachment } from "./attachments";
 
 export type Message = {
   id: string;
@@ -13,6 +14,7 @@ export type Message = {
   clientMessageId?: string;
   turnDurationMs?: number;
   images?: Record<string, string>;
+  attachments?: PublicAttachment[];
 };
 export type TurnTiming = {
   turnId: string | null;
@@ -56,6 +58,7 @@ export type QueuedMessage = {
   status: "queued" | "editing" | "pending" | "accepted" | "rejected" | "unknown";
   code?: string;
   createdAt: number;
+  attachments?: PublicAttachment[];
 };
 export type HistoryCache = Map<string, {
   history?: History;

@@ -8,7 +8,7 @@ export async function api<T>(
   path: string,
   method = "GET",
   body?: unknown,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; raw?: boolean; contentType?: string } = {},
 ): Promise<T> {
   const release = isReloadBlockingRequest(path, method) ? holdReload() : () => {};
   try {
@@ -18,10 +18,10 @@ export async function api<T>(
         signal: options.signal,
         cache: "no-store",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": options.contentType || "application/json",
           ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
         },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(body === undefined ? {} : { body: options.raw ? body as BodyInit : JSON.stringify(body) }),
       });
     let response = await send();
     let data = await response.json();

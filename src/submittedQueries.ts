@@ -1,4 +1,5 @@
 import type { Message, QueuedMessage } from "./conversationFeed";
+import { sameAttachments, type PublicAttachment } from "./attachments.ts";
 
 export type SubmittedQueryStatus = "submitting" | "connecting" | "pending" | "queued" | "editing" | "accepted" | "unknown" | "rejected" | "not_found" | "cancelled" | "not_queued";
 export type SubmittedQuery = Readonly<{
@@ -11,8 +12,9 @@ export type SubmittedQuery = Readonly<{
   queueRevision?: number;
   echoed?: boolean;
   dismissed?: boolean;
+  attachments?: readonly PublicAttachment[];
 }>;
-export type SubmittedQuerySeed = Pick<SubmittedQuery, "threadId" | "requestId" | "text" | "status"> & { createdAt?: number; code?: string };
+export type SubmittedQuerySeed = Pick<SubmittedQuery, "threadId" | "requestId" | "text" | "status" | "attachments"> & { createdAt?: number; code?: string };
 export type SubmittedQueryReceipt = { requestId: string; status: SubmittedQueryStatus; code?: string };
 
 const empty: readonly SubmittedQuery[] = Object.freeze([]);
@@ -21,9 +23,19 @@ const submissionKey = (threadId: string, requestId: string) => JSON.stringify([t
 
 // Identity confirms which submission this is; exact complete text confirms the
 // visible history can replace its full local copy. Text alone confirms neither.
-export function completeSubmittedEcho(entry: Pick<SubmittedQuery, "requestId" | "text" | "status">, messages: readonly Message[]) {
+export function completeSubmittedEcho(entry: Pick<SubmittedQuery, "requestId" | "text" | "status" | "attachments">, messages: readonly Message[]) {
   return entry.status === "accepted" && messages.some(message => message.role === "user" && message.clientMessageId === entry.requestId
-    && !message.truncated && message.text.trim() === entry.text.trim());
+    && !message.truncated && message.text.trim() === entry.text.trim() && sameAttachments(entry.attachments, message.attachments));
+}
+
+// Exact client message identity can carry known attachment display metadata
+// while the transcript catches up. This never changes a submission receipt.
+export function withSubmittedAttachments(messages: readonly Message[], entries: readonly SubmittedQuery[]): Message[] {
+  return messages.map(message => {
+    if (message.role !== "user" || !message.clientMessageId || message.attachments?.length) return message;
+    const entry = entries.find(item => item.requestId === message.clientMessageId);
+    return entry?.attachments?.length ? { ...message, attachments: [...entry.attachments] } : message;
+  });
 }
 
 // Session memory only. A submission's text is captured separately from the next
@@ -61,7 +73,7 @@ export function createSubmittedQueryStore() {
     seed(input: SubmittedQuerySeed) {
       const existing = getThread(input.threadId).find(entry => entry.requestId === input.requestId);
       change(input.threadId, entries => entries.some(entry => entry.requestId === input.requestId) ? entries
-        : [...entries, Object.freeze({ ...input, createdAt: input.createdAt ?? Date.now() })]);
+        : [...entries, Object.freeze({ ...input, ...(input.attachments ? { attachments: Object.freeze([...input.attachments]) } : {}), createdAt: input.createdAt ?? Date.now() })]);
       if (existing?.queueRevision === undefined || settled.has(input.status)) receipt(input.threadId, input);
     },
     receipt,
@@ -71,7 +83,7 @@ export function createSubmittedQueryStore() {
         for (const item of items) {
           const index = next.findIndex(entry => entry.requestId === item.id), entry = next[index];
           if (!entry) {
-            next = [...next, Object.freeze({ threadId, requestId: item.id, text: item.text, status: item.status, createdAt: item.createdAt, queueRevision: item.revision })];
+            next = [...next, Object.freeze({ threadId, requestId: item.id, text: item.text, status: item.status, createdAt: item.createdAt, queueRevision: item.revision, attachments: item.attachments })];
             continue;
           }
           if (entry.echoed || entry.status === "cancelled" || (entry.queueRevision ?? -1) > item.revision) continue;
@@ -79,15 +91,16 @@ export function createSubmittedQueryStore() {
             // A saved edit can be acknowledged after auto-dispatch already
             // accepted it. Keep acceptance while adopting that newer revision.
             if ((entry.queueRevision ?? -1) < item.revision)
-              next = next.map((value, i) => i === index ? Object.freeze({ ...entry, text: item.text, queueRevision: item.revision }) : value);
+              next = next.map((value, i) => i === index ? Object.freeze({ ...entry, text: item.text, queueRevision: item.revision, attachments: item.attachments?.length ? item.attachments : entry.attachments }) : value);
             continue;
           }
           if (entry.queueRevision === item.revision && (
             (["pending", "unknown", "rejected", "editing"].includes(entry.status) && item.status === "queued") ||
             (["unknown", "rejected", "editing"].includes(entry.status) && item.status === "pending"))) continue;
           const text = (entry.queueRevision ?? -1) < item.revision ? item.text : entry.text;
-          if (entry.text === text && entry.status === item.status && entry.queueRevision === item.revision && entry.code === item.code) continue;
-          next = next.map((value, i) => i === index ? Object.freeze({ ...entry, text, status: item.status, queueRevision: item.revision, code: item.code }) : value);
+          const attachments = item.attachments?.length ? item.attachments : entry.attachments;
+          if (entry.text === text && entry.status === item.status && entry.queueRevision === item.revision && entry.code === item.code && sameAttachments(entry.attachments, attachments)) continue;
+          next = next.map((value, i) => i === index ? Object.freeze({ ...entry, text, status: item.status, queueRevision: item.revision, code: item.code, attachments }) : value);
         }
         // Absence is never delivery evidence. Retain a row until an exact echo
         // appears or the user explicitly dismisses a definite failed/cancelled row.
@@ -136,11 +149,11 @@ export function visibleSubmittedQueries(entries: readonly SubmittedQuery[], mess
 export function submittedOutbox(entries: readonly SubmittedQuery[], messages: readonly Message[], outbox: readonly QueuedMessage[]) {
   return outbox.flatMap(item => {
     const entry = entries.find(value => value.requestId === item.id);
-    if (entry?.echoed || entry?.status === "cancelled" || completeSubmittedEcho(entry ?? { requestId: item.id, text: item.text, status: item.status }, messages)) return [];
+    if (entry?.echoed || entry?.status === "cancelled" || completeSubmittedEcho(entry ?? { requestId: item.id, text: item.text, status: item.status, attachments: item.attachments }, messages)) return [];
     if (!entry) return [item];
-    if (entry.status === "accepted") return [{ ...item, text: entry.text, status: "accepted" as const }];
+    if (entry.status === "accepted") return [{ ...item, text: entry.text, status: "accepted" as const, attachments: entry.attachments ? [...entry.attachments] : item.attachments }];
     if (entry.queueRevision !== undefined && entry.queueRevision >= item.revision && ["queued", "editing", "pending", "unknown", "rejected"].includes(entry.status))
-      return [{ ...item, text: entry.text, revision: entry.queueRevision, status: entry.status as QueuedMessage["status"] }];
+      return [{ ...item, text: entry.text, revision: entry.queueRevision, status: entry.status as QueuedMessage["status"], attachments: entry.attachments ? [...entry.attachments] : item.attachments }];
     return [item];
   });
 }

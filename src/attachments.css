@@ -1,0 +1,21 @@
+.attachment-list, .draft-attachments { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:7px; min-width:0; margin:9px 0; }
+.attachment-card { display:flex; align-items:center; gap:9px; min-width:0; max-width:100%; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); color:var(--ink); text-decoration:none; }
+.attachment-preview, .attachment-placeholder { width:48px; height:48px; border-radius:5px; flex:none; }
+.attachment-preview { object-fit:cover; background:var(--surface); }
+.attachment-placeholder { display:grid; place-items:center; color:var(--muted); background:var(--surface); }
+.attachment-details { display:flex; flex-direction:column; gap:4px; flex:1; min-width:0; }
+.attachment-name { display:block; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; line-height:1.5; }
+.attachment-details small { color:var(--muted); font-size:11px; line-height:1.5; }
+.attachment-controls { display:flex; align-items:center; flex:none; gap:3px; }
+.attachment-controls button { display:inline-flex; align-items:center; justify-content:center; min-width:32px; min-height:36px; padding:4px; background:none; color:var(--muted); border:0; border-radius:5px; font-size:11px; }
+.attachment-controls button:disabled { opacity:.5; }
+.attachment-details .attachment-error, .attachment-error { color:var(--danger); overflow-wrap:anywhere; font-size:11px; margin:0; }
+.draft-attachments { max-height:200px; overflow:auto; flex-shrink:0; }
+.inspector[data-keyboard-open] .draft-attachments { max-height:96px; }
+.composer-actions .attachment-picker { margin-right:auto; flex:none; min-width:36px; min-height:36px; color:var(--muted); }
+.attachment-picker:disabled { opacity:.45; }
+.outbox .attachment-list { margin:5px 0; }
+@media (pointer:coarse) {
+  .composer-actions .attachment-picker { min-width:44px; min-height:44px; }
+  .attachment-controls button { min-width:36px; min-height:44px; }
+}

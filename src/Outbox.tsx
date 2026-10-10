@@ -9,10 +9,12 @@ import { captureDraft } from "./draftTransaction";
 import { queueFeedbackState, queueHeadState } from "./submissionFeedback";
 import type { SubmittedQueryReceipt, SubmittedQueryStore } from "./submittedQueries";
 import { withSubmittedQueryPost } from "./submittedQueries";
+import AttachmentList from "./AttachmentList";
+import { attachmentDraftController } from "./attachments";
 import "./submission-feedback.css";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
-export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, onActivity, onAccepted }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, onActivity, onAccepted, onAttachmentRecovery }: {
   threadId: string;
   items: QueuedMessage[];
   paused?: { stopId: string } | null;
@@ -21,6 +23,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   connectionPending?: boolean;
   onActivity?: () => void;
   onAccepted?: (receipt: SubmissionReceipt) => void;
+  onAttachmentRecovery?: (recovered: number, error?: string) => void;
   refresh: () => Promise<void> | undefined;
   drafts: Map<string, QueryDraft>;
   submissions?: SubmittedQueryStore;
@@ -108,6 +111,14 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         if (action === "cancel") {
           submissions?.receipt(threadId, { requestId: item.id, status: "cancelled" });
           submissions?.dismiss(threadId, item.id);
+          if (item.attachments?.length) {
+            try {
+              const recovered = await attachmentDraftController(drafts).releaseQueued(threadId, item.attachments.map(file => file.id));
+              if (currentView()) onAttachmentRecovery?.(recovered);
+            } catch (failure) {
+              if (currentView()) onAttachmentRecovery?.(0, (failure as Error).message || "暂时无法载入附件，请重试。");
+            }
+          }
         }
         if (result.requestId === item.id) submissions?.receipt(threadId, result);
         if (controller) {
@@ -165,13 +176,14 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
           {editing?.id === item.id ? <AutoTextarea aria-label="编辑待发消息" value={text} maxLength={16000} disabled={!!busy || disabled}
             onChange={e => { setText(e.target.value); drafts.set(key(item.id), { text: e.target.value, revision: editing.revision }); }} />
             : <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
+          <AttachmentList attachments={item.attachments} />
           <div className="outbox-actions">
             <small>{accepted ? "原任务已接收" : busy === item.id || item.status === "pending" ? "正在提交…" :
               item.status === "unknown" ? "结果待确认，不会自动重发" :
               item.status === "editing" ? "编辑中，已暂停发送" :
               item.status === "rejected" ? "发送未完成，可编辑后重试" : paused ? "已暂停" : "排队中"}</small>
             {editing?.id === item.id ? <>
-              <button disabled={!!busy || disabled || !text.trim()} onClick={() => void act(item, "save")}>保存</button>
+              <button disabled={!!busy || disabled || (!text.trim() && !item.attachments?.length)} onClick={() => void act(item, "save")}>保存</button>
               <button disabled={!!busy || disabled} onClick={() => void act(item, "resume")}>取消编辑</button>
             </> : mutable ? <>
               <button data-outbox-action="edit" aria-label={`${item.status === "editing" ? "继续编辑" : "编辑"}第 ${index + 1} 条待发消息`} disabled={!!busy || disabled} onClick={() => void act(item, "edit")}>{item.status === "editing" ? "继续编辑" : "编辑"}</button>
