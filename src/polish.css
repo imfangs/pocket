@@ -40,8 +40,8 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .heading h1 span { font-size:12px; font-weight:450; padding:2px 7px; background:var(--soft); color:var(--muted); border:0; border-radius:5px; }
 .heading .view-description { color:var(--muted); font-size:12px; margin-top:5px; }
 .with-inspector .view-description { display:none; }
-.new-conversation-button { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:7px 12px; color:var(--on-strong); background:var(--ink); border:1px solid var(--ink); border-radius:7px; font-size:13px; font-weight:550; }
-.sync-button { color:var(--muted); background:transparent; border:0; margin:0; align-self:center; min-height:36px; padding:8px; border-radius:6px; }
+.new-conversation-button, .sync-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:36px; min-height:36px; padding:8px; color:var(--muted); background:transparent; border:0; margin:0; align-self:center; border-radius:6px; flex-shrink:0; }
+.new-conversation-button { font-size:13px; font-weight:500; }
 .sync-button span { display:none; }
 .filter-row { min-height:52px; margin-top:12px; gap:8px; flex-wrap:wrap; }
 .activity-filters { display:flex; align-items:center; gap:5px; }
@@ -299,7 +299,8 @@ dialog .group-options { color:var(--text-secondary); }
 @keyframes popover-in { from { opacity:0; translate:0 3px; } to { opacity:1; translate:0 0; } }
 
 @media (hover:hover) and (pointer:fine) {
-  .primary:hover:not(:disabled), .new-conversation-button:hover:not(:disabled) { opacity:.86; }
+  .primary:hover:not(:disabled) { opacity:.86; }
+  .new-conversation-button:hover:not(:disabled), .sync-button:hover:not(:disabled) { color:var(--ink); background:var(--soft); }
   .icon-button:hover, .nav-item:hover, .group-row:hover, .view-options-trigger:hover, .search-toggle:hover, .inspector-management-trigger:hover, .copy-button:hover, .context-trigger:hover, .membership-list label:hover { color:var(--ink); background:var(--soft); }
   .task-row:hover { background:var(--surface-soft); }
   .task-row .row-check, .task-row .row-open { opacity:0; }
@@ -328,9 +329,8 @@ dialog .group-options { color:var(--text-secondary); }
   .heading h1 span { font-size:11px; padding:1px 6px; }
   .view-description { display:none; }
   .heading-line > .icon-button { width:38px; min-width:38px; min-height:44px; padding:7px; margin-left:-7px; }
-  .new-conversation-button { width:38px; min-width:38px; min-height:38px; padding:8px; border-radius:8px; }
+  .new-conversation-button, .sync-button { width:44px; min-width:44px; height:44px; min-height:44px; padding:0; }
   .new-conversation-button span { display:none; }
-  .sync-button { min-height:44px; min-width:34px; padding:7px; }
   .filter-row { min-height:54px; margin-top:5px; gap:4px; }
   .needs-input-toggle { min-height:38px; padding:7px 9px; gap:6px; }
   .list-controls { gap:2px; }
@@ -409,7 +409,7 @@ dialog .group-options { color:var(--text-secondary); }
   .conversation-controls .icon-button { min-height:44px; min-width:44px; }
   .composer-actions .primary, .copy-button, .context-trigger, .conversation-latest, .outbox-actions button { min-height:44px; }
   .copy-button { min-width:44px; }
-  .view-options-trigger, .search-toggle, .new-conversation-button { min-height:44px; }
+  .view-options-trigger, .search-toggle, .new-conversation-button, .sync-button { min-height:44px; }
   .directory-search-toggle { min-height:44px; }
   .quick-create-query textarea { font-size:16px; }
   .list-caption, .mobile-selection-toggle { min-height:44px; }

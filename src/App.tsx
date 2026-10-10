@@ -515,7 +515,7 @@ export default function App({
               aria-label="新建会话"
               onClick={() => void guard(showNewConversation)}
             >
-              <Plus size={18} /><span>新建会话</span>
+              <Plus size={16} /><span>新建会话</span>
             </button>
             <button
               className={`sync-button ${busy ? "spinning" : ""}`}
