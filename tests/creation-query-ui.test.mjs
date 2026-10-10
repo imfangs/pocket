@@ -18,21 +18,24 @@ test('ordinary creation always puts Query and its clear action before directory 
   assert.ok(html.indexOf('id="quick-create-query"') < html.indexOf('id="new-conversation-location"'));
   assert.ok(html.indexOf('id="new-conversation-location"') < html.indexOf('id="new-conversation-name"'));
   assert.match(html, /aria-label="清空 Query"/);
-  assert.match(html, />创建会话<\/button>/);
+  assert.match(html, /<details[^>]*class="new-conversation-settings"/);
+  assert.doesNotMatch(html.match(/<details[^>]*>/)[0], /\bopen\b/);
+  assert.match(html, /noValidate/);
+  assert.match(html, />正在准备…<\/button>/);
   assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /required/);
 });
 
-test('a nonempty initial Query is visible and changes the action to create and send', () => {
+test('a nonempty initial Query stays visible while creation options load', () => {
   const html = render({ initialQuery: 'The clipboard query' });
   assert.match(html, />The clipboard query<\/textarea>/);
-  assert.match(html, />创建并发送<\/button>/);
+  assert.match(html, />正在准备…<\/button>/);
 });
 
-test('cleared or whitespace-only Query explicitly creates an empty conversation', () => {
+test('empty Query remains optional while creation options load', () => {
   for (const initialQuery of ['', ' \n ']) {
     const html = render({ initialQuery });
-    assert.match(html, />创建会话<\/button>/);
-    assert.doesNotMatch(html, />创建并发送<\/button>/);
+    assert.match(html, />正在准备…<\/button>/);
+    assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /required/);
   }
 });
 

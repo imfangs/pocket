@@ -31,6 +31,8 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
   const [name, setName] = useState(""), [loading, setLoading] = useState(true), [error, setError] = useState("");
   const submitting = useRef(false), [busy, setBusy] = useState(false);
   const directorySelect = useRef<HTMLSelectElement>(null);
+  const settings = useRef<HTMLDetailsElement>(null);
+  const projectSelect = useRef<HTMLSelectElement>(null);
   const directorySearch = useRef<HTMLInputElement>(null);
   const startingCwd = useRef(preferredCwd);
   const directories = useMemo(() => creationDirectories(locations), [locations]);
@@ -67,8 +69,14 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
     return () => controller.abort();
   }, []);
   return <Modal title="新建会话" onClose={() => !busy && onClose()} busy={busy} dirty={dirty}>
-    <form onSubmit={async event => {
-      event.preventDefault(); if (!available || !selectedLocation || locked || submitting.current || queryTooLong) return;
+    <form className="new-conversation-form" noValidate onSubmit={async event => {
+      event.preventDefault(); if (!available || loading || locked || submitting.current || queryTooLong) return;
+      if (!selectedLocation) {
+        setError(directory ? "请选择归属项目后创建。" : "请选择工作目录后创建。");
+        if (settings.current) settings.current.open = true;
+        (directory ? projectSelect.current : directorySelect.current)?.focus();
+        return;
+      }
       setQueryDraft(draft => editCreationQuery(draft, draft.text));
       submitting.current = true; setBusy(true); setError("");
       try {
@@ -92,6 +100,9 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
         {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}
       </div>
+      <details ref={settings} className="new-conversation-settings">
+      <summary>更多设置</summary>
+      <div className="new-conversation-settings-body">
       <div className="new-directory-heading">
         <label className="field-label" htmlFor="new-conversation-location">工作目录</label>
         <button type="button" className="text-button directory-search-toggle" aria-expanded={directorySearchOpen} aria-controls="new-directory-search"
@@ -113,6 +124,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         setProjectLocationId("");
         setSelectionTouched(true);
         setDirectoryQuery("");
+        setError("");
         const location = creationLocation(directories, event.target.value, "");
         saveCreationPreference({ cwd: event.target.value, locationId: location?.id || "" });
       }} required>
@@ -128,9 +140,10 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       {directory && <p className="field-help new-conversation-path">{directory.cwd}</p>}
       {projects.length > 1 ? <>
         <label className="field-label" htmlFor="new-conversation-project">归属项目</label>
-        <select id="new-conversation-project" value={projectLocationId} disabled={loading || locked}
+        <select ref={projectSelect} id="new-conversation-project" value={projectLocationId} disabled={loading || locked}
           onChange={event => {
             setProjectLocationId(event.target.value); setSelectionTouched(true);
+            setError("");
             saveCreationPreference({ cwd: directoryCwd, locationId: event.target.value });
           }} required>
           <option value="">选择归属项目</option>
@@ -140,11 +153,13 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       <label className="field-label" htmlFor="new-conversation-name">标题 <small>可选</small></label>
       <input id="new-conversation-name" value={name} disabled={locked} maxLength={220} placeholder="留空自动命名"
         onChange={event => setName(event.target.value)} />
+      </div>
+      </details>
       {operation && <TaskOperationStatus operation={operation} error={operationError} onCheck={onCheck} onCancel={onCancelOperation} />}
       {error && <p className="inline-error" role="alert">{error}</p>}
       <footer>
-        <button type="button" className="secondary" disabled={busy} onClick={onClose}>{activeOperation(operation) ? "返回列表" : "取消"}</button>
-        <button className="primary" disabled={loading || !available || locked || !selectedLocation || queryTooLong}>{busy || operation?.status === "pending" ? "正在创建…" : query.trim() ? "创建并发送" : "创建会话"}</button>
+        {activeOperation(operation) && <button type="button" className="secondary" disabled={busy} onClick={onClose}>返回列表</button>}
+        <button className="primary" disabled={loading || !available || locked || queryTooLong}>{busy || operation?.status === "pending" ? "正在创建…" : loading ? "正在准备…" : query.trim() ? "创建并发送" : "创建会话"}</button>
       </footer>
     </form>
   </Modal>;

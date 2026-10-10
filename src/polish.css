@@ -222,6 +222,13 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .directory-search-feedback, .directory-search-result { color:var(--muted); font-size:12px; }
 .new-directory-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; }
 .new-directory-heading .field-label { margin:0; }
+.new-conversation-form { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:12px; }
+.new-conversation-form > * { grid-column:1 / -1; }
+.new-conversation-form .quick-create-query { margin-bottom:0; }
+.new-conversation-form > .new-conversation-settings:not([open]) { grid-column:1; }
+.new-conversation-settings > summary { min-height:44px; padding:12px 0; color:var(--muted); font-size:12px; cursor:pointer; }
+.new-conversation-settings-body { padding:8px 0; }
+.new-conversation-form > footer { grid-column:2; margin:0; align-self:start; }
 .directory-search-toggle { display:inline-flex; align-items:center; gap:5px; min-height:36px; padding:4px 0 4px 8px; color:var(--muted); font-size:12px; }
 .intent-options button { min-height:36px; border:1px solid var(--line); background:var(--surface); border-radius:6px; color:var(--text-secondary); }
 .intent-options button.chosen { background:var(--soft); border-color:var(--line-strong); color:var(--ink); }
