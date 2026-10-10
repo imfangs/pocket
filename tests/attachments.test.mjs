@@ -278,6 +278,32 @@ test("native message identity and known saved wrappers display attachments witho
   assert.match(foreign.messages[0].text, /Mac/);
 });
 
+test("unbound native attachments retain a generic visible placeholder without exposing paths or changing bound text", async t => {
+  const f = fixture(t);
+  const attachmentPaths = [{ path: "/private/external-photo.png", name: "Private filename.png", kind: "image" }];
+  const text = "请看这张图片\n  保留空白";
+  const projected = f.service.attachments.enrich(id, { source: "desktop", messages: [
+    { id: "only-image", role: "user", text: "", attachmentPaths },
+    { id: "text-and-image", role: "user", text, attachmentPaths },
+    { id: "two-images", role: "user", text: "", attachmentPaths: [...attachmentPaths, { path: "/private/another.png", kind: "image" }] },
+    { id: "text-only", role: "user", text, attachmentPaths: [] },
+  ] });
+  assert.equal(projected.messages[0].text, "[附件需在 Mac 中查看]");
+  assert.equal(projected.messages[1].text, text + "\n\n[附件需在 Mac 中查看]");
+  assert.equal(projected.messages[2].text, "[2 个附件需在 Mac 中查看]");
+  assert.equal(projected.messages[3].text, text);
+  assert.ok(projected.messages.every(message => message.attachments === undefined && !("attachmentPaths" in message)));
+  assert.equal(JSON.stringify(projected).includes("/private/"), false);
+  assert.equal(JSON.stringify(projected).includes("Private filename"), false);
+  await f.upload(1);
+  await f.service.send(id, { requestId: rid(1), text, attachments: [uid(1)] });
+  const bound = f.service.attachments.enrich(id, { source: "desktop", messages: [
+    { id: "bound", role: "user", text, clientMessageId: rid(1), attachmentPaths },
+  ] });
+  assert.equal(bound.messages[0].text, text);
+  assert.equal(bound.messages[0].attachments[0].id, uid(1));
+});
+
 test("cleanup expires drafts and crash orphans but preserves accepted and unknown files", async t => {
   const f = fixture(t); await f.upload(1); await f.upload(2); await f.upload(3);
   await f.service.send(id, { requestId: rid(1), text: "accepted", attachments: [uid(1)] });

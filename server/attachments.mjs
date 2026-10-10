@@ -297,7 +297,11 @@ export class Attachments {
         rows.find(row => message.text === wrappedText(row.text, row.attachments)) ||
         (history.source === "desktop" && Array.isArray(attachmentPaths) && rows.find(row => message.text === row.text &&
           attachmentPaths.length === row.attachments.length && attachmentPaths.every((a, i) => a.path === row.attachments[i].path)));
-      if (!match) return !clean.text && attachmentPaths?.length ? { ...clean, text: "[附件需在 Mac 中查看]" } : clean;
+      if (!match) {
+        if (!Array.isArray(attachmentPaths) || !attachmentPaths.length) return clean;
+        const placeholder = attachmentPaths.length === 1 ? "[附件需在 Mac 中查看]" : `[${attachmentPaths.length} 个附件需在 Mac 中查看]`;
+        return { ...clean, text: clean.text ? `${clean.text}\n\n${placeholder}` : placeholder };
+      }
       if (history.source === "desktop" && message.id && (message.clientMessageId === match.request_id ||
           (Array.isArray(attachmentPaths) && attachmentPaths.length === match.attachments.length && attachmentPaths.every((a, i) => a.path === match.attachments[i].path))))
         this.store.db.prepare("UPDATE attachment_dispatches SET message_id=? WHERE request_id=?").run(message.id, match.request_id);
