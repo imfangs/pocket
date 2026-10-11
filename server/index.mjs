@@ -12,6 +12,7 @@ import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
 import { ReadStateService } from "./read-state.mjs";
 import { LifecycleService } from "./lifecycle.mjs";
+import { RenameService } from "./rename.mjs";
 import { TaskStatusService } from "./task-statuses.mjs";
 import { Notifications } from "./notifications.mjs";
 import { sendCatalog } from "./catalog-response.mjs";
@@ -65,6 +66,10 @@ export function makeApp(options = {}) {
   };
   const readSource = options.readSource || (() => readCodexSource(codexHome));
   const lifecycle = new LifecycleService(store, desktop, codexHome, sync, options.lifecycle);
+  const rename = new RenameService(store, codexHome, sync, {
+    ...options.rename, lifecycleBlocked: id => lifecycle.blocked.has(id),
+  });
+  lifecycle.renamePending = id => !!rename.active(id);
   const taskStatuses = new TaskStatusService({ codexHome, threads: () => store.catalog().threads,
     excluded: () => lifecycle.blocked, ...options.taskStatuses });
   lifecycle.onBlockedChange = () => taskStatuses.invalidate();
@@ -233,6 +238,15 @@ export function makeApp(options = {}) {
       const archiveThread = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/archive$/i);
       if (archiveThread && method === "POST") {
         const result = lifecycle.startArchive(archiveThread[1], await body(req, 2048));
+        return json(res, result.status === "pending" ? 202 : 200, result);
+      }
+      const taskName = path.match(/^\/api\/tasks\/([^/]+)\/name(?:\/([^/]+))?$/);
+      if (taskName && method === "GET")
+        return json(res, 200, taskName[2]
+          ? await rename.get(taskName[1], taskName[2])
+          : await rename.inspect(taskName[1]));
+      if (taskName && method === "POST" && !taskName[2]) {
+        const result = rename.start(taskName[1], await body(req, 8192));
         return json(res, result.status === "pending" ? 202 : 200, result);
       }
       if (method === "GET" && path === "/api/notifications")
@@ -428,13 +442,14 @@ export function makeApp(options = {}) {
     clearInterval(interval);
     taskStatuses.stop();
     lifecycle.stop();
+    rename.stop();
     notifications.stop();
     desktop.stopQueue();
     store.close();
   };
   server.on("listening", () => { desktop.startQueue(); notifications.start(); lifecycle.start(); });
   server.on("close", close);
-  return { server, store, sync, auth, lifecycle };
+  return { server, store, sync, auth, lifecycle, rename };
 }
 if (
   process.argv[1] &&

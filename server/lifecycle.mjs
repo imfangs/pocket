@@ -210,6 +210,7 @@ export class LifecycleService {
     }
   }
   archiveBlock(id) {
+    if(this.renamePending?.(id))return 'rename_in_progress';
     if(this.desktop.outbox(id).length)return 'outbox_not_empty';
     if(this.desktop.sending.has(id)||this.desktop.queueReservations.has(id)||this.desktop.stops.pending(id)||this.desktop.compactionPending(id))return 'operation_in_progress';
     const pending=this.store.db.prepare("SELECT id FROM request_responses WHERE thread_id=? AND status='pending' LIMIT 1").get(id);
@@ -219,6 +220,9 @@ export class LifecycleService {
     const thread=this.store.thread(id);
     if(!input||Object.keys(input).some(k=>!['requestId','archived'].includes(k))||typeof input.archived!=='boolean')
       throw new AppError('需要有效的归档目标状态',400);
+    // Refuse before reserve() suspends an owner. Renaming alone must never
+    // interrupt the original turn or its message queue.
+    if(this.renamePending?.(id))throw new AppError('此会话有未确认的重命名，请先核对结果',409);
     const blocker=input.archived?this.archiveBlock(id):null;
     const reserved=this.reserve(input.requestId,input.archived?'archive':'restore',id,{archived:input.archived});
     if(reserved.created){
@@ -232,6 +236,7 @@ export class LifecycleService {
   async archiveStep(id) {
     const row=this.row(id),threadId=row.thread_id;
     if(this.stopped||!['pending','waiting'].includes(row.status))return;
+    if(this.renamePending?.(threadId)){this.update(id,'rejected','rename_in_progress');return;}
     const desired=row.operation==='archive';
     const blocker=desired?this.archiveBlock(threadId):null;
     if(blocker){this.update(id,'rejected',blocker);return;}

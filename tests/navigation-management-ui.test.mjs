@@ -1,22 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { navigationViewCount, groupAncestorIds } from '../src/navigationModel.ts';
+import { navigationViewCount, normalizeNavigationPrefs } from '../src/navigationModel.ts';
 import { emptyListContent, threadListStates } from '../src/listPresentation.ts';
 import { modalCloseDecision } from '../src/modalInteraction.ts';
 import { creationDirectories, creationDirectoryChoices, creationLocation, searchCreationDirectories } from '../src/creationLocations.ts';
 
 const thread = { id: 'one', archived: false, separator: false, missing: false, pinned: false, intent: 'later', lastOpenedAt: 1, groupIds: [], updatedAt: 1 };
-test('sidebar view counts exclude archived assignments and archived recent opens', () => {
+test('sidebar view counts exclude archived conversations from normal views', () => {
   const catalog = { threads: [thread, { ...thread, id: 'archived', archived: true }], groups: [] };
-  assert.equal(navigationViewCount(catalog, 'later'), 1);
   assert.equal(navigationViewCount(catalog, 'recent'), 1);
   assert.equal(navigationViewCount(catalog, 'archived'), 1);
   assert.equal(navigationViewCount(catalog, 'all'), 1);
 });
-test('restoring a selected nested group reveals only its ancestors and tolerates malformed cycles', () => {
-  const groups = [{ id: 'a', parentId: null }, { id: 'b', parentId: 'a' }, { id: 'c', parentId: 'b' }, { id: 'other', parentId: null }];
-  assert.deepEqual([...groupAncestorIds(groups, 'c')], ['b', 'a']);
-  assert.deepEqual([...groupAncestorIds([{ id: 'a', parentId: 'b' }, { id: 'b', parentId: 'a' }], 'a')], ['b']);
+test('old arrangement and group preferences return to all while preserving supported pin order', () => {
+  for (const view of ['group', 'unassigned', 'active', 'later', 'reference', 'unknown'])
+    assert.deepEqual(normalizeNavigationPrefs({ view, groupId: 'old-group', sort: 'pinned', sortVersion: 2 }),
+      { view: 'all', sort: 'pinned', sortVersion: 2 });
+  for (const view of ['all', 'unread', 'running', 'pinned', 'recent', 'archived'])
+    assert.equal(normalizeNavigationPrefs({ view }).view, view);
+  for (const value of [null, undefined, 'broken', 42, { view: 'all', sort: 'review', sortVersion: 2 }])
+    assert.deepEqual(normalizeNavigationPrefs(value), { view: 'all', sort: 'updated', sortVersion: 2 });
 });
 test('row state labels describe evidence rather than treating ordinary idle as unread', () => {
   assert.deepEqual(threadListStates(thread), []);
@@ -26,7 +29,7 @@ test('row state labels describe evidence rather than treating ordinary idle as u
 });
 test('empty views offer a relevant next step, and unavailable unread state is never presented as empty', () => {
   assert.equal(emptyListContent({ view: 'all', query: '' }).action, 'create');
-  assert.equal(emptyListContent({ view: 'group', query: '' }).action, 'showAll');
+  assert.equal(emptyListContent({ view: 'recent', query: '' }).action, 'showAll');
   assert.equal(emptyListContent({ view: 'all', query: 'search' }).action, 'clearQuery');
   assert.equal(emptyListContent({ view: 'all', query: '', hasFilters: true }).action, 'clearFilters');
   const unread = emptyListContent({ view: 'unread', query: '', unreadAvailable: false });

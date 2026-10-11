@@ -29,10 +29,8 @@ export function emptyListContent({ view, query, hasFilters = false, unreadAvaila
   if (view === "unread") return { title: "暂时没有未读进展", description: unreadPending ? "还有未读会话尚未确认结束，结束后会出现在这里。" : "会话结束并有新提醒时，会出现在这里。", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "running") return { title: "暂未确认有运行中的任务", description: "这里显示 Mac 上当前已确认的运行任务。", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "all") return { title: "还没有会话", description: "", action: "create", actionLabel: "新建会话" };
-  if (view === "pinned") return { title: "还没有置顶会话", description: "这里显示你在 Codex 中置顶的会话。", action: "showAll", actionLabel: "查看全部会话" };
+  if (view === "pinned") return { title: "还没有置顶会话", description: "左划会话可置顶，也会显示 Codex 的置顶会话。", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "archived") return { title: "没有已归档会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
-  if (view === "group") return { title: "这个分组还没有会话", description: "在会话的「整理」中加入分组。", action: "showAll", actionLabel: "去选择会话" };
-  if (view === "unassigned") return { title: "会话都已有分组", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "recent") return { title: "还没有打开记录", description: "", action: "showAll", actionLabel: "查看全部会话" };
-  return { title: view === "later" ? "还没有稍后继续的会话" : view === "reference" ? "还没有留作参考的会话" : "还没有正在推进的会话", description: "在会话的「整理」中设置你的安排。", action: "showAll", actionLabel: "去选择会话" };
+  return { title: "没有会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
 }

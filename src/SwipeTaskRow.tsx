@@ -51,12 +51,7 @@ export default function SwipeTaskRow({ threadId, title, pinned, className, child
     restoreKeyboardFocus.current = event.detail === 0;
     onPin?.();
   };
-  const drag = (event: React.DragEvent) => {
-    onOpenChange(false);
-    event.dataTransfer.setData("application/x-codex-thread", threadId);
-    event.dataTransfer.effectAllowed = "copy";
-  };
-  const row = <div ref={moving} className={className} draggable onDragStart={drag}>
+  const row = <div ref={moving} className={className}>
     {children}
     {onPin && <button ref={shortcut} type="button" data-row-action="pin" className="row-pin-shortcut icon-button"
       aria-label={`${pinned ? "取消置顶" : "置顶"} ${title}`} title={pinned ? "取消置顶" : "置顶"}

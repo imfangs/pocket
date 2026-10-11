@@ -11,7 +11,6 @@
 - 默认按「最近活动」排序，在「置顶」也可以切换排序；搜索标题、来源项目、目录和接续说明。
 - 左划任务显示蓝色「置顶 / 取消置顶」，点击后只调整 Pocket 列表和置顶视图；置顶后自动采用置顶优先，Mac 原标记不改。桌面和键盘可用同一行的图钉按钮。
 - 新建默认只显示 Query；目录、项目与标题放在「更多设置」，沿用上次有效选择。缺少必要选择时才展开补充，首条消息和创建过程持续保留回执。
-- 「我的分组」支持新建、改名、颜色、排序位置、上级分组和折叠；可拖动任务加入，也可勾选多条后批量归组。
 - 选中任务，在「会话」查看最近的用户消息和可见回复，支持 Markdown 表格、列表、引用和代码块；切回近期任务保留历史和阅读位置。运行中更新更快，后台暂停，联网或回到前台后立即恢复。空闲任务直接发送文本 query；运行中默认加入待发列表，当前轮完成后依次发送，支持编辑、删除和直接追加到当前轮。Pocket 待发列表保存在 Mac，与桌面的待发列表独立；读取暂时失败仍可在条件允许时保存入队，连接与实际派发重新核验原任务状态。
 - 命令、文件改动、本轮权限审批和同步阻塞问题可在网页响应；展示原请求内容，由用户明确选择。MCP 自定义表单与未支持类型仍在 Mac 处理，见 [会话契约](docs/CONVERSATION.md)。
 - 会话输入框旁的回形针可添加图片和文件，也可粘贴图片；支持纯附件消息、预览、上传核对和待发保留。文件直接传到Mac，图片交给原模型看，普通文件由原任务读取；每条最多6个、单文件20MiB，详见[附件发送](docs/design/2026-10-10-attachments.md)。
@@ -19,11 +18,11 @@
 - 移动端以紧凑标题、对话和输入为主，上下文说明与压缩收进展开面板。
 - 输入框随内容增高，长文到上限后内部滚动；可查看上下文占用，并在任务空闲时手动压缩；可以保留待发消息，压缩期间暂停出队。
 - 手机上可在任务列表顶部下拉刷新；从详情页左边缘向右滑返回列表，未发送草稿保留；输入时详情随软件键盘调整可见区域。
-- 在「整理」写接续说明，标记正在推进 / 稍后继续 / 留作参考，并设置可选回顾日期。点保存，或切换任务时由界面先保存。明确标记的任务即使已归档，仍保留在相应意图视图。
+- 在唯一的「管理」页重命名、归档/恢复会话或保存接续说明。名称同步到 Codex 原会话；已归档的会话需先恢复再改名。分组和手工安排已从界面移除，旧数据仍保留在本机与备份中。
 - 「在 Mac 打开原任务」用原 thread ID 请求官方 App。运行与审批继续由原版负责，网页提交继承原模型和权限，见 [会话接入说明](docs/CONVERSATION.md)。
 - 「设置」可导出/恢复整理结果。横线分隔符默认只在 Pocket 隐藏，原版记录保留。
 
-首轮已从原版读取项目和置顶，建立独立分组；另外把三条明确的游戏任务加入 `side / 游戏`，没有替用户判定它们的接续状态。完整验证与当前限制见 [CURRENT.md](CURRENT.md)。
+原项目筛选、Pocket 置顶及运行/待输入过滤继续使用。完整验证与当前限制见 [CURRENT.md](CURRENT.md)。
 
 ## 运行
 
@@ -51,8 +50,7 @@ npm start
 
 ```sh
 node /Users/fangs/workspace/side/codex-navigator/bin/navigator.mjs list --query 游戏 --json
-node /Users/fangs/workspace/side/codex-navigator/bin/navigator.mjs groups --json
-node /Users/fangs/workspace/side/codex-navigator/bin/navigator.mjs annotate 原会话ID --intent later --note-file /绝对路径/note.txt --json
+node /Users/fangs/workspace/side/codex-navigator/bin/navigator.mjs annotate 原会话ID --note-file /绝对路径/note.txt --json
 node /Users/fangs/workspace/side/codex-navigator/bin/navigator.mjs backup /绝对路径/navigator-backup.json --json
 ```
 

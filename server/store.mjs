@@ -24,10 +24,12 @@ const validDate = (s) =>
   new Date(s).toISOString().slice(0, 10) === s;
 export const intents = ["none", "active", "later", "reference"];
 function pinFromRow(source, row, pinRevision) {
-  if (row.pocket_pinned == null) return { ...source, pinRevision, pinSource: "codex" };
+  const titleRevision = parse(row.title_revision, 0);
+  if (row.pocket_pinned == null) return { ...source, pinRevision, titleRevision, pinSource: "codex" };
   return {
     ...source,
     pinRevision,
+    titleRevision,
     pinSource: "pocket",
     pinned: row.pocket_pinned === 1,
     pinnedOrder: row.pocket_pinned === 1 ? row.pocket_position : -1,
@@ -102,7 +104,7 @@ export class NavigatorStore {
     try {
       const previousRows = this.db.prepare("SELECT s.id,s.data,p.pinned AS pocket_pinned FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id").all();
       const previousById = new Map(previousRows.map(row => [row.id, row]));
-      let pinsChanged = false;
+      let pinsChanged = false, titlesChanged = false;
       const upsert = this.db.prepare(
         "INSERT INTO source_threads VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
       );
@@ -111,6 +113,8 @@ export class NavigatorStore {
         if (seen.has(t.id)) throw new AppError("来源包含重复 ID");
         seen.add(t.id);
         const previous = previousById.get(t.id);
+        if (previous && JSON.parse(previous.data).title !== t.title)
+          titlesChanged = true;
         if (previous && previous.pocket_pinned == null) {
           const old = JSON.parse(previous.data);
           if (Boolean(old.pinned) !== Boolean(t.pinned) ||
@@ -155,6 +159,7 @@ export class NavigatorStore {
       this.set("projects", source.projects);
       this.set("sourceInfo", source.sourceInfo);
       if (pinsChanged) this.advancePinRevision();
+      if (titlesChanged) this.advanceTitleRevision();
       this.db.exec("COMMIT");
       this.lastError = null;
     } catch (e) {
@@ -173,17 +178,17 @@ export class NavigatorStore {
   }
   thread(id) {
     const row = this.db
-      .prepare("SELECT s.data,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id WHERE s.id=?")
+      .prepare("SELECT s.data,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision,(SELECT value FROM settings WHERE key='titleRevision') AS title_revision FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id WHERE s.id=?")
       .get(id);
     if (!row) throw new AppError("找不到原会话", 404);
     return pinFromRow(JSON.parse(row.data), row, parse(row.pin_revision, 0));
   }
   catalog() {
     const groups = this.groups();
-    // The uncorrelated revision lookup runs once in the same SQLite snapshot
-    // as the pin rows, including when another process updates this database.
+    // Revision lookups share the source/pin SQLite snapshot, so an older
+    // catalog response cannot carry a newer revision for an older title.
     const rows = this.db
-      .prepare("SELECT s.data,a.*,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision FROM source_threads s LEFT JOIN annotations a ON a.thread_id=s.id LEFT JOIN pin_overrides p ON p.thread_id=s.id")
+      .prepare("SELECT s.data,a.*,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision,(SELECT value FROM settings WHERE key='titleRevision') AS title_revision FROM source_threads s LEFT JOIN annotations a ON a.thread_id=s.id LEFT JOIN pin_overrides p ON p.thread_id=s.id")
       .all();
     const pinRevision = parse(rows[0]?.pin_revision, 0);
     const threads = rows.map((row) => {
@@ -203,6 +208,12 @@ export class NavigatorStore {
     if (!Number.isSafeInteger(previous) || previous < 0 || previous >= Number.MAX_SAFE_INTEGER)
       throw new AppError("置顶修订编号已超出可用范围");
     this.set("pinRevision", previous + 1);
+  }
+  advanceTitleRevision() {
+    const previous = this.setting("titleRevision", 0);
+    if (!Number.isSafeInteger(previous) || previous < 0 || previous >= Number.MAX_SAFE_INTEGER)
+      throw new AppError("会话名称修订编号已超出可用范围");
+    this.set("titleRevision", previous + 1);
   }
   setPin(id, input) {
     if (!input || typeof input !== "object" || Array.isArray(input) ||

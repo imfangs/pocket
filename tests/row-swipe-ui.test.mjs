@@ -17,7 +17,7 @@ test('a closed row keeps a keyboard pin entry while its hidden blue action canno
   assert.match(html, /class="row-pin-action" aria-hidden="true" tabindex="-1"[^>]*disabled/);
   assert.match(html, /class="row-pin-shortcut icon-button"[^>]*tabindex="0"/);
   assert.match(html, /aria-label="置顶 Original task"/);
-  assert.match(html, /draggable="true"/);
+  assert.doesNotMatch(html, /draggable/);
 });
 
 test('the revealed action reflects the authoritative pinned value and pending state prevents repeated activation', () => {
@@ -38,13 +38,13 @@ test('a rejected action retains a visible error without pretending that the pin 
   assert.doesNotMatch(html, /取消置顶/);
 });
 
-test('batch selection disables row actions while ordinary checkbox and row targets remain', () => {
+test('rows retain swipe and keyboard pin actions with no retired batch selection', () => {
   const thread = Object.freeze({ id: 'thread', title: 'Original task', pinned: false, intent: 'none', projectName: 'Project', updatedAt: 1, groupIds: [] });
-  const html = renderToStaticMarkup(createElement(TaskList, { threads: [thread], groups: [], view: 'all', selecting: true, checked: new Set(), selected: null,
-    onSelect: noop, onOpen: noop, onCheck: noop, onCheckAll: noop, onBatch: noop, onClear: noop, onPin: async () => {}, busy: false, query: '', onClearQuery: noop }));
-  assert.match(html, /data-swipe-enabled="false"/);
-  assert.match(html, /class="row-pin-shortcut icon-button"[^>]*disabled/);
-  assert.match(html, /aria-label="选择 Original task"/);
+  const html = renderToStaticMarkup(createElement(TaskList, { threads: [thread], view: 'all', selected: null,
+    onSelect: noop, onOpen: noop, onPin: async () => {}, busy: false, query: '', onClearQuery: noop }));
+  assert.match(html, /data-swipe-enabled="true"/);
+  assert.match(html, /class="row-pin-shortcut icon-button"[^>]*tabindex="0"/);
+  assert.doesNotMatch(html, /aria-label="选择 Original task"|批量操作|row-check|draggable/);
   assert.match(html, /data-thread-id="thread"/);
   assert.equal(thread.pinned, false);
 });

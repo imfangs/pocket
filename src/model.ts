@@ -1,52 +1,20 @@
-import type { Group, Thread, View } from "./types";
+import type { Thread, View } from "./types";
 import type { TaskStatus } from "./taskStatuses";
-export function descendantIds(groups: Group[], id: string): Set<string> {
-  const ids = new Set([id]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const g of groups)
-      if (g.parentId && ids.has(g.parentId) && !ids.has(g.id)) {
-        ids.add(g.id);
-        changed = true;
-      }
-  }
-  return ids;
-}
-export function groupPath(groups: Group[], id: string): string {
-  const parts: string[] = [];
-  const seen = new Set<string>();
-  let current = groups.find((g) => g.id === id);
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id);
-    parts.unshift(current.name);
-    current = groups.find((g) => g.id === current?.parentId);
-  }
-  return parts.join(" / ");
-}
 export function filterThreads(
   threads: Thread[],
-  groups: Group[],
   view: View,
-  groupId: string | null,
   query: string,
   project: string,
   showSeparators: boolean,
   sort: string,
   runtimeStates?: ReadonlyMap<string, TaskStatus>,
 ) {
-  const ids = groupId ? descendantIds(groups, groupId) : new Set<string>();
   const terms = query
     .normalize("NFKC")
     .toLocaleLowerCase()
     .trim()
     .split(/\s+/)
     .filter(Boolean);
-  const groupPaths = new Map<string, string>();
-  const searchableGroupPath = (id: string) => {
-    if (!groupPaths.has(id)) groupPaths.set(id, groupPath(groups, id));
-    return groupPaths.get(id)!;
-  };
   return threads
     .filter((t) => {
       if (!showSeparators && t.separator) return false;
@@ -58,17 +26,12 @@ export function filterThreads(
       if (project && t.projectId !== project) return false;
       if (view === "pinned" && !t.pinned) return false;
       if (view === "recent" && !t.lastOpenedAt) return false;
-      if (["active", "later", "reference"].includes(view) && t.intent !== view)
-        return false;
-      if (view === "unassigned" && t.groupIds.length) return false;
-      if (view === "group" && !t.groupIds.some((g) => ids.has(g))) return false;
       if (!terms.length) return true;
       const hay = [
         t.title,
         t.note,
         t.cwd,
         t.projectName,
-        ...t.groupIds.map(searchableGroupPath),
       ]
         .join(" ")
         .normalize("NFKC")
@@ -93,4 +56,3 @@ export function ago(ms: number) {
     day: "numeric",
   });
 }
-export const today = () => new Date().toLocaleDateString("en-CA");

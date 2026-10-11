@@ -85,9 +85,9 @@ test('stopping an unconfirmed creation frees recovery without claiming to remove
 });
 test('every ordinary list excludes truly archived tasks while the archive view retains them', () => {
   const archived = { id: 'a', archived: true, pinned: true, pinnedOrder: 0, intent: 'active', needsInput: true, lastOpenedAt: 1, groupIds: ['g'], updatedAt: 1, missing: false };
-  for (const view of ['all', 'pinned', 'group', 'unassigned', 'unread', 'active', 'later', 'reference', 'recent']) {
+  for (const view of ['all', 'pinned', 'unread', 'running', 'recent']) {
     const row = { ...archived, ...(view === 'later' || view === 'reference' ? { intent: view } : {}) };
-    assert.deepEqual(filterThreads([row], [{ id: 'g', parentId: null }], view, view === 'group' ? 'g' : null, '', '', false, 'updated'), [], view);
+    assert.deepEqual(filterThreads([row], view, '', '', false, 'updated'), [], view);
   }
-  assert.equal(filterThreads([archived], [], 'archived', null, '', '', false, 'updated')[0], archived);
+  assert.equal(filterThreads([archived], 'archived', '', '', false, 'updated')[0], archived);
 });

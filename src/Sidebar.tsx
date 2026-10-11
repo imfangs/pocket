@@ -1,35 +1,13 @@
-import {
-  Archive,
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  CircleDashed,
-  Clock3,
-  Folder,
-  FolderOpen,
-  Layers3,
-  Pocket,
-  MoreHorizontal,
-  MessageCircle,
-  Pin,
-  Plus,
-  RotateCcw,
-  Settings2,
-  X,
-} from "lucide-react";
-import { Fragment, useState, useEffect, useMemo, useRef } from "react";
-import type { Catalog, Group, View } from "./types";
-import { descendantIds } from "./model";
-import { groupAncestorIds, navigationViewCount } from "./navigationModel";
+import { Archive, Layers3, Pocket, MessageCircle, Pin, RotateCcw, Settings2, X } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import type { Catalog, View } from "./types";
+import { navigationViewCount } from "./navigationModel";
 interface Props {
   catalog: Catalog;
   view: View;
-  groupId: string | null;
   mobileOpen: boolean;
   onClose: () => void;
-  onView: (v: View, id?: string) => void;
-  onGroup: (g?: Group) => void;
-  onDrop: (id: string, groupId: string) => void;
+  onView: (v: View) => void;
   onSettings: () => void;
   showSeparators?: boolean;
 }
@@ -60,130 +38,14 @@ export default function Sidebar(p: Props) {
     }
     wasOpen.current = isOpen;
   }, [narrow, p.mobileOpen]);
-  const [collapsed, setCollapsed] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("navigator.collapsed") || "[]");
-    } catch {
-      return [];
-    }
-  });
-  const toggle = (id: string) => {
-    const next = collapsed.includes(id)
-      ? collapsed.filter((x) => x !== id)
-      : [...collapsed, id];
-    setCollapsed(next);
-    try { localStorage.setItem("navigator.collapsed", JSON.stringify(next)); } catch {}
-  };
-  useEffect(() => {
-    if (p.view !== "group" || !p.groupId) return;
-    const ancestors = groupAncestorIds(p.catalog.groups, p.groupId);
-    setCollapsed(previous => {
-      const next = previous.filter(id => !ancestors.has(id));
-      if (next.length === previous.length) return previous;
-      try { localStorage.setItem("navigator.collapsed", JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, [p.view, p.groupId, p.catalog.groups]);
-  useEffect(() => {
-    if (p.view === "group" && p.groupId) asideRef.current
-      ?.querySelector(`[data-group-id="${CSS.escape(p.groupId)}"]`)?.scrollIntoView({ block: "nearest" });
-  }, [p.view, p.groupId, p.catalog.groups.length, p.mobileOpen, collapsed]);
-  const counts = useMemo(() => Object.fromEntries((["all", "pinned", "active", "later", "reference", "recent", "unread", "archived", "unassigned"] as View[])
+  const counts = useMemo(() => Object.fromEntries((["all", "pinned", "recent", "unread", "archived"] as View[])
     .map(view => [view, navigationViewCount(p.catalog, view, p.showSeparators)])), [p.catalog, p.showSeparators]);
-  const active = p.catalog.threads.filter((t) => !t.archived && (p.showSeparators || !t.separator));
   const navs: [View, string, typeof Layers3, number | string][] = [
     ["unread", "待我输入", MessageCircle, p.catalog.sourceInfo?.unread?.available ? counts.unread : "—"],
     ["all", "全部会话", Layers3, counts.all],
     ["pinned", "置顶", Pin, counts.pinned],
     ["recent", "最近打开", RotateCcw, counts.recent],
-    [
-      "active",
-      "正在推进",
-      CircleDashed,
-      counts.active,
-    ],
-    [
-      "later",
-      "稍后继续",
-      Clock3,
-      counts.later,
-    ],
-    [
-      "reference",
-      "留作参考",
-      BookOpen,
-      counts.reference,
-    ],
   ];
-  const renderGroup = (g: Group, depth = 0) => {
-    const children = p.catalog.groups.filter((x) => x.parentId === g.id),
-      isCollapsed = collapsed.includes(g.id);
-    const descendants = descendantIds(p.catalog.groups, g.id);
-    const n = active.filter((t) =>
-      t.groupIds.some((id) => descendants.has(id)),
-    ).length;
-    const selected = p.view === "group" && p.groupId === g.id;
-    return (
-      <div key={g.id} className="tree-branch">
-        <div
-          className={`group-row ${selected ? "selected" : ""}`}
-          data-group-id={g.id}
-          style={{ paddingLeft: 12 + depth * 16 }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.currentTarget.classList.add("drop-target");
-          }}
-          onDragLeave={(e) => e.currentTarget.classList.remove("drop-target")}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.currentTarget.classList.remove("drop-target");
-            const id = e.dataTransfer.getData("application/x-codex-thread");
-            if (id) p.onDrop(id, g.id);
-          }}
-        >
-          <button
-            className="tree-toggle"
-            aria-expanded={children.length ? !isCollapsed : undefined}
-            aria-label={`${isCollapsed ? "展开" : "折叠"} ${g.name}`}
-            disabled={!children.length}
-            onClick={() => toggle(g.id)}
-          >
-            {children.length ? (
-              isCollapsed ? (
-                <ChevronRight size={12} />
-              ) : (
-                <ChevronDown size={12} />
-              )
-            ) : (
-              <span />
-            )}
-          </button>
-          <button
-            className="group-select"
-            aria-current={selected ? "page" : undefined}
-            onClick={() => p.onView("group", g.id)}
-            title={g.name}
-          >
-            {selected ? (
-              <FolderOpen size={16} color={g.color} />
-            ) : (
-              <Folder size={16} color={g.color} />
-            )}
-            <span>{g.name}</span>
-            <small>{n}</small>
-          </button>
-          <button
-            className="group-edit icon-button"
-            aria-label={`编辑分组 ${g.name}`}
-            onClick={() => p.onGroup(g)}
-          >
-            <MoreHorizontal size={15} />
-          </button>
-        </div>
-        {!isCollapsed && children.map((c) => renderGroup(c, depth + 1))}
-      </div>
-    );
-  };
   return (
     <>
       <button
@@ -239,10 +101,9 @@ export default function Sidebar(p: Props) {
           </button>
         </div>
         <nav aria-label="会话视图">
-          {navs.map(([v, label, Icon, n], index) => (
-            <Fragment key={v}>
-            {index === 4 && <div className="sidebar-section-head sidebar-arrangements-heading"><span>我的安排</span></div>}
+          {navs.map(([v, label, Icon, n]) => (
             <button
+              key={v}
               data-view={v}
               aria-current={p.view === v ? "page" : undefined}
               className={`nav-item ${p.view === v ? "selected" : ""}`}
@@ -252,34 +113,8 @@ export default function Sidebar(p: Props) {
               <span>{label}</span>
               <small>{n}</small>
             </button>
-            </Fragment>
           ))}
         </nav>
-        <div className="sidebar-section-head">
-          <span>我的分组</span>
-          <button
-            className="icon-button"
-            title="新建分组"
-            aria-label="新建分组"
-            onClick={() => p.onGroup()}
-          >
-            <Plus size={17} />
-          </button>
-        </div>
-        <div className="group-tree">
-          {p.catalog.groups
-            .filter((g) => !g.parentId)
-            .map((g) => renderGroup(g))}
-          <button
-            className={`nav-item unassigned ${p.view === "unassigned" ? "selected" : ""}`}
-            aria-current={p.view === "unassigned" ? "page" : undefined}
-            onClick={() => p.onView("unassigned")}
-          >
-            <CircleDashed size={16} />
-            <span>未分组</span>
-            <small>{counts.unassigned}</small>
-          </button>
-        </div>
         <div className="sidebar-bottom">
           <div className="sidebar-tools">
             <button

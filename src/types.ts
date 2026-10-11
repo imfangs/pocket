@@ -18,6 +18,7 @@ export interface Thread {
   id: string;
   hostId: string;
   title: string;
+  titleRevision?: number;
   cwd: string;
   projectId: string | null;
   projectName: string;
@@ -56,21 +57,4 @@ export interface Catalog {
   sourceError: string | null;
   csrfToken?: string;
 }
-export type View =
-  | "all"
-  | "unread"
-  | "running"
-  | "pinned"
-  | "active"
-  | "later"
-  | "reference"
-  | "recent"
-  | "archived"
-  | "unassigned"
-  | "group";
-export const intentLabels: Record<Intent, string> = {
-  none: "未标记",
-  active: "正在推进",
-  later: "稍后继续",
-  reference: "留作参考",
-};
+export type View = "all" | "unread" | "running" | "pinned" | "recent" | "archived";

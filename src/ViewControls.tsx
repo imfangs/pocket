@@ -3,14 +3,12 @@ import { SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Project } from "./types";
 
-export default function ViewControls({ projects, project, sort, onProject, onSort, onSelectTasks, selectionDisabled }: {
+export default function ViewControls({ projects, project, sort, onProject, onSort }: {
   projects: Project[];
   project: string;
   sort: string;
   onProject: (id: string) => void;
   onSort: (sort: string) => void;
-  onSelectTasks?: () => void;
-  selectionDisabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => { window.dispatchEvent(new Event("pocket-reading-visibility-change")); }, [open]);
@@ -31,9 +29,7 @@ export default function ViewControls({ projects, project, sort, onProject, onSor
           <option value="updated">最近活动</option>
           <option value="pinned">置顶优先</option>
         </select>
-        <footer>{project && <button type="button" className="text-button" onClick={() => onProject("")}>清除筛选</button>}
-          {onSelectTasks && <button type="button" className="text-button" disabled={selectionDisabled} onClick={() => { setOpen(false); onSelectTasks(); }}>批量选择</button>}
-        </footer>
+        {project && <footer><button type="button" className="text-button" onClick={() => onProject("")}>清除筛选</button></footer>}
       </Popover.Content>
     </Popover.Portal>
   </Popover.Root>;

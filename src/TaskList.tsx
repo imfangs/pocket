@@ -1,21 +1,18 @@
 import {
-  Clock3,
   Search,
   Pin,
   ArrowUpRight,
   Inbox,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Group, Thread, View } from "./types";
-import { ago, today, groupPath } from "./model";
+import type { Thread, View } from "./types";
+import { ago } from "./model";
 import { emptyListContent, threadListStates } from "./listPresentation";
 import type { TaskStatus } from "./taskStatuses";
 import SwipeTaskRow from "./SwipeTaskRow";
 interface Props {
   threads: Thread[];
-  selecting?: boolean;
   projectScope?: string;
-  groups: Group[];
   selected: string | null;
   view: View;
   unreadAvailable?: boolean;
@@ -23,11 +20,6 @@ interface Props {
   onSelect: (id: string) => void;
   onOpen: (t: Thread) => void;
   onPin?: (t: Thread) => Promise<void>;
-  checked: Set<string>;
-  onCheck: (id: string) => void;
-  onCheckAll: () => void;
-  onBatch: (change: { intent?: string; groupId?: string }) => void;
-  onClear: () => void;
   busy: boolean;
   query: string;
   onClearQuery: () => void;
@@ -47,9 +39,8 @@ export default function TaskList(p: Props) {
   const [pinningId, setPinningId] = useState<string | null>(null);
   const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
   const pinning = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
-  const selecting = !!p.selecting || p.checked.size > 0;
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => { setOpenRowId(null); }, [selecting, p.view, p.query, p.projectScope]);
+  useEffect(() => { setOpenRowId(null); }, [p.view, p.query, p.projectScope]);
   useEffect(() => {
     if (openRowId && !p.threads.some(thread => thread.id === openRowId)) setOpenRowId(null);
   }, [p.threads, openRowId]);
@@ -65,7 +56,7 @@ export default function TaskList(p: Props) {
   }, [openRowId]);
   const clearPinError = (id: string) => setPinErrors(previous => { const next = { ...previous }; delete next[id]; return next; });
   const pin = async (thread: Thread) => {
-    if (!p.onPin || selecting || p.busy || pinning.current) return;
+    if (!p.onPin || p.busy || pinning.current) return;
     pinning.current = thread.id; setPinningId(thread.id); setOpenRowId(thread.id); clearPinError(thread.id);
     try {
       await p.onPin(thread);
@@ -85,39 +76,8 @@ export default function TaskList(p: Props) {
   return (
     <div
       ref={list}
-      className={`task-list-surface ${selecting || p.checked.size ? "is-selecting" : ""}`}
+      className="task-list-surface"
     >
-      {selecting && (
-        <div className="batch-bar" role="region" aria-label="批量操作">
-          <label className="select-all"><input type="checkbox" checked={p.threads.length > 0 && p.threads.every(t => p.checked.has(t.id))}
-            onChange={p.onCheckAll} aria-label="全选当前结果" />全选</label>
-          {p.checked.size > 0 && <><span>已选 {p.checked.size} 条</span>
-          <button
-            onClick={() => p.onBatch({ intent: "later" })}
-            disabled={p.busy}
-          >
-            <Clock3 size={14} />
-            稍后继续
-          </button>
-          <select
-            aria-label="批量加入分组"
-            value=""
-            onChange={(e) =>
-              e.target.value && p.onBatch({ groupId: e.target.value })
-            }
-            disabled={p.busy}
-          >
-            <option value="">加入分组…</option>
-            {p.groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {groupPath(p.groups, g.id)}
-              </option>
-            ))}
-          </select>
-          </>}
-          <button type="button" className="text-button selection-done" onClick={p.onClear} aria-label="完成选择">完成</button>
-        </div>
-      )}
       {p.threads.length > 0 && p.runtimeUnavailable && <p className="task-runtime-availability" role="status">
         运行状态暂不可用
       </p>}
@@ -133,33 +93,23 @@ export default function TaskList(p: Props) {
       ) : (
         <div className="task-list" role="list" aria-label="任务列表">
           {p.threads.slice(0, limit).map((t) => {
-            const due =
-              t.intent === "later" && t.reviewAt && t.reviewAt <= today();
             const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
-            const states = threadListStates(t, p.draftIds?.has(t.id), runtime);
+            const states = threadListStates(t, p.draftIds?.has(t.id), runtime).filter(state => state.key !== "archived" || p.view !== "archived");
             return (
               <SwipeTaskRow
-                className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${p.checked.has(t.id) ? "is-checked" : ""}`}
+                className={`task-row ${p.selected === t.id ? "is-selected" : ""}`}
                 key={t.id}
                 threadId={t.id} title={t.title} pinned={t.pinned} open={openRowId === t.id}
-                disabled={selecting || p.busy || !!pinningId} pending={pinningId === t.id} error={pinErrors[t.id]}
+                disabled={p.busy || !!pinningId} pending={pinningId === t.id} error={pinErrors[t.id]}
                 onPin={p.onPin ? () => void pin(t) : undefined}
                 onOpenChange={value => setOpenRowId(current => value ? t.id : current === t.id ? null : current)}
                 onClaim={() => setOpenRowId(current => current === t.id ? current : null)} onDismissError={() => clearPinError(t.id)}
               >
-                <label className="row-check">
-                  <input
-                    type="checkbox"
-                    checked={p.checked.has(t.id)}
-                    onChange={() => p.onCheck(t.id)}
-                    aria-label={`选择 ${t.title}`}
-                  />
-                </label>
                 <button
                   className="task-select"
                   data-thread-id={t.id}
-                  onClick={() => { setOpenRowId(null); selecting ? p.onCheck(t.id) : p.onSelect(t.id); }}
-                  aria-pressed={selecting ? p.checked.has(t.id) : p.selected === t.id}
+                  onClick={() => { setOpenRowId(null); p.onSelect(t.id); }}
+                  aria-pressed={p.selected === t.id}
                   title={t.title}
                 >
                   <div className="row-first">
@@ -171,23 +121,13 @@ export default function TaskList(p: Props) {
                       {ago(t.updatedAt)}
                     </time>
                   </div>
-                  <div className="row-second">
+                  {(!p.projectScope || states.length > 0 || pinningId === t.id) && <div className="row-second">
                     {!p.projectScope && <span className="project-label">
                       {t.projectName === "无项目" ? "独立会话" : t.projectName}
                     </span>}
-                    {t.intent !== "none" && t.intent !== p.view && (
-                      <span className={`intent-dot ${t.intent}`}>
-                        {t.intent === "active"
-                          ? "推进中"
-                          : t.intent === "later"
-                            ? "稍后继续"
-                            : "参考"}
-                      </span>
-                    )}
-                    {states.filter(state => state.key !== "archived" || p.view !== "archived").map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
-                    {due && <span className="due-label">到回顾时间了</span>}
+                    {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
                     {pinningId === t.id && <span className="row-pin-pending" role="status">正在处理置顶…</span>}
-                  </div>
+                  </div>}
                   {t.note && (
                     <p className="note-preview">{t.note.replace(/\n/g, " ")}</p>
                   )}

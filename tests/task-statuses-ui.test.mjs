@@ -165,12 +165,12 @@ const vite = await createServer({ configFile: false, root: fileURLToPath(new URL
 const { default: TaskList } = await vite.ssrLoadModule('/src/TaskList.tsx');
 after(() => vite.close());
 const noop = () => {};
-const props = { threads: [thread], groups: [], selected: null, view: 'all', checked: new Set(), onSelect: noop, onOpen: noop,
-  onCheck: noop, onCheckAll: noop, onBatch: noop, onClear: noop, busy: false, query: '', onClearQuery: noop };
-test('the list renders running separately from manual intent, and failure is not presented as all idle', () => {
+const props = { threads: [thread], selected: null, view: 'all', onSelect: noop, onOpen: noop,
+  busy: false, query: '', onClearQuery: noop };
+test('the list renders native running without retired manual intent, and failure is not presented as all idle', () => {
   const states = new Map([['thread', 'running']]);
   const active = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: states, draftIds: new Set(['thread']) }));
-  assert.match(active, /推进中/); assert.match(active, /data-state="running">运行中/);
+  assert.doesNotMatch(active, /推进中/); assert.match(active, /data-state="running">运行中/);
   assert.match(active, /data-state="draft"/); assert.doesNotMatch(active, /data-state="unread"/);
   const failed = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: states, runtimeUnavailable: true }));
   assert.match(failed, /运行状态暂不可用/); assert.doesNotMatch(failed, /data-state="running"|空闲/);

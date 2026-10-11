@@ -20,14 +20,14 @@ import Inspector from "./Inspector";
 import BootSplash from "./BootSplash";
 import type { HistoryCache } from "./conversationFeed";
 import type { OpenThreadResult } from "./threadConnection";
-import { GroupDialog, SettingsDialog } from "./Dialogs";
+import { SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
 import { createCatalogReader } from "./catalogReader";
 import { useReloadGuard } from "./updateSafety";
 import { hasUpdateBlockingDraft } from "./updateDrafts";
 import PocketUpdate from "./PocketUpdate";
-import { filterThreads, groupPath } from "./model";
-import type { Catalog, Group, Thread, View } from "./types";
+import { filterThreads } from "./model";
+import type { Catalog, Thread, View } from "./types";
 import NewConversationDialog from "./NewConversationDialog";
 import { createSubmittedQueryStore, seedSubmittedQuery } from "./submittedQueries";
 import { prepareCreationDialog, type CreationClipboard } from "./creationQuery";
@@ -37,13 +37,14 @@ import useTaskOperations from "./useTaskOperations";
 import useTaskStatuses from "./useTaskStatuses";
 import { activeOperation } from "./taskOperations";
 import { createDraftMap, draftThreadIds } from "./draftIndicators";
-import { preserveNewerPins } from "./threadPins";
+import { preserveNewerThreadMetadata } from "./threadMetadata";
+import { normalizeNavigationPrefs } from "./navigationModel";
 import "./task-operations.css";
 function readPrefs() {
   try {
-    return JSON.parse(localStorage.getItem("navigator.view") || "{}");
+    return normalizeNavigationPrefs(JSON.parse(localStorage.getItem("navigator.view") || "{}"));
   } catch {
-    return {};
+    return normalizeNavigationPrefs(null);
   }
 }
 const catalogError = (error: Error) => ["TimeoutError", "AbortError"].includes(error.name)
@@ -63,13 +64,8 @@ const titles: Record<View, string> = {
   unread: "待我输入",
   running: "运行中",
   pinned: "置顶",
-  active: "正在推进",
-  later: "稍后继续",
-  reference: "留作参考",
   recent: "最近打开",
   archived: "归档",
-  unassigned: "未分组",
-  group: "",
 };
 export default function App({
   footerActions,
@@ -92,12 +88,7 @@ export default function App({
   }, []);
   const [catalog, setCatalogState] = useState<Catalog>(empty),
     [loading, setLoading] = useState(true),
-    [view, setView] = useState<View>(
-      Object.keys(titles).includes(prefs.view) ? prefs.view : "all",
-    ),
-    [groupId, setGroupId] = useState<string | null>(
-      typeof prefs.groupId === "string" ? prefs.groupId : null,
-    ),
+    [view, setView] = useState<View>(prefs.view),
     [selected, setSelected] = useState<string | null>(() => {
       let id = new URLSearchParams(location.search).get("task");
       try { id ||= sessionStorage.getItem("pocket.pending-task"); sessionStorage.removeItem("pocket.pending-task"); } catch {}
@@ -106,21 +97,11 @@ export default function App({
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
     [project, setProject] = useState(""),
-    [sort, setSortState] = useState(
-      prefs.sortVersion === 2 &&
-        ["pinned", "updated"].includes(prefs.sort)
-        ? prefs.sort
-        : "updated",
-    ),
+    [sort, setSortState] = useState<string>(prefs.sort),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [readError, setReadError] = useState(""),
     [mobile, setMobile] = useState(false),
-    [checked, setChecked] = useState<Set<string>>(new Set()),
-    [selecting, setSelecting] = useState(false),
-    [groupDialog, setGroupDialog] = useState<Group | null | undefined>(
-      undefined,
-    ),
     [settings, setSettings] = useState(false),
     [newConversationOpen, setNewConversationOpen] = useState(false),
     [newConversationDraft, setNewConversationDraft] = useState<{ text: string; clipboardRead?: Promise<CreationClipboard> } | null>(null),
@@ -135,20 +116,19 @@ export default function App({
   const latestSort = useRef<string>(sort);
   const setSort = useCallback((value: string) => { latestSort.current = value; setSortState(value); }, []);
   const setCatalog = useCallback((update: SetStateAction<Catalog>) => {
-    setCatalogState(current => preserveNewerPins(current, typeof update === "function" ? update(current) : update));
+    setCatalogState(current => preserveNewerThreadMetadata(current, typeof update === "function" ? update(current) : update));
   }, []);
-  useEffect(() => { setSelecting(false); }, [view, groupId]);
   const syncing = useRef<Promise<Catalog | undefined> | null>(null);
   const createRequest = useRef<string | null>(null), newDialogOpen = useRef(false);
   useEffect(() => {
     window.dispatchEvent(new Event("pocket-reading-visibility-change"));
-  }, [mobile, settings, groupDialog, newConversationOpen]);
+  }, [mobile, settings, newConversationOpen]);
   useReloadGuard(() => hasUpdateBlockingDraft(conversationDrafts.current, conversationHistory.current)
     ? "还有未完成的输入，请处理后再更新。" : busy ? "操作尚未完成，请稍后更新。" : null);
   const listPanel = useRef<HTMLElement>(null);
   const restoreScroll = useRef<number | null>(null);
-  const returnView = useRef<{ view: View; groupId: string | null; project: string; query: string; searchOpen: boolean; sort: string; scrollTop: number; selected: string | null }>({
-    view: "pinned", groupId: null, project: "", query: "", searchOpen: false, sort: "updated", scrollTop: 0, selected: null,
+  const returnView = useRef<{ view: View; project: string; query: string; searchOpen: boolean; sort: string; scrollTop: number; selected: string | null }>({
+    view: "pinned", project: "", query: "", searchOpen: false, sort: "updated", scrollTop: 0, selected: null,
   });
   const openSearch = useCallback(() => {
     // Focus during the tap so iOS opens the keyboard on the first interaction.
@@ -157,7 +137,6 @@ export default function App({
   }, []);
   const closeSearch = useCallback(() => {
     setQuery("");
-    setChecked(new Set());
     setSearchOpen(false);
     searchToggle.current?.focus();
   }, []);
@@ -165,7 +144,7 @@ export default function App({
     if (restoreScroll.current === null || !listPanel.current) return;
     listPanel.current.scrollTop = restoreScroll.current;
     restoreScroll.current = null;
-  }, [view, groupId, project, query, sort]);
+  }, [view, project, query, sort]);
   const notify = useCallback((s: string) => {
     toast.success(s, { id: "pocket-feedback" });
   }, []);
@@ -199,8 +178,8 @@ export default function App({
     void (syncing.current ?? Promise.resolve()).catch(() => {}).then(() => syncTasks(true)).catch(() => {});
   }, [syncTasks]);
   const openCreatedThread = (id: string) => {
-    setSelected(id); setView("all"); setGroupId(null); setProject(""); setQuery("");
-    setSearchOpen(false); setChecked(new Set()); setMobile(false);
+    setSelected(id); setView("all"); setProject(""); setQuery("");
+    setSearchOpen(false); setMobile(false);
   };
   const seedCreationMessage = (operation: TaskOperation) => {
     const text = creationQueries.current.get(operation.requestId);
@@ -298,44 +277,31 @@ export default function App({
     try {
       localStorage.setItem(
         "navigator.view",
-        JSON.stringify({ view, groupId, sort, sortVersion: 2 }),
+        JSON.stringify({ view, sort, sortVersion: 2 }),
       );
     } catch {}
-  }, [view, groupId, sort]);
-  useEffect(() => {
-    if (
-      !loading &&
-      view === "group" &&
-      !catalog.groups.some((g) => g.id === groupId)
-    ) {
-      setView("all");
-      setGroupId(null);
-    }
-  }, [loading, catalog.groups, view, groupId]);
+  }, [view, sort]);
   const threads = useMemo(
     () =>
       filterThreads(
         catalog.threads,
-        catalog.groups,
         view,
-        groupId,
         query,
         project,
         showSeparators,
         sort,
         taskStatuses.runtimeLoading || taskStatuses.runtimeUnavailable ? undefined : taskStatuses.runtimeStates,
       ),
-    [catalog, view, groupId, query, project, showSeparators, sort, taskStatuses],
+    [catalog, view, query, project, showSeparators, sort, taskStatuses],
   );
   const current = catalog.threads.find((t) => t.id === selected);
   const currentOperation = current ? taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create" && activeOperation(operation))
     || taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create") : undefined;
-  const selectedGroup = catalog.groups.find((g) => g.id === groupId);
-  const title = view === "group" ? selectedGroup?.name || "分组" : titles[view];
+  const title = titles[view];
   const unreadKnown = catalog.sourceInfo?.unread?.available === true;
   const unreadCount = catalog.threads.filter(t => t.needsInput && !t.archived && !t.missing && !t.separator).length;
   const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
-  const runningCount = filterThreads(catalog.threads, catalog.groups, "running", null, "", "", false, "updated",
+  const runningCount = filterThreads(catalog.threads, "running", "", "", false, "updated",
     runtimeKnown ? taskStatuses.runtimeStates : undefined).length;
   const flush = async () => {
     await flushRef.current?.();
@@ -353,16 +319,14 @@ export default function App({
     void guard(async () => {
       await flush();
       if (view !== "unread" && view !== "running")
-        returnView.current = { view, groupId, project, query, searchOpen, sort: latestSort.current, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
+        returnView.current = { view, project, query, searchOpen, sort: latestSort.current, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
       restoreScroll.current = 0;
       setView(target);
-      setGroupId(null);
       setProject("");
       setQuery("");
       setSearchOpen(false);
       setSort("updated");
       setSelected(null);
-      setChecked(new Set());
       setMobile(false);
       refreshAfterActivity();
     });
@@ -372,25 +336,21 @@ export default function App({
     const previous = returnView.current;
     restoreScroll.current = previous.scrollTop;
     setView(previous.view);
-    setGroupId(previous.groupId);
     setProject(previous.project);
     setQuery(previous.query);
     setSearchOpen(previous.searchOpen);
     setSort(previous.sort);
     setSelected(previous.selected);
-    setChecked(new Set());
     refreshAfterActivity();
   });
-  const switchView = (v: View, id?: string) => {
+  const switchView = (v: View) => {
     if (v === "unread" || v === "running") return openActivity(v);
-    if ((view === "unread" || view === "running") && v === returnView.current.view && (id || null) === returnView.current.groupId)
+    if ((view === "unread" || view === "running") && v === returnView.current.view)
       return returnFromActivity();
     void guard(async () => {
       await flush();
       setView(v);
-      setGroupId(id || null);
       setProject("");
-      setChecked(new Set());
       setSelected(null);
       setMobile(false);
       refreshAfterActivity();
@@ -441,27 +401,6 @@ export default function App({
     },
     [notify, catalogReader],
   );
-  const batch = async (
-    ids: string[],
-    change: { intent?: string; groupId?: string },
-  ) => {
-    setBusy(true);
-    try {
-      await flush();
-      const c = await api<Catalog>("/api/batch", "POST", { ids, change });
-      catalogReader.invalidate();
-      setCatalog(c);
-      setChecked(new Set());
-      setSelecting(false);
-      notify(
-        change.groupId
-          ? `已将 ${ids.length} 条任务加入分组`
-          : `已将 ${ids.length} 条任务放到稍后继续`,
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
   const pinThread = async (thread: Thread) => {
     const pinned = !thread.pinned;
     let result: Thread;
@@ -494,12 +433,9 @@ export default function App({
         showSeparators={showSeparators}
         catalog={catalog}
         view={view}
-        groupId={groupId}
         mobileOpen={mobile}
         onClose={() => setMobile(false)}
         onView={switchView}
-        onGroup={(g) => setGroupDialog(g || null)}
-        onDrop={(id, g) => void guard(() => batch([id], { groupId: g }))}
         onSettings={() => setSettings(true)}
       />
       <main className={`workspace ${current ? "with-inspector" : ""}`} inert={narrow && mobile}>
@@ -514,7 +450,6 @@ export default function App({
               <Menu size={20} />
             </button>
             <div className="heading">
-              {view === "group" && selectedGroup?.parentId && <div className="breadcrumb">{groupPath(catalog.groups, selectedGroup.parentId)}</div>}
               <h1>
                 {title}
                 <span>{view === "unread" && !unreadKnown || view === "running" && !runtimeKnown ? "—" : threads.length}</span>
@@ -565,12 +500,12 @@ export default function App({
                 <Search size={17} /><span>搜索</span><kbd aria-hidden="true">⌘ K</kbd>
               </button>
               <ViewControls projects={catalog.projects} project={project} sort={sort}
-                onProject={id => { setProject(id); setChecked(new Set()); }}
-                onSort={setSort} onSelectTasks={() => setSelecting(true)} selectionDisabled={!threads.length || busy} />
+                onProject={setProject}
+                onSort={setSort} />
             </div>
           </div>
           {project && <div className="active-filters" aria-label="已应用的筛选">
-            <button onClick={() => { setProject(""); setChecked(new Set()); }} aria-label="清除来源项目筛选">
+            <button onClick={() => setProject("")} aria-label="清除来源项目筛选">
               <Folder size={13} aria-hidden="true" />{catalog.projects.find(item => item.id === project)?.name || "来源项目"}<X size={13} aria-hidden="true" />
             </button>
           </div>}
@@ -578,13 +513,13 @@ export default function App({
             <input
               ref={search}
               aria-label="搜索任务"
-              placeholder={`搜索${title || "当前分组"}…`}
+              placeholder={`搜索${title}…`}
               aria-describedby="task-search-help"
               inputMode="search"
               enterKeyHint="search"
               autoComplete="off"
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setChecked(new Set()); }}
+              onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
                 if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeSearch(); }
@@ -595,7 +530,7 @@ export default function App({
               <X size={17} />
             </button>
           </div>}
-          {searchOpen && <p id="task-search-help" className="sr-only">在当前视图内搜索标题、项目、目录、分组和接续说明。</p>}
+          {searchOpen && <p id="task-search-help" className="sr-only">在当前视图内搜索标题、项目、目录和接续说明。</p>}
         </header>
         {(error || readError || catalog.sourceError) && (
           <div className="error-banner" role="alert">
@@ -642,13 +577,11 @@ export default function App({
                 onCreate={() => void guard(showNewConversation)}
                 onShowAll={() => switchView("all")}
                 onRefresh={() => void syncTasks().catch(() => {})}
-                onClearFilters={() => { setQuery(""); setProject(""); setChecked(new Set()); }}
+                onClearFilters={() => { setQuery(""); setProject(""); }}
                 hasFilters={!!(query.trim() || project)}
                 draftIds={draftThreadIds(conversationDrafts.current)}
                 threads={threads}
                 projectScope={project}
-                selecting={selecting}
-                groups={catalog.groups}
                 selected={selected}
                 view={view}
                 unreadAvailable={unreadKnown}
@@ -665,25 +598,6 @@ export default function App({
                     await open(t);
                   })
                 }
-                checked={checked}
-                onCheck={(id) =>
-                  setChecked((old) => {
-                    const n = new Set(old);
-                    n.has(id) ? n.delete(id) : n.add(id);
-                    return n;
-                  })
-                }
-                onCheckAll={() =>
-                  setChecked(
-                    threads.every((t) => checked.has(t.id))
-                      ? new Set()
-                      : new Set(threads.map((t) => t.id)),
-                  )
-                }
-                onBatch={(change) =>
-                  void guard(() => batch([...checked], change))
-                }
-                onClear={() => { setChecked(new Set()); setSelecting(false); }}
                 busy={busy}
                 query={query}
                 onClearQuery={() => setQuery("")}
@@ -696,8 +610,14 @@ export default function App({
               queryDrafts={conversationDrafts.current}
               submissions={submissions}
               historyCache={conversationHistory.current}
-              groups={catalog.groups}
               onSave={saveTask}
+              onRenamed={thread => {
+                catalogReader.invalidate();
+                setCatalog(c => ({ ...c, threads: c.threads.map(old => old.id === thread.id
+                  ? { ...old, title: thread.title, titleRevision: thread.titleRevision } : old) }));
+                notify("会话已重命名");
+                refreshAfterActivity();
+              }}
               onOpen={open}
               operation={currentOperation}
               operationError={currentOperation ? taskOperations.errors[currentOperation.requestId] : undefined}
@@ -726,33 +646,6 @@ export default function App({
           )}
         </div>
       </main>
-      {groupDialog !== undefined && (
-        <GroupDialog
-          group={groupDialog || undefined}
-          groups={catalog.groups}
-          onClose={() => setGroupDialog(undefined)}
-          onSave={async (g, id) => {
-            await flush();
-            await api(
-              `/api/groups${id ? "/" + id : ""}`,
-              id ? "PATCH" : "POST",
-              g,
-            );
-            await refresh();
-            notify(id ? "分组已更新" : "分组已创建");
-          }}
-          onDelete={async (id) => {
-            await flush();
-            await api(`/api/groups/${id}`, "DELETE");
-            await refresh();
-            if (groupId === id) {
-              setView("all");
-              setGroupId(null);
-            }
-            notify("分组已删除，任务和说明已保留");
-          }}
-        />
-      )}
       {newConversationOpen && <NewConversationDialog preferredCwd={current?.cwd || catalog.projects.find(item => item.id === project)?.paths[0]}
         initialQuery={newConversationDraft?.text} clipboardRead={newConversationDraft?.clipboardRead}
         operation={taskOperations.operations.find(operation => operation.requestId === createRequestId)}
@@ -777,9 +670,8 @@ export default function App({
             catalogReader.invalidate();
             setCatalog(c);
             setSelected(null);
-            setGroupId(null);
             setView("all");
-            notify("整理结果已恢复");
+            notify("整理数据已恢复");
           }}
         />
       )}

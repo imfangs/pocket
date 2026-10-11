@@ -1,16 +1,14 @@
 import { filterThreads } from "./model.ts";
-import type { Catalog, Group, View } from "./types";
+import type { Catalog, View } from "./types";
 
 export function navigationViewCount(catalog: Catalog, view: View, showSeparators = false) {
-  return filterThreads(catalog.threads, catalog.groups, view, null, "", "", showSeparators, "updated").length;
+  return filterThreads(catalog.threads, view, "", "", showSeparators, "updated").length;
 }
 
-export function groupAncestorIds(groups: readonly Group[], id: string) {
-  const byId = new Map(groups.map(group => [group.id, group]));
-  const ancestors = new Set<string>(), seen = new Set([id]);
-  let parent = byId.get(id)?.parentId;
-  while (parent && !seen.has(parent)) {
-    seen.add(parent); ancestors.add(parent); parent = byId.get(parent)?.parentId;
-  }
-  return ancestors;
+// Retired group and arrangement views must never restore an empty dead end.
+export function normalizeNavigationPrefs(value: unknown): { view: View; sort: "pinned" | "updated"; sortVersion: 2 } {
+  const prefs = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const view: View = prefs.view === "unread" || prefs.view === "running" || prefs.view === "pinned"
+    || prefs.view === "recent" || prefs.view === "archived" ? prefs.view : "all";
+  return { view, sort: prefs.sortVersion === 2 && prefs.sort === "pinned" ? "pinned" : "updated", sortVersion: 2 };
 }

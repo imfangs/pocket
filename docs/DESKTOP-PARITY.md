@@ -18,7 +18,7 @@
 | 完成/失败/待处理通知 | 已实现 Web Push 基础链路，真机送达待验 | 关注近期在 Pocket 打开的任务；后台监测、状态去重、已处理请求取消，细节见 NOTIFICATIONS.md |
 | 与桌面共享待发队列 | 尚未接入，Pocket 队列仍独立 | 已核验旧 follower 仅整表替换 legacy 队列，不适配新版队列或原生 send-now 锁；同一 App Server 通道仍受限，详见本轮 desktop-control-entrypoints 核验 |
 | 编辑上一条并重跑 | 尚未接入 | 安装版本有 follower-edit-last-user-turn；先明确回滚后续对话的语义，区别于普通改字 |
-| 会话重命名 | 尚未接通，用户 2026-09-29 要求同步 Codex 原任务 | 官方有 `thread/name/set`，当前桌面原 owner 转发方法没有改名；不实现仅 Pocket 显示名，接通后再做。见[核验记录](research/2026-09-29-rename-and-open.md) |
+| 会话重命名 | 已接入原 Codex 名称，发布与验收状态见 CURRENT | 2026-10-11 在当前 App/CLI 验证官方短生命周期 `thread/name/set` 不需要接管 writer，原 owner 和原生工具均回读新标题。归档须先恢复，未知只核对，见[重命名与管理减法](design/2026-10-11-rename-and-management.md)。旧受限判断保留在[09-29记录](research/2026-09-29-rename-and-open.md) |
 | 新建任务、原版归档、恢复 | 已接入，正式版本见 CURRENT | 官方空会话持久化后，首条消息仍交原桌面；原 CLI 归档/恢复独立回读，占用时持久等待，可取消。分叉及工作树创建尚未接入，见[生命周期](design/2026-10-05-thread-lifecycle.md) |
 
 ## 接口与语义依据

@@ -4,13 +4,13 @@ import {
   Check,
   Clipboard,
   GitBranch,
-  MoreHorizontal,
+  Pencil,
   Save,
   X,
 } from "lucide-react";
 import { useEffect, useState, useCallback, useId, useRef, useLayoutEffect } from "react";
 import type { MutableRefObject } from "react";
-import type { Group, Intent, Thread } from "./types";
+import type { Thread } from "./types";
 import Conversation from "./Conversation";
 import type { QueryDraft } from "./Conversation";
 import { bindInspectorSwipe, bindInspectorViewport } from "./mobileInspector";
@@ -20,25 +20,15 @@ import type { OpenThreadResult } from "./threadConnection";
 import { activeOperation, operationText, type TaskOperation } from "./taskOperations";
 import TaskOperationStatus from "./TaskOperationStatus";
 import ThreadProperties from "./ThreadProperties";
+import RenameThreadDialog from "./RenameThreadDialog";
 import type { SubmittedQueryStore } from "./submittedQueries";
-type Draft = {
-  intent: Intent;
-  note: string;
-  reviewAt: string | null;
-  groupIds: string[];
-};
-const draftOf = (t: Thread): Draft => ({
-  intent: t.intent,
-  note: t.note,
-  reviewAt: t.reviewAt,
-  groupIds: t.groupIds,
-});
+type Draft = { note: string };
+const draftOf = (t: Thread): Draft => ({ note: t.note });
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
   submissions?: SubmittedQueryStore;
   historyCache: HistoryCache;
   thread: Thread;
-  groups: Group[];
   onSave: (
     id: string,
     patch: Draft & { expectedRevision: number },
@@ -47,6 +37,7 @@ interface Props {
   operation?: TaskOperation;
   operationError?: string;
   onArchive: (thread: Thread, archived: boolean) => Promise<void>;
+  onRenamed: (thread: Thread) => void;
   onCheckOperation: (requestId: string) => void;
   onCancelOperation: (requestId: string) => void;
   onClose: () => void;
@@ -68,15 +59,10 @@ export default function Inspector(p: Props) {
   useLayoutEffect(() => {
     if (window.matchMedia("(max-width: 760px)").matches) closeButton.current?.focus({ preventScroll: true });
   }, []);
-  const [tab, setTab] = useState<"conversation" | "organize">("conversation");
-  const [managementOpen, setManagementOpen] = useState(false);
+  const [tab, setTab] = useState<"conversation" | "manage">("conversation");
+  const [renaming, setRenaming] = useState(false);
   const accessibilityId = useId();
-  const tabButtons = useRef<{ conversation: HTMLButtonElement | null; organize: HTMLButtonElement | null }>({ conversation: null, organize: null });
-  const managementTrigger = useRef<HTMLButtonElement>(null), managementPanel = useRef<HTMLDivElement>(null);
-  const focusManagement = useRef(false);
-  useLayoutEffect(() => {
-    if (focusManagement.current && managementOpen && tab === "organize") { focusManagement.current = false; managementPanel.current?.focus({ preventScroll: true }); }
-  }, [managementOpen, tab]);
+  const tabButtons = useRef<{ conversation: HTMLButtonElement | null; manage: HTMLButtonElement | null }>({ conversation: null, manage: null });
   const [draft, setDraft] = useState<Draft>(() => draftOf(p.thread)),
     [base, setBase] = useState<Draft>(() => draftOf(p.thread)),
     [baseRevision, setBaseRevision] = useState(p.thread.revision),
@@ -86,8 +72,8 @@ export default function Inspector(p: Props) {
   const pendingSave = useRef<Promise<void> | null>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(base);
   const managementBlocked = activeOperation(p.operation);
-  useReloadGuard(() => saving || pendingSave.current ? "整理正在保存，请稍后更新。"
-    : dirty ? "整理还有未保存的修改，请保存后再更新。" : null);
+  useReloadGuard(() => saving || pendingSave.current ? "说明正在保存，请稍后更新。"
+    : dirty ? "说明还有未保存的修改，请保存后再更新。" : null);
   useEffect(() => {
     if (!dirty && p.thread.revision !== baseRevision) {
       const fresh = draftOf(p.thread);
@@ -158,16 +144,6 @@ export default function Inspector(p: Props) {
     <aside className="inspector" aria-label="接续详情" ref={panel}>
       <div className="inspector-header">
         <h2 className="inspector-title" title={p.thread.title}>{p.thread.separator ? "分隔符会话" : p.thread.title}</h2>
-        <div className="inspector-header-actions">
-          <button ref={managementTrigger} type="button" className="inspector-management-trigger"
-            aria-expanded={tab === "organize" && managementOpen} aria-controls={`${accessibilityId}-management`}
-            onClick={() => {
-              const opening = !(managementOpen && tab === "organize");
-              focusManagement.current = opening; setManagementOpen(opening); setTab("organize");
-            }}>
-            <MoreHorizontal size={17} aria-hidden="true" /><span>管理</span>
-          </button>
-        </div>
         <button
           ref={closeButton}
           className="icon-button"
@@ -181,8 +157,8 @@ export default function Inspector(p: Props) {
       <div className="inspector-tabs" role="tablist" aria-label="任务详情视图" aria-orientation="horizontal"
         onKeyDown={event => {
           if (event.altKey || event.ctrlKey || event.metaKey) return;
-          const next = event.key === "Home" ? "conversation" : event.key === "End" ? "organize"
-            : ["ArrowLeft", "ArrowRight"].includes(event.key) ? tab === "conversation" ? "organize" : "conversation" : null;
+          const next = event.key === "Home" ? "conversation" : event.key === "End" ? "manage"
+            : ["ArrowLeft", "ArrowRight"].includes(event.key) ? tab === "conversation" ? "manage" : "conversation" : null;
           if (!next) return;
           event.preventDefault(); setTab(next); tabButtons.current[next]?.focus();
         }}>
@@ -198,15 +174,15 @@ export default function Inspector(p: Props) {
           会话
         </button>
         <button
-          ref={element => { tabButtons.current.organize = element; }}
+          ref={element => { tabButtons.current.manage = element; }}
           role="tab"
-          id={`${accessibilityId}-tab-organize`}
-          aria-controls={`${accessibilityId}-panel-organize`}
-          tabIndex={tab === "organize" ? 0 : -1}
-          aria-selected={tab === "organize"}
-          onClick={() => setTab("organize")}
+          id={`${accessibilityId}-tab-manage`}
+          aria-controls={`${accessibilityId}-panel-manage`}
+          tabIndex={tab === "manage" ? 0 : -1}
+          aria-selected={tab === "manage"}
+          onClick={() => setTab("manage")}
         >
-          整理{dirty ? " · 未保存" : ""}
+          管理{dirty ? " · 未保存" : ""}
         </button>
       </div>
       <div
@@ -254,18 +230,20 @@ export default function Inspector(p: Props) {
           />
         ) : (
           <>
-            {managementOpen && <div ref={managementPanel} id={`${accessibilityId}-management`} className="archive-conversation inspector-management-panel" tabIndex={-1} aria-label="原会话管理">
-              <strong>原会话管理</strong>
-              <p className="field-description">{p.thread.archived ? "恢复后可以继续这段对话。" : "归档会同步到 Codex，已有草稿会保留。"}</p>
+            <div className="archive-conversation inspector-management-panel" aria-label="原会话管理">
+              <div className="thread-management-actions">
+              <button type="button" className="secondary" disabled={saving || p.thread.missing || p.thread.archived || managementBlocked}
+                onClick={() => setRenaming(true)}><Pencil size={14} aria-hidden="true" />重命名</button>
               <button type="button" className="secondary" disabled={saving || p.thread.missing || managementBlocked}
                 onClick={async () => {
                   try { await save(); await p.onArchive(p.thread, !p.thread.archived); }
                   catch (failure) { setError((failure as Error).message); }
                 }}>{p.thread.archived ? "恢复会话" : "归档会话"}</button>
+              </div>
+              <p className="field-description">{p.thread.missing ? "原会话暂不可用，请先刷新来源。" : p.thread.archived ? "恢复后可以继续对话或重命名。" : "修改会同步到 Codex，已有草稿会保留。"}</p>
               {p.operation?.code === "outbox_not_empty" && <button className="text-button" onClick={() => setTab("conversation")}>查看待发消息</button>}
-              <button type="button" className="text-button" onClick={() => { setManagementOpen(false); managementTrigger.current?.focus(); }}>收起管理</button>
-            </div>}
-            <ThreadProperties value={draft} groups={p.groups} disabled={saving}
+            </div>
+            <ThreadProperties value={draft} disabled={saving}
               onChange={patch => setDraft(previous => ({ ...previous, ...patch }))} onSave={save} />
             {error && (
               <p className="inline-error" role="alert">
@@ -326,9 +304,9 @@ export default function Inspector(p: Props) {
           </>
         )}
       </div>
-      <div hidden role="tabpanel" id={`${accessibilityId}-panel-${tab === "conversation" ? "organize" : "conversation"}`}
-        aria-labelledby={`${accessibilityId}-tab-${tab === "conversation" ? "organize" : "conversation"}`} />
-      {tab === "organize" && (
+      <div hidden role="tabpanel" id={`${accessibilityId}-panel-${tab === "conversation" ? "manage" : "conversation"}`}
+        aria-labelledby={`${accessibilityId}-tab-${tab === "conversation" ? "manage" : "conversation"}`} />
+      {tab === "manage" && (
         <div className="save-row inspector-savebar">
           <span aria-live="polite">
             {saving ? (
@@ -352,6 +330,8 @@ export default function Inspector(p: Props) {
           </button>
         </div>
       )}
+      {renaming && <RenameThreadDialog thread={p.thread} onClose={() => setRenaming(false)}
+        onSaved={thread => { p.onRenamed(thread); setRenaming(false); }} />}
     </aside>
   );
 }

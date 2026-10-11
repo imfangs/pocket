@@ -1,6 +1,6 @@
 # Pocket · 开发接续
 
-个人 Mac 上 Codex 的手机入口：查看和接续原任务，整理分组与下次继续的意图。产品名为 **Pocket**；仓库、服务、数据目录和备份格式继续使用 `codex-navigator` / `CodexNavigator` 兼容标识。
+个人 Mac 上 Codex 的手机入口：查看和接续原任务，管理名称、归档与接续说明。产品名为 **Pocket**；仓库、服务、数据目录和备份格式继续使用 `codex-navigator` / `CodexNavigator` 兼容标识。
 
 ## 开工顺序
 
@@ -15,7 +15,7 @@
 | --- | --- |
 | 整体 UI、导航、筛选、阅读层级与表单 | [工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md)：Notion 参照、主题 token、跨视图草稿、浮层与已读边界 |
 | 列表运行中/等待状态、状态过期 | [列表运行状态](docs/design/2026-10-08-running-status.md)：原owner候选读取、共享轮询与归档取消边界 |
-| 列表、分组、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
+| 列表、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
 | 阅读后清除未读、同步 Codex 蓝点 | [已读同步](docs/design/2026-10-05-read-state-sync.md)：前台可见阅读、观察凭据与原生回读 |
 | 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |
 | 手机上传、附件草稿、图片/文件发送及队列恢复 | [附件发送](docs/design/2026-10-10-attachments.md)：私有落盘、原owner输入、上传/发送编号及文件保留边界 |
@@ -24,7 +24,8 @@
 | 版本更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
 | 通知与用户确认 | [通知](docs/NOTIFICATIONS.md)、会话契约中的审批/阻塞问题章节 |
 | 新建、归档、恢复与等待取消 | [会话生命周期](docs/design/2026-10-05-thread-lifecycle.md)：官方空会话持久化、writer 等待与回执恢复 |
-| 改名、共享桌面队列等能力补齐 | [能力对照](docs/DESKTOP-PARITY.md)、[原实例控制入口](docs/research/2026-09-29-desktop-control-entrypoints.md)；先核对当前 App 与 `config/desktop-bridge.json` |
+| 改名、管理页、旧分组/安排兼容 | [重命名与管理减法](docs/design/2026-10-11-rename-and-management.md)：官方 name/set、回执、并发与数据保留 |
+| 共享桌面队列等能力补齐 | [能力对照](docs/DESKTOP-PARITY.md)、[原实例控制入口](docs/research/2026-09-29-desktop-control-entrypoints.md)；先核对当前 App 与 `config/desktop-bridge.json` |
 | 本机运行、连接器或公网发布 | [手机链路](docs/MOBILE.md)；对应 `config/local-service.json`、`config/tunnel-service.json`、`config/pages-site.json` |
 | 原生 App、竞品或开源方向 | [调研输入](docs/research/2026-09-29-external-research-intake.md)、[开源准备度](docs/research/2026-09-27-open-source-readiness.md)，按具体问题再展开来源 |
 
@@ -34,6 +35,7 @@
 | --- | --- |
 | 来源/元数据/列表 | `server/source.mjs`、`server/unread.mjs`、`server/store.mjs`、`src/App.tsx`、`src/catalogReader.ts` |
 | 已读同步 | `server/read-state.mjs`、`bin/read-state.py`、`src/readObservation.ts` |
+| 重命名 | `server/rename.mjs`、`bin/rename-thread.py`、`src/RenameThreadDialog.tsx`、`src/threadMetadata.ts` |
 | 新建/归档/恢复 | `server/lifecycle.mjs`、`bin/create-thread.py`、`bin/archive-thread.py`、`src/useTaskOperations.ts` |
 | 原桌面控制与账本 | `server/desktop.mjs`、`server/bridge-process.mjs`、`bin/desktop-bridge.py`、`bin/request_actions.py` |
 | 历史读取与展示合并 | `server/history.mjs`、`src/conversationFeed.ts`、`src/transcript.ts` |
@@ -45,7 +47,7 @@
 
 ## 保持的项目约定
 
-- **原任务权威**：不直接修改 Codex SQLite、global JSON 与 rollout。既有任务执行以原 thread ID 定位原桌面 owner，继承模型、cwd 与权限；分组不改变这些属性。新建、归档和恢复复用已验证的官方短生命周期 CLI，并核验 writer 与持久结果；不另起执行器接管正在使用的原任务，不绕过签名校验。
+- **原任务权威**：不直接修改 Codex SQLite、global JSON 与 rollout。既有任务执行以原 thread ID 定位原桌面 owner，继承模型、cwd 与权限。新建、重命名、归档和恢复复用已验证的官方短生命周期 CLI，并核验 writer 与持久结果；不另起执行器接管正在使用的原任务，不绕过签名校验。
 - **展示与执行分离**：按 provenance 显示真实用户消息和可见回复，排除注入上下文/内部压缩摘要。transcript、缓存和文字合并只能用于展示，不能授予执行权限或核销发送回执。问题卡只属于最新原轮次；该轮已完成但仍有问题时可保留，旧轮题目留在历史。
 - **派发与恢复**：保留 `requestId`、指纹、revision 和原 turn 约束；`accepted` 不等于模型完成。未知发送/中断/审批结果先核对，不自动重放。`canQueue`、`canSend`、`canAttemptSend` 含义独立，读侧失败不应误禁安全入队。
 - **输入与队列**：Pocket 待发队列与桌面队列仍独立；用户暂停或编辑的条目保持暂停。迟到响应不覆盖新草稿、已保存说明或较新列表；更新只由明确点击触发，检查期间产生的新输入也需保护。

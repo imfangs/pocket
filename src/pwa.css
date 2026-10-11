@@ -19,8 +19,7 @@ button:not(:disabled):active,
 .primary:active {
   opacity: 0.82;
 }
-.inspector-body,
-.group-tree {
+.inspector-body {
   overscroll-behavior: contain;
 }
 .access-screen {

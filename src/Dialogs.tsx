@@ -1,8 +1,7 @@
-import { Download, FolderPlus, Upload, X } from "lucide-react";
+import { Download, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import NotificationSettings from "./NotificationSettings";
-import type { Catalog, Group } from "./types";
-import { descendantIds, groupPath } from "./model";
+import type { Catalog } from "./types";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { modalCloseDecision } from "./modalInteraction";
 export function Modal({
@@ -75,177 +74,6 @@ export function Modal({
     </dialog>
   );
 }
-export function GroupDialog(p: {
-  group?: Group;
-  groups: Group[];
-  onClose: () => void;
-  onSave: (g: Partial<Group>, id?: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-}) {
-  const [name, setName] = useState(p.group?.name || ""),
-    [parentId, setParentId] = useState(p.group?.parentId || ""),
-    [color, setColor] = useState(p.group?.color || "#547569"),
-    [position, setPosition] = useState(p.group?.position ?? p.groups.length),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [confirmDelete, setConfirmDelete] = useState(false);
-  const [initial] = useState(() => ({ name, parentId, color, position }));
-  const dirty = name !== initial.name || parentId !== initial.parentId || color !== initial.color || position !== initial.position;
-  useReloadGuard(() => busy ? "分组操作尚未完成，请稍后更新。"
-    : dirty
-      ? "分组还有未保存的修改，请保存或取消后再更新。" : null);
-  const unavailable = p.group ? descendantIds(p.groups, p.group.id) : new Set();
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
-    const release = holdReload();
-    setBusy(true);
-    setError("");
-    try {
-      await p.onSave(
-        { name, parentId: parentId || null, color, position },
-        p.group?.id,
-      );
-      p.onClose();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      release();
-      setBusy(false);
-    }
-  };
-  return (
-    <Modal
-      title={p.group ? "编辑分组" : "新建分组"}
-      onClose={() => !busy && p.onClose()}
-      busy={busy}
-      dirty={dirty}
-    >
-      <form onSubmit={submit}>
-        <label className="field-label" htmlFor="group-name">
-          分组名称
-        </label>
-        <input
-          id="group-name"
-          data-autofocus
-          autoFocus
-          value={name}
-          onInput={(e) => setName(e.currentTarget.value)}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={60}
-          required
-          disabled={busy}
-        />
-        <label className="field-label" htmlFor="parent-group">
-          放在哪一层
-        </label>
-        <select
-          id="parent-group"
-          value={parentId}
-          onChange={(e) => setParentId(e.target.value)}
-          disabled={busy}
-        >
-          <option value="">顶层分组</option>
-          {p.groups
-            .filter((g) => !unavailable.has(g.id))
-            .map((g) => (
-              <option key={g.id} value={g.id}>
-                {groupPath(p.groups, g.id)}
-              </option>
-            ))}
-        </select>
-        <div className="group-options">
-          <label>
-            分组颜色
-            <input
-              type="color"
-              aria-label="分组颜色"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-            />
-          </label>
-          <label>
-            排序位置
-            <input
-              type="number"
-              aria-label="排序位置"
-              min={0}
-              max={10000}
-              value={position}
-              onInput={(e) => setPosition(Number(e.currentTarget.value))}
-              onChange={(e) => setPosition(Number(e.target.value))}
-            />
-          </label>
-        </div>
-        <p className="field-help">只整理 Pocket 的导航，不移动文件或原会话。</p>
-        {error && (
-          <p role="alert" className="inline-error">
-            {error}
-          </p>
-        )}
-        <footer>
-          {p.group && (
-            <button
-              type="button"
-              className="danger text-button"
-              disabled={busy}
-              onClick={() => setConfirmDelete(true)}
-            >
-              删除分组
-            </button>
-          )}
-          <button
-            type="button"
-            className="secondary"
-            onClick={p.onClose}
-            disabled={busy}
-          >
-            取消
-          </button>
-          <button className="primary" disabled={busy || !name.trim()}>
-            <FolderPlus size={15} />
-            {busy ? "保存中…" : "保存分组"}
-          </button>
-        </footer>
-        {confirmDelete && (
-          <div className="delete-confirm">
-            <p>
-              删除「{p.group?.name}」？任务和说明都会保留，子分组移到上一层。
-            </p>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setConfirmDelete(false)}
-            >
-              保留分组
-            </button>
-            <button
-              type="button"
-              className="danger-button"
-              disabled={busy}
-              onClick={async () => {
-                if (busy) return;
-                const release = holdReload();
-                setBusy(true);
-                try {
-                  await p.onDelete(p.group!.id);
-                  p.onClose();
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  release();
-                  setBusy(false);
-                }
-              }}
-            >
-              确认删除分组
-            </button>
-          </div>
-        )}
-      </form>
-    </Modal>
-  );
-}
 export function SettingsDialog(p: {
   accountActions?: React.ReactNode;
   catalog: Catalog;
@@ -292,7 +120,7 @@ export function SettingsDialog(p: {
         <hr />
         <h3>备份</h3>
         <p className="field-help">
-          导出置顶、分组和接续说明，不包含完整聊天记录。导入会替换当前整理，导入前会自动备份。
+          导出置顶、接续说明及历史整理数据，不包含完整聊天记录。导入会替换整理数据，导入前会自动备份。
         </p>
         <div className="backup-actions">
           <a className="secondary" href="/api/export" download>
@@ -331,7 +159,7 @@ export function SettingsDialog(p: {
         </div>
         {pending && (
           <div className="import-confirm">
-            <p>用「{pending.name}」恢复置顶、分组和说明？原会话不会被修改，旧备份未包含的置顶会保留。</p>
+            <p>用「{pending.name}」恢复置顶、接续说明及历史整理数据？原会话不会被修改，旧备份未包含的置顶会保留。</p>
             <button
               className="secondary"
               onClick={() => setPending(null)}
