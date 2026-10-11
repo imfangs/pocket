@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
+import { isMacBrowser } from '../src/browserPlatform.ts';
 
 const vite = await createServer({ configFile: false, root: fileURLToPath(new URL('..', import.meta.url)), esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
 const [{ default: TaskList }, { default: Inspector }, { Modal }, { default: Sidebar }] = await Promise.all([
@@ -13,6 +14,27 @@ after(() => vite.close());
 const thread = { id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa', title: 'A conversation', archived: false, separator: false, missing: false, pinned: false, intent: 'none', groupIds: [], updatedAt: 1, createdAt: 1, revision: 0, note: '', reviewAt: null, projectName: 'Project', cwd: '/synthetic' };
 const noop = () => {};
 const listProps = { threads: [], selected: null, view: 'all', onSelect: noop, onOpen: noop, busy: false, query: '', onClearQuery: noop };
+
+test('the information panel Mac shortcut distinguishes desktop Macs from phones, tablets and other systems', () => {
+  const macSafari = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15';
+  for (const browser of [
+    { platform: 'MacIntel', userAgent: macSafari, maxTouchPoints: 0 },
+    { platform: 'MacIntel', userAgent: macSafari.replace('Version/18.0 Safari/605.1.15', 'Chrome/141.0.0.0 Safari/537.36'), maxTouchPoints: 0 },
+    { platform: 'MacIntel', userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15.0; rv:144.0) Gecko/20100101 Firefox/144.0', maxTouchPoints: 0 },
+    { userAgent: macSafari, maxTouchPoints: 0 },
+  ]) assert.equal(isMacBrowser(browser), true, JSON.stringify(browser));
+  for (const browser of [
+    { platform: 'iPhone', userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', maxTouchPoints: 5 },
+    { platform: 'iPad', userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)', maxTouchPoints: 5 },
+    { platform: 'MacIntel', userAgent: macSafari, maxTouchPoints: 5 },
+    { platform: 'MacIntel', userAgent: macSafari, maxTouchPoints: 2 },
+    { platform: 'MacIntel', userAgent: 'Mozilla/5.0 (iPod touch; CPU iPhone OS 15_0 like Mac OS X)', maxTouchPoints: 1 },
+    { platform: 'Linux armv8l', userAgent: 'Mozilla/5.0 (Linux; Android 15) Chrome/141.0.0.0 Mobile Safari/537.36', maxTouchPoints: 5 },
+    { platform: 'Win32', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', maxTouchPoints: 0 },
+    { platform: 'Linux x86_64', userAgent: 'Mozilla/5.0 (X11; Linux x86_64)', maxTouchPoints: 0 },
+    {}, undefined,
+  ]) assert.equal(isMacBrowser(browser), false, JSON.stringify(browser));
+});
 
 test('an empty filtered list offers its actual reset action', () => {
   const html = renderToStaticMarkup(createElement(TaskList, { ...listProps, hasFilters: true, onClearFilters: noop }));

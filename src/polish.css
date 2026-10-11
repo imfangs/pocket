@@ -104,8 +104,6 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .settings-appearance .access-actions { border:0; padding:0; margin:0; }
 .settings-logout { margin-top:24px; padding-top:12px; border-top:1px solid var(--line); }
 .settings-logout-button { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; padding:10px 0; color:var(--text-secondary); font-size:13px; border-radius:6px; }
-.settings-source { margin:20px 0; }
-.settings-source summary { min-height:44px; padding:12px 0; cursor:pointer; color:var(--text-secondary); }
 
 /* The reader is a page, with tools at its edges. */
 .inspector, .inspector-placeholder, .with-inspector .inspector { width:100%; min-width:0; background:var(--surface); border-left:1px solid var(--line); }

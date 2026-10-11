@@ -1,7 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import NotificationSettings from "./NotificationSettings";
-import type { Catalog } from "./types";
 import { modalCloseDecision } from "./modalInteraction";
 export function Modal({
   title,
@@ -76,9 +75,6 @@ export function Modal({
 export function SettingsDialog(p: {
   appearanceActions?: React.ReactNode;
   logoutAction?: React.ReactNode;
-  catalog: Catalog;
-  showSeparators: boolean;
-  onSeparators: (b: boolean) => void;
   onClose: () => void;
 }) {
   return (
@@ -86,27 +82,6 @@ export function SettingsDialog(p: {
       <div className="settings-content">
         {p.appearanceActions && <section className="settings-appearance" aria-label="外观与安装">{p.appearanceActions}</section>}
         <NotificationSettings />
-        <details className="settings-source"><summary>连接与来源</summary><div className="data-summary">
-          <span>最近成功同步</span>
-          <strong>
-            {p.catalog.sourceInfo
-              ? new Date(p.catalog.sourceInfo.syncedAt).toLocaleString("zh-CN")
-              : "尚未同步"}
-          </strong>
-          <span>来源范围</span>
-          <p>{p.catalog.sourceInfo?.scope || "等待 Codex 来源"}</p>
-        </div></details>
-        <label className="setting-switch">
-          <span>
-            显示横线分隔符会话
-            <small>默认在 Pocket 隐藏，原版记录保持原样。</small>
-          </span>
-          <input
-            type="checkbox"
-            checked={p.showSeparators}
-            onChange={(e) => p.onSeparators(e.target.checked)}
-          />
-        </label>
         {p.logoutAction && <div className="settings-logout">{p.logoutAction}</div>}
       </div>
     </Modal>

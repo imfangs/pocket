@@ -107,10 +107,7 @@ export default function App({
     [settings, setSettings] = useState(false),
     [newConversationOpen, setNewConversationOpen] = useState(false),
     [newConversationDraft, setNewConversationDraft] = useState<{ text: string; clipboardRead?: Promise<CreationClipboard> } | null>(null),
-    [createRequestId, setCreateRequestId] = useState<string | null>(null),
-    [showSeparators, setShowSeparators] = useState(
-      () => localStorage.getItem("navigator.separators") === "true",
-    );
+    [createRequestId, setCreateRequestId] = useState<string | null>(null);
   const search = useRef<HTMLInputElement>(null),
     searchToggle = useRef<HTMLButtonElement>(null),
     conversationHistory = useRef<HistoryCache>(new Map());
@@ -285,11 +282,10 @@ export default function App({
         view,
         query,
         project,
-        showSeparators,
         sort,
         taskStatuses.runtimeLoading || taskStatuses.runtimeUnavailable ? undefined : taskStatuses.runtimeStates,
       ),
-    [catalog, view, query, project, showSeparators, sort, taskStatuses],
+    [catalog, view, query, project, sort, taskStatuses],
   );
   const current = catalog.threads.find((t) => t.id === selected);
   const currentOperation = current ? taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create" && activeOperation(operation))
@@ -298,7 +294,7 @@ export default function App({
   const unreadKnown = catalog.sourceInfo?.unread?.available === true;
   const unreadCount = catalog.threads.filter(t => t.needsInput && !t.archived && !t.missing && !t.separator).length;
   const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
-  const runningCount = filterThreads(catalog.threads, "running", "", "", false, "updated",
+  const runningCount = filterThreads(catalog.threads, "running", "", "", "updated",
     runtimeKnown ? taskStatuses.runtimeStates : undefined).length;
   const guard = async (action: () => Promise<void>) => {
     setError("");
@@ -403,7 +399,6 @@ export default function App({
   return (
     <div className="app-shell">
       <Sidebar
-        showSeparators={showSeparators}
         catalog={catalog}
         view={view}
         mobileOpen={mobile}
@@ -624,12 +619,6 @@ export default function App({
         <SettingsDialog
           appearanceActions={appearanceActions}
           logoutAction={logoutAction}
-          catalog={catalog}
-          showSeparators={showSeparators}
-          onSeparators={(b) => {
-            setShowSeparators(b);
-            localStorage.setItem("navigator.separators", String(b));
-          }}
           onClose={() => setSettings(false)}
         />
       )}

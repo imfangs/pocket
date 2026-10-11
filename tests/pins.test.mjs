@@ -32,7 +32,7 @@ function fixture(t) {
     reopen() { store.close(); store = new NavigatorStore(directory); return store; },
   };
 }
-const ordered = (store) => filterThreads(store.catalog().threads, "all", "", "", false, "pinned").map(t => t.id);
+const ordered = (store) => filterThreads(store.catalog().threads, "all", "", "", "pinned").map(t => t.id);
 const rawSources = (store) => store.db.prepare("SELECT * FROM source_threads ORDER BY id").all();
 
 test("unset Pocket pins follow the Mac source; explicit values survive later source changes", t => {

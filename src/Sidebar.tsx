@@ -10,7 +10,6 @@ interface Props {
   onClose: () => void;
   onView: (v: View) => void;
   onSettings: () => void;
-  showSeparators?: boolean;
 }
 export default function Sidebar(p: Props) {
   const [narrow, setNarrow] = useState(
@@ -40,7 +39,7 @@ export default function Sidebar(p: Props) {
     wasOpen.current = isOpen;
   }, [narrow, p.mobileOpen]);
   const counts = useMemo(() => Object.fromEntries((["all", "pinned", "recent", "unread"] as View[])
-    .map(view => [view, navigationViewCount(p.catalog, view, p.showSeparators)])), [p.catalog, p.showSeparators]);
+    .map(view => [view, navigationViewCount(p.catalog, view)])), [p.catalog]);
   const navs: [View, string, typeof Layers3, number | string][] = [
     ["unread", "待我输入", MessageCircle, p.catalog.sourceInfo?.unread?.available ? counts.unread : "—"],
     ["all", "全部会话", Layers3, counts.all],

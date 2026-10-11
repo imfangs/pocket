@@ -5,7 +5,6 @@ export function filterThreads(
   view: View,
   query: string,
   project: string,
-  showSeparators: boolean,
   sort: string,
   runtimeStates?: ReadonlyMap<string, TaskStatus>,
 ) {
@@ -17,7 +16,6 @@ export function filterThreads(
     .filter(Boolean);
   return threads
     .filter((t) => {
-      if (!showSeparators && t.separator) return false;
       if (view === "archived" && !t.archived) return false;
       if (view !== "archived" && t.archived)
         return false;

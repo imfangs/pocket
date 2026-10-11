@@ -6,11 +6,11 @@ import { modalCloseDecision } from '../src/modalInteraction.ts';
 import { creationDirectories, creationDirectoryChoices, creationLocation, searchCreationDirectories } from '../src/creationLocations.ts';
 
 const thread = { id: 'one', archived: false, separator: false, missing: false, pinned: false, intent: 'later', lastOpenedAt: 1, groupIds: [], updatedAt: 1 };
-test('sidebar view counts exclude archived conversations from normal views', () => {
-  const catalog = { threads: [thread, { ...thread, id: 'archived', archived: true }], groups: [] };
-  assert.equal(navigationViewCount(catalog, 'recent'), 1);
+test('sidebar view counts include separator records while excluding archived conversations from normal views', () => {
+  const catalog = { threads: [thread, { ...thread, id: 'separator', separator: true }, { ...thread, id: 'archived', archived: true }], groups: [] };
+  assert.equal(navigationViewCount(catalog, 'recent'), 2);
   assert.equal(navigationViewCount(catalog, 'archived'), 1);
-  assert.equal(navigationViewCount(catalog, 'all'), 1);
+  assert.equal(navigationViewCount(catalog, 'all'), 2);
 });
 test('old arrangement and group preferences return to all while preserving supported pin order', () => {
   for (const view of ['group', 'unassigned', 'active', 'later', 'reference', 'unknown'])

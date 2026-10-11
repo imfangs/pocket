@@ -1,8 +1,8 @@
 import { filterThreads } from "./model.ts";
 import type { Catalog, View } from "./types";
 
-export function navigationViewCount(catalog: Catalog, view: View, showSeparators = false) {
-  return filterThreads(catalog.threads, view, "", "", showSeparators, "updated").length;
+export function navigationViewCount(catalog: Catalog, view: View) {
+  return filterThreads(catalog.threads, view, "", "", "updated").length;
 }
 
 // Retired group and arrangement views must never restore an empty dead end.

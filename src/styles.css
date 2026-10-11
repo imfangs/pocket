@@ -780,38 +780,6 @@ dialog footer .danger {
   line-height: 1.8;
   margin: 7px 0 0;
 }
-.data-summary {
-  display: grid;
-  grid-template-columns: 100px 1fr;
-  gap: 10px;
-  font-size: 11px;
-  margin: 25px 0;
-  color: var(--muted);
-}
-.data-summary strong {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--muted);
-}
-.data-summary p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.8;
-}
-.setting-switch {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--text-secondary);
-  justify-content: space-between;
-}
-.setting-switch small {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 5px;
-}
 hr {
   border: 0;
   border-top: 1px solid var(--line);

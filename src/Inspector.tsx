@@ -11,6 +11,7 @@ import TaskOperationStatus from "./TaskOperationStatus";
 import { Modal } from "./Dialogs";
 import RenameThreadDialog from "./RenameThreadDialog";
 import type { SubmittedQueryStore } from "./submittedQueries";
+import { isMacBrowser } from "./browserPlatform";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
@@ -33,6 +34,7 @@ export default function Inspector(p: Props) {
   const [infoOpen, setInfoOpen] = useState(false), [renaming, setRenaming] = useState(false);
   const [actionBusy, setActionBusy] = useState(false), [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const showMacOpen = isMacBrowser(typeof navigator === "undefined" ? undefined : navigator);
   const managementBlocked = activeOperation(p.operation);
   overlayOpen.current = infoOpen || renaming;
   useLayoutEffect(() => { close.current = p.onClose; }, [p.onClose]);
@@ -87,8 +89,8 @@ export default function Inspector(p: Props) {
               onClick={() => void runAction(() => p.onArchive(p.thread, !p.thread.archived))}>
               <Archive size={14} aria-hidden="true" />{p.thread.archived ? "恢复会话" : "归档会话"}
             </button>
-            <button type="button" className="secondary" disabled={actionBusy || p.thread.missing || managementBlocked}
-              onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>在 Mac 打开<ArrowUpRight size={14} aria-hidden="true" /></button>
+            {showMacOpen && <button type="button" className="secondary" disabled={actionBusy || p.thread.missing || managementBlocked}
+              onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>在 Mac 打开<ArrowUpRight size={14} aria-hidden="true" /></button>}
           </div>
           {p.thread.missing ? <p className="field-help">原会话暂不可用，请先刷新来源。</p>
             : p.thread.archived ? <p className="field-help">会话已归档，恢复后可继续对话或重命名。</p> : null}
