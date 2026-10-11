@@ -26,8 +26,8 @@ test('ordinary creation always puts Query and its clear action before directory 
 });
 
 test('a nonempty initial Query stays visible while creation options load', () => {
-  const html = render({ initialQuery: 'The clipboard query' });
-  assert.match(html, />The clipboard query<\/textarea>/);
+  const html = render({ initialQuery: 'Recovered query' });
+  assert.match(html, />Recovered query<\/textarea>/);
   assert.match(html, />正在准备…<\/button>/);
 });
 
