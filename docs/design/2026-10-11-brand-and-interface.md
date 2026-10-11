@@ -27,3 +27,5 @@
 同日后续设置减法：移除“连接与来源”以及分隔符开关，设置只保留外观/安装、通知与底部退出。普通列表与计数展示原分隔符记录，navigator.separators旧隐藏偏好不再读取；未读/运行视图仍只显示符合状态的有效任务。来源/API/原记录不变。
 
 信息面板的“在 Mac 打开”仅在Mac浏览器显示；显式iPhone/iPad/iPod/Android和MacIntel多触点iPadOS排除，Windows/Linux隐藏。此判断只控制一个便捷按钮，不充当权限控制，也不改变手机发送时在Mac自动接入原会话的能力。
+
+设置与Mac入口追加发布后，iPhone、Mac、iPad桌面UA、Windows四种浏览器配置共12项公网流程通过，包含入口显隐、设置删减与退出；没有真实任务打开/写入。详见 `.local/qa/settings-minimal-2026-10-11/public-verdict.json`。
