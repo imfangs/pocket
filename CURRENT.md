@@ -1,6 +1,6 @@
 # Pocket 当前状态
 
-2026-10-11 最终回复后的过程折叠已完成实现与验收，待发布。仅折叠同一明确轮次首个有效最终回复前的连续过程，用户/最终回复/当前问题保留；上翻、选字或正文交互时暂缓，手动展开随本次10条历史缓存保留。双来源消息ID替换时保护选中节点，呈现未追上新数据时不标读。683项回归、构建及19项生产构建浏览器检查通过，0次模型发送。详见[过程折叠](docs/design/2026-10-11-completed-progress.md)，证据 `.local/qa/progress-fold-2026-10-11/`。
+2026-10-11 最终回复后的过程折叠已上线。仅折叠同一明确轮次首个有效最终回复前的连续过程，用户/最终回复/当前问题保留；上翻、选字或正文交互时暂缓，手动展开随本次10条历史缓存保留。双来源消息ID替换时保护选中节点，呈现未追上新数据时不标读。683项回归、构建及19项生产构建浏览器检查通过，0次模型发送；公开21文件、功能及8项真实历史的公网浏览器检查通过（默认折叠、原文展开、返回保持与无任务写入）。仅前端发布，未重启Mac API、Codex或连接器。详见[过程折叠](docs/design/2026-10-11-completed-progress.md)，证据 `.local/qa/progress-fold-2026-10-11/`。
 
 2026-10-11 已整理[整体迭代复盘：操作类产品怎样做到顺手](docs/research/2026-10-11-pocket-interaction-retrospective.md)，供本项目及类似项目参考。覆盖09-27创建以来的主线，明确综合回顾与逐条全量审计的区别；提炼顺手标准、功能取舍、UI演进、协作反思和最小验证方法，保留剪贴板反例与证据边界。README和AGENTS已加入入口；本次仅文档整理，以下产品发布身份不变。
 
@@ -73,12 +73,12 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `ff354795d9e6b26f00101b047ebef2a61e838957`（设置精简、默认显示分隔符、Mac入口按系统显示）；Logo和手机下拉刷新保持。后续文档commit不代表部署更新 |
+| 已发布前端与网关源码 | `387e07e73498d6c0ca1f7aab0703f7642a901c18`（最终回复后的过程折叠及阅读保护）；此前功能保持。后续文档commit不代表部署更新 |
 | Mac API与桥接源码 | `50568cdbabe66912ee117ba8573b6dab33308774`；精确适配App `26.1007.21159:20052` / CLI `0.162.0-alpha.17.2`。服务PID 94522，配置 `config/local-service.json` |
-| Pages 部署 | `265881c2-319d-4bd4-b1a7-92f3bbd0c699`；10-11ready=true，21文件匹配，功能检查通过，单次上传完成 |
-| 前端 build ID | `50ca6b924444aa8cfcb2aaf56c697bdd8e9e6ac300c4c9e21591edcf0a441eeb`；公开manifest、HTML及资源与本地匹配 |
-| 验证快照 | 672项回归/构建、14个平台样本和iPhone/Mac/iPad桌面UA/Windows四种浏览器共16项本地及12项公网流程通过；旧false偏好不能隐藏分隔符。证据 `.local/qa/settings-minimal-2026-10-11/`；原生任务真实验收沿用此前记录 |
-| 最后健康复核 | 10-11：21个公开文件、域名/TLS、功能及12项公网浏览器检查通过；仅更新前端，Mac API与连接器进程保持，0次真实任务打开/写入 |
+| Pages 部署 | `f0acaa82-8020-43ea-90e8-d1d8b371826a`；10-11ready=true，21文件匹配、功能通过；401发生于上传前，原Wrangler续期后单次上传完成 |
+| 前端 build ID | `7dc8f88c0437cb6efeaf2bdd7a4e70b6afdfed1f955f4c1cf4f894b5b1253648`；公开manifest、HTML及资源与本地匹配 |
+| 验证快照 | 683项回归/构建、19项生产构建浏览器及8项公网真实历史检查通过：同/跨轮、问题、手动展开、缓存、历史位置、选区及双来源换ID、布局后标读、320px与草稿。证据 `.local/qa/progress-fold-2026-10-11/` |
+| 最后健康复核 | 10-11：21个公开文件、域名/TLS、功能及8项公网折叠流程检查通过；仅更新前端，Mac API与连接器进程保持，无真实任务发送或控制操作 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；原App门槛和Python/FBT路径以 `config/desktop-bridge.json` 为准，内置CLI布局/版本由 `bin/bundled_cli.py` 解析。App升级后先复核，勿直接去掉版本限制 |
 
 需要确认今天的在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。
@@ -117,6 +117,7 @@
 
 | 问题范围 | 最近设计与证据入口 |
 | --- | --- |
+| 最终回复后的过程折叠、展开/选区/滚动与已读 | [过程折叠](docs/design/2026-10-11-completed-progress.md) |
 | Logo、设置/详情减法与运行工具栏 | [品牌与界面收敛](docs/design/2026-10-11-brand-and-interface.md)、[矢量主稿](design/brand/README.md) |
 | 改名、旧分组/安排兼容 | [重命名与管理减法](docs/design/2026-10-11-rename-and-management.md) |
 | 整体UI、导航、筛选、阅读与表单 | [界面减法](docs/design/2026-10-10-interface-subtraction.md)、[工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md) |
