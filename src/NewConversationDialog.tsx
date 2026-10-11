@@ -8,11 +8,12 @@ import { useReloadGuard } from "./updateSafety";
 import { creationDirectories, creationDirectoryChoices, creationLocation, creationProjectChoices, searchCreationDirectories } from "./creationLocations";
 import { initialCreationSelection, readCreationPreference, saveCreationPreference } from "./creationPreference";
 import AutoTextarea from "./AutoTextarea";
-import { creationQueryPayload } from "./creationQuery";
+import { applyCreationClipboard, creationQueryPayload, editCreationQuery, type CreationClipboard, type CreationQueryDraft } from "./creationQuery";
 
-export default function NewConversationDialog({ preferredCwd, initialQuery, operation, operationError, onCreate, onCheck, onCancelOperation, onClose }: {
+export default function NewConversationDialog({ preferredCwd, initialQuery, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose }: {
   preferredCwd?: string; operation?: TaskOperation; operationError?: string;
   initialQuery?: string;
+  clipboardRead?: Promise<CreationClipboard>;
   onCreate: (input: { locationId: string; name?: string; initialQuery?: string }) => Promise<unknown>;
   onCheck: () => void; onCancelOperation: () => void; onClose: () => void;
 }) {
@@ -22,7 +23,8 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, oper
   const [directorySearchOpen, setDirectorySearchOpen] = useState(false);
   const [rememberedSelection] = useState(readCreationPreference);
   const [rememberedUnavailable, setRememberedUnavailable] = useState(false);
-  const [query, setQuery] = useState(initialQuery ?? "");
+  const [queryDraft, setQueryDraft] = useState<CreationQueryDraft>(() => ({ text: initialQuery ?? "", revision: 0 }));
+  const query = queryDraft.text;
   const queryTooLong = query.length > 16000;
   const queryBox = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState(false);
@@ -42,6 +44,12 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, oper
   const projects = directory ? creationProjectChoices(directory) : [];
   const locked = busy || activeOperation(operation) || operation?.status === "succeeded";
   const dirty = !activeOperation(operation) && operation?.status !== "succeeded" && (!!name || selectionTouched || !!query);
+  useEffect(() => {
+    if (!clipboardRead || activeOperation(operation)) return;
+    let current = true;
+    void clipboardRead.then(result => { if (current) setQueryDraft(draft => applyCreationClipboard(draft, result)); });
+    return () => { current = false; };
+  }, [clipboardRead, operation?.requestId]);
   useEffect(() => { if (directorySearchOpen) directorySearch.current?.focus(); }, [directorySearchOpen]);
   useReloadGuard(() => busy ? "会话正在创建，请稍后更新。" : dirty ? "新会话还有未提交的内容，请先处理。" : null);
   useEffect(() => {
@@ -69,6 +77,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, oper
         (directory ? projectSelect.current : directorySelect.current)?.focus();
         return;
       }
+      setQueryDraft(draft => editCreationQuery(draft, draft.text));
       submitting.current = true; setBusy(true); setError("");
       try {
         saveCreationPreference({ cwd: selectedLocation.cwd, locationId: selectedLocation.id });
@@ -81,13 +90,14 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, oper
         <div className="quick-create-query-heading">
           <label className="field-label" htmlFor="quick-create-query">Query <small>首条消息，可留空</small></label>
           <button type="button" className="text-button" aria-label="清空 Query" disabled={locked} onClick={() => {
-            setQuery("");
+            setQueryDraft(draft => editCreationQuery(draft, ""));
             queryBox.current?.querySelector("textarea")?.focus();
           }}>清空</button>
         </div>
         <AutoTextarea id="quick-create-query" data-autofocus value={query} disabled={locked} maxLength={16000}
           aria-invalid={queryTooLong || undefined} placeholder="写下想讨论或完成的事，也可以粘贴内容"
-          onChange={event => setQuery(event.target.value)} />
+          onChange={event => { const text = event.target.value; setQueryDraft(draft => editCreationQuery(draft, text)); }} />
+        {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
         {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}
       </div>
       <details ref={settings} className="new-conversation-settings">
