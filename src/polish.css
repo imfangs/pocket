@@ -36,6 +36,10 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .new-conversation-button, .sync-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:36px; min-height:36px; padding:8px; color:var(--muted); background:transparent; border:0; margin:0; align-self:center; border-radius:6px; flex-shrink:0; }
 .new-conversation-button { font-size:13px; font-weight:500; }
 .sync-button span { display:none; }
+/* Narrow touch screens already refresh this same list by pulling down. */
+@media (max-width:760px) and (pointer:coarse) and (hover:none) {
+  .workspace-header .heading-line > .sync-button { display:none; }
+}
 .filter-row { min-height:52px; margin-top:12px; gap:8px; flex-wrap:wrap; }
 .activity-filters { display:flex; align-items:center; gap:5px; }
 .running-dot { width:7px; height:7px; border-radius:50%; background:var(--positive); flex:none; }
