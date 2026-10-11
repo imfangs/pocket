@@ -31,3 +31,7 @@
 - `.local/qa/rename-integration-2026-10-11/`：实际 HTTP/RenameService/SQLite 与注入原生适配器联调，单独验证真实后台集成。
 
 自动化和桌面手机尺寸浏览器结果不代表 iPhone 真机手感或长期网络稳定性。此改动不需要启动真实模型轮次。
+
+2026-10-11真实Pocket API验收：改名和恢复各一次POST均succeeded，原生read_thread与list_threads返回新名，最后原owner快照也同步；owner、idle/resumed及10个轮次保持。前次约31秒、本次约72秒才观测到owner新标题，期间原生list读取也可能触发刷新，不能确定固定同步时长或承诺即时显示。原生GUI因工具安全限制未观察，不绕过；验收对象已恢复原名和归档。
+
+公网验收使用真实Service Worker：11项登录、管理入口、归档限制、320px、退出后401检查通过，0任务写入/消息发送；屏蔽Service Worker的初次隔离测试曾在退出等待超时，未修改产品退出逻辑。发布只上传一次，OAuth 401发生在上传前并通过原Wrangler续期恢复。两个本轮合成fixture进程与临时目录已清理。

@@ -2,7 +2,7 @@
 
 把 Mac 上的 Codex 带到手机，随时查看对话、接着工作。本机使用：**https://threads.local**。
 
-原名任务架 / Codex Navigator，2026-09-28 更名为 Pocket。仓库目录、服务与数据标识沿用原值，既有口令、分组、备注和备份继续使用。
+原名任务架 / Codex Navigator，2026-09-28 更名为 Pocket。仓库目录、服务与数据标识沿用原值，既有口令、已保存数据及备份保持兼容。
 
 手机 PWA 与 `x.fangs.cc` 固定入口的实现、口令文件、连接器和发布方式见 [docs/MOBILE.md](docs/MOBILE.md)，实际就绪状态以 [CURRENT.md](CURRENT.md) 为准。
 
@@ -58,7 +58,7 @@ node /Users/fangs/workspace/side/codex-navigator/bin/navigator.mjs backup /绝�
 
 ## 数据与恢复
 
-默认整理数据：`~/Library/Application Support/CodexNavigator/navigator.sqlite`，自动 JSON 备份位于相邻 `backups/`，保留最近 50 次。首次导入、刷新和 App 重启都不会覆盖已编辑的接续说明或分组。界面导出的 JSON 包含分组与备注，不含完整聊天记录；恢复时先备份现有整理，再用事务替换。
+默认整理数据：`~/Library/Application Support/CodexNavigator/navigator.sqlite`，自动 JSON 备份位于相邻 `backups/`，保留最近 50 次。首次导入、刷新和 App 重启都不会覆盖已编辑的接续说明或分组。界面导出的 JSON 包含置顶、接续说明及历史整理数据，不含完整聊天记录；恢复时先备份现有整理，再用事务替换。
 
 数据、截图和测试回执不进 Git。源码保存在当前项目，可重新安装；换电脑需另行恢复原 Codex 会话，Pocket 备份不代替原会话备份。
 
