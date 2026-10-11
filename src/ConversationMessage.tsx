@@ -32,6 +32,7 @@ export default function ConversationMessage({ message, recentlySent = false }: {
   return (
     <article
       className={`conversation-message ${message.role} message-${kind}${confirmed ? " is-recently-sent" : ""}`}
+      data-message-id={message.id}
       aria-label={label}
     >
       <div className="message-label">

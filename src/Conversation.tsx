@@ -9,6 +9,8 @@ import { ArrowDown, RefreshCw, Send, Link2 } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
+import ProgressDisclosure from "./ProgressDisclosure";
+import { useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript } from "./conversationFeed";
 import { displayMessages } from "./transcript";
@@ -144,6 +146,10 @@ export default function Conversation({
     for (const question of questions) groups.set(question.sourceMessageId, [...(groups.get(question.sourceMessageId) ?? []), question]);
     return groups;
   }, [questions]);
+  const protectedProgressIds = useMemo(() => new Set(questionsByMessage.keys()), [questionsByMessage]);
+  const progress = useProgressMessages({ messages: shownMessages, protectedIds: protectedProgressIds,
+    root: messages, nearBottom, away: awayFromLatest, cache: historyCache, threadId: thread.id,
+    onPosition: atBottom => { setAwayFromLatest(!atBottom); if (atBottom) setHasNewContent(false); } });
   const unplacedQuestions = useMemo(() => questions.filter(question => !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages]);
   // If the native question arrives before its source message, still offer it
   // inline but wait for matching visible text before marking the task as read.
@@ -199,7 +205,7 @@ export default function Conversation({
     const target = readSentinel.current;
     if (!observation || !root || !target) return;
     return observeVisibleRead({
-      root, target, observation, getObservation: () => latestReadObservation.current, attempted: attemptedReads.current,
+      root, target, observation, getObservation: () => progress.canObserve() ? latestReadObservation.current : null, attempted: attemptedReads.current,
       submit: (input, signal) => api<ReadReceipt>(`/api/tasks/${thread.id}/read`, "POST", input,
         { signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]) }),
       onRead: onActivity,
@@ -211,7 +217,7 @@ export default function Conversation({
         }
       },
     });
-  }, [thread.id, readVersion, readItemId, readRetry, onActivity]);
+  }, [thread.id, readVersion, readItemId, readRetry, onActivity, progress.canObserve]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine !== false);
     window.addEventListener("online", update);
@@ -363,7 +369,7 @@ export default function Conversation({
     const element = messages.current;
     if (!element) return;
     const latest = shownMessages.at(-1), previous = previousLatest.current;
-    if (nearBottom.current) {
+    if (nearBottom.current && !progress.readingProtected()) {
       element.scrollTop = element.scrollHeight;
       setAwayFromLatest(false);
       setHasNewContent(false);
@@ -373,18 +379,18 @@ export default function Conversation({
     }
     previousLatest.current = latest ? { id: latest.id, text: latest.text } : null;
     restoreScroll.current = null;
-  }, [shownMessages, visibleSubmissions]);
+  }, [shownMessages, visibleSubmissions, progress.entries, progress.readingProtected]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
     // Composer growth and the software keyboard resize the reading area even
     // when no message changes. Follow only while the reader is already at bottom.
     const observer = new ResizeObserver(() => {
-      if (nearBottom.current) element.scrollTop = element.scrollHeight;
+      if (nearBottom.current && !progress.readingProtected()) element.scrollTop = element.scrollHeight;
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [progress.readingProtected]);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       if (draft.text || uploads.get(thread.id).length || submissions.reloadBlocker()) {
@@ -575,7 +581,12 @@ export default function Conversation({
             {targetAvailable && <p>写下你想讨论或完成的事。</p>}
           </div>
         )}
-        {shownMessages.map(message => {
+        {progress.entries.map(entry => {
+          if (entry.type === "progress") return <ProgressDisclosure key={entry.id} id={entry.id} count={entry.messages.length}
+            open={progress.expanded.has(entry.id)} onOpenChange={open => progress.toggle(entry.id, open)}>
+            {entry.messages.map(message => <ConversationMessage key={message.id} message={message} />)}
+          </ProgressDisclosure>;
+          const message = entry.message;
           const messageQuestions = questionsByMessage.get(message.id);
           return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceTruncated={message.truncated}
             disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} />

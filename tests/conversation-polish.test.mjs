@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { requestAnswerKey } from '../src/questionDrafts.ts';
+import { groupProgressMessages } from '../src/progressGroups.ts';
 
 const vite = await createServer({ configFile: false, root: fileURLToPath(new URL('..', import.meta.url)), esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
 const { default: Message } = await vite.ssrLoadModule('/src/ConversationMessage.tsx');
@@ -13,11 +14,70 @@ const { default: Requests } = await vite.ssrLoadModule('/src/RequestActions.tsx'
 const { default: Conversation } = await vite.ssrLoadModule('/src/Conversation.tsx');
 after(() => vite.close());
 
-function renderConversation(history) {
+function renderConversation(history, viewState = {}) {
   const id = 'thread';
   return renderToStaticMarkup(createElement(Conversation, { thread: { id, archived: false, missing: false }, drafts: new Map(),
-    historyCache: new Map([[id, { history, nearBottom: true, scrollTop: 0 }]]), onConnect: async () => ({}) }));
+    historyCache: new Map([[id, { history, nearBottom: true, scrollTop: 0, ...viewState }]]), onConnect: async () => ({}) }));
 }
+
+function progressBodies(html) {
+  // Each disclosure preserves its ConversationMessage articles inside the
+  // controlled body. Keep the whole body so outer-content assertions can
+  // detect a final reply or an actionable question folded by incorrect wiring.
+  return [...html.matchAll(/<div\b([^>]*class="progress-disclosure-body"[^>]*)>([\s\S]*?<\/article>)<\/div>/g)];
+}
+
+test('a cached same-turn final folds process by default while its final reply and current question stay outside', () => {
+  const question = { key: 'current-fold-question', sourceMessageId: 'question-source', turnId: 'completed-turn', title: 'Which follow-up should I use?', options: ['A', 'B'] };
+  const history = { source: 'desktop', runtime: 'idle', canSend: true, checkedAt: 1, hint: '',
+    turnTiming: { turnId: 'completed-turn', status: 'completed' }, asyncQuestions: [question], messages: [
+      { id: 'process', turnId: 'completed-turn', role: 'assistant', phase: 'commentary', text: 'Completed independent process.' },
+      // Native questions can refer to an ordinary commentary message without
+      // isQuestion. Conversation must protect the mapped QuestionPrompts source.
+      { id: question.sourceMessageId, turnId: 'completed-turn', role: 'assistant', phase: 'commentary', text: question.title },
+      { id: 'final', turnId: 'completed-turn', role: 'assistant', phase: 'final_answer', text: 'Visible final deliverable.' },
+    ] };
+  const html = renderConversation(history), bodies = progressBodies(html);
+  const toggles = [...html.matchAll(/<button\b([^>]*class="progress-disclosure-toggle"[^>]*)>/g)];
+  assert.equal(bodies.length, 1);
+  assert.equal(toggles.length, 1);
+  assert.match(toggles[0][1], /aria-expanded="false"/);
+  assert.match(bodies[0][1], /hidden=""/);
+  assert.match(bodies[0][2], /Completed independent process\./, 'hidden process stays mounted');
+  const outside = html.replace(bodies[0][0], '');
+  assert.doesNotMatch(outside, /Completed independent process\./);
+  assert.match(outside, /Visible final deliverable\./);
+  assert.match(outside, /class="question-prompts"/);
+  assert.match(outside, /Which follow-up should I use\?/);
+  assert.doesNotMatch(bodies[0][2], /Visible final deliverable|Which follow-up|question-prompts/);
+});
+
+test('cached progress expansion reconnects to the helper group while a neighboring final leaves the current turn open', () => {
+  const history = { source: 'desktop', runtime: 'active', canSend: true, checkedAt: 1, hint: '',
+    turnTiming: { turnId: 'current-turn', status: 'inProgress' }, messages: [
+      { id: 'older-process', turnId: 'older-turn', role: 'assistant', phase: 'commentary', text: 'Previously expanded process.' },
+      { id: 'older-final', turnId: 'older-turn', role: 'assistant', phase: 'final_answer', text: 'Older completed reply.' },
+      { id: 'current-process', turnId: 'current-turn', role: 'assistant', phase: 'commentary', text: 'Current turn still has no final.' },
+      { id: 'neighbor-final', turnId: 'neighbor-turn', role: 'assistant', phase: 'final', text: 'Neighboring turn completed.' },
+    ] };
+  const group = groupProgressMessages(history.messages).find(entry => entry.type === 'progress');
+  assert.ok(group);
+  const html = renderConversation(history, { progressView: { expanded: [group.id], deferred: [], seen: [group.id] } });
+  const bodies = progressBodies(html);
+  assert.equal(bodies.length, 1);
+  const bodyId = renderToStaticMarkup(createElement('div', { id: `${group.id}-content` })).match(/id="[^"]*"/)[0];
+  assert.ok(bodies[0][1].includes(bodyId), 'the saved helper group ID controls the rendered disclosure');
+  assert.doesNotMatch(bodies[0][1], /\bhidden=/);
+  const toggle = html.match(/<button\b([^>]*class="progress-disclosure-toggle"[^>]*)>/)[1];
+  assert.match(toggle, /aria-expanded="true"/);
+  assert.match(html, /收起过程/);
+  assert.match(bodies[0][2], /Previously expanded process\./);
+  const outside = html.replace(bodies[0][0], '');
+  assert.match(outside, /Older completed reply\./);
+  assert.match(outside, /Current turn still has no final\./);
+  assert.match(outside, /Neighboring turn completed\./);
+  assert.doesNotMatch(bodies[0][2], /Current turn still has no final|Neighboring turn completed/);
+});
 
 test('a completed turn duration appears once beside its final reply while unmatched and running timing remains visible', () => {
   const history = { source: 'desktop', runtime: 'idle', canSend: true, checkedAt: 1, hint: '',

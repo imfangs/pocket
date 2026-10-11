@@ -60,9 +60,11 @@ export type QueuedMessage = {
   createdAt: number;
   attachments?: PublicAttachment[];
 };
+export type ProgressViewState = { expanded: string[]; deferred: string[]; seen: string[] };
 export type HistoryCache = Map<string, {
   history?: History;
   transcript?: SavedTranscript;
+  progressView?: ProgressViewState;
   scrollTop: number;
   nearBottom: boolean;
 }>;
@@ -78,13 +80,15 @@ export type SavedTranscript = {
 export function rememberHistory(cache: HistoryCache, id: string, history: History) {
   const previous = cache.get(id);
   cache.delete(id);
-  cache.set(id, { history, transcript: previous?.transcript, scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
+  cache.set(id, { history, transcript: previous?.transcript, progressView: previous?.progressView,
+    scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
   if (cache.size > 10) cache.delete(cache.keys().next().value!);
 }
 export function rememberTranscript(cache: HistoryCache, id: string, transcript: SavedTranscript) {
   const previous = cache.get(id);
   cache.delete(id);
-  cache.set(id, { ...previous, transcript, scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
+  cache.set(id, { ...previous, transcript, progressView: previous?.progressView,
+    scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
   if (cache.size > 10) cache.delete(cache.keys().next().value!);
 }
 

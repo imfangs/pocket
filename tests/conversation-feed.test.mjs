@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { setImmediate } from "node:timers/promises";
-import { rememberHistory, startConversationFeed, startTranscriptFeed } from "../src/conversationFeed.ts";
+import { rememberHistory, rememberTranscript, startConversationFeed, startTranscriptFeed } from "../src/conversationFeed.ts";
 
 const history = (runtime = "active") => ({ runtime, source: "desktop", messages: [], canSend: runtime === "idle", hint: "", checkedAt: 0 });
 function fixture(request, createFeed = startConversationFeed) {
@@ -111,17 +111,37 @@ test("repeated refreshes coalesce; leaving cancels reads and late results", asyn
   assert.equal(abandoned.tasks.size, 0);
 });
 
-test("recent history cache preserves reading position and stays bounded", () => {
+test("history and transcript cache preserve reading position and progress display choices within the same eviction boundary", () => {
   const cache = new Map();
   for (let i = 0; i < 12; i++) rememberHistory(cache, String(i), history());
   assert.equal(cache.size, 10);
   assert.equal(cache.has("0"), false);
   cache.get("5").scrollTop = 420;
   cache.get("5").nearBottom = false;
+  const progressView = { expanded: ["expanded-group"], deferred: ["reading-group"], seen: ["older-group", "reading-group"] };
+  cache.get("5").progressView = progressView;
   rememberHistory(cache, "5", history("idle"));
   assert.equal(cache.get("5").scrollTop, 420);
   assert.equal(cache.get("5").nearBottom, false);
   assert.equal(cache.get("5").history.runtime, "idle");
+  assert.equal(cache.get("5").progressView, progressView);
+  const transcript = { source: "rollout", messages: [], checkedAt: 10 };
+  rememberTranscript(cache, "5", transcript);
+  assert.equal(cache.get("5").progressView, progressView);
+  assert.equal(cache.get("5").history.runtime, "idle");
+  assert.equal(cache.get("5").transcript, transcript);
+  assert.equal(cache.get("5").scrollTop, 420);
+  assert.equal(cache.get("5").nearBottom, false);
+  for (let i = 12; i < 22; i++) {
+    if (i % 2) rememberHistory(cache, String(i), history());
+    else rememberTranscript(cache, String(i), transcript);
+  }
+  assert.equal(cache.size, 10);
+  assert.equal(cache.has("5"), false);
+  rememberHistory(cache, "5", history());
+  assert.equal(cache.get("5").progressView, undefined, "evicted presentation state does not outlive its history entry");
+  assert.equal(cache.get("5").scrollTop, 0);
+  assert.equal(cache.get("5").nearBottom, true);
   cache.clear(); assert.equal(cache.size, 0);
 });
 
