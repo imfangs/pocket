@@ -12,7 +12,7 @@
 
 首次成功导入才建立来源分组。分组删除不会在下一次同步重建；子分组上移、任务和备注保留。源失败保留上次快照；源中消失的 ID 标记 missing，仍保留接续数据，重新出现后恢复来源关联。
 
-2026-10-11 起，网页只使用接续说明；自定义分组、手工安排/回顾日期及批量归组入口退休。上述旧表、兼容 API 和备份结构仍保留；保存说明只发送 `note + expectedRevision`，不将隐藏字段重置。原项目筛选独立于旧分组继续使用。
+2026-10-11 两轮减法后，自定义分组、手工安排/回顾日期、备注编辑/预览及网页备份入口均已退休。上述旧表、兼容 API 和自动备份结构仍保留；旧客户端说明保存仍以 `note + expectedRevision` 更新，不重置隐藏字段。原项目筛选独立于旧分组继续使用。
 
 ## 写入和恢复
 
@@ -37,7 +37,7 @@
 - `GET /api/tasks/create-options`：当前规范化目录与原项目组合，提交使用精确locationId。
 - `POST /api/tasks`：`{requestId,locationId,name?,initialQuery?}`；可创建空任务，或创建后将1–16000字首条消息持久入队。创建与首条发送分别回读，重复requestId不重复创建或首发，见[快速新建](design/2026-10-09-quick-create-and-continuity.md)。
 - `GET /api/task-operations`、`GET /api/task-operations/:id`、`POST /api/task-operations/:id/cancel`：生命周期回执与停止核对；`creationStatus`和`initialMessage.status`分开表达已创建与发送结果。
-- `PATCH /api/tasks/:id`：网页发送 note、expectedRevision；intent、reviewAt、groupIds 仅保留旧客户端/备份兼容，拒绝其他字段。
+- `PATCH /api/tasks/:id`：旧客户端可发送 note、expectedRevision；intent、reviewAt、groupIds 仅保留旧客户端/备份兼容，拒绝其他字段。
 - `GET /api/tasks/:id/name`：读取原会话显示名称、名称指纹、可改名状态和未决回执。
 - `POST /api/tasks/:id/name`：`{requestId,name,expectedName,expectedFingerprint}`，持久登记后返回 pending；官方原会话写入与来源同步确认完成才 succeeded。
 - `GET /api/tasks/:id/name/:requestId`：只读核对改名回执，未知不重放，详见[重命名契约](design/2026-10-11-rename-and-management.md)。

@@ -35,8 +35,9 @@ export default function TurnDuration({ timing, live }: { timing?: TurnTiming | n
   const extra = live && tick && tick.observedAt === observedAt && tick.turnId === turnId ? tick.extraMs : 0;
   const elapsed = elapsedDuration(timing, extra);
   if (elapsed == null) return null;
-  const label = running ? live ? "已用" : "已记录" : "总用时";
+  const label = running ? live ? "" : "已记录" : "总用时";
+  const duration = formatDuration(elapsed);
   return <span className="turn-duration" title="本轮从开始到结束的用时，包含工具执行和等待确认">
-    {label} <time>{formatDuration(elapsed)}</time>
+    {label && `${label} `}<time aria-label={label ? undefined : `本轮用时 ${duration}`}>{duration}</time>
   </span>;
 }

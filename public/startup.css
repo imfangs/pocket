@@ -14,7 +14,7 @@ html[data-theme="dark"] { --boot-bg: #191919; --boot-ink: #e9e9e5; --boot-accent
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
 .boot-screen[hidden] { display: none; }
-.boot-symbol { display: block; width: 64px; height: 64px; border-radius: 17px; }
+.boot-symbol { display: block; width: 64px; height: 64px; border-radius: 22%; }
 .boot-name { font-size: 25px; font-weight: 650; letter-spacing: -.7px; }
 .boot-dots { display: flex; align-items: center; gap: 6px; height: 12px; margin-top: 4px; }
 .boot-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--boot-accent); animation: pocket-boot-pulse 1.2s ease-in-out infinite; }

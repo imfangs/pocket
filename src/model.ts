@@ -29,7 +29,6 @@ export function filterThreads(
       if (!terms.length) return true;
       const hay = [
         t.title,
-        t.note,
         t.cwd,
         t.projectName,
       ]

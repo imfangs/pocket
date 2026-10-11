@@ -1,5 +1,5 @@
+import PocketLogo from "./PocketLogo";
 import {
-  Pocket,
   LockKeyhole,
   ArrowRight,
   WifiOff,
@@ -18,7 +18,7 @@ import { holdReload, useReloadGuard } from "./updateSafety";
 function AppLoadFailure() {
   return <main className="access-screen">
     <section className="access-card" role="alert">
-      <div className="access-brand"><Pocket size={25} /><span>Pocket</span></div>
+      <div className="access-brand"><PocketLogo /><span>Pocket</span></div>
       <h1>暂时无法打开 Pocket</h1>
       <p className="access-intro">可能遇到了版本更新或网络中断。请确认网络后重新加载。</p>
       <button type="button" className="primary access-submit" onClick={() => location.reload()}>重新加载 Pocket</button>
@@ -137,19 +137,17 @@ export default function AccessGate() {
       <>
         <Suspense fallback={<BootSplash />}>
           <App
-            footerActions={
+            appearanceActions={
               <div className="access-actions">
                 <ThemeSwitch />
                 <PwaInstall controller={installController} />
-                <button
-                  className="pwa-install"
-                  onClick={() => void logout()}
-                  disabled={busy}
-                >
-                  <LogOut size={16} />
-                  <span>{busy ? "正在退出…" : "退出登录"}</span>
-                </button>
               </div>
+            }
+            logoutAction={
+              <button type="button" className="settings-logout-button" onClick={() => void logout()} disabled={busy}>
+                <LogOut size={16} aria-hidden="true" />
+                <span>{busy ? "正在退出…" : "退出登录"}</span>
+              </button>
             }
           />
         </Suspense>
@@ -164,7 +162,7 @@ export default function AccessGate() {
     <main className="access-screen">
       <section className="access-card">
         <div className="access-brand">
-          <Pocket size={25} />
+          <PocketLogo />
           <span>Pocket</span>
         </div>
         <h1>连接 Codex</h1>

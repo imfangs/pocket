@@ -136,5 +136,8 @@ test("turn elapsed rendering handles hours, frozen completion and missing times"
   assert.equal(elapsedDuration({ ...timing, status: "completed", durationMs: 1234 }, 99999), 1234);
   assert.equal(elapsedDuration({ ...timing, startedAt: null }), null);
   assert.match(renderToStaticMarkup(createElement(TurnDuration, { timing, live: false })), /已记录/);
+  const live = renderToStaticMarkup(createElement(TurnDuration, { timing, live: true }));
+  assert.doesNotMatch(live, /已用/);
+  assert.match(live, /<time aria-label="本轮用时 0:08">0:08<\/time>/);
   assert.equal(renderToStaticMarkup(createElement(TurnDuration, { timing: { ...timing, status: "completed" }, live: false })), "");
 });

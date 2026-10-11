@@ -535,13 +535,6 @@ export default function Conversation({
           <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} notify={setNotice} />
           <button
             className="icon-button"
-            aria-label="跳到最新消息"
-            onClick={returnToLatest}
-          >
-            <ArrowDown size={16} />
-          </button>
-          <button
-            className="icon-button"
             aria-label="刷新会话历史"
             onClick={() => void load()}
           >

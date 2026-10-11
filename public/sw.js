@@ -1,9 +1,15 @@
-const CACHE = "navigator-public-shell-v5";
+const CACHE = "navigator-public-shell-v6";
 const PUBLIC_FILES = [
   "/startup.css",
   "/theme.js",
   "/offline.html",
   "/manifest.webmanifest",
+  "/icons/pocket-v1.svg",
+  "/icons/pocket-v1-16.png",
+  "/icons/pocket-v1-32.png",
+  "/icons/pocket-v1-180.png",
+  "/icons/pocket-v1-192.png",
+  "/icons/pocket-v1-512.png",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/icon-maskable.png",
@@ -22,7 +28,7 @@ self.addEventListener("push", event => {
   try { data = event.data.json(); } catch { return; }
   if (!/^[a-f0-9-]{36}$/i.test(data?.threadId) || typeof data.body !== "string") return;
   event.waitUntil(self.registration.showNotification("Pocket", {
-    body: data.body.slice(0, 100), icon: "/icons/icon-192.png", badge: "/icons/icon-192.png",
+    body: data.body.slice(0, 100), icon: "/icons/pocket-v1-192.png", badge: "/icons/pocket-v1-192.png",
     tag: `pocket-${data.eventId}`, data: { threadId: data.threadId },
   }));
 });

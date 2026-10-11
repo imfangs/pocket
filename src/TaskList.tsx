@@ -128,9 +128,6 @@ export default function TaskList(p: Props) {
                     {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
                     {pinningId === t.id && <span className="row-pin-pending" role="status">正在处理置顶…</span>}
                   </div>}
-                  {t.note && (
-                    <p className="note-preview">{t.note.replace(/\n/g, " ")}</p>
-                  )}
                 </button>
                 <button
                   className="row-open icon-button"

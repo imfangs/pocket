@@ -468,15 +468,6 @@ button:disabled svg {
     opacity: 1;
   }
 }
-.note-preview {
-  font-size: 11px;
-  line-height: 1.6;
-  margin: 7px 0 0;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .load-more {
   display: block;
   color: var(--muted);
@@ -504,21 +495,6 @@ button:disabled svg {
   justify-content: space-between;
   padding: 0 20px;
   flex-shrink: 0;
-}
-.inspector-body {
-  overflow: auto;
-  padding: 24px 23px 30px;
-  scrollbar-width: thin;
-}
-.source-line {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  letter-spacing: 0.2px;
-  color: var(--muted);
-}
-.source-line span {
-  color: #b29779;
 }
 .inspector h2 {
   font-weight: 600;
@@ -561,18 +537,6 @@ button:disabled svg {
     background: var(--surface-soft);
   }
 }
-.open-primary {
-  width: 100%;
-  justify-content: space-between;
-  margin-bottom: 27px;
-  padding: 11px 14px;
-}
-.inspector-fields {
-  border: 0;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-}
 .field-label {
   display: block;
   color: var(--text-secondary);
@@ -585,9 +549,6 @@ button:disabled svg {
   color: var(--muted);
   line-height: 1.75;
   margin: -3px 0 12px;
-}
-.note-label {
-  margin-bottom: 6px;
 }
 textarea {
   width: 100%;
@@ -607,55 +568,6 @@ textarea::placeholder {
 }
 textarea:focus {
   border-color: var(--muted);
-}
-.inspector-fields > .field-label:not(:first-child) {
-  margin-top: 18px;
-}
-.save-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-top: 1px solid var(--line);
-  margin-top: 18px;
-  padding-top: 16px;
-  gap: 10px;
-}
-.save-row > span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 11px;
-}
-.source-details {
-  margin-top: 26px;
-  padding-top: 19px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 11px;
-}
-.source-details summary {
-  cursor: pointer;
-  user-select: none;
-}
-.source-details dl {
-  margin: 17px 0;
-  display: grid;
-  gap: 5px;
-}
-.source-details dt {
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  margin-top: 7px;
-}
-.source-details dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-size: 11px;
-  color: var(--muted);
 }
 .thread-id {
   font-family: ui-monospace, monospace;
@@ -833,8 +745,7 @@ dialog footer .danger {
 .danger {
   color: #ac7465;
 }
-.delete-confirm,
-.import-confirm {
+.delete-confirm {
   margin-top: 20px;
   border-top: 1px solid var(--line);
   padding-top: 14px;
@@ -842,8 +753,7 @@ dialog footer .danger {
   color: #8e7563;
   line-height: 1.9;
 }
-.delete-confirm .secondary,
-.import-confirm .secondary {
+.delete-confirm .secondary {
   margin-right: 9px;
 }
 .danger-button {
@@ -907,17 +817,6 @@ hr {
   border-top: 1px solid var(--line);
   margin: 24px 0;
 }
-.settings-content h3 {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin: 0 0 12px;
-}
-.backup-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 19px;
-}
 .settings-content .field-help {
   margin-top: 0;
 }
@@ -939,9 +838,6 @@ hr {
   .inspector,
   .inspector-placeholder {
     width: 380px;
-  }
-  .inspector-body {
-    padding: 28px;
   }
 }
 @media (max-width: 1190px) {
@@ -980,9 +876,6 @@ hr {
   }
   .row-first time {
     font-size: 11px;
-  }
-  .inspector-body {
-    padding: 20px;
   }
   .heading h1 {
     font-size: 24px;
@@ -1104,17 +997,8 @@ hr {
     height: 54px;
     padding: 0 20px;
   }
-  .inspector-body {
-    padding: 24px;
-    max-width: 600px;
-    width: 100%;
-    margin: 0 auto;
-  }
   .inspector h2 {
     font-size: 23px;
-  }
-  .inspector-fields > .field-label {
-    font-size: 13px;
   }
   .inspector textarea {
     font-size: 14px;
@@ -1142,36 +1026,7 @@ hr {
   }
 }
 
-.inspector-savebar {
-  flex-shrink: 0;
-  margin: 0;
-  padding: 12px 22px;
-  background: var(--surface-soft);
-  border-top: 1px solid var(--line);
-}
-
 /* Conversation stays scrollable while the composer remains reachable on a phone. */
-.inspector-tabs {
-  display: flex;
-  padding: 0 16px;
-  gap: 20px;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-}
-.inspector-tabs button {
-  min-height: 42px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  padding: 8px 3px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-.inspector-tabs button[aria-selected="true"] {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-  font-weight: 600;
-}
 .inspector-conversation {
   display: flex;
   flex-direction: column;
@@ -1179,9 +1034,6 @@ hr {
   min-height: 0;
   overflow: hidden;
   padding: 16px 18px 0;
-}
-.inspector-conversation .inspector-summary {
-  flex-shrink: 0;
 }
 .inspector-conversation h2 {
   font-size: 17px;
@@ -1191,11 +1043,6 @@ hr {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.inspector-conversation .open-primary {
-  padding: 7px 12px;
-  margin-bottom: 10px;
-  font-size: 12px;
 }
 .conversation {
   display: flex;
@@ -1527,9 +1374,6 @@ hr {
   .conversation-composer {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
-  .inspector[data-keyboard-open] .inspector-summary {
-    display: none;
-  }
   .inspector[data-keyboard-open] .conversation-status {
     max-height: 40px;
     padding: 4px 0;
@@ -1587,10 +1431,7 @@ hr {
   .inspector-header { height: 46px; padding: 0 14px; gap: 8px; }
   .inspector-title { display: block; min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--ink); }
   .inspector-header .icon-button { width: 40px; min-height: 40px; flex-shrink: 0; }
-  .inspector-tabs { padding: 0 14px; }
-  .inspector-tabs button { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
   .inspector-conversation { padding: 4px 14px 0; }
-  .inspector-conversation > .inspector-summary { display: none; }
   .conversation-toolbar { min-height: 44px; padding: 0; }
   .conversation-overview { gap: 8px; }
   .composer-actions > small { display: none; }

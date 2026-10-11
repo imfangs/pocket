@@ -32,10 +32,11 @@ test("pinned view honors recent activity and can switch back to native pin order
   assert.deepEqual(list("updated"), ["newer", "older"]);
   assert.deepEqual(list("pinned"), ["older", "newer"]);
 });
-test("Chinese multi-term search uses visible title and continuation note while preserving original identity", () => {
-  assert.equal(filterThreads([t], "all", "药草 背包", "", false, "updated")[0].id, "a");
+test("Chinese multi-term search uses visible title and source paths while preserving original identity", () => {
+  assert.equal(filterThreads([t], "all", "药草 demo", "", false, "updated")[0].id, "a");
   assert.equal(filterThreads([t], "all", "没有此词", "", false, "updated").length, 0);
   assert.equal(filterThreads([t], "all", "child", "", false, "updated").length, 0);
+  assert.equal(filterThreads([t], "all", "背包", "", false, "updated").length, 0);
 });
 test("archival preserves later-task metadata while listing it only in the archive view", () => {
   const archived = { ...t, archived: true };
@@ -77,9 +78,9 @@ test('search retains Unicode matching and no longer includes hidden group metada
   const items = [{ ...t, title: 'ＡＢＣ', id: 'first', updatedAt: 10 }, { ...t, id: 'second', updatedAt: 20 }];
   const search = query => filterThreads(items, 'all', query, '', false, 'updated').map(t => t.id);
   assert.deepEqual(search('  '), ['second', 'first']);
-  assert.deepEqual(search('abc 背包'), ['first']);
+  assert.deepEqual(search('abc side'), ['first']);
   assert.deepEqual(search('child'), []);
-  assert.deepEqual(search('side 背包'), ['second', 'first']);
+  assert.deepEqual(search('side demo'), ['second', 'first']);
 });
 
 test('running view includes only confirmed execution and always excludes unavailable or separator tasks', () => {
@@ -109,10 +110,10 @@ test('running counts and lists share the same project and normalized multi-term 
     { ...t, id: 'waiting', title: 'ＡＢＣ', projectId: 'p' },
   ];
   const states = new Map(items.map(item => [item.id, item.id === 'waiting' ? 'waiting_input' : 'running']));
-  const result = filterThreads(items, 'running', 'abc 背包', 'p', false, 'updated', states);
+  const result = filterThreads(items, 'running', 'abc side', 'p', false, 'updated', states);
   assert.deepEqual(result.map(row => row.id), ['scoped']);
   assert.equal(result.length, 1);
-  assert.equal(filterThreads(items, 'running', 'abc 背包', '', false, 'updated', states).length, 2);
+  assert.equal(filterThreads(items, 'running', 'abc side', '', false, 'updated', states).length, 2);
   assert.equal(filterThreads(items, 'running', '', 'p', false, 'updated', states).length, 2);
 });
 

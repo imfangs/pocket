@@ -6,8 +6,8 @@ import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 
 const vite = await createServer({ configFile: false, root: fileURLToPath(new URL('..', import.meta.url)), esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
-const [{ default: TaskList }, { default: Inspector }, { default: ThreadProperties }, { Modal }, { default: Sidebar }] = await Promise.all([
-  vite.ssrLoadModule('/src/TaskList.tsx'), vite.ssrLoadModule('/src/Inspector.tsx'), vite.ssrLoadModule('/src/ThreadProperties.tsx'), vite.ssrLoadModule('/src/Dialogs.tsx'), vite.ssrLoadModule('/src/Sidebar.tsx'),
+const [{ default: TaskList }, { default: Inspector }, { Modal }, { default: Sidebar }] = await Promise.all([
+  vite.ssrLoadModule('/src/TaskList.tsx'), vite.ssrLoadModule('/src/Inspector.tsx'), vite.ssrLoadModule('/src/Dialogs.tsx'), vite.ssrLoadModule('/src/Sidebar.tsx'),
 ]);
 after(() => vite.close());
 const thread = { id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa', title: 'A conversation', archived: false, separator: false, missing: false, pinned: false, intent: 'none', groupIds: [], updatedAt: 1, createdAt: 1, revision: 0, note: '', reviewAt: null, projectName: 'Project', cwd: '/synthetic' };
@@ -28,40 +28,31 @@ test('a row has one readable unread indicator, draft context and a stable focus 
   assert.doesNotMatch(html, /已显示全部|class="list-caption"/);
   assert.doesNotMatch(html, /条任务/);
 });
-test('the inspector uses a single management tab and preserves linked tab panels', () => {
-  const html = renderToStaticMarkup(createElement(Inspector, { thread, queryDrafts: new Map(), historyCache: new Map(), onSave: async () => thread, onOpen: async () => ({}), onArchive: async () => {}, onCheckOperation: noop, onCancelOperation: noop, onClose: noop, flushRef: { current: null }, onToast: noop }));
-  assert.doesNotMatch(html, /inspector-management-trigger/);
-  assert.match(html, />管理<\/button>/);
+test('the inspector opens directly into the conversation with one title entry for information', () => {
+  const html = renderToStaticMarkup(createElement(Inspector, { thread: { ...thread, note: 'Legacy hidden note' }, queryDrafts: new Map(), historyCache: new Map(), onOpen: async () => ({}), onArchive: async () => {}, onRenamed: noop, onCheckOperation: noop, onCancelOperation: noop, onClose: noop }));
+  assert.match(html, /class="inspector-title"/);
+  assert.match(html, /class="inspector-title-trigger" aria-label="会话信息：A conversation" aria-haspopup="dialog"/);
+  assert.match(html, /class="inspector-conversation"/);
+  assert.doesNotMatch(html, /role="tab|inspector-management-trigger|inspector-savebar|id="continuation"|Legacy hidden note/);
   assert.doesNotMatch(html, />归档会话<\/button>/);
-  const tabs = [...html.matchAll(/<button\b([^>]*)>/g)].map(match => match[1]).filter(attributes => /role="tab"/.test(attributes));
-  assert.equal(tabs.length, 2);
-  assert.equal(tabs.filter(attributes => /tabindex="0"/.test(attributes)).length, 1);
-  for (const attributes of tabs) {
-    const target = attributes.match(/aria-controls="([^"]+)"/)[1];
-    assert.ok(html.includes(`id="${target}"`));
-  }
 });
-test('the continuation editor no longer exposes arrangements or group choices even with old metadata', () => {
-  const html = renderToStaticMarkup(createElement(ThreadProperties, { value: { intent: 'later', note: 'Keep my note', groupIds: ['old-group'], reviewAt: '2000-01-01' }, disabled: false, onChange: noop, onSave: async () => {} }));
-  assert.match(html, /接续说明/);
-  assert.match(html, /Keep my note/);
-  assert.doesNotMatch(html, /我的安排|分组|回顾日期|type="date"|type="checkbox"/);
-});
-test('rows hide retired arrangement fields without losing notes or runtime state', () => {
+test('rows hide retired notes and arrangement fields while retaining runtime state', () => {
   const html = renderToStaticMarkup(createElement(TaskList, { ...listProps, threads: [{ ...thread, intent: 'later', reviewAt: '2000-01-01', groupIds: ['old-group'], note: 'Keep my note' }], runtimeStates: new Map([[thread.id, 'running']]) }));
-  assert.match(html, /Keep my note/);
+  assert.doesNotMatch(html, /Keep my note|note-preview/);
   assert.match(html, /data-state="running"/);
   assert.doesNotMatch(html, /稍后继续|回顾时间|分组|row-check|批量操作|draggable/);
 });
-test('navigation has no group or arrangement routes even when legacy data remains', () => {
+test('navigation hides retired routes and archive counts while keeping primary view counts', () => {
   const previous = globalThis.matchMedia;
   globalThis.matchMedia = () => ({ matches: false });
   try {
     const html = renderToStaticMarkup(createElement(Sidebar, { catalog: { threads: [thread], groups: [{ id: 'old-group', name: 'Old group', parentId: null }] }, view: 'all', onView: noop, onClose: noop, onSettings: noop, mobileOpen: false }));
     assert.doesNotMatch(html, /我的分组|我的安排|未分组|正在推进|稍后继续|留作参考|Old group|data-view="group"/);
-    assert.match(html, /data-view="pinned"/);
+    assert.match(html, /data-view="pinned"[^>]*>[\s\S]*?<small>0<\/small>/);
     assert.match(html, /data-view="recent"/);
-    assert.match(html, /归档/);
+    const archive = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]).find(button => button.includes('<span>归档</span>'));
+    assert.ok(archive);
+    assert.doesNotMatch(archive, /<small>/);
   } finally { globalThis.matchMedia = previous; }
 });
 test('a busy modal makes the close affordance explicitly unavailable', () => {

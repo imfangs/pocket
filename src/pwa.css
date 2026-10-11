@@ -19,9 +19,6 @@ button:not(:disabled):active,
 .primary:active {
   opacity: 0.82;
 }
-.inspector-body {
-  overscroll-behavior: contain;
-}
 .access-screen {
   min-height: 100svh;
   display: grid;
@@ -159,9 +156,6 @@ button:not(:disabled):active,
   padding: 5px 0;
   flex: 1;
 }
-.access-actions .pwa-install:last-child {
-  justify-content: flex-end;
-}
 .access-toast {
   position: fixed;
   z-index: 40;
@@ -227,9 +221,6 @@ button:not(:disabled):active,
   .inspector-header {
     height: calc(54px + env(safe-area-inset-top, 0px));
     padding-top: env(safe-area-inset-top, 0px);
-  }
-  .inspector-savebar {
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
   .toast {
     bottom: calc(25px + env(safe-area-inset-bottom, 0px));

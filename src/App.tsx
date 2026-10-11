@@ -68,9 +68,11 @@ const titles: Record<View, string> = {
   archived: "归档",
 };
 export default function App({
-  footerActions,
+  appearanceActions,
+  logoutAction,
 }: {
-  footerActions?: React.ReactNode;
+  appearanceActions?: React.ReactNode;
+  logoutAction?: React.ReactNode;
 }) {
   const [prefs] = useState(readPrefs);
   const taskStatuses = useTaskStatuses();
@@ -111,8 +113,7 @@ export default function App({
     );
   const search = useRef<HTMLInputElement>(null),
     searchToggle = useRef<HTMLButtonElement>(null),
-    conversationHistory = useRef<HistoryCache>(new Map()),
-    flushRef = useRef<(() => Promise<void>) | null>(null);
+    conversationHistory = useRef<HistoryCache>(new Map());
   const latestSort = useRef<string>(sort);
   const setSort = useCallback((value: string) => { latestSort.current = value; setSortState(value); }, []);
   const setCatalog = useCallback((update: SetStateAction<Catalog>) => {
@@ -212,7 +213,6 @@ export default function App({
       existing: taskOperations.operations.find(operation => operation.operation === "create" && activeOperation(operation)),
       getLatest: taskOperations.get,
       readText: () => navigator.clipboard.readText(),
-      flush: async () => { await flushRef.current?.(); },
     });
     if (prepared.kind === "open") { seedCreationMessage(prepared.operation); openCreatedThread(prepared.threadId); return; }
     const { operation: existing, clipboardRead } = prepared;
@@ -260,11 +260,8 @@ export default function App({
         if (document.querySelector("dialog[open]")) return;
         e.preventDefault();
         if (matchMedia("(max-width:760px)").matches && selected) {
-          void (async () => {
-            await flushRef.current?.();
-            flushSync(() => setSelected(null));
-            openSearch();
-          })().catch(failure => setError((failure as Error).message));
+          flushSync(() => setSelected(null));
+          openSearch();
         } else openSearch();
       }
       if (e.key === "Escape" && !document.querySelector("dialog[open]"))
@@ -303,9 +300,6 @@ export default function App({
   const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
   const runningCount = filterThreads(catalog.threads, "running", "", "", false, "updated",
     runtimeKnown ? taskStatuses.runtimeStates : undefined).length;
-  const flush = async () => {
-    await flushRef.current?.();
-  };
   const guard = async (action: () => Promise<void>) => {
     setError("");
     try {
@@ -317,7 +311,6 @@ export default function App({
   const openActivity = (target: "unread" | "running") => {
     if (view === target) return;
     void guard(async () => {
-      await flush();
       if (view !== "unread" && view !== "running")
         returnView.current = { view, project, query, searchOpen, sort: latestSort.current, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
       restoreScroll.current = 0;
@@ -332,7 +325,6 @@ export default function App({
     });
   };
   const returnFromActivity = () => void guard(async () => {
-    await flush();
     const previous = returnView.current;
     restoreScroll.current = previous.scrollTop;
     setView(previous.view);
@@ -348,7 +340,6 @@ export default function App({
     if ((view === "unread" || view === "running") && v === returnView.current.view)
       return returnFromActivity();
     void guard(async () => {
-      await flush();
       setView(v);
       setProject("");
       setSelected(null);
@@ -361,7 +352,6 @@ export default function App({
       const id = (event as CustomEvent<string>).detail;
       if (typeof id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) return;
       void guard(async () => {
-        await flush();
         await syncTasks(true);
         setSelected(id);
         setMobile(false);
@@ -371,23 +361,6 @@ export default function App({
     window.addEventListener("pocket-open-task", fromNotification);
     return () => window.removeEventListener("pocket-open-task", fromNotification);
   });
-  const saveTask = useCallback(
-    async (id: string, patch: unknown) => {
-      try {
-        const t = await api<Thread>(`/api/tasks/${id}`, "PATCH", patch);
-        catalogReader.invalidate();
-        setCatalog((c) => ({
-          ...c,
-          threads: c.threads.map((old) => (old.id === id ? t : old)),
-        }));
-        return t;
-      } catch (e) {
-        if ((e as Error & { status?: number }).status === 409) await refresh();
-        throw e;
-      }
-    },
-    [refresh, catalogReader],
-  );
   const open = useCallback(
     async (t: Thread) => {
       const result = await api<OpenThreadResult>(`/api/open/${t.id}`, "POST");
@@ -530,7 +503,7 @@ export default function App({
               <X size={17} />
             </button>
           </div>}
-          {searchOpen && <p id="task-search-help" className="sr-only">在当前视图内搜索标题、项目、目录和接续说明。</p>}
+          {searchOpen && <p id="task-search-help" className="sr-only">在当前视图内搜索标题、项目和目录。</p>}
         </header>
         {(error || readError || catalog.sourceError) && (
           <div className="error-banner" role="alert">
@@ -559,7 +532,6 @@ export default function App({
               error={taskOperations.errors[operation.requestId]}
               onCheck={() => void taskOperations.check(operation.requestId)} onCancel={() => void taskOperations.cancel(operation.requestId)}
               onOpen={operation.threadId ? () => void guard(async () => {
-                await flush();
                 if (activeOperation(operation)) await syncTasks(true);
                 seedCreationMessage(operation);
                 openCreatedThread(operation.threadId!);
@@ -588,13 +560,11 @@ export default function App({
                 unreadPending={catalog.sourceInfo?.unread?.pending ?? 0}
                 onSelect={(id) =>
                   void guard(async () => {
-                    await flush();
                     setSelected(id);
                   })
                 }
                 onOpen={(t) =>
                   void guard(async () => {
-                    await flush();
                     await open(t);
                   })
                 }
@@ -610,7 +580,6 @@ export default function App({
               queryDrafts={conversationDrafts.current}
               submissions={submissions}
               historyCache={conversationHistory.current}
-              onSave={saveTask}
               onRenamed={thread => {
                 catalogReader.invalidate();
                 setCatalog(c => ({ ...c, threads: c.threads.map(old => old.id === thread.id
@@ -630,14 +599,11 @@ export default function App({
               onActivity={refreshAfterActivity}
               onClose={() =>
                 void guard(async () => {
-                  await flush();
                   setSelected(null);
                   requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`.task-select[data-thread-id="${current.id}"]`)?.focus({ preventScroll: true }));
                   refreshAfterActivity();
                 })
               }
-              flushRef={flushRef}
-              onToast={notify}
             />
           ) : (
             <aside className="inspector-placeholder">
@@ -656,7 +622,8 @@ export default function App({
         onClose={() => { newDialogOpen.current = false; setNewConversationOpen(false); }} />}
       {settings && (
         <SettingsDialog
-          accountActions={footerActions}
+          appearanceActions={appearanceActions}
+          logoutAction={logoutAction}
           catalog={catalog}
           showSeparators={showSeparators}
           onSeparators={(b) => {
@@ -664,15 +631,6 @@ export default function App({
             localStorage.setItem("navigator.separators", String(b));
           }}
           onClose={() => setSettings(false)}
-          onImport={async (data) => {
-            await flush();
-            const c = await api<Catalog>("/api/import", "POST", data);
-            catalogReader.invalidate();
-            setCatalog(c);
-            setSelected(null);
-            setView("all");
-            notify("整理数据已恢复");
-          }}
         />
       )}
     </div>

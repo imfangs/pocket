@@ -94,6 +94,7 @@ test('a restored reading position exposes a keyboard-accessible return to latest
   assert.match(html, /class="conversation-messages" role="region" aria-label="会话正文" tabindex="0"/);
   assert.match(html, /class="conversation-latest"/);
   assert.match(html, /返回最新消息/);
+  assert.doesNotMatch(html, /aria-label="跳到最新消息"/, 'the floating action is the only jump-to-latest control');
 });
 
 test('optional questions stay at their message position while later progress and the composer remain visible', () => {

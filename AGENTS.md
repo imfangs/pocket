@@ -1,6 +1,6 @@
 # Pocket · 开发接续
 
-个人 Mac 上 Codex 的手机入口：查看和接续原任务，管理名称、归档与接续说明。产品名为 **Pocket**；仓库、服务、数据目录和备份格式继续使用 `codex-navigator` / `CodexNavigator` 兼容标识。
+个人 Mac 上 Codex 的手机入口：查看和接续原任务，管理名称与归档。产品名为 **Pocket**；仓库、服务、数据目录和备份格式继续使用 `codex-navigator` / `CodexNavigator` 兼容标识。
 
 ## 开工顺序
 
@@ -13,6 +13,7 @@
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| Logo、设置减法、标题信息入口与工具栏 | [品牌与界面收敛](docs/design/2026-10-11-brand-and-interface.md)、[矢量主稿](design/brand/README.md) |
 | 整体 UI、导航、筛选、阅读层级与表单 | [工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md)：Notion 参照、主题 token、跨视图草稿、浮层与已读边界 |
 | 列表运行中/等待状态、状态过期 | [列表运行状态](docs/design/2026-10-08-running-status.md)：原owner候选读取、共享轮询与归档取消边界 |
 | 列表、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |

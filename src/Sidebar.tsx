@@ -1,4 +1,5 @@
-import { Archive, Layers3, Pocket, MessageCircle, Pin, RotateCcw, Settings2, X } from "lucide-react";
+import PocketLogo from "./PocketLogo";
+import { Archive, Layers3, MessageCircle, Pin, RotateCcw, Settings2, X } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { Catalog, View } from "./types";
 import { navigationViewCount } from "./navigationModel";
@@ -38,7 +39,7 @@ export default function Sidebar(p: Props) {
     }
     wasOpen.current = isOpen;
   }, [narrow, p.mobileOpen]);
-  const counts = useMemo(() => Object.fromEntries((["all", "pinned", "recent", "unread", "archived"] as View[])
+  const counts = useMemo(() => Object.fromEntries((["all", "pinned", "recent", "unread"] as View[])
     .map(view => [view, navigationViewCount(p.catalog, view, p.showSeparators)])), [p.catalog, p.showSeparators]);
   const navs: [View, string, typeof Layers3, number | string][] = [
     ["unread", "待我输入", MessageCircle, p.catalog.sourceInfo?.unread?.available ? counts.unread : "—"],
@@ -87,7 +88,7 @@ export default function Sidebar(p: Props) {
       >
         <div className="brand">
           <div className="brand-mark">
-            <Pocket size={22} />
+            <PocketLogo />
           </div>
           <div>
             <strong>Pocket</strong>
@@ -124,9 +125,6 @@ export default function Sidebar(p: Props) {
             >
               <Archive size={17} />
               <span>归档</span>
-              <small>
-                {counts.archived}
-              </small>
             </button>
             <button
               className="icon-button sidebar-settings"

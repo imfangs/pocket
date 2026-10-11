@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Pocket",
   "short_name": "Pocket",
-  "description": "连接 Mac 上的 Codex 任务，保留分组与接续。",
+  "description": "把 Mac 上的 Codex 带在身边，随时查看和接续会话。",
   "lang": "zh-CN",
   "start_url": "/",
   "scope": "/",
@@ -11,19 +11,19 @@
   "theme_color": "#ffffff",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/icons/pocket-v1-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/icons/pocket-v1-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-maskable.png",
+      "src": "/icons/pocket-v1-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
