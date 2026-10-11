@@ -1070,33 +1070,6 @@ hr {
   border-left: 3px solid var(--text-secondary);
   box-shadow: 0 2px 7px #29282405;
 }
-.message-label {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 5px 10px;
-  color: var(--ink);
-  font-size: 11px;
-  margin-bottom: 9px;
-}
-.message-label strong {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 650;
-}
-.message-label strong svg { flex-shrink: 0; }
-.message-label time {
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.message-progress .message-label {
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-}
-.message-progress .message-label strong { font-weight: 500; }
 .message-progress .message-text {
   font-size: 13px;
   line-height: 1.65;
@@ -1106,11 +1079,6 @@ hr {
   font-size: 14px;
   color: inherit;
 }
-.message-answer .message-label {
-  padding-bottom: 9px;
-  border-bottom: 1px solid var(--line);
-}
-.message-answer .message-label strong { color: var(--ink); }
 .message-user + .message-progress { margin-top: 12px; }
 .message-answer + .message-user { margin-top: 22px; }
 .message-text {

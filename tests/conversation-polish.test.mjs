@@ -110,15 +110,26 @@ test('only known sendable desktop boilerplate is omitted; permission and unfamil
   assert.equal(renderConversation({ ...base, hint: '需要核对的新状态' }).includes('需要核对的新状态'), true);
 });
 
-test('user text is copyable while message phase remains separate from the author', () => {
+test('messages keep accessible identities while time, duration and copy actions follow the body', () => {
   const user = renderToStaticMarkup(createElement(Message, { message: { id: 'user', role: 'user', text: 'A user message', timestamp: 1 } }));
   assert.match(user, /aria-label="复制这条消息"/);
-  assert.match(user, /class="message-role">你/);
+  assert.match(user, /data-message-id="user" aria-label="你"/);
+  assert.doesNotMatch(user, /message-label|message-role|message-phase/);
   assert.match(user, /dateTime="1970-01-01/);
-  const answer = renderToStaticMarkup(createElement(Message, { message: { id: 'assistant', role: 'assistant', phase: 'final_answer', text: 'The final answer' } }));
+  assert.ok(user.indexOf('<footer class="message-footer">') > user.indexOf('A user message'));
+  assert.match(user, /<footer[^>]*>[\s\S]*dateTime="[^"]+"[\s\S]*aria-label="复制这条消息"[\s\S]*<\/footer><\/article>$/);
+  const answer = renderToStaticMarkup(createElement(Message, { message: { id: 'assistant', role: 'assistant', phase: 'final_answer', text: 'The final answer', turnDurationMs: 64000, truncated: true } }));
   assert.match(answer, /aria-label="Codex · 最终回复"/);
-  assert.match(answer, /class="message-phase">回复/);
+  assert.match(answer, /data-message-id="assistant"/);
+  assert.doesNotMatch(answer, /message-label|message-role|message-phase/);
   assert.match(answer, /aria-label="复制回复"/);
+  assert.ok(answer.indexOf('<footer class="message-footer">') > answer.indexOf('内容较长，此处已截取。'));
+  assert.match(answer, /<footer[^>]*>[\s\S]*总用时 <time>1:04<\/time>[\s\S]*aria-label="复制回复"[\s\S]*<\/footer>/);
+  assert.equal((answer.match(/总用时/g) || []).length, 1);
+  const progress = renderToStaticMarkup(createElement(Message, { message: { id: 'process', role: 'assistant', phase: 'commentary', text: 'The process message' } }));
+  assert.match(progress, /data-message-id="process" aria-label="Codex · 过程"/);
+  assert.doesNotMatch(progress, /message-label|message-role|message-phase/);
+  assert.match(progress, /<footer[^>]*>[\s\S]*aria-label="复制过程"[\s\S]*<\/footer>/);
 });
 
 test('reopening an async question restores written text with a labelled native fieldset', () => {

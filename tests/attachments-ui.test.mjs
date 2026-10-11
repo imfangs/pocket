@@ -62,12 +62,14 @@ test('unknown uploads expose read-only verification and removal without an uploa
 });
 
 test('attachment-only native messages show a thumbnail and a downloadable file without an empty copy action', () => {
-  const html = render(Message, { message: { id: 'native', role: 'user', text: '', attachments: [image, file] } });
+  const html = render(Message, { message: { id: 'native', role: 'user', text: '', attachments: [image, file], timestamp: 1 } });
   assert.match(html, /aria-label="消息附件"/); assert.match(html, /<img[^>]*src="\/api\/tasks\//);
   assert.match(html, /download="完整说明与检查清单/); assert.match(html, /rel="noopener noreferrer"/);
   assert.doesNotMatch(html, /复制这条消息/);
   assert.ok(html.includes(`aria-label="查看附件 ${file.name}"`));
   assert.ok(html.includes(`title="${file.name}"`));
+  assert.ok(html.indexOf('<footer class="message-footer">') > html.indexOf(`data-attachment-id="${file.id}"`));
+  assert.match(html, /<footer[^>]*>[\s\S]*dateTime="[^"]+"[\s\S]*<\/footer><\/article>$/);
 });
 
 test('small image previews keep the attachment link pointing at the original image', () => {

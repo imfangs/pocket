@@ -13,6 +13,7 @@
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 全局toast、消息身份标签、底部时间/复制与发送确认 | [轻量反馈与消息footer](docs/design/2026-10-12-light-feedback-and-message-footer.md)：统一Sonner样式、消息语义与待处理状态边界 |
 | 操作类产品的顺手标准、功能取舍、UI 复盘或跨项目借鉴 | [迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)：整体脉络、可观察标准、反例与验证办法；按目标项目重新判断适用性 |
 | Logo、设置减法、标题信息入口与工具栏 | [品牌与界面收敛](docs/design/2026-10-11-brand-and-interface.md)、[矢量主稿](design/brand/README.md) |
 | 整体 UI、导航、筛选、阅读层级与表单 | [工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md)：Notion 参照、主题 token、跨视图草稿、浮层与已读边界 |

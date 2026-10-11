@@ -1,0 +1,46 @@
+/* One quiet presentation for all Sonner notices; outcome text and lifetimes stay with callers. */
+.pocket-toaster[data-sonner-toaster][data-x-position="center"] {
+  width:min(360px, calc(100vw - 32px));
+  left:50%;
+  right:auto;
+  transform:translateX(-50%);
+  font-family:inherit;
+  --gray11:var(--muted);
+}
+.pocket-toaster[data-sonner-toaster] .pocket-toast[data-sonner-toast] {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  width:fit-content;
+  max-width:100%;
+  min-height:36px;
+  margin-inline:auto;
+  left:0;
+  right:0;
+  padding:8px 12px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:var(--surface-raised);
+  background:color-mix(in srgb, var(--surface-raised) 94%, transparent);
+  -webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(12px);
+  color:var(--ink);
+  box-shadow:0 2px 8px #00000012;
+  font-size:13px;
+  line-height:1.45;
+  transition:transform 180ms ease, opacity 160ms ease;
+}
+.pocket-toast[data-sonner-toast] [data-content] { min-width:0; flex:1; }
+.pocket-toast[data-sonner-toast] [data-title] { color:inherit; font-weight:500; overflow-wrap:anywhere; }
+.pocket-toast[data-sonner-toast] [data-description] { color:var(--text-secondary); font-size:12px; margin-top:2px; overflow-wrap:anywhere; }
+.pocket-toast[data-sonner-toast] [data-icon] { display:flex; align-items:center; justify-content:center; position:relative; width:15px; height:16px; flex-shrink:0; color:var(--muted); }
+.pocket-toast[data-sonner-toast][data-type="success"] [data-icon] { color:var(--positive); }
+.pocket-toast[data-sonner-toast][data-type="error"] [data-icon] { color:var(--danger); }
+.pocket-toast[data-sonner-toast][data-type="warning"] [data-icon] { color:var(--warning); }
+.pocket-toast[data-sonner-toast][data-type="info"] [data-icon] { color:var(--accent); }
+.pocket-toast[data-sonner-toast] [data-button] { flex-shrink:0; min-height:32px; padding:4px 8px; border:0; border-radius:8px; background:var(--soft); color:var(--ink); font:inherit; }
+.pocket-toaster[data-sonner-toaster] .pocket-toast[data-sonner-toast]:focus-visible,
+.pocket-toast[data-sonner-toast] [data-button]:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+@media (prefers-reduced-motion:reduce) {
+  .pocket-toaster[data-sonner-toaster] .pocket-toast[data-sonner-toast] { transition:none; }
+}

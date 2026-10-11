@@ -24,6 +24,7 @@ test('only a newly confirmed user message receives the green confirmation treatm
   const message = { id: 'one', role: 'user', text: 'Keep this exact text', clientMessageId: 'r' };
   const html = renderToStaticMarkup(createElement(Message, { message, recentlySent: true }));
   assert.match(html, /is-recently-sent/); assert.match(html, /已发送/); assert.match(html, /Keep this exact text/);
+  assert.match(html, /<footer class="message-footer">[\s\S]*class="message-send-confirmed"[\s\S]*已发送[\s\S]*<\/footer>/);
   assert.doesNotMatch(renderToStaticMarkup(createElement(Message, { message })), /is-recently-sent|已发送/);
   assert.doesNotMatch(renderToStaticMarkup(createElement(Message, { message: { ...message, role: 'assistant' }, recentlySent: true })), /is-recently-sent|已发送/);
 });
