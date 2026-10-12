@@ -71,7 +71,7 @@ async function desktop(t, home, snapshots, { ownerDelay = 0 } = {}) {
         pending = pending.subarray(size + 4);
         calls.push(message);
         if (message.type === 'request') {
-          const answer = () => send({ type: 'response', requestId: message.requestId,
+          const answer = () => send({ type: 'response', method: message.method, requestId: message.requestId,
             resultType: 'success', handledByClientId: 'real-owner',
             result: message.method === 'initialize' ? { clientId: 'pocket-fixture' } : {} });
           if (ownerDelay && message.method === 'thread-owner-discovery') {
@@ -81,7 +81,7 @@ async function desktop(t, home, snapshots, { ownerDelay = 0 } = {}) {
         if (message.type === 'broadcast' && message.params?.following) {
           const id = message.params.conversationId;
           const frame = snapshot => ({ type: 'broadcast', method: 'thread-stream-state-changed', version: 11,
-            sourceClientId: 'real-owner', params: { hostId: 'local', conversationId: id,
+            sourceClientId: 'real-owner', targetClientIds: ['pocket-fixture'], params: { hostId: 'local', conversationId: id,
               change: { type: 'snapshot', revision: 1, conversationState: snapshot } } });
           const value = snapshots[id];
           if (typeof value === 'function') value({ send, frame, id, socket });

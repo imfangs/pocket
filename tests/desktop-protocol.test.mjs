@@ -47,6 +47,7 @@ async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0 } = {}
         if (m.type === "request") {
           const answer = () => send({
             type: "response",
+            method: m.method,
             requestId: m.requestId,
             resultType: "success",
             handledByClientId: "desktop-fixture",
@@ -65,6 +66,8 @@ async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0 } = {}
             type: "broadcast",
             method: "thread-stream-state-changed",
             version: 11,
+            sourceClientId: "desktop-fixture",
+            targetClientIds: ["navigator-fixture"],
             params: {
               hostId: "local",
               conversationId: id,

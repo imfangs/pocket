@@ -37,7 +37,9 @@ async function fixture(t, options = {}) {
         pending = pending.subarray(size + 4); calls.push(message);
         if (message.method === 'initialize') {
           options.onInitialize?.({ rollout });
-          const body = Buffer.from(JSON.stringify({ type: 'response', requestId: message.requestId, resultType: 'success', result: { clientId: 'pocket-fixture' } }));
+          const body = Buffer.from(JSON.stringify({ type: 'response', method: message.method,
+            requestId: message.requestId, resultType: 'success', handledByClientId: 'desktop-fixture',
+            result: { clientId: 'pocket-fixture' } }));
           const header = Buffer.alloc(4); header.writeUInt32LE(body.length); socket.write(Buffer.concat([header, body]));
         }
         if (message.method === 'thread-read-state-changed') {
