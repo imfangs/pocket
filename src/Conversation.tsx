@@ -18,7 +18,7 @@ import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
 import { holdReload, useReloadGuard } from "./updateSafety";
-import { connectionFailureHint, connectionFromHistory, newerConnection } from "./threadConnection";
+import { connectionFailureHint, connectionFromHistory, isConnectionCompatibilityFailure, newerConnection } from "./threadConnection";
 import type { OpenThreadResult, ThreadConnection } from "./threadConnection";
 import { displayedReadObservation, observeVisibleRead } from "./readObservation";
 import type { ReadAttempts, ReadObservation, ReadReceipt } from "./readObservation";
@@ -234,21 +234,24 @@ export default function Conversation({
     return () => window.removeEventListener("online", recover);
   }, [uploads, thread.id, targetAvailable]);
   const canQueue = targetAvailable && history?.canQueue !== false;
-  const canAttemptSend = targetAvailable && !!(history?.canAttemptSend ?? history?.canSend);
+  const connectionFailureCode = observedConnection.status === "failed" ? observedConnection.code : undefined;
+  const compatibilityCode = isConnectionCompatibilityFailure(history?.readOnlyReason) ? history?.readOnlyReason
+    : isConnectionCompatibilityFailure(connectionFailureCode) ? connectionFailureCode : undefined;
+  const canAttemptSend = targetAvailable && !compatibilityCode && !!(history?.canAttemptSend ?? history?.canSend);
   const staleConnection = observedConnection.status === "connected" && history?.source !== "desktop" && (history?.checkedAt ?? 0) > observedConnection.checkedAt;
   const desktopHint = history?.source === "desktop" && history.canSend && routineDesktopHints.has(history.hint) ? undefined : history?.hint;
   const connectionHint = managementHint || (thread.archived ? "会话已归档，恢复后可继续。" : !targetAvailable ? history?.hint : connecting
     ? "正在连接 Mac 中的原任务。可以继续输入，草稿和待发消息会保留。"
+    : compatibilityCode ? connectionFailureHint(compatibilityCode)
     : observedConnection.status === "failed" ? connectionFailureHint(observedConnection.code)
-    : history?.readOnlyReason === "app_version_changed" ? history.hint
     : staleConnection ? "暂时无法读取原任务的实时状态。草稿和待发消息已保留，可以重试连接。"
     : observedConnection.status === "connected" && history?.source !== "desktop" ? "已连接 Mac 中的原任务，正在同步发送状态。"
     : history?.source === "desktop" && observedConnection.status === "connected" ? desktopHint
     : history?.source !== "desktop" && history ? "正在显示已保存的历史。连接原任务，或提交消息后自动连接。" : desktopHint);
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
-  const enqueue = history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
-  const sendAndConnect = enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
+  const enqueue = !!compatibilityCode || history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
+  const sendAndConnect = !compatibilityCode && enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
@@ -535,7 +538,7 @@ export default function Conversation({
         </span>
           <TurnDuration timing={toolbarTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
         </div>
-          <ContextStatus threadId={thread.id} history={history} disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} />
+          <ContextStatus threadId={thread.id} history={compatibilityCode && history ? { ...history, canCompact: false, canAttemptCompact: false } : history} disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} />
         </div>
         <div className="conversation-controls">
           <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} notify={setNotice} />

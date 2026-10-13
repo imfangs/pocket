@@ -7,6 +7,16 @@ import { ExecutionStops } from "./execution-stops.mjs";
 import { runBridge } from "./bridge-process.mjs";
 import { Attachments, messageFingerprint } from "./attachments.mjs";
 
+const compatibilityHints = {
+  desktop_protocol_incompatible: "Mac 中的 Codex 接口与 Pocket 不兼容，暂时无法发送或压缩。草稿和待发消息已保留。",
+  desktop_protocol_error: "Mac 中的 Codex 接口与 Pocket 不兼容，暂时无法发送或压缩。草稿和待发消息已保留。",
+  unsupported_app_identity: "当前桌面应用不是受支持的 Codex，暂时无法连接。草稿和待发消息已保留。",
+  // Old persisted receipts may still carry the former version gate's code.
+  app_version_changed: "当前桌面连接尚未通过兼容检查，暂时无法发送或压缩。草稿和待发消息已保留。",
+};
+const compatibilityFailure = result => !result.ok &&
+  [result.code, result.connectionReason].find(code => Object.hasOwn(compatibilityHints, code));
+
 export function desktopRequest(payload) {
   const config = JSON.parse(
     readFileSync(
@@ -115,8 +125,9 @@ export class DesktopService {
           entry.state.status = "connected";
           return;
         }
-        lastCode = result.connectionReason || result.code || "thread_not_resumed";
-        if (result.code === "app_version_changed") break;
+        const incompatible = compatibilityFailure(result);
+        lastCode = incompatible || result.connectionReason || result.code || "thread_not_resumed";
+        if (incompatible) break;
         if (!opened) { await bounded(() => this.openThread(id)); opened = true; }
         await bounded(() => new Promise(resolve => {
           // Keep the full initialization window without rapidly exhausting it.
@@ -206,9 +217,11 @@ export class DesktopService {
           hint: "暂时无法读取历史，请连接 Mac 中的原任务后刷新。",
         };
       }
-      if (result.code === "app_version_changed") {
-        data.hint = "Codex 桌面版本已变化，发送功能需重新验证。";
-        data.readOnlyReason = result.code;
+      const incompatible = compatibilityFailure(result);
+      if (incompatible) {
+        data.hint = compatibilityHints[incompatible];
+        data.readOnlyReason = incompatible;
+        data.canSend = data.canStop = data.canCompact = data.queueReady = false;
       }
       if (result.connectionReason) data.connectionReason = result.connectionReason;
     }
@@ -263,19 +276,28 @@ export class DesktopService {
     const outbox = this.outbox(id);
     const thread = this.store.thread(id);
     const targetAvailable = !thread.archived && !thread.missing && !this.isLifecycleBlocked(id);
+    const entry = this.connections.get(id);
+    if (entry?.state.status === "failed" && data.source === "desktop" && data.resumeState === "resumed" && data.checkedAt >= entry.state.checkedAt) {
+      Object.assign(entry.state, { status: "connected", checkedAt: data.checkedAt });
+      delete entry.state.code;
+    }
+    const connection = this.connection(id);
+    const compatibilityBlocked = Object.hasOwn(compatibilityHints, data.readOnlyReason) ||
+      (connection.status === "failed" && Object.hasOwn(compatibilityHints, connection.code));
+    const executionAvailable = targetAvailable && !compatibilityBlocked;
     const pendingRequests = (data.pendingRequests || []).map(request => ({ ...request,
       response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
     const asyncQuestions = (data.asyncQuestions || []).map(question => ({ ...question,
       response: this.store.db.prepare("SELECT d.id AS requestId,d.status FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? ORDER BY d.created_at DESC LIMIT 1").get(id, question.key) || null }));
-    return { ...this.attachments.enrich(id, data), connection: this.connection(id), outbox, pendingRequests, canCompact: targetAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
-      canAttemptCompact: targetAvailable && !blocked && !this.sending.has(id) &&
-        (!!data.canCompact || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
+    return { ...this.attachments.enrich(id, data), connection, outbox, pendingRequests, canCompact: executionAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
+      canAttemptCompact: executionAvailable && !blocked && !this.sending.has(id) &&
+        (!!data.canCompact || data.source !== "desktop"),
       asyncQuestions,
       canQueue: targetAvailable && this.queueSize(id, outbox.length) < 20,
-      canAttemptSend: targetAvailable && !blocked && !this.sending.has(id) &&
-        (!!data.canSend || (data.source !== "desktop" && data.readOnlyReason !== "app_version_changed")),
-      canSend: targetAvailable && data.canSend && !blocked, queueReady: targetAvailable && data.queueReady && !blocked && !queuePaused,
-      canStop: targetAvailable && !!data.canStop && !this.stops.pending(id), activeTurnId: data.activeTurnId || null,
+      canAttemptSend: executionAvailable && !blocked && !this.sending.has(id) &&
+        (!!data.canSend || data.source !== "desktop"),
+      canSend: executionAvailable && data.canSend && !blocked, queueReady: executionAvailable && data.queueReady && !blocked && !queuePaused,
+      canStop: executionAvailable && !!data.canStop && !this.stops.pending(id), activeTurnId: data.activeTurnId || null,
       queuePaused, stopRequest: this.stops.latest(id),
       compactionRequest: action ? { requestId: action.id, status: action.status, code: action.code } : null };
   }

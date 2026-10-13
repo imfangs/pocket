@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
-import { connectionFromHistory, newerConnection } from '../src/threadConnection.ts';
+import { connectionFailureHint, connectionFromHistory, isConnectionCompatibilityFailure, newerConnection } from '../src/threadConnection.ts';
 import { startConnectionFeed } from '../src/conversationFeed.ts';
 
 const connection = (status, overrides = {}) => ({ status, requestId: 'one', startedAt: 10, checkedAt: 20, ...overrides });
@@ -39,14 +39,28 @@ test('a late connecting history cannot overwrite a terminal or newer connection 
 });
 
 test('only a sufficiently fresh resumed desktop can override a previous failure', () => {
-  const failed = connection('failed', { code: 'connection_timeout' });
-  assert.equal(connectionFromHistory(failed, { source: 'desktop', resumeState: 'resuming', checkedAt: 30 }), failed);
-  assert.equal(connectionFromHistory(failed, { source: 'rollout', resumeState: 'resumed', checkedAt: 30 }), failed);
-  assert.equal(connectionFromHistory(failed, { source: 'desktop', resumeState: 'resumed', checkedAt: 15 }), failed);
-  const recovered = connectionFromHistory(failed, { source: 'desktop', resumeState: 'resumed', checkedAt: 30 });
-  assert.equal(recovered.status, 'connected');
-  assert.equal(recovered.checkedAt, 30);
-  assert.equal(recovered.code, undefined);
+  for (const code of ['connection_timeout', 'desktop_protocol_incompatible', 'unsupported_app_identity', 'app_version_changed']) {
+    const failed = connection('failed', { code });
+    assert.equal(connectionFromHistory(failed, { source: 'desktop', resumeState: 'resuming', checkedAt: 30 }), failed);
+    assert.equal(connectionFromHistory(failed, { source: 'rollout', resumeState: 'resumed', checkedAt: 30 }), failed);
+    assert.equal(connectionFromHistory(failed, { source: 'desktop', resumeState: 'resumed', checkedAt: 15 }), failed);
+    const recovered = connectionFromHistory(failed, { source: 'desktop', resumeState: 'resumed', checkedAt: 30 });
+    assert.equal(recovered.status, 'connected');
+    assert.equal(recovered.checkedAt, 30);
+    assert.equal(recovered.code, undefined);
+  }
+});
+
+test('interface and identity errors are distinguished from retryable owner timeouts and old version receipts remain readable', () => {
+  for (const code of ['desktop_protocol_incompatible', 'desktop_protocol_error', 'unsupported_app_identity', 'app_version_changed']) {
+    assert.equal(isConnectionCompatibilityFailure(code), true);
+    assert.match(connectionFailureHint(code), /草稿和待发消息已保留/);
+    assert.doesNotMatch(connectionFailureHint(code), /版本已变化|请重试连接/);
+  }
+  assert.match(connectionFailureHint('desktop_protocol_incompatible'), /接口与 Pocket 不兼容/);
+  assert.match(connectionFailureHint('unsupported_app_identity'), /不是受支持的 Codex/);
+  assert.equal(isConnectionCompatibilityFailure('owner_lookup_timeout'), false);
+  assert.match(connectionFailureHint('owner_lookup_timeout'), /连接原任务超时/);
 });
 
 test('connection observation polls until verified or failed and stops without reopening', async () => {

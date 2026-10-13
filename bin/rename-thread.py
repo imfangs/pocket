@@ -4,19 +4,17 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import plistlib
 import re
 import signal
 import sqlite3
 import stat
-import subprocess
 import sys
 import time
 import unicodedata
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bundled_cli import bundled_cli
+from bundled_cli import bundled_cli, verify_cli, BundledCLIError
 
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
 FBT_METADATA = Path(CONFIG["ipcModuleDirectory"]).resolve().parents[1] / "codex-threads/scripts"
@@ -173,19 +171,12 @@ class RenameServer(StdioServer):
 
 
 def binary_for(store):
-    app = Path(CONFIG["appPath"])
-    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
-    version = info.get("CFBundleShortVersionString", "") + ":" + info.get("CFBundleVersion", "")
-    if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
-        raise ArchiveError("app_version_changed", "The desktop version needs verification")
-    cli = bundled_cli(app, version)
-    env = {**os.environ, "CODEX_HOME": str(store.home), "CODEX_SQLITE_HOME": str(store.sqlite_home)}
-    env.pop("CODEX_THREAD_ID", None)
-    result = subprocess.run([str(cli["entrypoint"]), "--version"], cwd=store.home, env=env,
-                            capture_output=True, text=True, timeout=5)
-    if result.returncode or result.stdout.strip() != cli["version"]:
-        raise ArchiveError("cli_version_changed", "The bundled CLI version needs verification")
-    return cli["entrypoint"]
+    try:
+        binary = bundled_cli(CONFIG["appPath"])["entrypoint"]
+        verify_cli(binary, store.home, store.sqlite_home)
+    except BundledCLIError as error:
+        raise ArchiveError(error.code, "The official CLI behavior contract is unavailable") from error
+    return binary
 
 
 def desired(state, name):

@@ -25,9 +25,15 @@ export function newerConnection(current: ThreadConnection, incoming?: ThreadConn
 
 export function connectionFailureHint(code?: string) {
   if (["connection_timeout", "owner_lookup_timeout", "desktop_preflight_timeout"].includes(code || "")) return "连接原任务超时。草稿和待发消息已保留，请重试连接。";
-  if (code === "app_version_changed") return "Mac 中的 Codex 版本已变化，暂时无法连接。草稿和待发消息已保留。";
+  if (code === "desktop_protocol_incompatible" || code === "desktop_protocol_error") return "Mac 中的 Codex 接口与 Pocket 不兼容，暂时无法发送或压缩。草稿和待发消息已保留。";
+  if (code === "unsupported_app_identity") return "当前桌面应用不是受支持的 Codex，暂时无法连接。草稿和待发消息已保留。";
+  if (code === "app_version_changed") return "当前桌面连接尚未通过兼容检查，暂时无法发送或压缩。草稿和待发消息已保留。";
   if (code === "connection_unknown") return "上次连接状态已不可用。草稿和待发消息已保留，请重试连接。";
   return "暂时未能连接 Mac 中的原任务。草稿和待发消息已保留，请重试连接。";
+}
+
+export function isConnectionCompatibilityFailure(code?: string) {
+  return ["desktop_protocol_incompatible", "desktop_protocol_error", "unsupported_app_identity", "app_version_changed"].includes(code || "");
 }
 
 export function connectionFromHistory(current: ThreadConnection, history?: { source: string; resumeState?: string; checkedAt: number } | null): ThreadConnection {

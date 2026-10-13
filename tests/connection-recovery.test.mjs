@@ -179,6 +179,72 @@ test('failed owner attachment retains its specific reason and ordinary polling n
   assert.equal(opened, 1);
 });
 
+test('incompatible interfaces finish recovery after one read without trying to load another owner', async t => {
+  for (const code of ['desktop_protocol_incompatible', 'unsupported_app_identity', 'app_version_changed']) {
+    for (const open of [false, true]) {
+      let reads = 0, opened = 0;
+      const { service } = fixture(t, async () => {
+        reads++;
+        return { ok: false, sent: false, code, ...(code === 'desktop_protocol_incompatible' ? { connectionReason: 'desktop_protocol_error' } : {}) };
+      }, async () => { opened++; });
+      service.connect(id, { open });
+      const result = await settled(service);
+      assert.equal(result.status, 'failed');
+      assert.equal(result.code, code);
+      assert.equal(reads, 1);
+      assert.equal(opened, Number(open));
+      await tick();
+      assert.equal(reads, 1);
+    }
+  }
+});
+
+test('queued text is retained when connection preflight is incompatible and later resumed history clears the failure', async t => {
+  let compatible = false, opened = 0, sends = 0;
+  const { service } = fixture(t, async payload => {
+    if (payload.operation === 'send') { sends++; return { ok: true }; }
+    return compatible ? live({ canCompact: true }) : { ok: false, sent: false, code: 'desktop_protocol_incompatible', connectionReason: 'desktop_protocol_error' };
+  }, async () => { opened++; });
+  assert.equal((await service.send(id, { requestId: rid, text: 'Keep until compatible', enqueue: true })).status, 'queued');
+  assert.equal((await settled(service)).code, 'desktop_protocol_incompatible');
+  const unavailable = await service.history(id);
+  assert.equal(unavailable.canQueue, true);
+  assert.equal(unavailable.canAttemptSend, false);
+  assert.equal(unavailable.canAttemptCompact, false);
+  await service.processQueue();
+  assert.equal(opened, 0);
+  assert.equal(sends, 0);
+  assert.equal(service.outbox(id)[0].text, 'Keep until compatible');
+  compatible = true; service.cache.clear();
+  const recovered = await service.history(id);
+  assert.equal(recovered.source, 'desktop');
+  assert.equal(recovered.connection.status, 'connected');
+  assert.equal(recovered.connection.code, undefined);
+  assert.equal(recovered.readOnlyReason, undefined);
+  assert.equal(recovered.canAttemptSend, true);
+  assert.equal(recovered.canAttemptCompact, true);
+  await service.processQueue();
+  assert.equal(sends, 1);
+  assert.equal(service.getReceipt(id, rid).status, 'accepted');
+  assert.equal(opened, 0);
+});
+
+test('an unsent incompatible direct submission is rejected without entering connection recovery', async t => {
+  let opened = 0, sends = 0;
+  const { service } = fixture(t, async () => {
+    sends++;
+    return { ok: false, sent: false, code: 'desktop_protocol_incompatible', connectionReason: 'desktop_protocol_error' };
+  }, async () => { opened++; });
+  const input = { requestId: rid, text: 'Retain rejected input' };
+  const receipt = await service.send(id, input);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.code, 'desktop_protocol_incompatible');
+  assert.equal((await service.send(id, input)).status, 'rejected');
+  assert.equal(service.connection(id).status, 'idle');
+  assert.equal(sends, 1);
+  assert.equal(opened, 0);
+});
+
 test('connection deadline bounds a hung opener and late completion cannot report success', async t => {
   let finishOpen, reads = 0;
   const { service } = fixture(t, async () => { reads++; return live(); }, () => new Promise(resolve => { finishOpen = resolve; }), { connectionTimeoutMs: 25 });

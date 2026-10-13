@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
-import { mkdtempSync, mkdirSync, chmodSync, rmSync, writeFileSync, realpathSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, chmodSync, rmSync, writeFileSync, realpathSync, symlinkSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { once } from "node:events";
 import { createHash } from "node:crypto";
 import { desktopRequest } from "../server/desktop.mjs";
+import { runBridge } from "../server/bridge-process.mjs";
 const id = "aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa";
 const requestId = "bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb";
 const idle = {
@@ -440,7 +442,7 @@ test("native initial title request is withheld for named, existing, incomplete, 
     ["existing turn", { turns: [{ turnId: "earlier", status: "completed", items: [] }] }],
     ["canonical existing turn", { turnHistory: { kind: "canonical", history: {
       entitiesByKey: { earlier: { turnId: "earlier", status: "completed", items: [] } },
-      islands: [{ entries: [{ value: "earlier" }] }],
+      islands: [{ entries: [{ value: "earlier" }], newerBoundary: { status: "exhausted" } }],
     } } }],
     ["history not complete", { turnsPagination: { hasLoadedOldest: false } }],
     ["history completeness unknown", { turnsPagination: undefined }],
@@ -530,6 +532,7 @@ test("desktop history includes accepted user input added during an active turn",
     threadRuntimeStatus: { type: "active" },
     turns: [{
       turnId: "running-turn",
+      status: "inProgress",
       params: { clientUserMessageId: "initial-client" },
       items: [
         { type: "userMessage", id: "initial", content: [{ type: "text", text: "Explain the connection" }] },
@@ -698,7 +701,7 @@ test('async questions are exposed separately and answers use the original native
 test('only the latest canonical turn contributes questions, while old questions stay in history',async t=>{
  const old={turnId:'old',status:'completed',items:[asyncQuestion]};
  const current={turnId:'current',status:'completed',items:[{...asyncQuestion,id:'new-question',text:'新问题'}]};
- const f=await fakeDesktop(t,[{...idle,turns:[old],turnHistory:{kind:'canonical',history:{entitiesByKey:{a:old,b:current},islands:[{entries:[{value:'a'},{value:'b'}]}]}}}]);
+ const f=await fakeDesktop(t,[{...idle,turns:[old],turnHistory:{kind:'canonical',history:{entitiesByKey:{a:old,b:current},islands:[{entries:[{value:'a'},{value:'b'}],newerBoundary:{status:'exhausted'}}]}}}]);
  const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
  assert.equal(h.asyncQuestions.length,1);assert.equal(h.asyncQuestions[0].sourceMessageId,'new-question');
  assert.equal(h.asyncQuestions[0].turnId,'current');assert.equal(h.messages.length,2);
@@ -762,4 +765,66 @@ test('oversized bridge payloads are explicitly rejected before contacting an own
  const r=await desktopRequest({operation:'send',threadId:id,codexHome:f.home,requestId,text:'x'.repeat(256*1024)});
  assert.deepEqual(r,{ok:false,code:'payload_too_large',sent:false});
  assert.equal(f.calls.length,0);
+});
+
+test('incompatible task contracts never become permission to send', async t => {
+  const missingRequests = { ...idle }; delete missingRequests.requests;
+  const cases = [missingRequests, { ...idle, requests: null },
+    { ...idle, unconfirmedTurnSubmissions: null },
+    { ...idle, threadRuntimeStatus: { type: 'future-runtime' } },
+    { ...idle, threadRuntimeStatus: { type: 'idle', activeFlags: null } },
+    { ...idle, turnHistory: { kind: 'future-history' } },
+    { ...idle, turnHistory: { kind: 'canonical', history: { entitiesByKey: {},
+      islands: [{ entries: [{ value: 'missing' }], newerBoundary: { status: 'exhausted' } }] } } },
+    { ...idle, turnHistory: { kind: 'canonical', history: { entitiesByKey: {},
+      islands: [{ entries: [], newerBoundary: { status: 'available' } }] } } },
+  ];
+  for (const [index, state] of cases.entries()) await t.test(String(index), async t => {
+    const f = await fakeDesktop(t, [state]);
+    const result = await desktopRequest({ operation: 'send', threadId: id, codexHome: f.home,
+      requestId, text: 'Keep my draft' });
+    assert.equal(result.code, 'desktop_protocol_incompatible');
+    assert.equal(result.sent, false);
+    assert.equal(f.calls.some(call => /start-turn|steer-turn/.test(call.method)), false);
+  });
+});
+
+test('pending native flags and unknown latest turns cannot authorize ordinary sends', async t => {
+  for (const state of [
+    { ...idle, threadRuntimeStatus: { type: 'idle', activeFlags: ['waitingOnUserInput'] } },
+    { ...idle, threadGoalResumeConfirmation: { pending: true } },
+    { ...idle, turns: [{ turnId: 'latest', status: 'future-status', items: [] }] },
+  ]) {
+    const f = await fakeDesktop(t, [state]);
+    const result = await desktopRequest({ operation: 'send', threadId: id, codexHome: f.home,
+      requestId, text: 'Wait for the original task' });
+    assert.equal(result.code, 'thread_not_ready');
+    assert.equal(result.sent, false);
+    assert.equal(f.calls.some(call => /start-turn|steer-turn/.test(call.method)), false);
+  }
+});
+
+test('future App releases use live IPC while a different bundle identity is rejected', async t => {
+  for (const bundleId of ['com.openai.codex', 'unrelated.app']) await t.test(bundleId, async t => {
+    const f = await fakeDesktop(t, [idle]);
+    const app = join(f.home, 'Future.app'); mkdirSync(join(app, 'Contents'), { recursive: true });
+    writeFileSync(join(app, 'Contents/Info.plist'), `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>
+      <key>CFBundleIdentifier</key><string>${bundleId}</string>
+      <key>CFBundleShortVersionString</key><string>99.1.future</string>
+      <key>CFBundleVersion</key><string>99999</string></dict></plist>`);
+    const config = JSON.parse(readFileSync(new URL('../config/desktop-bridge.json', import.meta.url), 'utf8'));
+    const script = fileURLToPath(new URL('../bin/desktop-bridge.py', import.meta.url));
+    const result = await runBridge({ operation: 'send', threadId: id, codexHome: f.home, requestId, text: 'Original settings' }, {
+      command: config.python, timeoutMs: 5000,
+      args: ['-B', '-c', "import runpy,json,sys;from pathlib import Path;sys.path.insert(0,str(Path(sys.argv[1]).parent));ns=runpy.run_path(sys.argv[1]);ns['CONFIG'].update(appPath=sys.argv[2],supportedVersion='obsolete:0');print(json.dumps(ns['main']()))", script, app],
+    });
+    const sends = f.calls.filter(call => call.method === 'thread-follower-start-turn');
+    if (bundleId === 'com.openai.codex') {
+      assert.equal(result.status, 'accepted'); assert.equal(sends.length, 1);
+      assert.deepEqual(sends[0].params.turnStart.context, { inheritThreadSettings: true });
+    } else {
+      assert.equal(result.code, 'unsupported_app_identity'); assert.equal(result.sent, false);
+      assert.equal(f.calls.length, 0);
+    }
+  });
 });

@@ -55,8 +55,36 @@ test('a fresh resumed desktop clears an old failed connection without overriding
   assert.doesNotMatch(html, />发送<\/button>/);
 });
 
-test('an incompatible app retains its concrete blocker instead of promising automatic send', () => {
-  const { html } = render('idle', { connection: { status: 'idle' }, readOnlyReason: 'app_version_changed', canAttemptSend: false, hint: 'Codex 桌面版本已变化，发送功能需重新验证。' });
-  assert.match(html, /发送功能需重新验证/);
-  assert.doesNotMatch(html, /提交消息后自动连接/);
+test('incompatible history keeps text editable and queue storage available without promising automatic connection', () => {
+  for (const readOnlyReason of ['desktop_protocol_incompatible', 'unsupported_app_identity', 'app_version_changed']) {
+    const { html, drafts } = render('idle', { connection: { status: 'idle' }, readOnlyReason, canAttemptSend: false, canAttemptCompact: false });
+    assert.match(html, /草稿和待发消息已保留/);
+    assert.doesNotMatch(html, /版本已变化|提交消息后自动连接|发送并连接/);
+    assert.match(html, /<button aria-label="直接发送第 1 条消息" disabled=""/);
+    assert.doesNotMatch(html.match(/<button class="primary"[^>]*>/)[0], /disabled/);
+    assert.match(html, /加入队列/);
+    assert.match(html, /Saved instruction/);
+    assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /disabled/);
+    assert.equal(drafts.get(id).text, 'Keep this draft');
+    const emptyQueue = render('idle', { connection: { status: 'idle' }, readOnlyReason, canAttemptSend: false, outbox: [] }).html;
+    assert.doesNotMatch(emptyQueue, /发送并连接/);
+    assert.match(emptyQueue, /加入队列/);
+  }
+});
+
+test('an incompatible connection result blocks stale sending permissions before history finishes refreshing', () => {
+  const { html } = render('failed', { connection: { ...connection('failed'), code: 'desktop_protocol_incompatible' }, canAttemptSend: true });
+  assert.match(html, /接口与 Pocket 不兼容/);
+  assert.match(html, /<button aria-label="直接发送第 1 条消息" disabled=""/);
+  assert.doesNotMatch(html, /发送并连接/);
+});
+
+test('fresh resumed history clears an old incompatible connection while preserving the queued text and draft', () => {
+  const { html, drafts } = render('failed', { connection: { ...connection('failed'), code: 'desktop_protocol_incompatible' },
+    source: 'desktop', resumeState: 'resumed', checkedAt: 100, canSend: true, canAttemptSend: true,
+    hint: '消息会在 Mac 的原任务中运行，沿用原模型与权限。' });
+  assert.doesNotMatch(html, /接口与 Pocket 不兼容|重试连接/);
+  assert.doesNotMatch(html.match(/<button aria-label="直接发送第 1 条消息"[^>]*>/)[0], /disabled/);
+  assert.match(html, /Saved instruction/);
+  assert.equal(drafts.get(id).text, 'Keep this draft');
 });

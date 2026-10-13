@@ -25,7 +25,8 @@
 | 手机上传、附件草稿、图片/文件发送及队列恢复 | [附件发送](docs/design/2026-10-10-attachments.md)：私有落盘、原owner输入、上传/发送编号及文件保留边界 |
 | 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
 | Markdown、Codex 专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)、[图片契约](docs/IMAGES.md) |
-| 版本更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
+| Pocket 前端更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
+| Codex 升级后连接失败、协议不兼容或内置 CLI 变化 | [桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)：App 发布号仅作诊断，IPC 契约与 CLI 语义分别检查 |
 | 通知与用户确认 | [通知](docs/NOTIFICATIONS.md)、会话契约中的审批/阻塞问题章节 |
 | 新建、归档、恢复与等待取消 | [会话生命周期](docs/design/2026-10-05-thread-lifecycle.md)：官方空会话持久化、writer 等待与回执恢复 |
 | 改名、会话信息入口、旧分组/安排兼容 | [重命名与管理减法](docs/design/2026-10-11-rename-and-management.md)：官方 name/set、回执、并发与数据保留；当前入口见[品牌与界面收敛](docs/design/2026-10-11-brand-and-interface.md) |

@@ -1,19 +1,20 @@
-"""Version-gated mark-read broadcast; original Codex files are read-only here."""
+"""Protocol-validated mark-read broadcast; original Codex files are read-only here."""
 from contextlib import closing
 import hashlib
 import json
 import os
 from pathlib import Path
-import plistlib
 import re
 import sqlite3
 import sys
 import time
 import uuid
+from bundled_cli import desktop_app, BundledCLIError
 
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
 sys.path.insert(0, CONFIG["ipcModuleDirectory"])
 from app_ipc import AppIPC
+from contracts import CompatibilityError
 
 
 class ReadStateIPC(AppIPC):
@@ -93,10 +94,7 @@ def main():
         ):
             raise ReadStateError("invalid_read_request")
         print("POCKET_BRIDGE_PHASE_V1 preflight", file=sys.stderr, flush=True)
-        info = plistlib.loads((Path(CONFIG["appPath"]) / "Contents/Info.plist").read_bytes())
-        version = info.get("CFBundleShortVersionString", "") + ":" + info.get("CFBundleVersion", "")
-        if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
-            raise ReadStateError("app_version_changed")
+        desktop_app(CONFIG["appPath"])
         current = snapshot(data["codexHome"], thread_id)
         if not matches(expected, current):
             raise ReadStateError("observation_changed", "stale")
@@ -126,6 +124,10 @@ def main():
                     return {"status": "read"}
                 time.sleep(0.05)
             return {"status": "unknown", "code": "readback_unconfirmed"}
+    except (BundledCLIError, CompatibilityError) as error:
+        return {"status": "unknown" if dispatched else "unavailable",
+                "code": "read_outcome_unknown" if dispatched else
+                        error.code if isinstance(error, BundledCLIError) else "desktop_protocol_incompatible"}
     except ReadStateError as error:
         return {"status": "unknown" if dispatched else error.status, "code": "read_outcome_unknown" if dispatched else error.code}
     except Exception:

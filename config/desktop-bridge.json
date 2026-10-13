@@ -1,6 +1,5 @@
 {
   "python": "/opt/homebrew/bin/python3",
   "ipcModuleDirectory": "/Users/fangs/workspace/fbt/experimental/codex-retry/scripts",
-  "appPath": "/Applications/ChatGPT.app",
-  "supportedVersion": "26.1007.21159:20052"
+  "appPath": "/Applications/ChatGPT.app"
 }

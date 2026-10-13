@@ -18,7 +18,7 @@
 
 Markdown 通过 React 节点渲染，不执行原始 HTML；外链仅允许 HTTP(S)/mailto，新页打开且不携带 referrer；严格 UUID 的 `codex://threads/ID` 可转为 Pocket 内导航。记忆引用、创建任务、批注等专用标记按[消息标记契约](design/2026-09-30-codex-markup-and-current-questions.md)展示，不执行正文中的动作。已在可见正文中引用、位于任务目录内的本地静态图片可通过认证地址预览和打开大图；范围与读取边界见 [图片契约](IMAGES.md)。其他本机文件路径保留文字，不作为网页路由打开。外部图片保留可点击链接，不自动加载第三方资源；Pocket上传且绑定的附件显示图片/文件卡片，其他来源的原App附件仍为占位提示。不会读取隐藏推理或系统/开发者指令。渲染不修改原文；组件按文本与图片地址 memo，历史刷新和输入时不重新解析未变的消息。
 
-任务在 Mac 已加载时可以发送文本 query，最多 16000 字。空闲时立即发送；运行中或已有待发消息时默认排队。待发列表支持删除、编辑和直接发送。编辑先暂停该条，保存后恢复排队；取消编辑恢复原文，切换任务后草稿仍可继续编辑。直接发送在运行中使用 Steer 追加到当前轮，空闲时开启下一轮。待审批/输入、已归档或不兼容版本保持不可发送。未加载的原任务可以点「连接任务」，或提交消息后由 Pocket 自动接入原桌面；期间保留草稿与待发，并等待真实连接结果。连接超时可明确重试，不创建新任务、不重放未知发送。见[连接恢复](design/2026-10-05-connection-recovery.md)。
+任务在 Mac 已加载时可以发送文本 query，最多 16000 字。空闲时立即发送；运行中或已有待发消息时默认排队。待发列表支持删除、编辑和直接发送。编辑先暂停该条，保存后恢复排队；取消编辑恢复原文，切换任务后草稿仍可继续编辑。直接发送在运行中使用 Steer 追加到当前轮，空闲时开启下一轮。待审批/输入、已归档或桌面接口不兼容保持不可发送。未加载的原任务可以点「连接任务」，或提交消息后由 Pocket 自动接入原桌面；期间保留草稿与待发，并等待真实连接结果。连接超时可明确重试，不创建新任务、不重放未知发送。见[连接恢复](design/2026-10-05-connection-recovery.md)。
 
 输入框按实际文字换行自动增高，删除后缩回；长文到上限后在框内滚动，上限随可见视口收缩。待发消息编辑框使用相同规则。
 
@@ -64,7 +64,11 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 `server/desktop.mjs` 从已导入的 ID 查找目标，调用 `bin/desktop-bridge.py`；后者复用 FBT `experimental/codex-retry/scripts/app_ipc.py` 的长度前缀 Unix socket 客户端。身份为 `codex-navigator`，不改变 FBT 重试守护策略或配置。
 
-2026-10-10已适配并实测桌面版本 `26.1007.21159:20052`；initialize v0、owner discovery v1、following v1、snapshot v11、follower start turn v2、follower steer turn v1 与前版一致。`config/desktop-bridge.json` 固定已验证版本与依赖路径，App升级或协议变化后仍需重新核验。公网消息已通过原owner完成受控回显，原模型/权限不变；内置CLI的新打包位置由 `bin/bundled_cli.py` 解析。协议依据与生命周期隔离验收见[桌面升级兼容](research/2026-10-10-desktop-upgrade-compatibility.md)。这是版本限定的内部协议，不是官方承诺稳定的公共SDK。
+2026-10-13实现调整：`config/desktop-bridge.json` 只配置运行路径，App 发布号不再决定准入。桥接仍检查 Codex bundle 身份、socket、固定 IPC 方法/快照版本、owner 与响应归属，以及 Pocket 实际消费的任务状态。初始化、owner discovery、following、snapshot、start turn、steer turn 的已知版本分别为 0、1、1、11、2、1；未知契约保持拒绝。这些是内部协议，不是官方承诺稳定的公共 SDK。
+
+内置 CLI 由 `bin/bundled_cli.py` 按实际包布局发现；新建、改名、归档/恢复仍独立检查已验证 CLI 版本，未验证版本返回 `cli_version_changed`。接口不兼容时保留落盘历史、草稿与条件允许的入队保存，暂停实际发送、停止、压缩和自动出队；存量 `app_version_changed` 回执继续识别，新鲜有效状态可解除旧连接失败。具体取舍与验证边界见[桌面兼容](design/2026-10-13-desktop-compatibility.md)。
+
+历史证据：2026-10-10在 `26.1007.21159:20052` 上已完成原owner公网受控回显及CLI隔离验收，原模型/权限不变；当时采用精确App版本配置。该次[桌面升级兼容记录](research/2026-10-10-desktop-upgrade-compatibility.md)保留原结论，不作为当前准入规则。
 
 官方 [App Server 文档](https://learn.chatgpt.com/docs/app-server) 已核对 `thread/read`、`turn/start`、`turn/steer` 与审批生命周期。本项目使用现有桌面 owner 的 IPC，不启动另一个 app-server 读写同一任务。
 
@@ -128,7 +132,7 @@ Pocket 与 Codex 桌面的待发列表独立。已安装桌面版本的队列 IP
 
 ## 队列与连接恢复的独立性（2026-09-28）
 
-`canSend` 表示最近桌面快照的接收状态；`canQueue` 表示可把正文存进 Mac 待发列表；`canAttemptSend` 表示可显式调用写侧重新连接并核验后发送，不能把它当已获得实时状态。已知审批/压缩/停止未确认、不兼容版本和不可用原任务不会开放直接发送。未知回执仍不自动重放。
+`canSend` 表示最近桌面快照的接收状态；`canQueue` 表示可把正文存进 Mac 待发列表；`canAttemptSend` 表示可显式调用写侧重新连接并核验后发送，不能把它当已获得实时状态。已知审批/压缩/停止未确认、桌面接口不兼容和不可用原任务不会开放直接发送。未知回执仍不自动重放。
 
 UI 仅在实际离线、输入为空、操作提交中或相应能力被明确禁止时禁用；原 owner 读取失败后默认保存为待发，不发送未验证的缓存状态。当前数据仍来自保存历史时说明连接恢复后发送。初次 owner 读取 2 秒回退；一分钟内的后续读取给10秒预算（09-30修复后），最多保存 40 个最近读取记录。前 3 次回退后 2 秒再读，持续不可用时回到 8 秒，后台暂停规则不变。
 

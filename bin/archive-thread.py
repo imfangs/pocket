@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import plistlib
 import re
 import signal
 import stat
@@ -14,7 +13,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bundled_cli import bundled_cli
+from bundled_cli import bundled_cli, desktop_app, verify_cli, BundledCLIError
 
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
 FBT_ARCHIVE = Path(CONFIG["ipcModuleDirectory"]).resolve().parents[1] / "codex-threads/scripts"
@@ -157,10 +156,11 @@ def readiness(store, tree, root_only=None):
 
 def official(binary, operation, root_id, store):
     env = {**os.environ, "CODEX_HOME": str(store.home), "CODEX_SQLITE_HOME": str(store.sqlite_home)}
-    version = subprocess.run([str(binary), "--version"], cwd=store.home, env=env, capture_output=True, text=True, timeout=5)
-    expected = bundled_cli(CONFIG["appPath"], CONFIG["supportedVersion"])["version"]
-    if version.returncode or version.stdout.strip() != expected:
-        raise ArchiveError("cli_version_changed", "The supported official CLI version is unavailable")
+    env.pop("CODEX_THREAD_ID", None)
+    try:
+        verify_cli(binary, store.home, store.sqlite_home)
+    except BundledCLIError as error:
+        raise ArchiveError(error.code, "The official CLI behavior contract is unavailable") from error
     print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
     return subprocess.run([str(binary), "archive" if operation == "archive" else "unarchive", root_id,
                            "-c", "sqlite_home=" + json.dumps(str(store.sqlite_home))],
@@ -183,10 +183,7 @@ def execute(data, run_cli=official):
         expected = data.get("expectedFingerprint")
         if expected is not None and (not isinstance(expected, str) or not re.fullmatch(r"[a-f0-9]{64}", expected)):
             raise ArchiveError("invalid_request", "Invalid archive fingerprint")
-        info = plistlib.loads((Path(CONFIG["appPath"]) / "Contents/Info.plist").read_bytes())
-        version = info.get("CFBundleShortVersionString", "") + ":" + info.get("CFBundleVersion", "")
-        if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
-            raise ArchiveError("app_version_changed", "The desktop version needs verification")
+        desktop_app(CONFIG["appPath"])
         store = ArchiveStore(data["codexHome"])
         tree = read_tree(store, root_id, root_only)
         if operation == "restore" and not tree["rootArchived"]:
@@ -211,14 +208,14 @@ def execute(data, run_cli=official):
         status, code = readiness(store, fresh, root_id if operation == "restore" else None)
         if status != "ready":
             return receipt(fresh, status, code)
-        binary = bundled_cli(CONFIG["appPath"], version)["entrypoint"]
+        binary = bundled_cli(CONFIG["appPath"])["entrypoint"]
         attempted = True
         result = None
         try:
             result = run_cli(binary, operation, root_id, store)
         except ArchiveError as error:
-            if error.code == "cli_version_changed":
-                return receipt(tree, "unavailable", "cli_version_changed")
+            if error.code in ("cli_version_changed", "bundled_cli_unavailable"):
+                return receipt(tree, "unavailable", error.code)
         except Exception:
             pass
         after = read_tree(store, root_id, root_only)

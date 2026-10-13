@@ -277,7 +277,7 @@ test("quick history fallback keeps local queue available and a recent retry gets
   let compatible=true;
   const service=new DesktopService(s,'/fixture',async p=>{
     budgets.push(p.ownerLookupTimeoutMs);
-    return {ok:false,code:compatible?'desktop_unavailable':'app_version_changed'};
+    return {ok:false,code:compatible?'desktop_unavailable':'desktop_protocol_incompatible'};
   },()=>({source:'rollout',runtime:'unavailable',canSend:false,messages:[]}));
   const first=await service.history(id);
   assert.equal(first.canSend,false);
@@ -296,4 +296,34 @@ test("quick history fallback keeps local queue available and a recent retry gets
   const archived=await service.history(id);
   assert.equal(archived.canAttemptSend,false);
   assert.equal(archived.canQueue,false);
+});
+
+test("incompatible desktop interfaces preserve saved history and queue storage without execution capabilities", async t => {
+  for (const failure of [
+    { code: 'desktop_protocol_incompatible', connectionReason: 'desktop_protocol_error' },
+    { code: 'unsupported_app_identity' },
+    { code: 'app_version_changed' },
+    { code: 'desktop_unavailable', connectionReason: 'desktop_protocol_error' },
+  ]) {
+    const s = store(t), operations = [];
+    const messages = [{ id: 'saved', role: 'user', text: 'Readable saved text' }];
+    const service = new DesktopService(s, '/fixture', async payload => {
+      operations.push(payload.operation);
+      return { ok: false, sent: false, ...failure };
+    }, () => ({ source: 'rollout', runtime: 'unavailable', canSend: false, messages }));
+    await service.send(id, { text: 'Keep this queued instruction', requestId: rid, enqueue: true });
+    const history = await service.history(id);
+    assert.deepEqual(history.messages, messages);
+    assert.equal(history.outbox[0].text, 'Keep this queued instruction');
+    assert.equal(history.outbox[0].status, 'queued');
+    assert.equal(history.canQueue, true);
+    for (const capability of ['canSend', 'canAttemptSend', 'canCompact', 'canAttemptCompact', 'canStop', 'queueReady'])
+      assert.equal(history[capability], false, `${failure.code}: ${capability}`);
+    assert.equal(history.readOnlyReason, failure.code === 'desktop_unavailable' ? failure.connectionReason : failure.code);
+    assert.equal(history.connectionReason, failure.connectionReason);
+    assert.doesNotMatch(history.hint, /版本已变化/);
+    await service.processQueue();
+    assert.deepEqual(operations, ['history']);
+    assert.equal(service.getReceipt(id, rid).status, 'queued');
+  }
 });

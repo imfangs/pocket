@@ -261,10 +261,10 @@ test('scope exclusions and the 32-candidate cap are enforced before any native s
   assert.ok(result.states.every(s => s.status === 'idle'));
 });
 
-test('unsupported app versions fail closed before process discovery or owner access', async t => {
+test('unsupported app identity fails before process discovery or owner access', async t => {
   const home = fixtureHome(t);
   const result = await python(`
-def invalid_version(): raise ValueError('app_version_changed')
+def invalid_version(): raise ValueError('unsupported_app_identity')
 def unexpected_discovery(*args): raise AssertionError('discovery must not run')
 print(json.dumps(m.execute(data,verify=invalid_version,discover=unexpected_discovery)))
 `, { codexHome: home, threadIds: ['one'], excludedThreadIds: [] });

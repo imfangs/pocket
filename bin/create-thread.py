@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import plistlib
 import select
 import sqlite3
 import subprocess
@@ -16,7 +15,7 @@ import uuid
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bundled_cli import bundled_cli, BundledCLIError
+from bundled_cli import bundled_cli, verify_cli, BundledCLIError
 
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
 ALLOWED_METHODS = {"initialize", "project/read", "thread/start", "thread/name/set", "thread/read", "thread/metadata/update"}
@@ -186,20 +185,11 @@ def checkpoint(path, receipt):
 
 
 def binary_for(home):
-    app = Path(CONFIG["appPath"])
-    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
-    version = info.get("CFBundleShortVersionString", "") + ":" + info.get("CFBundleVersion", "")
-    if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
-        raise CreateError("app_version_changed", "unavailable")
     try:
-        cli = bundled_cli(app, version)
+        binary = bundled_cli(CONFIG["appPath"])["entrypoint"]
+        verify_cli(binary, home)
     except BundledCLIError as error:
         raise CreateError(error.code, "unavailable") from error
-    binary = cli["entrypoint"]
-    result = subprocess.run([str(binary), "--version"], env=child_environment(home), cwd=home,
-                            capture_output=True, text=True, timeout=5)
-    if result.returncode or result.stdout.strip() != cli["version"]:
-        raise CreateError("cli_version_changed", "unavailable")
     return binary
 
 

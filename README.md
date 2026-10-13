@@ -34,7 +34,9 @@
 
 Node 26（使用内置 SQLite）、npm。代码与运行依赖不包含模型服务。
 
-实时历史与 query 的桌面桥接另需 Python 3 和本机 FBT IPC 模块，路径与支持的 App 版本在 `config/desktop-bridge.json`。缺少桌面连接时仍可显示只读落盘历史；入队保存、显式重连尝试和已取得的发送许可分别处理，真正派发会重新核验原 owner 状态，不另启 Agent 接管任务。
+实时历史与 query 的桌面桥接另需 Python 3 和本机 FBT IPC 模块，路径在 `config/desktop-bridge.json`。App 发布号仅作诊断，连接与派发按实际 IPC 契约和原 owner 状态检查；新建、改名、归档/恢复使用的内置 CLI 仍独立检查已验证版本。取舍与升级处理见[桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)。
+
+缺少桌面连接时仍可显示只读落盘历史；入队保存、显式重连尝试和已取得的发送许可分别处理。接口不兼容时保留草稿与待发消息，暂停实际派发，不另启 Agent 接管任务。
 
 ```sh
 npm ci

@@ -1,7 +1,7 @@
-"""Version-gated client of the existing desktop owner; never starts an agent."""
+"""Protocol-validated client of the existing desktop owner; never starts an agent."""
 from request_actions import projected_requests, prepare_response
+from bundled_cli import desktop_app, BundledCLIError
 import json
-import plistlib
 import sys
 import time
 import math
@@ -14,6 +14,7 @@ from pathlib import Path
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
 sys.path.insert(0, CONFIG["ipcModuleDirectory"])
 from app_ipc import AppIPC
+from contracts import CompatibilityError, ordered_turns as validated_turns
 
 # Blocking answers allow up to 40000 UTF-16 units in their JSON envelope.
 # Leave room for their UTF-8 encoding and trusted routing metadata.
@@ -28,6 +29,7 @@ class NavigatorIPC(AppIPC):
     def snapshot(self, thread_id):
         self.connection_stage = "owner"
         result = super().snapshot(thread_id)
+        validate_state(result[1])
         self.connection_stage = "ready"
         return result
 
@@ -85,12 +87,24 @@ class NavigatorIPC(AppIPC):
 
 
 def ordered_turns(state):
-    history = state.get("turnHistory", {})
-    if history.get("kind") != "canonical":
-        return state.get("turns", [])
-    h = history["history"]
-    return [h["entitiesByKey"][e["value"]] for island in h["islands"]
-            for e in island["entries"] if e["value"] in h["entitiesByKey"]]
+    return validated_turns(state)
+
+
+def validate_state(state):
+    runtime = state.get("threadRuntimeStatus")
+    if not isinstance(runtime, dict) or runtime.get("type") not in ("idle", "active", "systemError"):
+        raise CompatibilityError("unsupported_task_state:runtime")
+    for key, value in (("requests", state.get("requests")),
+                       ("unconfirmedTurnSubmissions", state.get("unconfirmedTurnSubmissions", []))):
+        if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+            raise CompatibilityError("unsupported_task_state:" + key)
+    flags = runtime.get("activeFlags", [])
+    if not isinstance(flags, list) or any(not isinstance(flag, str) for flag in flags):
+        raise CompatibilityError("unsupported_task_state:activeFlags")
+    for turn in ordered_turns(state):
+        items = turn.get("items", [])
+        if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+            raise CompatibilityError("unsupported_task_state:items")
 
 
 def needs_initial_title(state):
@@ -273,12 +287,17 @@ def input_message(content, attachments=None):
 
 def writable(state):
     runtime = state.get("threadRuntimeStatus", {}).get("type")
-    if state.get("requests") or state.get("unconfirmedTurnSubmissions"):
+    if (state.get("requests") or state.get("unconfirmedTurnSubmissions")
+            or state.get("threadRuntimeStatus", {}).get("activeFlags") or state.get("threadGoalResumeConfirmation")):
         return False, "任务正在等待审批或输入，请在 Mac 的 Codex 中处理。"
     if runtime not in ("idle", "systemError", "active") or state.get("resumeState") != "resumed":
         return False, "先连接 Mac 中的原任务，再发送消息。"
     if state.get("threadSource") == "subagent" or state.get("parentThreadId"):
         return False, "子任务请通过其原任务继续。"
+    turns = ordered_turns(state)
+    if turns and (not isinstance(turns[-1].get("turnId"), str) or not turns[-1]["turnId"]
+                  or turns[-1].get("status") not in ("inProgress", "completed", "interrupted", "failed")):
+        return False, "任务最新状态尚未确认，请稍后刷新。"
     if compaction_state(state)["active"]:
         return False, "正在压缩上下文，完成后可继续。"
     if runtime == "active":
@@ -495,14 +514,11 @@ def main():
             not isinstance(data.get("text"), str) or not data["text"].strip() and not attachments):
         return {"ok": False, "code": "invalid_payload", "sent": False}
     thread_id = data["threadId"]
-    info = plistlib.loads((Path(CONFIG["appPath"]) / "Contents/Info.plist").read_bytes())
-    version = info.get("CFBundleShortVersionString", "") + ":" + info.get("CFBundleVersion", "")
-    if info.get("CFBundleIdentifier") != "com.openai.codex" or version != CONFIG["supportedVersion"]:
-        return {"ok": False, "code": "app_version_changed", "sent": False}
     dispatched = False
     client = None
     print("POCKET_BRIDGE_PHASE_V1 preflight", file=sys.stderr, flush=True)
     try:
+        desktop_app(CONFIG["appPath"])
         with NavigatorIPC(Path(data["codexHome"]) / "ipc/ipc.sock") as client:
             if data["operation"] == "history":
                 client.owner_lookup_timeout = {5000: 5.0, 10000: 10.0}.get(data.get("ownerLookupTimeoutMs"), 2.0)
@@ -603,6 +619,9 @@ def main():
             return {"ok": True, "status": "accepted", "turnId": turns[-1].get("turnId") if active and turns else None}
     except Exception as error:
         # Expose bounded reason codes, never exception text or private IPC data.
+        if not dispatched and isinstance(error, (CompatibilityError, BundledCLIError)):
+            return {"ok": False, "code": error.code if isinstance(error, BundledCLIError) else "desktop_protocol_incompatible",
+                    "sent": False, "connectionReason": "desktop_protocol_error"}
         if isinstance(error, FileNotFoundError):
             reason = "app_not_running"
         elif isinstance(error, (ConnectionRefusedError, ConnectionResetError, EOFError)):

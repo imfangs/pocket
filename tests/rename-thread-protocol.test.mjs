@@ -180,22 +180,22 @@ test('invalid names, execution overrides and mutation-bearing inspections never 
   assert.equal(source(f.home, input.threadId).row.name, input.expectedName);
 });
 
-test('a changed desktop release or CLI version stops before metadata dispatch', async t => {
+test('App releases do not gate rename while an unknown CLI contract stops before metadata dispatch', async t => {
   const f = fixture(t), input = await create(f);
   const result = await python(f.home, `
 from unittest.mock import patch
 from types import SimpleNamespace
 data=json.loads(${JSON.stringify(JSON.stringify(input))})
-with patch.object(r,'CONFIG',{**r.CONFIG,'supportedVersion':'unverified'}): wrongApp=r.execute(data)
-with patch.object(r.subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout='codex-cli other')): wrongCli=r.execute(data)
 with patch.object(r,'CONFIG',{**r.CONFIG,'supportedVersion':'unverified'}): inspected=r.execute({'operation':'inspect','threadId':data['threadId'],'codexHome':str(home)})
-print(json.dumps({'app':wrongApp,'cli':wrongCli,'inspect':inspected}))
+with patch('bundled_cli.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout='codex-cli 99.0.0')): wrongCli=r.execute(data)
+with patch.object(r,'CONFIG',{**r.CONFIG,'supportedVersion':'unverified'}): renamed=r.execute(data)
+print(json.dumps({'app':renamed,'cli':wrongCli,'inspect':inspected}))
 `);
-  assert.equal(result.app.code, 'app_version_changed'); assert.equal(result.app.mutationAttempted, false);
+  assert.equal(result.app.status, 'renamed'); assert.equal(result.app.verified, true);
   assert.equal(result.cli.code, 'cli_version_changed'); assert.equal(result.cli.mutationAttempted, false);
   assert.equal(result.inspect.status, 'unchanged'); assert.equal(result.inspect.verified, true);
-  assert.equal(result.inspect.canRename, false); assert.equal(result.inspect.code, 'app_version_changed');
-  assert.equal(source(f.home, input.threadId).row.name, input.expectedName);
+  assert.equal(result.inspect.canRename, true);
+  assert.equal(source(f.home, input.threadId).row.name, input.name);
 });
 
 test('late source changes, lost replies and protected metadata changes have distinct outcomes', async t => {
