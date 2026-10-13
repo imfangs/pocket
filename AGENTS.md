@@ -16,7 +16,7 @@
 | 全局toast、消息身份标签、底部时间/复制与发送确认 | [轻量反馈与消息footer](docs/design/2026-10-12-light-feedback-and-message-footer.md)：统一Sonner样式、消息语义与待处理状态边界 |
 | 操作类产品的顺手标准、功能取舍、UI 复盘或跨项目借鉴 | [迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)：整体脉络、可观察标准、反例与验证办法；按目标项目重新判断适用性 |
 | Logo、设置减法、标题信息入口与工具栏 | [品牌与界面收敛](docs/design/2026-10-11-brand-and-interface.md)、[矢量主稿](design/brand/README.md) |
-| 整体 UI、导航、筛选、阅读层级与表单 | [工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md)：Notion 参照、主题 token、跨视图草稿、浮层与已读边界 |
+| 整体 UI、导航、筛选、阅读层级与表单 | [工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md)；整体减法或同类删减再次出现时，先按[迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)第4、6节审视完整路径的相邻区域，确定覆盖范围与保留理由 |
 | 列表运行中/等待状态、状态过期 | [列表运行状态](docs/design/2026-10-08-running-status.md)：原owner候选读取、共享轮询与归档取消边界 |
 | 列表、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
 | 阅读后清除未读、同步 Codex 蓝点 | [已读同步](docs/design/2026-10-05-read-state-sync.md)：前台可见阅读、观察凭据与原生回读 |
@@ -66,4 +66,4 @@
 - 默认使用合成数据和只读真实验收；必要发送按受控对象/文本约定操作，避免污染其他原任务。区分自动测试、浏览器、模拟器、iPhone 主屏幕真机与长期使用证据。
 - 本地开发优先复用已有 API 或任务内临时 fixture；结束后关闭自己启动的临时进程。已登记服务的生命周期复用 FBT local，实际配置留在本仓库，不顺手重启 Codex。
 - 发布从项目配置进入 [FBT Pages Site](/Users/fangs/workspace/fbt/workflows/pages-site/SKILL.md)；本地服务管理从 [FBT local](/Users/fangs/workspace/fbt/local/SKILL.md) 进入。上传已成功但回读未通过时，继续同一部署的 `resume --resume-verification`，先核对结果再决定下一步。
-- 当前状态只维护在 `CURRENT.md`；详细演进追加 `HISTORY.md` 或对应设计记录，证据保留日期与入口。检查并本地提交本任务改动，沿用 Workspace 的 Git 规则；本地 commit 不代表 push、发布或真实效果完成。
+- `CURRENT.md` 只保留最近已验证版本、当前行为、继续方式和未决事项；被后续版本替代的详细流水移入 `HISTORY.md` 或对应设计记录，保留原日期与证据。检查并本地提交本任务改动，沿用 Workspace 的 Git 规则；本地 commit 不代表 push、发布或真实效果完成。
