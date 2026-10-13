@@ -30,6 +30,8 @@ import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, wi
 import type { SubmittedQuery, SubmittedQueryStore, SubmittedQueryReceipt } from "./submittedQueries";
 import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATTACHMENTS, readyAttachments, sameAttachments, type DraftAttachment } from "./attachments";
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
+import { useReadingComposer } from "./useReadingComposer";
+import "./reading-composer.css";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   attachments?: readonly DraftAttachment[];
@@ -252,6 +254,11 @@ export default function Conversation({
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = !!compatibilityCode || history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
   const sendAndConnect = !compatibilityCode && enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
+  const composer = useReadingComposer({ hasContent: shownMessages.length > 0, hasDraft: draft.text.length > 0,
+    hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
+    pending: sending || connecting || !!draft.requestId || shownOutbox.length > 0 || visibleSubmissions.length > 0 ||
+      !!history?.pendingRequests?.length || questions.length > 0,
+    feedback: !!(error || historyError || connectionError || notice || acceptedNotice || currentReadFeedback) });
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
@@ -642,7 +649,10 @@ export default function Conversation({
           setAttachmentError(error ?? ""); setAttachmentRecoveryNeeded(!!error);
           setNotice(error ? "待发消息已删除，附件可重新载入草稿。" : recovered ? "待发消息已删除，附件已放回草稿。" : "待发消息已删除。");
         }} />
-      <form className="conversation-composer" onSubmit={(e) => void submit(e)}>
+      <form ref={composer.ref} className={`conversation-composer${composer.compact ? " is-compact" : ""}`}
+        data-composer-state={composer.compact ? "compact" : "expanded"}
+        onCompositionStart={composer.onCompositionStart} onCompositionEnd={composer.onCompositionEnd}
+        onSubmit={(e) => void submit(e)}>
         <DraftAttachmentList threadId={thread.id} items={attachments} controller={uploads} disabled={!online || !targetAvailable || !!draft.requestId} error={attachmentError}
           onRecover={attachmentRecoveryNeeded ? () => void recoverAttachments() : undefined} />
         <label className="sr-only" htmlFor="user-query">
@@ -651,7 +661,8 @@ export default function Conversation({
         <AutoTextarea
           id="user-query"
           aria-label="发送给原任务的消息"
-          placeholder={enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
+          rows={composer.compact ? 1 : 2}
+          placeholder={composer.compact ? "继续对话…" : enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
           value={draft.text}
           maxLength={16000}
           onChange={(e) => updateDraft({ text: e.target.value })}
@@ -662,7 +673,7 @@ export default function Conversation({
           }}
         />
         <div className="composer-actions">
-          <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} />
+          <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} onPickingChange={composer.setPicking} preserveFocus />
           <button
             className="primary"
             disabled={

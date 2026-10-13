@@ -1,5 +1,5 @@
 import { FileText, Image as ImageIcon, Paperclip, RefreshCw, X } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { attachmentSize, safeAttachmentUrl, type AttachmentDraftController, type DraftAttachment, type PublicAttachment } from "./attachments";
 import "./attachments.css";
 
@@ -47,11 +47,37 @@ export function DraftAttachmentList({ threadId, items, controller, disabled, err
   </section>;
 }
 
-export function AttachmentPicker({ disabled, onFiles }: { disabled: boolean; onFiles: (files: File[]) => void }) {
+export function AttachmentPicker({ disabled, onFiles, onPickingChange, preserveFocus = false }: { disabled: boolean; onFiles: (files: File[]) => void; onPickingChange?: (picking: boolean) => void; preserveFocus?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
+  const picking = useRef(false), returnTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const finish = () => { clearTimeout(returnTimer.current); picking.current = false; onPickingChange?.(false); };
+  useEffect(() => {
+    if (!onPickingChange) return;
+    const field = input.current;
+    const cancel = () => { clearTimeout(returnTimer.current); picking.current = false; onPickingChange?.(false); };
+    const returned = () => {
+      if (picking.current && document.visibilityState !== "hidden") {
+        clearTimeout(returnTimer.current); returnTimer.current = setTimeout(cancel, 300);
+      }
+    };
+    field?.addEventListener("cancel", cancel);
+    window.addEventListener("focus", returned); document.addEventListener("visibilitychange", returned);
+    return () => {
+      clearTimeout(returnTimer.current); field?.removeEventListener("cancel", cancel);
+      window.removeEventListener("focus", returned); document.removeEventListener("visibilitychange", returned);
+    };
+  }, [onPickingChange]);
   return <>
-    <button type="button" className="attachment-picker icon-button" aria-label="添加附件" title="添加图片或文件" disabled={disabled} onClick={() => input.current?.click()}><Paperclip size={18} aria-hidden="true" /></button>
+    <button type="button" className="attachment-picker icon-button" aria-label="添加附件" title="添加图片或文件" disabled={disabled}
+      onPointerDown={event => {
+        // Keep the pressed target stationary until click opens the native picker.
+        // Keyboard focus still works, and an existing editor selection survives.
+        if (preserveFocus) event.preventDefault();
+      }} onClick={() => {
+      picking.current = true; onPickingChange?.(true);
+      try { input.current?.click(); } catch (error) { finish(); throw error; }
+    }}><Paperclip size={18} aria-hidden="true" /></button>
     <input ref={input} type="file" hidden multiple data-attachment-input="" aria-label="选择附件" disabled={disabled}
-      onChange={event => { const files = [...(event.target.files ?? [])]; event.target.value = ""; if (files.length) onFiles(files); }} />
+      onChange={event => { const files = [...(event.target.files ?? [])]; event.target.value = ""; try { if (files.length) onFiles(files); } finally { finish(); } }} />
   </>;
 }

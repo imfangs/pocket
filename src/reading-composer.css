@@ -1,0 +1,32 @@
+@media (max-width: 760px) and (hover: none) and (pointer: coarse) {
+  .conversation-composer.is-compact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: center;
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .inspector .conversation-composer.is-compact textarea {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 44px;
+    max-height: 44px;
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+  .conversation-composer.is-compact .composer-actions {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+  }
+  .conversation-composer.is-compact .attachment-picker {
+    width: 44px;
+    height: 44px;
+    margin: 0;
+  }
+  /* Compact means no text, files or pending submission: this button is already
+     disabled. The same input and picker stay mounted and immediately usable. */
+  .conversation-composer.is-compact .composer-actions > .primary { display: none; }
+}

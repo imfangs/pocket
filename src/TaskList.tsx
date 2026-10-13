@@ -7,9 +7,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { Thread, View } from "./types";
 import { ago } from "./model";
-import { emptyListContent, threadListStates } from "./listPresentation";
+import { emptyListContent, threadListPresentation } from "./listPresentation";
 import type { TaskStatus } from "./taskStatuses";
 import SwipeTaskRow from "./SwipeTaskRow";
+import "./task-list-status.css";
 interface Props {
   threads: Thread[];
   projectScope?: string;
@@ -94,7 +95,8 @@ export default function TaskList(p: Props) {
         <div className="task-list" role="list" aria-label="任务列表">
           {p.threads.slice(0, limit).map((t) => {
             const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
-            const states = threadListStates(t, p.draftIds?.has(t.id), runtime).filter(state => state.key !== "archived" || p.view !== "archived");
+            const presentation = threadListPresentation(t, p.draftIds?.has(t.id), runtime);
+            const states = presentation.secondaryStates.filter(state => state.key !== "archived" || p.view !== "archived");
             return (
               <SwipeTaskRow
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""}`}
@@ -117,9 +119,11 @@ export default function TaskList(p: Props) {
                     {t.pinned && p.view !== "pinned" && <Pin size={13} className="pin-icon"
                       data-pin-source={t.pinSource ?? "codex"} role="img"
                       aria-label={t.pinSource === "pocket" ? "Pocket 置顶" : "Codex 置顶"} />}
-                    <time dateTime={new Date(t.updatedAt).toISOString()}>
-                      {ago(t.updatedAt)}
-                    </time>
+                    <span className="row-status-slot">
+                      {presentation.primaryState ? <span className="task-state-badge" data-state={presentation.primaryState.key}>
+                        {presentation.primaryState.label}
+                      </span> : <time dateTime={new Date(t.updatedAt).toISOString()}>{ago(t.updatedAt)}</time>}
+                    </span>
                   </div>
                   {(!p.projectScope || states.length > 0 || pinningId === t.id) && <div className="row-second">
                     {!p.projectScope && <span className="project-label">

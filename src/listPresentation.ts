@@ -18,6 +18,12 @@ export function threadListStates(thread: Thread, hasDraft = false, runtimeStatus
   return states;
 }
 
+export function threadListPresentation(thread: Thread, hasDraft = false, runtimeStatus?: TaskStatus) {
+  const states = threadListStates(thread, hasDraft, runtimeStatus);
+  const primaryState = states.find(state => state.key === "waiting_approval" || state.key === "waiting_input" || state.key === "running");
+  return { primaryState, secondaryStates: states.filter(state => state !== primaryState) };
+}
+
 export type EmptyListAction = "create" | "showAll" | "refresh" | "clearQuery" | "clearFilters";
 export function emptyListContent({ view, query, hasFilters = false, unreadAvailable = false, unreadPending = 0, runtimeAvailable = false, runtimeLoading = false }: {
   view: View; query: string; hasFilters?: boolean; unreadAvailable?: boolean; unreadPending?: number; runtimeAvailable?: boolean; runtimeLoading?: boolean;

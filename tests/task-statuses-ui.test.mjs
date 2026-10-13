@@ -181,3 +181,52 @@ test('the list renders native running without retired manual intent, and failure
   const unobserved = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: new Map() }));
   assert.doesNotMatch(unobserved, /状态待确认/);
 });
+
+test('active status replaces time in the first row while useful secondary context stays separate', () => {
+  for (const [status, label] of [['waiting_approval', '等待确认'], ['waiting_input', '等待回答'], ['running', '运行中']]) {
+    const html = renderToStaticMarkup(createElement(TaskList, { ...props,
+      threads: [{ ...thread, pinned: true, pinSource: 'pocket' }],
+      runtimeStates: new Map([['thread', status]]), draftIds: new Set(['thread']) }));
+    const first = html.match(/<div class="row-first">([\s\S]*?)<\/div>/)?.[1];
+    const second = html.match(/<div class="row-second">([\s\S]*?)<\/div>/)?.[1];
+    assert.ok(first); assert.ok(second);
+    assert.match(first, new RegExp(`class="row-status-slot"><span class="task-state-badge" data-state="${status}">${label}`));
+    assert.equal((html.match(new RegExp(`data-state="${status}"`, 'g')) || []).length, 1);
+    assert.doesNotMatch(html, /<time\b|data-state="unread"/);
+    assert.match(first, /aria-label="Pocket 置顶"/);
+    assert.match(second, /class="project-label">Project/);
+    assert.match(second, /data-state="draft">草稿/);
+    assert.doesNotMatch(second, new RegExp(`data-state="${status}"`));
+  }
+});
+
+test('idle restores time in the same slot and primary activity adds no metadata row in a project scope', () => {
+  for (const status of ['running', 'waiting_input', 'waiting_approval', 'idle']) {
+    const html = renderToStaticMarkup(createElement(TaskList, { ...props, projectScope: 'Project',
+      threads: [{ ...thread, needsInput: false }], runtimeStates: new Map([['thread', status]]) }));
+    assert.doesNotMatch(html, /class="row-second"/);
+    if (status === 'idle') assert.match(html, /class="row-status-slot"><time dateTime="1970-01-01T00:00:00.001Z">/);
+    else assert.doesNotMatch(html, /<time\b/);
+  }
+});
+
+test('unknown, unavailable, archived and missing status preserve their existing meaning when activity moves', () => {
+  const render = updates => renderToStaticMarkup(createElement(TaskList, { ...props, ...updates }));
+  const unknown = render({ runtimeStates: new Map([['thread', 'unknown']]), draftIds: new Set(['thread']) });
+  assert.match(unknown, /class="row-status-slot"><time\b/);
+  assert.match(unknown, /class="row-second">[\s\S]*data-state="draft"[\s\S]*data-state="unknown"[\s\S]*data-state="unread"/);
+  for (const runtimeFlags of [{ runtimeUnavailable: true }, { runtimeLoading: true }]) {
+    const unavailable = render({ ...runtimeFlags, runtimeStates: new Map([['thread', 'waiting_approval']]) });
+    assert.match(unavailable, /class="row-status-slot"><time\b/);
+    assert.doesNotMatch(unavailable, /data-state="waiting_approval"|空闲/);
+  }
+  for (const condition of ['archived', 'missing']) {
+    const inactive = render({ threads: [{ ...thread, [condition]: true }], runtimeStates: new Map([['thread', 'running']]) });
+    assert.match(inactive, /class="row-status-slot"><time\b/);
+    assert.match(inactive, new RegExp(`data-state="${condition}"`));
+    assert.doesNotMatch(inactive, /data-state="running"/);
+  }
+  const archivedView = render({ threads: [{ ...thread, archived: true }], view: 'archived' });
+  assert.doesNotMatch(archivedView, /data-state="archived"/);
+  assert.equal(thread.needsInput, true);
+});

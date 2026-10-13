@@ -54,6 +54,6 @@ export default function AutoTextarea(props: ComponentProps<"textarea">) {
       window.removeEventListener("resize", schedule);
       window.visualViewport?.removeEventListener("resize", schedule);
     };
-  }, [props.value]);
-  return <textarea {...props} ref={ref} rows={2} />;
+  }, [props.value, props.rows]);
+  return <textarea {...props} ref={ref} rows={props.rows ?? 2} />;
 }
