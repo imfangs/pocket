@@ -120,13 +120,17 @@ test("history and transcript cache preserve reading position and progress displa
   cache.get("5").nearBottom = false;
   const progressView = { expanded: ["expanded-group"], deferred: ["reading-group"], seen: ["older-group", "reading-group"] };
   cache.get("5").progressView = progressView;
+  const expandedQueries = ["expanded-query"];
+  cache.get("5").expandedQueries = expandedQueries;
   rememberHistory(cache, "5", history("idle"));
   assert.equal(cache.get("5").scrollTop, 420);
   assert.equal(cache.get("5").nearBottom, false);
   assert.equal(cache.get("5").history.runtime, "idle");
   assert.equal(cache.get("5").progressView, progressView);
+  assert.equal(cache.get("5").expandedQueries, expandedQueries);
   const transcript = { source: "rollout", messages: [], checkedAt: 10 };
   rememberTranscript(cache, "5", transcript);
+  assert.equal(cache.get("5").expandedQueries, expandedQueries);
   assert.equal(cache.get("5").progressView, progressView);
   assert.equal(cache.get("5").history.runtime, "idle");
   assert.equal(cache.get("5").transcript, transcript);
@@ -140,6 +144,7 @@ test("history and transcript cache preserve reading position and progress displa
   assert.equal(cache.has("5"), false);
   rememberHistory(cache, "5", history());
   assert.equal(cache.get("5").progressView, undefined, "evicted presentation state does not outlive its history entry");
+  assert.equal(cache.get("5").expandedQueries, undefined);
   assert.equal(cache.get("5").scrollTop, 0);
   assert.equal(cache.get("5").nearBottom, true);
   cache.clear(); assert.equal(cache.size, 0);

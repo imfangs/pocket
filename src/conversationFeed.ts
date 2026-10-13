@@ -65,6 +65,7 @@ export type HistoryCache = Map<string, {
   history?: History;
   transcript?: SavedTranscript;
   progressView?: ProgressViewState;
+  expandedQueries?: string[];
   scrollTop: number;
   nearBottom: boolean;
 }>;
@@ -81,6 +82,7 @@ export function rememberHistory(cache: HistoryCache, id: string, history: Histor
   const previous = cache.get(id);
   cache.delete(id);
   cache.set(id, { history, transcript: previous?.transcript, progressView: previous?.progressView,
+    expandedQueries: previous?.expandedQueries,
     scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
   if (cache.size > 10) cache.delete(cache.keys().next().value!);
 }

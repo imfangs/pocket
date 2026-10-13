@@ -12,7 +12,7 @@ import ConversationMessage from "./ConversationMessage";
 import ProgressDisclosure from "./ProgressDisclosure";
 import { useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
-import type { History, HistoryCache, SavedTranscript } from "./conversationFeed";
+import type { History, HistoryCache, SavedTranscript, Message } from "./conversationFeed";
 import { displayMessages } from "./transcript";
 import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
@@ -152,6 +152,20 @@ export default function Conversation({
   const progress = useProgressMessages({ messages: shownMessages, protectedIds: protectedProgressIds,
     root: messages, nearBottom, away: awayFromLatest, cache: historyCache, threadId: thread.id,
     onPosition: atBottom => { setAwayFromLatest(!atBottom); if (atBottom) setHasNewContent(false); } });
+  const [expandedQueries, setExpandedQueries] = useState(() => new Set(historyCache.get(thread.id)?.expandedQueries ?? []));
+  const toggleQuery = (message: Message, open: boolean, anchor: HTMLElement) => {
+    const key = message.clientMessageId || message.id;
+    progress.changeLayout(anchor, () => setExpandedQueries(current => {
+      const visible = new Set(shownMessages.filter(item => item.role === "user").map(item => item.clientMessageId || item.id));
+      const next = new Set([...current].filter(id => visible.has(id)));
+      if (open) next.add(key); else next.delete(key);
+      return next;
+    }));
+  };
+  useLayoutEffect(() => {
+    const saved = historyCache.get(thread.id);
+    if (saved) saved.expandedQueries = [...expandedQueries];
+  }, [historyCache, thread.id, expandedQueries]);
   const unplacedQuestions = useMemo(() => questions.filter(question => !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages]);
   // If the native question arrives before its source message, still offer it
   // inline but wait for matching visible text before marking the task as read.
@@ -601,6 +615,8 @@ export default function Conversation({
           return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceTruncated={message.truncated}
             disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} />
             : <ConversationMessage key={message.id} message={message}
+              queryDisclosure={message.role === "user" ? { expanded: expandedQueries.has(message.clientMessageId || message.id),
+                toggle: (open, anchor) => toggleQuery(message, open, anchor) } : undefined}
               recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />;
         })}
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}

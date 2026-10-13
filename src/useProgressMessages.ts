@@ -121,19 +121,24 @@ export function useProgressMessages({ messages, protectedIds, root, nearBottom, 
     return () => cancelAnimationFrame(frame);
   }, [presentation, messages, cache, threadId, root, nearBottom]);
 
-  const toggle = useCallback((id: string, open: boolean) => {
+  const changeLayout = useCallback((target: HTMLElement | null | undefined, update: () => void) => {
     const element = root.current;
-    const button = element?.ownerDocument.getElementById(`${id}-toggle`);
-    if (button && element?.contains(button)) anchor.current = { element: button, top: button.getBoundingClientRect().top };
+    if (target && element?.contains(target)) anchor.current = { element: target, top: target.getBoundingClientRect().top };
     layoutPending.current = true;
     nearBottom.current = false;
     position.current(false);
-    setExpanded(current => {
-      const next = new Set([...current].filter(key => previous.current.view.seen.includes(key)));
-      if (open) next.add(id); else next.delete(id);
-      return next;
-    });
+    update();
+    setReadingRevision(value => value + 1);
   }, [root, nearBottom]);
+  const toggle = useCallback((id: string, open: boolean) => {
+    changeLayout(root.current?.ownerDocument.getElementById(`${id}-toggle`), () => {
+      setExpanded(current => {
+        const next = new Set([...current].filter(key => previous.current.view.seen.includes(key)));
+        if (open) next.add(id); else next.delete(id);
+        return next;
+      });
+    });
+  }, [root, changeLayout]);
   const canObserve = useCallback(() => canonicalVisible.current && !layoutPending.current && !hasMessageSelection(root.current), [root]);
-  return { entries: presentation.entries, expanded, toggle, canObserve, readingProtected };
+  return { entries: presentation.entries, expanded, toggle, changeLayout, canObserve, readingProtected };
 }

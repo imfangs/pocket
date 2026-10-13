@@ -7,9 +7,12 @@ import { formatDuration } from "./TurnDuration";
 import { readableCodexMarkdown } from "./codexMarkup";
 import { useMemo } from "react";
 import AttachmentList from "./AttachmentList";
+import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
 import "./message-footer.css";
 
-export default function ConversationMessage({ message, recentlySent = false }: { message: Message; recentlySent?: boolean }) {
+export default function ConversationMessage({ message, recentlySent = false, queryDisclosure }: {
+  message: Message; recentlySent?: boolean; queryDisclosure?: QueryDisclosure;
+}) {
   const displayText = useMemo(() => message.role === "user"
     ? readableQuestionReply(message.text) : readableCodexMarkdown(message.text), [message.role, message.text]);
   const progress =
@@ -38,11 +41,11 @@ export default function ConversationMessage({ message, recentlySent = false }: {
       data-message-id={message.id}
       aria-label={label}
     >
-      <MessageMarkdown
+      {kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
         images={message.images}
         text={displayText}
         codex={false}
-      />
+      />}
       <AttachmentList attachments={message.attachments} />
       {message.truncated && <small>内容较长，此处已截取。</small>}
       {(dateTime || copyable || confirmed || duration) && <footer className="message-footer">
