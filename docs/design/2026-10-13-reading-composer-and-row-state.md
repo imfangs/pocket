@@ -32,4 +32,4 @@ Pocket 改前代码为 `bb2bd415de0a4f7088efc97cca9096d6fdb02367`，前端 build
 - 附件打开通过实际浏览器 filechooser 事件核验；点击位移缺陷有修复前后事件轨迹。额外触控和键盘入口结果保存在同目录。
 - 所有操作使用合成对象，未向真人会话发送 QA 消息。iPhone 主屏幕、真实中文输入法及系统文件选择/键盘动画仍需实机使用反馈。
 
-证据与新旧对照在 `.local/qa/hermex-ui-2026-10-13/`：`baseline.json`、`browser-verdict.json`、`picker-*.json`、`full-tests.log`、`reading-comparison.jpg`、`list-comparison.jpg`。公网发布和独立回读另记 CURRENT。临时旧构建和运行脚本在验收完成后清理，保留小型证据与对照图。
+证据与新旧对照在 `.local/qa/hermex-ui-2026-10-13/`：`baseline.json`、`browser-verdict.json`、`picker-*.json`、`full-tests.log`、`reading-comparison.jpg`、`list-comparison.jpg`。公网发布和独立回读另记 CURRENT。临时旧构建、诊断脚本和重复导出在验收后清理；保留 `fixture.mjs`、`browser-check.mjs`、`public-check.mjs` 作为复现入口，以及小型回执和对照图。
