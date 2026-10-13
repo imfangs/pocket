@@ -12,6 +12,8 @@
 
 比较同类手机入口时，见 [ClawKit 与 Pocket 源码对照（2026-10-13）](docs/research/2026-10-13-clawkit-pocket-comparison.md)：区分原 owner 与共享引擎、功能入口和既有实测，列出可借机制及最小验证；研究建议未转为开发任务。
 
+面向多人独立使用的候选方案见 [手机 App、电脑连接器与加密中继（2026-10-13）](docs/research/2026-10-13-pocket-multiuser-architecture.md)：对照 Happy 与官方 app-server，区分通用连接和原任务执行归属，尚未实施。
+
 ## 使用
 
 - 默认按「最近活动」排序，在「置顶」也可以切换排序；搜索标题、来源项目和目录。
