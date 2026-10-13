@@ -16,7 +16,7 @@ export function displayMessages(history: History | null, transcript: SavedTransc
   if (!saved.length) return live;
   if (!live.length) return saved;
   const a = history?.turnTiming, b = transcript?.turnTiming;
-  const isFinal = (message: Message) => message.role === "assistant" && ["final", "final_answer"].includes(message.phase || "");
+  const isFinal = (message: Message) => message.role === "assistant" && !message.isQuestion && ["final", "final_answer"].includes(message.phase || "");
   if (history?.source === "desktop" && a?.turnId && a.turnId === b?.turnId && b.status === "completed" &&
       saved.some(message => message.turnId === b.turnId && isFinal(message)) &&
       !live.some(message => message.turnId === a.turnId && isFinal(message))) {

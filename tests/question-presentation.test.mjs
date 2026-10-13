@@ -135,3 +135,13 @@ test('a receipt for a different request cannot clear the original answer', async
   const store = createQuestionPresentationStore(storageFixture());
   await assert.rejects(checkQuestionAnswer(store, 'thread', fingerprint, 'original', async () => ({ requestId: 'another', status: 'accepted' })), /不匹配/);
 });
+
+test('native title-plus-bullet options are recognized as generated question text, while context and images remain', () => {
+  const titles=['选择第一步','是否继续'],options=[['先体验','先研究'],['继续','稍后']];
+  const source=titles.map((title,i)=>[title,...options[i].map(option=>`- ${option}`)].join('\n')).join('\n\n');
+  assert.equal(questionSourceText(source,titles,false,options),'');
+  const context='先看这段背景说明。\n\n'+source;
+  assert.equal(questionSourceText(context,titles,false,options),context);
+  assert.equal(questionSourceText(source,titles,true,options),source);
+  assert.equal(questionSourceText('代码里也可能出现 - 先体验',titles,false,options),'代码里也可能出现 - 先体验');
+});

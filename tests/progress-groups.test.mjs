@@ -93,3 +93,9 @@ test("flattening entries preserves original order, object identity, rich content
   assert.equal(JSON.stringify(messages), before);
   assert.deepEqual(groupProgressMessages([]), []);
 });
+
+test('a native final_answer question is not completion evidence for collapsing process messages', () => {
+  const messages = [progress('before'), final('question', 'turn', { isQuestion: true }), progress('after')];
+  assert.deepEqual(shape(groupProgressMessages(messages)), ['before', 'question', 'after']);
+  assert.deepEqual(shape(groupProgressMessages([...messages, final('real-answer')])), [['before'], 'question', ['after'], 'real-answer']);
+});

@@ -91,6 +91,13 @@ export async function checkQuestionAnswer(store: QuestionPresentationStore, thre
     ? { ...result, status: "unknown" } : result;
 }
 
-export function questionSourceText(sourceText: string | undefined, titles: readonly string[], hasImages = false) {
-  return sourceText?.trim() && (hasImages || sourceText.trim() !== titles.join("\n").trim()) ? sourceText : "";
+export function questionSourceText(sourceText: string | undefined, titles: readonly string[], hasImages = false,
+  options?: readonly (readonly string[])[]) {
+  if (!sourceText?.trim()) return "";
+  const source = sourceText.trim();
+  // The native async message may contain both titles and plain bullet options.
+  // Only omit an exact generated projection; keep extra context and images.
+  const projected = options && titles.map((title, i) =>
+    [title, ...(options[i] ?? []).map(option => `- ${option}`)].join("\n")).join("\n\n").trim();
+  return !hasImages && (source === titles.join("\n").trim() || source === projected) ? "" : sourceText;
 }

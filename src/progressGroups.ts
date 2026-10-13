@@ -16,7 +16,7 @@ export function groupProgressMessages(
 ): ProgressMessageEntry[] {
   const firstFinalByTurn = new Map<string, number>();
   messages.forEach((message, index) => {
-    if (message.role === "assistant" && hasTurnId(message) &&
+    if (message.role === "assistant" && !message.isQuestion && hasTurnId(message) &&
         (message.phase === "final" || message.phase === "final_answer") &&
         !firstFinalByTurn.has(message.turnId) && readableCodexMarkdown(message.text).trim())
       firstFinalByTurn.set(message.turnId, index);

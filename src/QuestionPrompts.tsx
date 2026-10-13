@@ -26,7 +26,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
-  const [answerOpen, setAnswerOpen] = useState(false);
+  const [answerOpen, setAnswerOpen] = useState(() => question.options.length > 0);
   const submitting = useRef(false);
   const form = useRef<HTMLFormElement>(null);
   const viewGeneration = useRef(0);
@@ -132,7 +132,8 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
 export default function QuestionPrompts(props: Props) {
   if (!props.questions.length) return null;
   const lastObserved = props.questions.reduce((last, question, index) => question.sourceMessageId === props.readMarker?.sourceMessageId ? index : last, -1);
-  const sourceText = questionSourceText(props.sourceText, props.questions.map(question => question.title), !!props.sourceImages && Object.keys(props.sourceImages).length > 0);
+  const sourceText = questionSourceText(props.sourceText, props.questions.map(question => question.title),
+    !!props.sourceImages && Object.keys(props.sourceImages).length > 0, props.questions.map(question => question.options));
   return <section ref={props.readMarker?.rootRef} className="question-prompts" aria-label="Codex 想确认的问题">
     {sourceText && <div className="question-source-text"><MessageMarkdown text={sourceText} images={props.sourceImages} /></div>}
     {props.sourceTruncated && <small className="question-source-truncated">内容较长，此处已截取。</small>}

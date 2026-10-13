@@ -13,11 +13,21 @@ after(() => vite.close());
 const question = { key: 'a'.repeat(64), sourceMessageId: 'message', title: '先做一个可体验的原型，还是先整理资料后再决定？', options: ['先做原型', '先整理资料'] };
 const render = props => renderToStaticMarkup(createElement(QuestionPrompts, { threadId: 'thread', questions: [question], disabled: false, drafts: new Map(), refresh: async () => {}, ...props }));
 
-test('an unanswered async question defaults to its complete title with compact answer and ignore actions', () => {
-  const html = render({});
+test('a new question with choices exposes one interactive set of options without preselecting or submitting', () => {
+  const sourceText = [question.title, ...question.options.map(option => `- ${option}`)].join('\n');
+  const html = render({ sourceText });
   assert.match(html, /先做一个可体验的原型，还是先整理资料后再决定？/);
-  assert.match(html, />回答<\/button>/);
-  assert.match(html, />忽略<\/button>/);
+  assert.equal((html.match(/type="radio"/g) || []).length, 2);
+  assert.doesNotMatch(html, /checked=""|class="question-source-text"/);
+  const labels = [...html.matchAll(/class="question-option"[\s\S]*?<span>([^<]*)<\/span>/g)].map(match => match[1]);
+  assert.deepEqual(labels, question.options);
+  assert.match(html, /<button type="submit" class="primary" disabled="">提交回答<\/button>/);
+  assert.match(html, />自己填写<\/button>/); assert.match(html, />忽略<\/button>/);
+});
+
+test('a text-only question keeps the light answer and ignore entry until the user opens it', () => {
+  const html = render({ questions: [{ ...question, options: [] }] });
+  assert.match(html, />回答<\/button>/); assert.match(html, />忽略<\/button>/);
   assert.doesNotMatch(html, /type="radio"|<textarea|提交回答/);
 });
 

@@ -38,3 +38,9 @@ test('transcript caching preserves reading position without inventing live permi
   const result=displayMessages(live([msg('anchor')]),saved([msg('anchor'),...Array.from({length:100},(_,i)=>msg(String(i),'x'.repeat(3000)))]));
   assert.ok(result.length<=80);assert.ok(result.reduce((sum,m)=>sum+m.text.length,0)<=160000);
 });
+
+test('an async question marked final_answer cannot replace the whole live turn as a final reply', () => {
+  const history={...live([msg('native-user','query',{role:'user',turnId:'one'}),msg('work','Still working',{turnId:'one',phase:'commentary'})]),turnTiming:{turnId:'one',startedAt:1,status:'inProgress'}};
+  const transcript={...saved([msg('saved-user','query',{role:'user',turnId:'one'}),msg('question','Choose A or B',{turnId:'one',phase:'final_answer',isQuestion:true})]),turnTiming:{turnId:'one',startedAt:1,status:'completed'}};
+  assert.deepEqual(displayMessages(history,transcript).map(m=>m.id),['native-user','work']);
+});
