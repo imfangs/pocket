@@ -1,6 +1,6 @@
 # Pocket 当前状态
 
-2026-10-13 桌面升级兼容修复已在Mac生效，前端提示待发布。移除Pocket各入口的App发布号门槛，按原owner的实际IPC与状态契约核验；包布局发现独立，管理操作保留CLI行为版本。当前App `26.1007.30912:20156` / CLI `0.162.0-alpha.17.2`。沿用10-12已通过的706项测试/构建，13日回读8个关键文件哈希与独立评审一致；390px浏览器10项草稿/队列/恢复验证通过，公网唯一requestId已获原会话准确回显并completed、0工具，模型/cwd/权限/名称保持，验收会话已重新归档。既有5条待发、2条暂停及请求响应表哈希保持；annotations中的测试打开记录及新增1条验收dispatch属于本次实际操作。证据 `.local/qa/version-contract-2026-10-12/`；[兼容取舍](docs/design/2026-10-13-desktop-compatibility.md)。
+2026-10-13 桌面升级兼容修复已上线。移除Pocket各入口的App发布号门槛，按原owner的实际IPC与状态契约核验；包布局发现独立，管理操作保留CLI行为版本。当前App `26.1007.30912:20156` / CLI `0.162.0-alpha.17.2`。沿用10-12已通过的706项测试/构建，13日回读8个关键文件哈希与独立评审一致；390px浏览器10项草稿/队列/恢复验证通过，公网唯一requestId已获原会话准确回显并completed、0工具，模型/cwd/权限/名称保持，验收会话已重新归档。既有5条待发、2条暂停、分组与请求响应表哈希保持。复用与源码哈希匹配的现有构建，公开21文件及功能、7项公网浏览器检查通过；原会话desktop/resumed、发送可用，旧版本提示消失，无浏览器执行写入。证据 `.local/qa/version-contract-2026-10-12/`；[兼容取舍](docs/design/2026-10-13-desktop-compatibility.md)。
 
 2026-10-12 共享IPC兼容维护：FBT `codex-retry` 取消自身的App版本准入，改为校验实际协议与任务状态；Pocket自身的App版本门槛保持。三份协议测试补齐真实响应的method/owner/接收目标字段，原行为断言保留，84项针对性测试通过；检查中修正共享客户端对旧owner迟到快照的处理，继续等待当前owner有效快照。三个桥接入口加载与原任务只读快照通过，无消息派发、Pocket产品代码修改、部署或服务重启。共享实现和验证入口见[故障续跑维护说明](../../fbt/codex-retry/README.md#应用升级)。
 
@@ -66,7 +66,7 @@
 
 2026-10-02补充：按方帅最终要求撤回Ged模型切换原型，继续由原Codex对话管理模型；实验、跨模型密文失败与受控对象恢复见[实验记录](docs/research/2026-10-02-model-selection-experiment.md)。撤回后188项测试和构建通过，API已重启；认证目录/历史200且恢复回显可读，模型端点404。代码逻辑与本轮实验前一致，Pocket网页交互不变；证据`.local/qa/model-selection-2026-10-02/reverted-readback.json`。
 
-维护日期：2026-10-11。产品与公网最近发布回读为 2026-10-11；原生形态和此前设计评审仍为建议，未自动转为开发任务。此前详细历史保留在 [HISTORY.md](HISTORY.md)，10-04审阅证据在 `.local/qa/review-2026-10-04/`。
+维护日期：2026-10-13。当前运行和发布以本页最近已验证版本及实际回读为准；此前设计建议仍不自动转为开发任务。详细历史保留在 [HISTORY.md](HISTORY.md)。
 
 ## 继续方式
 
@@ -79,13 +79,13 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `b6b82129a8506c29a27c9657244df4fac5710692`（轻量全局toast与消息右下信息）；其他能力保持。后续文档commit不代表部署更新 |
-| Mac API与桥接源码 | `50568cdbabe66912ee117ba8573b6dab33308774`；精确适配App `26.1007.21159:20052` / CLI `0.162.0-alpha.17.2`。服务PID 94522，配置 `config/local-service.json` |
-| Pages 部署 | `82914365-dbea-4aed-bf83-ae4127ed1722`；10-12ready=true、21文件匹配、功能通过。401在上传前续期；上传返回0但确认延迟，沿同一次resume完成，没有重复上传 |
-| 前端 build ID | `b9e764e78b4205be4d4a9f02a8ffbf391dbfc55e34b26f58ecd910ab6f364979`；公开manifest、HTML及资源与本地匹配 |
-| 验证快照 | 683项回归/构建、16项Sonner独立浏览器、9项完整应用及6项公网检查通过；覆盖明暗/窄屏、各类型toast、长错误、同ID去重、键盘与减少动效、消息复制和过程折叠。证据 `.local/qa/message-footer-2026-10-12/` |
-| 最后健康复核 | 10-12：21个公开文件、域名/TLS、功能及6项公网浏览器检查通过；只更新Pocket前端，无真实任务发送或控制操作 |
-| 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；原App门槛和Python/FBT路径以 `config/desktop-bridge.json` 为准，内置CLI布局/版本由 `bin/bundled_cli.py` 解析。App升级后先复核，勿直接去掉版本限制 |
+| 已发布前端与网关源码 | `a378cdaf02a4331d0c7bd16bc6142e5bb78cf27b`（桌面升级兼容与连接提示）；后续文档commit不代表部署更新 |
+| Mac API与桥接源码 | `a378cdaf02a4331d0c7bd16bc6142e5bb78cf27b`；App `26.1007.30912:20156` / CLI `0.162.0-alpha.17.2`。10-13服务PID 1364，配置 `config/local-service.json` |
+| Pages 部署 | `540b7f9e-4e9f-4a1a-aa1c-52c4c6b942ff`；10-13ready=true、21文件匹配、功能通过。上传前401经原Wrangler登录续期恢复，只上传一次；复用已验证构建 |
+| 前端 build ID | `c3fb675c20d149e6075c61faf69ce00b99af5ec76c28e4a2e8159d0a09ba07a7`；源码输入、公开manifest、HTML与资源匹配 |
+| 验证快照 | 706项回归/构建、10项合成浏览器、7项公网浏览器通过；当前App原会话真实收发完成，0工具，验收对象已恢复归档；8个关键文件独立哈希评审无阻塞。证据 `.local/qa/version-contract-2026-10-12/` |
+| 最后健康复核 | 10-13：原API健康、21个公开文件与功能通过，公网原owner/resumed和发送入口正常。10-12重载Pocket API，13日复用系统启动后的现有服务，未重启Codex或系统 |
+| 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
 需要确认今天的在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。
 
