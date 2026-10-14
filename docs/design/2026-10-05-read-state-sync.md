@@ -33,3 +33,17 @@ Pocket 使用自己的 initialize 客户端身份，不经 App Tools 管道、�
 真实 API 用同一受控对象验证原未读 true → 取得观察凭据 → POST read 约549毫秒返回 read → Pocket hasUnreadTurn/needsInput 均 false；原 owner 的 hasUnreadTurn 及原持久集合也独立回读为 false。随后重新置测试未读，通过实际 Pocket 网页打开内容，自动阅读再次将原集合与 owner 状态清除；未点击连接或发送消息，验收对象恢复原已读状态。证据 `live-api.json`、`live-native-before/after.json`、`live-ui-before/after.json`。
 
 公网源码 `edbeb9d`、Pages 部署 `5b8ffeee-83cb-4e39-970e-0acc4a207b97`，14 个公开文件匹配、功能检查与ready=true。公网标读约1秒返回read，原集合与运行owner状态均回读false，验收对象保持原已读状态；证据 `public-api.json` 和 `public-native-after.json`。当前发布身份以 `CURRENT.md` 为准。未作 iPhone 真机或长期跨设备并发验收；原生布尔 setter 的并发窗口仍按上节边界处理。
+
+## 2026-10-14 读后未清除：桌面通信异常，待重启验证
+
+用户再次报告读完仍未读。当前生产前端确实提交了标读，账本大量返回 `unknown/readback_unconfirmed`；Codex 官方列表与原持久集合均仍为未读。实际样本的历史/正文差异只是尾随 memory citation，现有精确扩展合并会保留完整正文，阅读凭据可正常使用。前端定向60项与手机合成16项检查通过，包含原生失败、主动重试、成功后保留草稿、长Query/过程折叠及真正等待输入仍保留；没有放宽阅读版本匹配。
+
+App `26.1007.30912 / 20156` 的标读广播仍为v3，字段、身份、host派生和持久化逻辑与Pocket一致。受控对照中，官方setter可改变同一原生身份/host的未读状态，Pocket广播被另一新客户端收到，却不能改变持久状态。测试会话恢复原已读状态，原归档保持；未发送消息。
+
+同一App进程存在两个同路径 UNIX listener。原生每个协调客户端独立构造router manager，启动时的检查、unlink、listen之间没有共享锁；这与旧、新router分裂、主进程标读监听留在另一条连接的现象吻合。双listener与广播失效是已验证事实，具体连接归属及启动竞态的因果仍需恢复后对照，不将静态代码推断当成已完成修复。
+
+未找到安全的局部重连入口。`ipc-connection-reset` 是socket关闭后的本地通知，不是重连命令；不要试发它、删socket或仅重启Pocket API来碰运气。恢复候选是等待原任务安全空闲后完整退出/重开Codex，再检查listener与受控标读；一次重启本身不能代替验收。当前其他会话在运行，已请求用户决定重启时机，尚未重启。
+
+一条已有失败标读凭据且当前正文版本完全一致的实际会话，已通过官方标读工具补齐同步，原集合与Pocket目录的未读/待输入都回读为false。这是精确对象的恢复，不代表Pocket自动标读通道已恢复；未批量清除未知或新内容的未读。
+
+私有证据 `.local/qa/read-state-2026-10-14/`：`frontend/browser-verdict.json`、`native/current-protocol.json`、`native/socket-split.json`、`native/routing-event.json`、`native/canary-old-writer.json`、`native/already-read-recovered.json`、`native/recovery-assessment.json`。产品代码、部署和Pocket服务保持原版本。
