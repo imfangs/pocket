@@ -7,4 +7,9 @@
 .archive-conversation { padding-top: 20px; }
 .archive-conversation > button { min-height: 44px; }
 .new-conversation-path { overflow-wrap: anywhere; }
+.retained-inputs { margin: 8px 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.retained-inputs > p { margin: 0; color: var(--muted); font-size: 11px; }
+.retained-inputs > button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; text-align: left; font-size: 13px; }
+.retained-inputs > button > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.retained-inputs small { color: var(--text-secondary); font-size: 11px; }
 @media (max-width: 760px) { .task-operation-notices { padding: 0 12px; } }

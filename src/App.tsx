@@ -22,14 +22,14 @@ import { SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
 import { createCatalogReader } from "./catalogReader";
 import { useReloadGuard } from "./updateSafety";
-import { hasUpdateBlockingDraft } from "./updateDrafts";
+import { hasUpdateBlockingDraft, protectedDraftThreadIds } from "./updateDrafts";
 import PocketUpdate from "./PocketUpdate";
-import { filterThreads } from "./model";
+import { filterThreads, preserveOpenThread } from "./model";
 import { UNASSIGNED_PROJECT } from "./projectNavigation";
 import { readPocketActivity, recordPocketVisit, rememberPocketCreations, savePocketActivity } from "./pocketActivity";
 import type { Catalog, Thread, View } from "./types";
 import NewConversationDialog from "./NewConversationDialog";
-import { createSubmittedQueryStore, seedSubmittedQuery } from "./submittedQueries";
+import { createSubmittedQueryStore, seedSubmittedQuery, visibleSubmittedQueries } from "./submittedQueries";
 import { prepareCreationDialog, type CreationClipboard } from "./creationQuery";
 import type { TaskOperation } from "./taskOperations";
 import TaskOperationStatus from "./TaskOperationStatus";
@@ -80,6 +80,7 @@ export default function App({
   const [draftIndicatorRevision, setDraftIndicatorRevision] = useState(0);
   const [conversationDrafts] = useState(() => ({ current: createDraftMap(() => setDraftIndicatorRevision(value => value + 1)) }));
   const [submissions] = useState(createSubmittedQueryStore);
+  useEffect(() => submissions.subscribe(() => setDraftIndicatorRevision(value => value + 1)), [submissions]);
   const creationQueries = useRef(new Map<string, string>());
   useReloadGuard(() => submissions.reloadBlocker());
   const [narrow, setNarrow] = useState(() => matchMedia("(max-width:760px)").matches);
@@ -92,7 +93,7 @@ export default function App({
   const [catalog, setCatalogState] = useState<Catalog>(empty),
     [loading, setLoading] = useState(true),
     [view, setView] = useState<View>(prefs.view),
-    [selected, setSelected] = useState<string | null>(() => {
+    [selected, setSelectedState] = useState<string | null>(() => {
       let id = new URLSearchParams(location.search).get("task");
       try { id ||= sessionStorage.getItem("pocket.pending-task"); sessionStorage.removeItem("pocket.pending-task"); } catch {}
       return id && /^[a-f0-9-]{36}$/i.test(id) ? id : null;
@@ -108,12 +109,27 @@ export default function App({
     [newConversationOpen, setNewConversationOpen] = useState(false),
     [newConversationDraft, setNewConversationDraft] = useState<{ text: string; clipboardRead?: Promise<CreationClipboard> } | null>(null),
     [createRequestId, setCreateRequestId] = useState<string | null>(null);
+  const selectedRef = useRef(selected);
+  const setSelected = useCallback((id: string | null) => {
+    selectedRef.current = id;
+    setSelectedState(id);
+  }, []);
   const search = useRef<HTMLInputElement>(null),
     searchToggle = useRef<HTMLButtonElement>(null),
     conversationHistory = useRef<HistoryCache>(new Map());
   const setCatalog = useCallback((update: SetStateAction<Catalog>) => {
-    setCatalogState(current => preserveNewerThreadMetadata(current, typeof update === "function" ? update(current) : update));
+    setCatalogState(current => {
+      const retained = protectedDraftThreadIds(conversationDrafts.current, conversationHistory.current);
+      for (const thread of current.threads) {
+        if (visibleSubmittedQueries(submissions.getThread(thread.id), [], []).length) retained.add(thread.id);
+      }
+      return preserveOpenThread(current,
+        preserveNewerThreadMetadata(current, typeof update === "function" ? update(current) : update), selectedRef.current, retained);
+    });
   }, []);
+  useEffect(() => {
+    setCatalog(current => current);
+  }, [selected, draftIndicatorRevision, setCatalog]);
   const syncing = useRef<Promise<Catalog | undefined> | null>(null);
   const createRequest = useRef<string | null>(null), newDialogOpen = useRef(false);
   useEffect(() => {
@@ -193,7 +209,11 @@ export default function App({
     catalogReader.invalidate();
     if (operation.thread) setCatalog(previous => {
       const found = previous.threads.some(thread => thread.id === operation.thread!.id);
-      return { ...previous, threads: found ? previous.threads.map(thread => thread.id === operation.thread!.id ? { ...thread, archived: operation.thread!.archived, missing: operation.thread!.missing } : thread)
+      return { ...previous,
+        excludedThreadStates: previous.excludedThreadStates?.map(state => state.id === operation.thread!.id
+          ? { ...state, archived: operation.thread!.archived } : state),
+        threads: found ? previous.threads.map(thread => thread.id === operation.thread!.id ? { ...thread, archived: operation.thread!.archived, missing: operation.thread!.missing,
+        ...(operation.thread!.sourceExcluded ? { sourceExcluded: true } : {}) } : thread)
         : [...previous.threads, operation.thread!] };
     });
     refreshAfterActivity();
@@ -298,6 +318,9 @@ export default function App({
     [catalog, view, query, project, runtimeStates, rankingTime, draftIds, pocketActivity],
   );
   const current = catalog.threads.find((t) => t.id === selected);
+  const protectedDraftIds = protectedDraftThreadIds(conversationDrafts.current, conversationHistory.current);
+  const retainedInputThreads = catalog.threads.filter(thread => thread.sourceExcluded &&
+    (protectedDraftIds.has(thread.id) || visibleSubmittedQueries(submissions.getThread(thread.id), [], []).length > 0));
   const currentOperation = current ? taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create" && activeOperation(operation))
     || taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create") : undefined;
   const title = view === "all" && project ? project === UNASSIGNED_PROJECT ? "未归属项目" : catalog.projects.find(item => item.id === project)?.name || "项目" : titles[view];
@@ -543,6 +566,13 @@ export default function App({
         </div>}
         <div className="content">
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}>
+              {retainedInputThreads.length > 0 && <section className="retained-inputs" aria-label="保留的输入">
+                <p>保留的输入</p>
+                {retainedInputThreads.map(thread => <button key={thread.id} aria-label={`继续输入：${thread.title}`}
+                  onClick={() => setSelected(thread.id)}>
+                  <span>{thread.title}</span><small>继续处理</small>
+                </button>)}
+              </section>}
               <TaskList
                 onPin={pinThread}
                 runtimeStates={taskStatuses.runtimeStates}

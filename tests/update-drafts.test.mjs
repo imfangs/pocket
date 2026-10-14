@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasUpdateBlockingDraft } from '../src/updateDrafts.ts';
+import { hasUpdateBlockingDraft, protectedDraftThreadIds } from '../src/updateDrafts.ts';
 
 const task = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
 const other = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb';
@@ -62,4 +62,20 @@ test('checking an ended answer neither deletes nor rewrites drafts or cached his
   assert.deepEqual(histories, before.histories);
   assert.equal(drafts.get(key), value);
   assert.equal(histories.get(task).history, history);
+});
+
+test('recovery links include every protected input thread and release only cleared or obsolete inputs', () => {
+  const values = new Map([
+    [task, { text: '未完成' }],
+    [`${other}/outbox/edit`, { text: '', revision: 0 }],
+    ['pending', { text: '', requestId: 'unknown' }],
+    ['attachment', { text: '', attachments: [{ id: 'file', status: 'ready' }] }],
+    ['empty', { text: '' }],
+  ]);
+  const expected = new Set([task, other, 'pending', 'attachment']);
+  assert.deepEqual(protectedDraftThreadIds(values, new Map()), expected);
+  values.set(task, { text: '' });
+  expected.delete(task);
+  assert.deepEqual(protectedDraftThreadIds(values, new Map()), expected);
+  assert.deepEqual(protectedDraftThreadIds(draft({ text: '旧回答' }), cache({ source: 'desktop', asyncQuestions: [] })), new Set());
 });

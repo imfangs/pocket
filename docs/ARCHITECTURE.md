@@ -6,11 +6,13 @@
 
 已核验来源：原ChatGPT App 26.903.71938 (8576)、Core 0.153.4；2026-10-10新增App 26.1007.21159 (20052)、内置CLI 0.162.0-alpha.17.2，见[升级兼容验证](research/2026-10-10-desktop-upgrade-compatibility.md)。原 `state_5.sqlite` 的 `name` 优先于初始提示词形式的 title；项目和 pin 顺序以桌面 global state 的明确映射为准，兼容 app-server project ID 到旧 saved-project ID 的迁移映射。cwd 只作为来源说明，不自动覆盖明确项目归属。
 
-源 SQLite 用 `readOnly:true` 和 query_only，global state 仅 readFile。扫描本机 CLI/桌面/独立执行来源，排除标明 subagent 的记录；不用 `has_user_event` 推断有效任务，因为本机该字段不具备筛选效力。最近可见历史按需读取而不持久导入；不提取模型总结，不读取云端或其他 remote host 的任务。手机访问通过口令保护的 HTTPS 转发，见 `docs/MOBILE.md`。历史与 query 桥接、状态限制及防重语义见 `docs/CONVERSATION.md`。
+源 SQLite 用 `readOnly:true`、query_only 与一致读取事务，global state 仅 readFile。列表纳入本机 `vscode/cli/app` 用户会话，按已核验的桌面来源规则排除后台 `exec`、隐藏内部任务和子代理（含 `thread_spawn_edges` 子节点）；不用标题或 `has_user_event` 推断有效任务。桌面 `local_thread_catalog` 用于比对，不能当强制白名单：新建会话同步可能滞后，归档历史也不在其中。范围与升级边界见[来源范围](design/2026-10-14-desktop-list-scope.md)。最近可见历史按需读取而不持久导入；不提取模型总结，不读取云端或其他 remote host 的任务。手机访问通过口令保护的 HTTPS 转发，见 `docs/MOBILE.md`。历史与 query 桥接、状态限制及防重语义见 `docs/CONVERSATION.md`。
 
 `source_threads` 缓存来源元数据；`annotations` 存意图、备注、回顾日期、组 ID、最后打开时间和编辑 revision；`groups` 存独立树。`pin_overrides` 仅在 Pocket 保存用户明确设置的置顶/取消置顶及顺序，不写 Codex 原 pin。未设置的任务继续沿用 Mac pin；设置后来源同步不覆盖，新增 Pocket pin 以递减负顺序排在原 pin 前。同值重试不改变顺序或写入时间，原任务更新时间保持不变。目录与单任务返回统一采用有效 pin。默认继承来源分组只在 sourceProjectId 非空时成立，手动分组不会捕获全部无项目任务。用户明确的空组数组表示取消归组，以后同步不重新附加。
 
 首次成功导入才建立来源分组。分组删除不会在下一次同步重建；子分组上移、任务和备注保留。源失败保留上次快照；源中消失的 ID 标记 missing，仍保留接续数据，重新出现后恢复来源关联。
+
+明确不属于桌面列表的旧缓存使用 `sourceExcluded`，与 `missing`、原归档状态分离；catalog、搜索、项目入口、计数和运行候选都排除。缓存记录、备注、置顶、队列和回执保留，原归档事实继续同步；按 ID 的既有操作仍可核对。catalog 带排除集合及最小归档事实，防止迟到操作回执把隐藏任务放回列表。前端保留正在阅读或含未完成输入的详情引用，后者可从临时“保留的输入”入口继续处理；内容处理后入口消失。正向重新纳入清除排除标记并恢复原元数据。
 
 2026-10-11 两轮减法后，自定义分组、手工安排/回顾日期、备注编辑/预览及网页备份入口均已退休。上述旧表、兼容 API 和自动备份结构仍保留；旧客户端说明保存仍以 `note + expectedRevision` 更新，不重置隐藏字段。原项目筛选独立于旧分组继续使用。
 

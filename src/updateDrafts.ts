@@ -3,6 +3,17 @@ import type { HistoryCache } from "./conversationFeed";
 import { hasAnswerText } from "./questionDrafts.ts";
 import { hasDraftAttachments } from "./attachments.ts";
 
+// Use the same protection boundary for recovery links as the update guard, so
+// a hidden row cannot leave retained input with no way to open or clear it.
+export function protectedDraftThreadIds(drafts: ReadonlyMap<string, QueryDraft>, historyCache: HistoryCache): Set<string> {
+  const ids = new Set<string>();
+  for (const [key, draft] of drafts) {
+    const id = key.split("/", 1)[0];
+    if (id && hasUpdateBlockingDraft(new Map([[key, draft]]), historyCache)) ids.add(id);
+  }
+  return ids;
+}
+
 export function hasUpdateBlockingDraft(
   drafts: ReadonlyMap<string, QueryDraft>,
   historyCache: HistoryCache,

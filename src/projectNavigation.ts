@@ -12,7 +12,7 @@ export interface ProjectNavigationItem {
 // Project identity comes from Codex, never from a shared name or directory.
 export function projectNavigationItems(
   projects: readonly Project[],
-  threads: readonly Pick<Thread, "archived" | "separator" | "projectId">[] = [],
+  threads: readonly Pick<Thread, "archived" | "separator" | "projectId" | "sourceExcluded">[] = [],
 ): ProjectNavigationItem[] {
   const seen = new Set<string>();
   const ordered = projects
@@ -50,7 +50,7 @@ export function projectNavigationItems(
       ariaLabel: duplicate && detail ? `${project.name}，${detail}` : project.name,
     };
   });
-  if (threads.some(thread => !thread.archived && !thread.separator && !thread.projectId)) {
+  if (threads.some(thread => !thread.sourceExcluded && !thread.archived && !thread.separator && !thread.projectId)) {
     items.push({ id: UNASSIGNED_PROJECT, name: "未归属项目", title: "未归属项目", ariaLabel: "未归属项目" });
   }
   return items;

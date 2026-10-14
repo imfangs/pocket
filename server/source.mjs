@@ -3,6 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readLocalUnreadState, readRecordedTurnState } from "./unread.mjs";
 import { readLastMessageAt } from "./message-time.mjs";
+import { readSourceScope } from "./source-scope.mjs";
 
 const separator = (s) => /^[-—–_\s]{3,}$/.test(s);
 export function readCodexSource(codexHome) {
@@ -13,6 +14,7 @@ export function readCodexSource(codexHome) {
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     db.exec("PRAGMA query_only = ON; PRAGMA busy_timeout = 2000");
+    db.exec("BEGIN");
     const columns = new Set(
       db
         .prepare("PRAGMA table_info(threads)")
@@ -37,9 +39,10 @@ export function readCodexSource(codexHome) {
       .prepare(
         `SELECT id, title, cwd, archived, created_at, updated_at, source,
       ${["name", "thread_source", "agent_path", "project_id", "updated_at_ms", "git_branch", "rollout_path"].map((f) => optional(f)).join(", ")}
-      FROM threads WHERE source IN ('vscode', 'cli', 'exec', 'app')`,
+      FROM threads`,
       )
       .all();
+    const scope = readSourceScope(db, rows);
     const locals = global["local-projects"] || {};
     const order = global["project-order"] || Object.keys(locals);
     const projects = Object.values(locals)
@@ -63,15 +66,7 @@ export function readCodexSource(codexHome) {
     if (!Array.isArray(pinned))
       throw new Error("未能读取桌面置顶列表，请检查客户端版本");
     const projectless = new Set(global["projectless-thread-ids"] || []);
-    let excludedChildren = 0;
-    const threads = rows
-      .filter((r) => {
-        const child =
-          r.thread_source === "subagent" ||
-          (r.agent_path && r.agent_path !== "/root");
-        if (child) excludedChildren++;
-        return !child;
-      })
+    const threads = scope.visibleRows
       .map((r) => {
         const a = assignment[r.id];
         const legacyId = a?.projectKind === "local" ? a.projectId : null;
@@ -107,12 +102,14 @@ export function readCodexSource(codexHome) {
           ...(recordedTurnState ? { recordedTurnState } : {}),
         };
       });
-    return {
+    const result = {
       threads,
       projects,
+      excludedThreadIds: scope.excludedThreadIds,
+      excludedThreadStates: scope.excludedThreadStates,
       sourceInfo: {
         type: "codex-desktop-local",
-        adapterVersion: 1,
+        adapterVersion: 2,
         readOnly: true,
         syncedAt: Date.now(),
         databaseMtime: statSync(file).mtimeMs,
@@ -120,15 +117,17 @@ export function readCodexSource(codexHome) {
         active: threads.filter((t) => !t.archived && !t.separator).length,
         archived: threads.filter((t) => t.archived && !t.separator).length,
         separators: threads.filter((t) => t.separator).length,
-        excludedChildren,
+        ...scope.counts,
         unread: {
           available: unread.available,
           source: unread.source,
           pending: threads.filter(t => t.hasUnreadTurn && !t.archived && !t.separator && !t.needsInput).length,
         },
-        scope: "本机 Codex 用户、自动化及独立任务；不含子代理、云端和其他电脑",
+        scope: "本机 Codex 桌面会话；不含后台 exec、隐藏内部任务、子代理、云端和其他电脑",
       },
     };
+    db.exec("COMMIT");
+    return result;
   } finally {
     db.close();
   }

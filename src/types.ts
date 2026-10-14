@@ -34,6 +34,7 @@ export interface Thread {
   lastMessageAt?: number | null;
   branch: string | null;
   missing: boolean;
+  sourceExcluded?: boolean;
   intent: Intent;
   note: string;
   reviewAt: string | null;
@@ -45,6 +46,8 @@ export interface Thread {
 }
 export interface Catalog {
   threads: Thread[];
+  excludedThreadIds?: string[];
+  excludedThreadStates?: { id: string; archived: boolean }[];
   groups: Group[];
   projects: Project[];
   sourceInfo: {

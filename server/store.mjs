@@ -100,6 +100,26 @@ export class NavigatorStore {
   sync(source) {
     if (!Array.isArray(source.threads) || !Array.isArray(source.projects))
       throw new AppError("来源格式无效");
+    const excludedIds = Object.hasOwn(source, "excludedThreadIds") ? source.excludedThreadIds : [];
+    if (!Array.isArray(excludedIds) || excludedIds.some(id => typeof id !== "string" || !id) ||
+        new Set(excludedIds).size !== excludedIds.length)
+      throw new AppError("来源排除 ID 格式无效");
+    const excluded = new Set(excludedIds);
+    if (source.threads.some(thread => excluded.has(thread.id)))
+      throw new AppError("来源 ID 同时被纳入和排除");
+    const excludedStates = new Map();
+    if (Object.hasOwn(source, "excludedThreadStates")) {
+      const states = source.excludedThreadStates;
+      if (!Array.isArray(states) || states.length !== excluded.size)
+        throw new AppError("来源排除状态格式无效");
+      for (const state of states) {
+        if (!state || typeof state !== "object" || Array.isArray(state) ||
+            Object.keys(state).some(key => !["id", "archived"].includes(key)) ||
+            !excluded.has(state.id) || excludedStates.has(state.id) || typeof state.archived !== "boolean")
+          throw new AppError("来源排除状态格式无效");
+        excludedStates.set(state.id, state.archived);
+      }
+    }
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const previousRows = this.db.prepare("SELECT s.id,s.data,p.pinned AS pocket_pinned FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id").all();
@@ -121,13 +141,17 @@ export class NavigatorStore {
               (t.pinned && old.pinnedOrder !== t.pinnedOrder))
             pinsChanged = true;
         }
-        upsert.run(t.id, JSON.stringify({ ...t, missing: false }));
+        const included = { ...t, missing: false };
+        delete included.sourceExcluded;
+        upsert.run(t.id, JSON.stringify(included));
       }
       for (const row of previousRows) {
         if (!seen.has(row.id))
           upsert.run(
             row.id,
-            JSON.stringify({ ...JSON.parse(row.data), missing: true }),
+            JSON.stringify({ ...JSON.parse(row.data),
+              ...(excludedStates.has(row.id) ? { archived: excludedStates.get(row.id) } : {}),
+              ...(excluded.has(row.id) ? { sourceExcluded: true } : { missing: true }) }),
           );
       }
       if (!this.setting("seeded")) {
@@ -196,7 +220,12 @@ export class NavigatorStore {
       return { ...t, ...annotationFromRow(row, t, groups) };
     });
     return {
-      threads,
+      threads: threads.filter(thread => !thread.sourceExcluded),
+      // Keep explicit scope separate from missing sources and native archival.
+      // Clients also use it to reject late operation metadata for hidden rows.
+      excludedThreadIds: threads.filter(thread => thread.sourceExcluded).map(thread => thread.id),
+      excludedThreadStates: threads.filter(thread => thread.sourceExcluded)
+        .map(thread => ({ id: thread.id, archived: thread.archived })),
       groups,
       projects: this.setting("projects", []),
       sourceInfo: this.setting("sourceInfo"),

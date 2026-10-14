@@ -28,7 +28,7 @@ export class TaskStatusService {
   }
   targets() {
     const excluded = new Set(this.excluded());
-    const threadIds = this.threads().filter(thread => !thread.archived && !thread.missing && !thread.separator && !excluded.has(thread.id)).map(thread => thread.id);
+    const threadIds = this.threads().filter(thread => !thread.sourceExcluded && !thread.archived && !thread.missing && !thread.separator && !excluded.has(thread.id)).map(thread => thread.id);
     return { threadIds, excludedThreadIds: [...excluded] };
   }
   publicResult(result, startedAt) {

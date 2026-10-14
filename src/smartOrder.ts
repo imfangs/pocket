@@ -21,7 +21,7 @@ function waitingForUser(status?: TaskStatus) {
 // A fresh executing state supersedes the catalog's older completion snapshot.
 // Unknown/absent runtime evidence does not erase a recorded unread completion.
 export function needsUserInput(thread: Thread, runtimeStatus?: TaskStatus) {
-  if (thread.archived || thread.missing || thread.separator) return false;
+  if (thread.sourceExcluded || thread.archived || thread.missing || thread.separator) return false;
   if (waitingForUser(runtimeStatus)) return true;
   return runtimeStatus !== "running" && thread.needsInput === true;
 }
@@ -42,7 +42,7 @@ function freshness(time: number, now: number, scale: number) {
 // Every preference contributes to the same bounded score. Pins express ongoing
 // interest, but recent activity can outweigh them without changing pin state.
 export function smartThreadScore(thread: Thread, options: SmartOrderOptions) {
-  if (thread.missing || thread.separator) return -1;
+  if (thread.sourceExcluded || thread.missing || thread.separator) return -1;
   const now = clockTime(options.now);
   const updated = eventTime(lastMessageTime(thread) ?? 0, now);
   const created = eventTime(thread.createdAt, now);
