@@ -42,6 +42,8 @@ App `26.1007.30912 / 20156` 的标读广播仍为v3，字段、身份、host派�
 
 同一App进程存在两个同路径 UNIX listener。原生每个协调客户端独立构造router manager，启动时的检查、unlink、listen之间没有共享锁；这与旧、新router分裂、主进程标读监听留在另一条连接的现象吻合。双listener与广播失效是已验证事实，具体连接归属及启动竞态的因果仍需恢复后对照，不将静态代码推断当成已完成修复。
 
+用户随后询问是否BotMux监听干扰。补查已安装BotMux代码：通知Hook读取完成事件；side-conversation-monitor以`createConnection`连接同一socket，发送初始化/订阅和无处理能力的discovery响应，没有创建、删除socket或写入已读状态。两个监听由macOS `SO_ACCEPTCONN`确认均属于Codex主进程；当前socket创建于10月13日10:21:25，今天15:51恢复BotMux后未替换。最早失败回执在10月10日20:09，早于本次恢复。这些证据不支持把本次恢复BotMux认定为原因，但尚未完成停用对照，不能排除所有历史交互。`I am the router`日志在每次接入客户端时也会打印，不能据它统计listener或认定分裂时间。证据 `native/listener-recheck.json`。重启仅为待验证的恢复候选，不能表述成已证实必需或保证解决。
+
 未找到安全的局部重连入口。`ipc-connection-reset` 是socket关闭后的本地通知，不是重连命令；不要试发它、删socket或仅重启Pocket API来碰运气。恢复候选是等待原任务安全空闲后完整退出/重开Codex，再检查listener与受控标读；一次重启本身不能代替验收。当前其他会话在运行，已请求用户决定重启时机，尚未重启。
 
 一条已有失败标读凭据且当前正文版本完全一致的实际会话，已通过官方标读工具补齐同步，原集合与Pocket目录的未读/待输入都回读为false。这是精确对象的恢复，不代表Pocket自动标读通道已恢复；未批量清除未知或新内容的未读。
