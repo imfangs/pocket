@@ -13,7 +13,7 @@
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
-| 动效、详情转场、手势跟随与内容过渡 | [动效评审与小样](docs/design/2026-10-14-motion-study.md)：当前为提案，优先导航/主动折叠/创建衔接，保留键盘与阅读观察边界 |
+| 动效、详情转场、手势跟随与内容过渡 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：跟手、披露、创建/消息衔接、主动pin换位和轻反馈；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
 | 项目导航、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：单分数公式、消息来源、行为加分、有效状态与滚动锚 |
 | 手机阅读态输入区收放、列表时间/状态位置 | [阅读与列表收敛](docs/design/2026-10-13-reading-composer-and-row-state.md)：同一输入节点、焦点/IME/附件/待处理保护与固定状态槽 |
 | 全局toast、消息身份标签、底部时间/复制与发送确认 | [轻量反馈与消息footer](docs/design/2026-10-12-light-feedback-and-message-footer.md)：统一Sonner样式、消息语义与待处理状态边界 |

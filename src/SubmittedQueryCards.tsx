@@ -3,8 +3,10 @@ import { CheckCircle2, Copy } from "lucide-react";
 import { submittedQueryLabel, type SubmittedQuery } from "./submittedQueries";
 import "./submitted-queries.css";
 import AttachmentList from "./AttachmentList";
+import { NO_HANDOFF_IDS, useHandoffRows } from "./useReceiptHandoff";
+const submissionKey = (item: SubmittedQuery) => item.requestId;
 
-export default function SubmittedQueryCards({ items, connecting, paused, disabled, check, dismiss, restore }: {
+export default function SubmittedQueryCards({ items, connecting, paused, disabled, check, dismiss, restore, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS }: {
   items: readonly SubmittedQuery[];
   connecting: boolean;
   paused: boolean;
@@ -12,7 +14,10 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
   check: (item: SubmittedQuery) => Promise<void>;
   dismiss: (requestId: string) => void;
   restore?: (item: SubmittedQuery) => Promise<void>;
+  exitIds?: ReadonlySet<string>;
+  explicitExitIds?: ReadonlySet<string>;
 }) {
+  const presence = useHandoffRows(items, submissionKey, exitIds, explicitExitIds);
   const [checking, setChecking] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -34,12 +39,13 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
     try { await navigator.clipboard.writeText(item.text); setCopied(item.requestId); setError(""); }
     catch { setError("未能复制，可以长按原文选择复制。"); }
   };
-  if (!items.length) return null;
+  if (!presence.rows.length) return null;
   return <section className="submitted-queries" aria-label="已提交的消息">
-    {items.map(item => {
+    {presence.rows.map(({ item, leaving }) => {
       const accepted = item.status === "accepted", waiting = ["submitting", "connecting", "pending", "queued", "not_queued"].includes(item.status);
       const canDismiss = ["rejected", "not_found", "cancelled"].includes(item.status);
-      return <article key={item.requestId} className={`submitted-query${item.status === "queued" && !paused && !disabled ? " is-queue-breathing" : ""}`}
+      return <article key={item.requestId} ref={node => presence.bind(item.requestId, node)} className={`submitted-query${item.status === "queued" && !paused && !disabled && !leaving ? " is-queue-breathing" : ""}`}
+        onClickCapture={event => { if (leaving) { event.preventDefault(); event.stopPropagation(); } }}
         data-submission-id={item.requestId} data-submission-status={item.status} data-feedback-state={accepted ? "accepted" : waiting ? "pending" : item.status}>
         <div className="submitted-query-heading"><strong>你</strong><span role="status">{accepted && <CheckCircle2 size={13} aria-hidden="true" />}{submittedQueryLabel(item, connecting)}</span></div>
         {item.text.trim() && <p className="submitted-query-text">{item.text}</p>}

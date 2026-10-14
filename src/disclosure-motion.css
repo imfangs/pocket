@@ -1,0 +1,5 @@
+/* Only while an intentional, bounded disclosure transition is running. */
+details[data-disclosure-motion]::details-content { content-visibility:visible; }
+/* Unlike the inert attribute, this releases synchronously with .open = true,
+   so form validation can immediately focus a revealed input or select. */
+details[data-disclosure-motion]:not([open])::details-content { interactivity:inert; }

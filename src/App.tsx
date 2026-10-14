@@ -110,8 +110,11 @@ export default function App({
     [newConversationDraft, setNewConversationDraft] = useState<{ text: string; clipboardRead?: Promise<CreationClipboard> } | null>(null),
     [createRequestId, setCreateRequestId] = useState<string | null>(null);
   const selectedRef = useRef(selected);
-  const setSelected = useCallback((id: string | null) => {
+  const [animateSelection, setAnimateSelection] = useState(false);
+  const [newConversationClosing, setNewConversationClosing] = useState(false);
+  const setSelected = useCallback((id: string | null, animate = false) => {
     selectedRef.current = id;
+    setAnimateSelection(!!id && animate);
     setSelectedState(id);
   }, []);
   const search = useRef<HTMLInputElement>(null),
@@ -190,7 +193,7 @@ export default function App({
     void (syncing.current ?? Promise.resolve()).catch(() => {}).then(() => syncTasks(true)).catch(() => {});
   }, [syncTasks]);
   const openCreatedThread = (id: string) => {
-    setSelected(id); setView("all"); setProject(""); setQuery("");
+    setSelected(id, true); setView("all"); setProject(""); setQuery("");
     setSearchOpen(false); setMobile(false);
   };
   const seedCreationMessage = (operation: TaskOperation) => {
@@ -219,7 +222,7 @@ export default function App({
     refreshAfterActivity();
     if (operation.operation === "create" && operation.threadId && newDialogOpen.current && createRequest.current === operation.requestId) {
       openCreatedThread(operation.threadId);
-      newDialogOpen.current = false; setNewConversationOpen(false);
+      newDialogOpen.current = false; setNewConversationClosing(true);
     }
   });
   useEffect(() => { taskOperations.operations.forEach(seedCreationMessage); }, [taskOperations.operations, submissions]);
@@ -238,6 +241,7 @@ export default function App({
     setNewConversationDraft({ text: existingQuery || "", clipboardRead });
     createRequest.current = existing?.requestId ?? null;
     setCreateRequestId(createRequest.current);
+    setNewConversationClosing(false);
     newDialogOpen.current = true; setNewConversationOpen(true);
   };
   const startCreation = async (input: { locationId: string; name?: string; initialQuery?: string }) => {
@@ -569,7 +573,7 @@ export default function App({
               {retainedInputThreads.length > 0 && <section className="retained-inputs" aria-label="保留的输入">
                 <p>保留的输入</p>
                 {retainedInputThreads.map(thread => <button key={thread.id} aria-label={`继续输入：${thread.title}`}
-                  onClick={() => setSelected(thread.id)}>
+                  onClick={event => setSelected(thread.id, event.detail !== 0)}>
                   <span>{thread.title}</span><small>继续处理</small>
                 </button>)}
               </section>}
@@ -588,10 +592,10 @@ export default function App({
                 view={view}
                 unreadAvailable={unreadKnown}
                 unreadPending={catalog.sourceInfo?.unread?.pending ?? 0}
-                onSelect={(id) =>
+                onSelect={(id, animate) =>
                   void guard(async () => {
                     setPocketActivity(previous => recordPocketVisit(previous, id));
-                    setSelected(id);
+                    setSelected(id, animate);
                   })
                 }
                 onOpen={(t) =>
@@ -607,6 +611,7 @@ export default function App({
           {current ? (
             <Inspector
               key={current.id}
+              animateEntry={animateSelection}
               thread={current}
               queryDrafts={conversationDrafts.current}
               submissions={submissions}
@@ -644,13 +649,21 @@ export default function App({
         </div>
       </main>
       {newConversationOpen && <NewConversationDialog preferredCwd={current?.cwd || catalog.projects.find(item => item.id === project)?.paths[0]}
+        closeRequested={newConversationClosing}
         initialQuery={newConversationDraft?.text} clipboardRead={newConversationDraft?.clipboardRead}
         operation={taskOperations.operations.find(operation => operation.requestId === createRequestId)}
         operationError={createRequestId ? taskOperations.errors[createRequestId] : undefined}
         onCreate={startCreation}
         onCheck={() => { if (createRequestId) void taskOperations.check(createRequestId); }}
         onCancelOperation={() => { if (createRequestId) void taskOperations.cancel(createRequestId); }}
-        onClose={() => { newDialogOpen.current = false; setNewConversationOpen(false); }} />}
+        onClose={() => {
+          const focusThread = newConversationClosing ? selectedRef.current : null;
+          newDialogOpen.current = false; setNewConversationClosing(false); setNewConversationOpen(false);
+          if (focusThread) requestAnimationFrame(() => {
+            if (selectedRef.current === focusThread && document.activeElement === document.body && !document.querySelector("dialog[open]"))
+              document.querySelector<HTMLButtonElement>('.inspector button[aria-label="关闭详情"]')?.focus({ preventScroll: true });
+          });
+        }} />}
       {settings && (
         <SettingsDialog
           appearanceActions={appearanceActions}

@@ -6,7 +6,7 @@ import "./row-swipe.css";
 export default function SwipeTaskRow({ threadId, title, pinned, className, children, open, disabled, pending, error, onPin, onOpenChange, onClaim, onDismissError }: {
   threadId: string; title: string; pinned: boolean; className: string; children: ReactNode;
   open: boolean; disabled: boolean; pending: boolean; error?: string;
-  onPin?: () => void; onOpenChange: (open: boolean) => void; onClaim: () => void; onDismissError: () => void;
+  onPin?: (animate: boolean) => void; onOpenChange: (open: boolean) => void; onClaim: () => void; onDismissError: () => void;
 }) {
   const track = useRef<HTMLDivElement>(null), moving = useRef<HTMLDivElement>(null), shortcut = useRef<HTMLButtonElement>(null), action = useRef<HTMLButtonElement>(null);
   const restoreKeyboardFocus = useRef(false), wasPending = useRef(false);
@@ -49,7 +49,7 @@ export default function SwipeTaskRow({ threadId, title, pinned, className, child
   }, [pending, open]);
   const pin = (event: React.MouseEvent<HTMLButtonElement>) => {
     restoreKeyboardFocus.current = event.detail === 0;
-    onPin?.();
+    onPin?.(event.detail !== 0);
   };
   const row = <div ref={moving} className={className}>
     {children}
@@ -59,8 +59,8 @@ export default function SwipeTaskRow({ threadId, title, pinned, className, child
       {pending ? <LoaderCircle size={16} className="row-pin-spinner" aria-hidden="true" /> : pinned ? <PinOff size={16} aria-hidden="true" /> : <Pin size={16} aria-hidden="true" />}
     </button>}
   </div>;
-  if (!onPin) return <div role="listitem">{row}</div>;
-  return <div className="task-row-swipe" role="listitem" data-swipe-row-id={threadId} data-swipe-open={open || undefined} aria-busy={pending || undefined}
+  if (!onPin) return <div role="listitem" data-row-motion-id={threadId} data-row-pinned={pinned}>{row}</div>;
+  return <div className="task-row-swipe" role="listitem" data-row-motion-id={threadId} data-row-pinned={pinned} data-swipe-row-id={threadId} data-swipe-open={open || undefined} aria-busy={pending || undefined}
     onKeyDown={event => {
       if (event.key === "Escape" && open) { event.stopPropagation(); onOpenChange(false); shortcut.current?.focus({ preventScroll: true }); }
     }}>

@@ -3,7 +3,8 @@ import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import type { Thread } from "./types";
 import Conversation from "./Conversation";
 import type { QueryDraft } from "./Conversation";
-import { bindInspectorSwipe, bindInspectorViewport } from "./mobileInspector";
+import { bindInspectorViewport } from "./mobileInspector";
+import { bindInspectorMotion } from "./inspectorMotion";
 import type { HistoryCache } from "./conversationFeed";
 import type { OpenThreadResult } from "./threadConnection";
 import { activeOperation, operationText, type TaskOperation } from "./taskOperations";
@@ -12,6 +13,7 @@ import { Modal } from "./Dialogs";
 import RenameThreadDialog from "./RenameThreadDialog";
 import type { SubmittedQueryStore } from "./submittedQueries";
 import { isMacBrowser } from "./browserPlatform";
+import "./navigation-motion.css";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
@@ -27,10 +29,12 @@ interface Props {
   onCancelOperation: (requestId: string) => void;
   onClose: () => void;
   onActivity?: () => void;
+  animateEntry?: boolean;
 }
 export default function Inspector(p: Props) {
   const panel = useRef<HTMLElement>(null), closeButton = useRef<HTMLButtonElement>(null);
   const close = useRef(p.onClose), overlayOpen = useRef(false), actionPending = useRef(false);
+  const navigation = useRef<ReturnType<typeof bindInspectorMotion> | null>(null);
   const [infoOpen, setInfoOpen] = useState(false), [renaming, setRenaming] = useState(false);
   const [actionBusy, setActionBusy] = useState(false), [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -41,8 +45,9 @@ export default function Inspector(p: Props) {
   useLayoutEffect(() => {
     if (!panel.current) return;
     const releaseViewport = bindInspectorViewport(panel.current);
-    const releaseSwipe = bindInspectorSwipe(panel.current, () => { if (!overlayOpen.current) close.current(); });
-    return () => { releaseViewport(); releaseSwipe(); };
+    const controller = bindInspectorMotion(panel.current, { onClose: () => close.current(), enabled: () => !overlayOpen.current, animateEntry: p.animateEntry });
+    navigation.current = controller;
+    return () => { controller.dispose(); navigation.current = null; releaseViewport(); };
   }, []);
   useLayoutEffect(() => {
     if (window.matchMedia("(max-width: 760px)").matches) closeButton.current?.focus({ preventScroll: true });
@@ -67,7 +72,7 @@ export default function Inspector(p: Props) {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </h2>
-        <button ref={closeButton} className="icon-button" aria-label="关闭详情" onClick={p.onClose}>
+        <button ref={closeButton} data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0)}>
           <ChevronLeft size={23} className="inspector-back-icon" />
           <X size={18} className="inspector-close-icon" />
         </button>

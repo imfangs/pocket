@@ -114,46 +114,107 @@ export function bindInspectorViewport(panel: HTMLElement, browser = window) {
   };
 }
 
-export function bindInspectorSwipe(panel: HTMLElement, close: () => void, browser = window) {
+export type InspectorSwipeMotion = {
+  enabled: () => boolean;
+  start: () => number;
+  move: (offset: number) => void;
+  release: (complete: boolean, velocity: number) => void;
+  cancel: () => void;
+};
+
+export function bindInspectorSwipe(panel: HTMLElement, close: () => void, browser = window, motion?: InspectorSwipeMotion) {
   const narrow = browser.matchMedia("(max-width: 760px)");
-  let start: { x: number; y: number; time: number } | null = null;
-  const cancel = () => { start = null; };
+  let start: { id: number; x: number; y: number; time: number; base: number; claimed: boolean; lastX: number; lastTime: number; velocity: number } | null = null;
+  let suppressUntil = 0;
+  const cancel = () => { const claimed = start?.claimed; start = null; if (claimed) motion?.cancel(); };
   const hasSelection = () => browser.getSelection()?.isCollapsed === false;
+  const horizontalScroll = (target: Element | null) => {
+    if (!motion) return false;
+    for (let node = target; node && node !== panel; node = node.parentElement) {
+      if (node.scrollWidth > node.clientWidth && /^(auto|scroll)$/.test(browser.getComputedStyle(node).overflowX)) return true;
+    }
+    return false;
+  };
   const begin = (event: TouchEvent) => {
-    cancel();
-    if (!narrow.matches || event.touches.length !== 1 || hasSelection()) return;
+    cancel(); suppressUntil = 0;
+    if (!narrow.matches || event.touches.length !== 1 || hasSelection() || event.defaultPrevented || (motion && !motion.enabled())) return;
     const target = event.target as Element | null;
-    if (target?.closest("input, textarea, select, button, a, pre, .markdown-table, [contenteditable='true']")) return;
+    if (target?.closest("input, textarea, select, button, a, pre, .markdown-table, [contenteditable]:not([contenteditable='false'])") || horizontalScroll(target)) return;
     const touch = event.touches[0];
     const edgeDistance = touch.clientX - panel.getBoundingClientRect().left;
     if (edgeDistance < 0 || edgeDistance > 32) return;
-    start = { x: touch.clientX, y: touch.clientY, time: event.timeStamp };
+    start = { id: touch.identifier, x: touch.clientX, y: touch.clientY, time: event.timeStamp,
+      base: 0, claimed: false, lastX: touch.clientX, lastTime: event.timeStamp, velocity: 0 };
   };
   const move = (event: TouchEvent) => {
     if (!start) return;
-    if (event.touches.length !== 1) return cancel();
+    if (event.touches.length !== 1 || hasSelection() || (motion && !motion.enabled())) return cancel();
     const touch = event.touches[0];
+    if (touch.identifier !== start.id) return cancel();
     const dx = touch.clientX - start.x, dy = touch.clientY - start.y;
-    if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) cancel();
+    if (!motion) { if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) cancel(); return; }
+    if (!start.claimed) {
+      if (event.timeStamp - start.time >= 400) return cancel();
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) return;
+      if (dx < 10 || Math.abs(dx) < Math.abs(dy) * 1.5 || !event.cancelable || event.defaultPrevented) return cancel();
+      start.base = motion.start(); start.claimed = true;
+    }
+    if (!event.cancelable) return cancel();
+    event.preventDefault();
+    const elapsed = event.timeStamp - start.lastTime;
+    if (elapsed > 0) start.velocity = (touch.clientX - start.lastX) / elapsed;
+    start.lastX = touch.clientX; start.lastTime = event.timeStamp;
+    motion.move(Math.max(0, Math.min(panel.clientWidth || browser.innerWidth, start.base + dx)));
   };
   const end = (event: TouchEvent) => {
     const origin = start;
-    cancel();
-    if (!origin || event.touches.length || !event.changedTouches.length || hasSelection()) return;
-    const touch = event.changedTouches[0];
+    if (!origin || event.touches.length || hasSelection() || (motion && !motion.enabled())) return cancel();
+    const touch = Array.from(event.changedTouches).find(item => item.identifier === origin.id);
+    if (!touch) return cancel();
+    start = null;
     const dx = touch.clientX - origin.x, dy = touch.clientY - origin.y;
+    if (motion) {
+      if (!origin.claimed) return;
+      const width = panel.clientWidth || browser.innerWidth;
+      const offset = Math.max(0, Math.min(width, origin.base + dx));
+      const elapsed = event.timeStamp - origin.lastTime;
+      const velocity = elapsed > 100 ? 0 : touch.clientX !== origin.lastX && elapsed > 0
+        ? (touch.clientX - origin.lastX) / elapsed : origin.velocity;
+      suppressUntil = event.timeStamp + 500;
+      motion.move(offset);
+      motion.release(offset >= Math.min(120, width * .3) || (offset >= 40 && velocity >= .55), velocity);
+      return;
+    }
     if (narrow.matches && dx >= 72 && Math.abs(dy) < Math.abs(dx) * 0.4 &&
         event.timeStamp - origin.time <= 650) close();
   };
-  // Passive touch listeners preserve native vertical scroll and pinch zoom.
+  const click = (event: MouseEvent) => {
+    if (event.detail > 0 && event.timeStamp <= suppressUntil) { suppressUntil = 0; event.preventDefault(); event.stopPropagation(); }
+  };
+  const pointer = () => { suppressUntil = 0; };
+  // Only a claimed edge gesture prevents scrolling; vertical, diagonal and
+  // selection gestures remain native. The legacy callback route stays passive.
   panel.addEventListener("touchstart", begin, { passive: true });
-  panel.addEventListener("touchmove", move, { passive: true });
+  panel.addEventListener("touchmove", move, { passive: !motion });
   panel.addEventListener("touchend", end, { passive: true });
   panel.addEventListener("touchcancel", cancel, { passive: true });
+  panel.addEventListener("contextmenu", cancel);
+  if (motion) {
+    panel.addEventListener("click", click, true);
+    panel.addEventListener("pointerdown", pointer, { passive: true });
+    browser.document.addEventListener("selectionchange", cancel);
+  }
   return () => {
+    cancel();
     panel.removeEventListener("touchstart", begin);
     panel.removeEventListener("touchmove", move);
     panel.removeEventListener("touchend", end);
     panel.removeEventListener("touchcancel", cancel);
+    panel.removeEventListener("contextmenu", cancel);
+    if (motion) {
+      panel.removeEventListener("click", click, true);
+      panel.removeEventListener("pointerdown", pointer);
+      browser.document.removeEventListener("selectionchange", cancel);
+    }
   };
 }

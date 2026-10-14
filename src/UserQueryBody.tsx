@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import MessageMarkdown from "./MessageMarkdown";
+import { useDisclosureMotion } from "./useDisclosureMotion";
 import "./user-query.css";
 
 export type QueryDisclosure = {
@@ -16,12 +17,13 @@ export default function UserQueryBody({ text, images, disclosure }: {
   disclosure: QueryDisclosure;
 }) {
   const id = useId();
-  const viewport = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const [overflows, setOverflows] = useState(false);
   // Inline pictures are content in their own right, not lines of Query text.
   const hasInlineImages = !!images && Object.keys(images).length > 0;
   const expanded = disclosure.expanded || hasInlineImages;
+  const motion = useDisclosureMotion(expanded);
+  const viewport = motion.ref;
 
   useLayoutEffect(() => {
     const frame = viewport.current, body = content.current;
@@ -69,7 +71,11 @@ export default function UserQueryBody({ text, images, disclosure }: {
     </div>
     {overflows && <button type="button" className="query-disclosure-toggle"
       aria-expanded={expanded} aria-controls={id}
-      onClick={event => disclosure.toggle(!expanded, expanded ? event.currentTarget : viewport.current!)}>
+      onClick={event => {
+        const anchor = expanded ? event.currentTarget : viewport.current!;
+        motion.prepare(anchor);
+        disclosure.toggle(!expanded, anchor);
+      }}>
       {expanded ? "收起" : "展开更多"}
       {expanded ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
     </button>}

@@ -1,6 +1,7 @@
 import { Check, Copy } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { MOTION_EASE, MOTION_MS, prefersReducedMotion } from "./motion";
 
 export default function CopyButton({
   text,
@@ -11,11 +12,20 @@ export default function CopyButton({
 }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const icon = useRef<HTMLSpanElement>(null), previous = useRef(copied);
+  useLayoutEffect(() => {
+    if (previous.current === copied) return;
+    previous.current = copied;
+    if (!icon.current || prefersReducedMotion() || typeof icon.current.animate !== "function") return;
+    const animation = icon.current.animate([{ opacity: .25 }, { opacity: 1 }], { duration: MOTION_MS.feedback, easing: MOTION_EASE.out });
+    return () => animation.cancel();
+  }, [copied]);
   useEffect(() => () => clearTimeout(timer.current), []);
   return (
     <button
       type="button"
       className="copy-button"
+      data-copied={copied || undefined}
       aria-label={copied ? "已复制" : label}
       title={label}
       onClick={async () => {
@@ -29,7 +39,7 @@ export default function CopyButton({
         }
       }}
     >
-      {copied ? <Check size={15} /> : <Copy size={15} />}
+      <span ref={icon} className="copy-feedback-icon" aria-hidden="true">{copied ? <Check size={15} /> : <Copy size={15} />}</span>
       <span className="sr-only" role="status">
         {copied ? "已复制" : ""}
       </span>

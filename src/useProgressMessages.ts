@@ -42,20 +42,36 @@ export function useProgressMessages({ messages, protectedIds, root, nearBottom, 
   const [expanded, setExpanded] = useState(() => new Set(previous.current.view.expanded));
   const [readingRevision, setReadingRevision] = useState(0);
   const layoutPending = useRef(false);
+  const manualLayout = useRef(false);
   const canonicalVisible = useRef(false);
   const anchor = useRef<{ element: HTMLElement; top: number } | null>(null);
   const position = useRef(onPosition); position.current = onPosition;
   const readingProtected = useCallback(() => {
     const element = root.current;
     const focused = element?.ownerDocument.activeElement;
-    return hasMessageSelection(element) || !!element && !!focused && focused !== element && element.contains(focused);
+    return !!element?.ownerDocument.querySelector("[data-reading-motion]") || hasMessageSelection(element) ||
+      !!element && !!focused && focused !== element && element.contains(focused);
   }, [root]);
   useEffect(() => {
     const element = root.current;
     if (!element) return;
     let protectedBefore = readingProtected(), selectedBefore = hasMessageSelection(element), alive = true;
+    let movingBefore = !!element.ownerDocument.querySelector("[data-reading-motion]");
     const check = () => {
       if (!alive) return;
+      const moving = !!element.ownerDocument.querySelector("[data-reading-motion]");
+      if (movingBefore && !moving && manualLayout.current) {
+        // The first animation frame can still fit entirely in the viewport.
+        // Recompute from the settled size before any reading/following resumes;
+        // a stale true here would send an expanded Query straight to its end.
+        manualLayout.current = false;
+        const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 1;
+        nearBottom.current = atBottom;
+        position.current(atBottom);
+        const saved = cache.get(threadId);
+        if (saved) { saved.scrollTop = element.scrollTop; saved.nearBottom = atBottom; }
+      }
+      movingBefore = moving;
       const next = readingProtected();
       const selected = hasMessageSelection(element);
       if (next !== protectedBefore || selected !== selectedBefore) {
@@ -65,15 +81,17 @@ export function useProgressMessages({ messages, protectedIds, root, nearBottom, 
     };
     const afterFocus = () => queueMicrotask(check);
     element.ownerDocument.addEventListener("selectionchange", check);
+    element.ownerDocument.defaultView?.addEventListener("pocket-reading-visibility-change", check);
     element.addEventListener("focusin", afterFocus);
     element.addEventListener("focusout", afterFocus);
     return () => {
       alive = false;
       element.ownerDocument.removeEventListener("selectionchange", check);
+      element.ownerDocument.defaultView?.removeEventListener("pocket-reading-visibility-change", check);
       element.removeEventListener("focusin", afterFocus);
       element.removeEventListener("focusout", afterFocus);
     };
-  }, [root, readingProtected]);
+  }, [root, readingProtected, nearBottom, cache, threadId]);
 
   const presentation = useMemo(() => {
     // Native/rollout feeds may replace IDs when a recorded final arrives first.
@@ -107,7 +125,8 @@ export function useProgressMessages({ messages, protectedIds, root, nearBottom, 
     anchor.current = null;
     if (element && adjustment?.element.isConnected) {
       element.scrollTop += adjustment.element.getBoundingClientRect().top - adjustment.top;
-      const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 100;
+      const moving = !!element.ownerDocument.querySelector("[data-reading-motion]");
+      const atBottom = !moving && element.scrollHeight - element.scrollTop - element.clientHeight <= 1;
       nearBottom.current = atBottom;
       position.current(atBottom);
       if (saved) { saved.scrollTop = element.scrollTop; saved.nearBottom = atBottom; }
@@ -125,6 +144,7 @@ export function useProgressMessages({ messages, protectedIds, root, nearBottom, 
     const element = root.current;
     if (target && element?.contains(target)) anchor.current = { element: target, top: target.getBoundingClientRect().top };
     layoutPending.current = true;
+    manualLayout.current = true;
     nearBottom.current = false;
     position.current(false);
     update();

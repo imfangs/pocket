@@ -1,0 +1,20 @@
+:root {
+  --ease: cubic-bezier(.23, 1, .32, 1);
+  --ease-move: cubic-bezier(.77, 0, .175, 1);
+  --ease-drawer: cubic-bezier(.32, .72, 0, 1);
+  --motion-feedback: 120ms;
+  --motion-content: 180ms;
+  --motion-navigation: 240ms;
+}
+button, a { transition: background-color var(--motion-feedback) var(--ease), color var(--motion-feedback) var(--ease), border-color var(--motion-feedback) var(--ease); }
+button:is(.icon-button, .copy-button, .context-trigger) > svg { transition: transform var(--motion-feedback) var(--ease); }
+button:is(.icon-button, .copy-button, .context-trigger):active:not(:disabled):not(:focus-visible) > svg { transform: scale(.9); }
+.copy-feedback-icon { display:inline-flex; align-items:center; justify-content:center; }
+.copy-button[data-copied] { color:var(--ink); }
+dialog { animation:none; }
+dialog::backdrop { transition: background-color var(--motion-feedback) var(--ease); }
+dialog[data-modal-closing]::backdrop { background:transparent; }
+@media (prefers-reduced-motion:reduce) {
+  button, a, button:is(.icon-button, .copy-button, .context-trigger) > svg, dialog::backdrop { transition:none; }
+  button:is(.icon-button, .copy-button, .context-trigger):active:not(:disabled):not(:focus-visible) > svg { transform:none; }
+}

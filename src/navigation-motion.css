@@ -1,0 +1,9 @@
+@media (max-width:760px) {
+  /* The permanent full-height keyboard-recovery cover remains unchanged at
+     rest. Only navigation exposes the existing list beneath this surface. */
+  .workspace.with-inspector[data-inspector-navigation]::before { background:rgb(0 0 0 / 5%); }
+  .inspector[data-inspector-motion] { will-change:transform; box-shadow:-12px 0 28px rgb(0 0 0 / 9%); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .inspector[data-inspector-motion] { will-change:auto; box-shadow:none; }
+}

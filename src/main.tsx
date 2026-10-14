@@ -6,6 +6,7 @@ import "./styles.css";
 import "./pwa.css";
 import "./polish.css";
 import "./theme.css";
+import "./motion.css";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AccessGate />

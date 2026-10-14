@@ -8,14 +8,16 @@ import { useReloadGuard } from "./updateSafety";
 import { creationDirectories, creationDirectoryChoices, creationLocation, creationProjectChoices, searchCreationDirectories } from "./creationLocations";
 import { initialCreationSelection, readCreationPreference, saveCreationPreference } from "./creationPreference";
 import AutoTextarea from "./AutoTextarea";
+import AnimatedDetails from "./AnimatedDetails";
 import { applyCreationClipboard, creationQueryPayload, editCreationQuery, type CreationClipboard, type CreationQueryDraft } from "./creationQuery";
 
-export default function NewConversationDialog({ preferredCwd, initialQuery, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose }: {
+export default function NewConversationDialog({ preferredCwd, initialQuery, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose, closeRequested = false }: {
   preferredCwd?: string; operation?: TaskOperation; operationError?: string;
   initialQuery?: string;
   clipboardRead?: Promise<CreationClipboard>;
   onCreate: (input: { locationId: string; name?: string; initialQuery?: string }) => Promise<unknown>;
   onCheck: () => void; onCancelOperation: () => void; onClose: () => void;
+  closeRequested?: boolean;
 }) {
   const [locations, setLocations] = useState<CreateLocation[]>([]), [directoryCwd, setDirectoryCwd] = useState("");
   const [projectLocationId, setProjectLocationId] = useState("");
@@ -68,7 +70,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, []);
-  return <Modal title="新建会话" onClose={() => !busy && onClose()} busy={busy} dirty={dirty}>
+  return <Modal title="新建会话" onClose={() => (closeRequested || !busy) && onClose()} busy={busy} dirty={dirty} closeRequested={closeRequested}>
     <form className="new-conversation-form" noValidate onSubmit={async event => {
       event.preventDefault(); if (!available || loading || locked || submitting.current || queryTooLong) return;
       if (!selectedLocation) {
@@ -100,7 +102,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
         {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}
       </div>
-      <details ref={settings} className="new-conversation-settings">
+      <AnimatedDetails ref={settings} className="new-conversation-settings">
       <summary>更多设置</summary>
       <div className="new-conversation-settings-body">
       <div className="new-directory-heading">
@@ -154,7 +156,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       <input id="new-conversation-name" value={name} disabled={locked} maxLength={220} placeholder="留空自动命名"
         onChange={event => setName(event.target.value)} />
       </div>
-      </details>
+      </AnimatedDetails>
       {operation && <TaskOperationStatus operation={operation} error={operationError} onCheck={onCheck} onCancel={onCancelOperation} />}
       {error && <p className="inline-error" role="alert">{error}</p>}
       <footer>

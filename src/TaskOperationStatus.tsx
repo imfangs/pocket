@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { activeOperation, observeCreationNotice, operationCancelLabel, operationText, type TaskOperation } from "./taskOperations";
+import { animateReceiptHandoff } from "./receiptMotion";
 
 export default function TaskOperationStatus({ operation, title, error, onCheck, onCancel, onOpen, onDismiss, autoDismissEnabled = false }: {
   operation: TaskOperation; title?: string; error?: string;
@@ -7,13 +8,20 @@ export default function TaskOperationStatus({ operation, title, error, onCheck, 
   autoDismissEnabled?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null), dismiss = useRef(onDismiss);
+  const exit = useRef<(() => void) | null>(null);
   const notice = useRef<ReturnType<typeof observeCreationNotice> | null>(null);
+  const close = (explicit = false) => {
+    if (!root.current || exit.current || !dismiss.current) return;
+    notice.current?.stop();
+    exit.current = animateReceiptHandoff(root.current, "exit", () => dismiss.current?.(), explicit);
+  };
   useLayoutEffect(() => {
     if (!root.current || operation.operation !== "create") return;
-    const observer = observeCreationNotice({ target: root.current, requestId: operation.requestId, onDismiss: () => dismiss.current?.() });
+    const observer = observeCreationNotice({ target: root.current, requestId: operation.requestId, onDismiss: () => close() });
     notice.current = observer;
     return () => { observer.stop(); notice.current = null; };
   }, [operation.requestId, operation.operation]);
+  useLayoutEffect(() => () => { exit.current?.(); exit.current = null; }, [operation.requestId, operation.status, operation.initialMessage?.status, error]);
   useLayoutEffect(() => {
     dismiss.current = onDismiss;
     const needsMessageCheck = operation.initialMessage && ["not_queued", "unknown", "rejected"].includes(operation.initialMessage.status);
@@ -29,7 +37,7 @@ export default function TaskOperationStatus({ operation, title, error, onCheck, 
       {cancelLabel && <button className="text-button" onClick={onCancel}>{cancelLabel}</button>}
       {operation.status === "unknown" && <button className="text-button" onClick={onCheck}>核对操作状态</button>}
       {operation.operation === "create" && (operation.status === "succeeded" || operation.creationStatus === "created") && onOpen && <button className="text-button" onClick={() => { notice.current?.stop(); onOpen(); }}>{operation.status === "succeeded" ? "打开新会话" : "查看已创建会话"}</button>}
-      {!activeOperation(operation) && onDismiss && <button className="text-button" onClick={() => { notice.current?.stop(); onDismiss(); }}>关闭提示</button>}
+      {!activeOperation(operation) && onDismiss && <button className="text-button" onClick={() => close(true)}>关闭提示</button>}
     </div>
     {error && <small className="inline-error" role="alert">{error}</small>}
   </div>;

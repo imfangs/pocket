@@ -32,6 +32,8 @@ import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATT
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 import { useReadingComposer } from "./useReadingComposer";
 import "./reading-composer.css";
+import { receiptHandoffs } from "./receiptMotion";
+import { useReceiptEntrances } from "./useReceiptHandoff";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   attachments?: readonly DraftAttachment[];
@@ -121,6 +123,7 @@ export default function Conversation({
     return () => clearTimeout(timer);
   }, [recentAccepted]);
   const messages = useRef<HTMLDivElement>(null),
+    conversationRoot = useRef<HTMLElement>(null),
     readSentinel = useRef<HTMLDivElement>(null),
     attemptedReads = useRef<ReadAttempts>(new Map()),
     latestReadObservation = useRef<ReadObservation | null>(null),
@@ -140,6 +143,10 @@ export default function Conversation({
       ["final", "final_answer"].includes(message.phase || "") && message.turnDurationMs != null) ? null : history?.turnTiming;
   const shownOutbox = useMemo(() => submittedOutbox(submitted, shownMessages, history?.outbox ?? []), [submitted, shownMessages, history?.outbox]);
   const visibleSubmissions = useMemo(() => visibleSubmittedQueries(submitted, shownMessages, shownOutbox), [submitted, shownMessages, shownOutbox]);
+  const handoffs = useMemo(() => receiptHandoffs(submitted, shownMessages, shownOutbox), [submitted, shownMessages, shownOutbox]);
+  const submissionIds = useMemo(() => visibleSubmissions.map(item => item.requestId), [visibleSubmissions]);
+  const queueIds = useMemo(() => shownOutbox.map(item => item.id), [shownOutbox]);
+  useReceiptEntrances(conversationRoot, submissionIds, queueIds, handoffs.messageIds);
   useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
   useEffect(() => { submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted]);
   const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
@@ -550,7 +557,7 @@ export default function Conversation({
     }
   };
   return (
-    <section className="conversation" aria-label="会话历史与发送">
+    <section ref={conversationRoot} className="conversation" aria-label="会话历史与发送">
       <div className="conversation-toolbar">
         <div className="conversation-overview">
         <div className="runtime-summary">
@@ -624,7 +631,7 @@ export default function Conversation({
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} />}
         <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
-        <SubmittedQueryCards items={visibleSubmissions} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
+        <SubmittedQueryCards items={visibleSubmissions} exitIds={handoffs.submissions} explicitExitIds={handoffs.explicit} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
           disabled={!online || managementBlocked} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} />
       </div>
       {awayFromLatest && <button type="button" className="conversation-latest" onClick={returnToLatest}>
@@ -666,7 +673,7 @@ export default function Conversation({
         </div>}
       </div>
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
-      <Outbox threadId={thread.id} items={shownOutbox} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
+      <Outbox threadId={thread.id} items={shownOutbox} exitIds={handoffs.outbox} explicitExitIds={handoffs.explicit} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
         onAccepted={receipt => confirmAccepted(receipt, "queue")} onAttachmentRecovery={(recovered, error) => {
           setAttachmentError(error ?? ""); setAttachmentRecoveryNeeded(!!error);
           setNotice(error ? "待发消息已删除，附件可重新载入草稿。" : recovered ? "待发消息已删除，附件已放回草稿。" : "待发消息已删除。");
