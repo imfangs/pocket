@@ -1,14 +1,17 @@
 import PocketLogo from "./PocketLogo";
-import { Archive, Layers3, MessageCircle, Pin, RotateCcw, Settings2, X } from "lucide-react";
+import { Archive, Folder, Layers3, Settings2, X } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { Catalog, View } from "./types";
-import { navigationViewCount } from "./navigationModel";
+import { projectNavigationItems } from "./projectNavigation";
+import "./project-navigation.css";
 interface Props {
   catalog: Catalog;
   view: View;
+  project?: string;
   mobileOpen: boolean;
   onClose: () => void;
   onView: (v: View) => void;
+  onProject?: (id: string) => void;
   onSettings: () => void;
 }
 export default function Sidebar(p: Props) {
@@ -38,14 +41,8 @@ export default function Sidebar(p: Props) {
     }
     wasOpen.current = isOpen;
   }, [narrow, p.mobileOpen]);
-  const counts = useMemo(() => Object.fromEntries((["all", "pinned", "recent", "unread"] as View[])
-    .map(view => [view, navigationViewCount(p.catalog, view)])), [p.catalog]);
-  const navs: [View, string, typeof Layers3, number | string][] = [
-    ["unread", "待我输入", MessageCircle, p.catalog.sourceInfo?.unread?.available ? counts.unread : "—"],
-    ["all", "全部会话", Layers3, counts.all],
-    ["pinned", "置顶", Pin, counts.pinned],
-    ["recent", "最近打开", RotateCcw, counts.recent],
-  ];
+  const projects = useMemo(() => projectNavigationItems(p.catalog.projects || [], p.catalog.threads), [p.catalog.projects, p.catalog.threads]);
+  const allSelected = !p.project && p.view !== "archived";
   return (
     <>
       <button
@@ -60,7 +57,7 @@ export default function Sidebar(p: Props) {
         role={narrow ? "dialog" : undefined}
         aria-modal={narrow && p.mobileOpen ? true : undefined}
         aria-label="工作区导航"
-        className={`sidebar ${p.mobileOpen ? "mobile-open" : ""}`}
+        className={`sidebar project-navigation ${p.mobileOpen ? "mobile-open" : ""}`}
         onKeyDown={(e) => {
           if (!narrow || !p.mobileOpen) return;
           if (e.key === "Escape") {
@@ -100,21 +97,37 @@ export default function Sidebar(p: Props) {
             <X size={18} />
           </button>
         </div>
-        <nav aria-label="会话视图">
-          {navs.map(([v, label, Icon, n]) => (
+        <div className="sidebar-scroll">
+          <nav aria-label="会话视图">
             <button
-              key={v}
-              data-view={v}
-              aria-current={p.view === v ? "page" : undefined}
-              className={`nav-item ${p.view === v ? "selected" : ""}`}
-              onClick={() => p.onView(v)}
+              data-view="all"
+              aria-current={allSelected ? "page" : undefined}
+              className={`nav-item ${allSelected ? "selected" : ""}`}
+              onClick={() => p.onView("all")}
             >
-              <Icon size={18} />
-              <span>{label}</span>
-              <small>{n}</small>
+              <Layers3 size={18} aria-hidden="true" />
+              <span>全部会话</span>
             </button>
-          ))}
-        </nav>
+          </nav>
+          {projects.length > 0 && <nav className="sidebar-projects" aria-label="项目">
+            <p className="sidebar-projects-heading">项目</p>
+            {projects.map(project => {
+              const selected = p.project === project.id && p.view !== "archived";
+              return <button
+                key={project.id}
+                data-project-id={project.id}
+                aria-current={selected ? "page" : undefined}
+                aria-label={project.ariaLabel}
+                title={project.title}
+                className={`nav-item sidebar-project ${selected ? "selected" : ""}`}
+                onClick={() => p.onProject?.(project.id)}
+              >
+                <Folder size={17} aria-hidden="true" />
+                <span>{project.name}</span>
+              </button>;
+            })}
+          </nav>}
+        </div>
         <div className="sidebar-bottom">
           <div className="sidebar-tools">
             <button

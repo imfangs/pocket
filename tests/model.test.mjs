@@ -72,6 +72,19 @@ test('retired title and review sort preferences fall back to recent activity',()
  const items=[{...t,id:'old',title:'A',updatedAt:1,reviewAt:'2020-01-01'},{...t,id:'new',title:'Z',updatedAt:2,reviewAt:null}];
  for(const sort of ['title','review'])assert.equal(filterThreads(items,'all','','',sort)[0].id,'new');
 });
+test('waiting views and smart ranking use the same fresh attention signals',()=>{
+ const items=[{...t,id:'unread',needsInput:true},{...t,id:'executing',needsInput:true},
+  {...t,id:'question',needsInput:false},{...t,id:'approval',needsInput:false}];
+ const states=new Map([['executing','running'],['question','waiting_input'],['approval','waiting_approval']]);
+ assert.deepEqual(filterThreads(items,'unread','','','updated',states).map(t=>t.id),['unread','question','approval']);
+});
+test('unassigned project scope and archived chronology do not inherit unrelated smart priorities',()=>{
+ const now=2000000000000;
+ const items=[{...t,id:'independent',projectId:null,pinned:false,createdAt:now-1000,updatedAt:now-1000},
+  {...t,id:'assigned',pinned:true,pinSource:'pocket',createdAt:now-10000,updatedAt:now-10000}];
+ assert.deepEqual(filterThreads(items,'all','','__unassigned__','smart',undefined,{now}).map(t=>t.id),['independent']);
+ assert.deepEqual(filterThreads(items.map(t=>({...t,archived:true})),'archived','','','smart',undefined,{now}).map(t=>t.id),['independent','assigned']);
+});
 test('search retains Unicode matching and no longer includes hidden group metadata', () => {
   const items = [{ ...t, title: 'ＡＢＣ', id: 'first', updatedAt: 10 }, { ...t, id: 'second', updatedAt: 20 }];
   const search = query => filterThreads(items, 'all', query, '', 'updated').map(t => t.id);

@@ -1,5 +1,7 @@
 import type { Thread, View } from "./types";
 import type { TaskStatus } from "./taskStatuses";
+import { needsUserInput, smartThreadOrder, type SmartOrderOptions } from "./smartOrder.ts";
+import { UNASSIGNED_PROJECT } from "./projectNavigation.ts";
 export function filterThreads(
   threads: Thread[],
   view: View,
@@ -7,6 +9,7 @@ export function filterThreads(
   project: string,
   sort: string,
   runtimeStates?: ReadonlyMap<string, TaskStatus>,
+  ranking?: Pick<SmartOrderOptions, "now" | "draftIds" | "pocketActivity">,
 ) {
   const terms = query
     .normalize("NFKC")
@@ -14,14 +17,14 @@ export function filterThreads(
     .trim()
     .split(/\s+/)
     .filter(Boolean);
-  return threads
+  const filtered = threads
     .filter((t) => {
       if (view === "archived" && !t.archived) return false;
       if (view !== "archived" && t.archived)
         return false;
-      if (view === "unread" && (!t.needsInput || t.missing || t.separator)) return false;
+      if (view === "unread" && !needsUserInput(t, runtimeStates?.get(t.id))) return false;
       if (view === "running" && (t.missing || t.separator || runtimeStates?.get(t.id) !== "running")) return false;
-      if (project && t.projectId !== project) return false;
+      if (project === UNASSIGNED_PROJECT ? !!t.projectId : project && t.projectId !== project) return false;
       if (view === "pinned" && !t.pinned) return false;
       if (view === "recent" && !t.lastOpenedAt) return false;
       if (!terms.length) return true;
@@ -34,8 +37,9 @@ export function filterThreads(
         .normalize("NFKC")
         .toLocaleLowerCase();
       return terms.every((q) => hay.includes(q));
-    })
-    .sort((a, b) => {
+    });
+  if (sort === "smart" && view !== "archived") return smartThreadOrder(filtered, { now: ranking?.now ?? Date.now(), draftIds: ranking?.draftIds, pocketActivity: ranking?.pocketActivity, runtimeStates });
+  return filtered.sort((a, b) => {
       if (sort === "pinned" && a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       if (sort === "pinned" && a.pinned && b.pinned)
         return a.pinnedOrder - b.pinnedOrder || b.updatedAt - a.updatedAt;

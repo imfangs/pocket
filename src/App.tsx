@@ -3,7 +3,6 @@ import {
   Search,
   RefreshCw,
   X,
-  Folder,
   AlertCircle,
   ChevronLeft,
   Plus,
@@ -13,7 +12,6 @@ import type { SetStateAction } from "react";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import Sidebar from "./Sidebar";
-import ViewControls from "./ViewControls";
 import TaskList from "./TaskList";
 import TaskListPanel from "./TaskListPanel";
 import Inspector from "./Inspector";
@@ -27,6 +25,8 @@ import { useReloadGuard } from "./updateSafety";
 import { hasUpdateBlockingDraft } from "./updateDrafts";
 import PocketUpdate from "./PocketUpdate";
 import { filterThreads } from "./model";
+import { UNASSIGNED_PROJECT } from "./projectNavigation";
+import { readPocketActivity, recordPocketVisit, rememberPocketCreations, savePocketActivity } from "./pocketActivity";
 import type { Catalog, Thread, View } from "./types";
 import NewConversationDialog from "./NewConversationDialog";
 import { createSubmittedQueryStore, seedSubmittedQuery } from "./submittedQueries";
@@ -75,8 +75,9 @@ export default function App({
   logoutAction?: React.ReactNode;
 }) {
   const [prefs] = useState(readPrefs);
+  const [pocketActivity, setPocketActivity] = useState(() => readPocketActivity());
   const taskStatuses = useTaskStatuses();
-  const [, setDraftIndicatorRevision] = useState(0);
+  const [draftIndicatorRevision, setDraftIndicatorRevision] = useState(0);
   const [conversationDrafts] = useState(() => ({ current: createDraftMap(() => setDraftIndicatorRevision(value => value + 1)) }));
   const [submissions] = useState(createSubmittedQueryStore);
   const creationQueries = useRef(new Map<string, string>());
@@ -98,8 +99,7 @@ export default function App({
     }),
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
-    [project, setProject] = useState(""),
-    [sort, setSortState] = useState<string>(prefs.sort),
+    [project, setProject] = useState(prefs.project),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [readError, setReadError] = useState(""),
@@ -111,8 +111,6 @@ export default function App({
   const search = useRef<HTMLInputElement>(null),
     searchToggle = useRef<HTMLButtonElement>(null),
     conversationHistory = useRef<HistoryCache>(new Map());
-  const latestSort = useRef<string>(sort);
-  const setSort = useCallback((value: string) => { latestSort.current = value; setSortState(value); }, []);
   const setCatalog = useCallback((update: SetStateAction<Catalog>) => {
     setCatalogState(current => preserveNewerThreadMetadata(current, typeof update === "function" ? update(current) : update));
   }, []);
@@ -125,8 +123,8 @@ export default function App({
     ? "还有未完成的输入，请处理后再更新。" : busy ? "操作尚未完成，请稍后更新。" : null);
   const listPanel = useRef<HTMLElement>(null);
   const restoreScroll = useRef<number | null>(null);
-  const returnView = useRef<{ view: View; project: string; query: string; searchOpen: boolean; sort: string; scrollTop: number; selected: string | null }>({
-    view: "pinned", project: "", query: "", searchOpen: false, sort: "updated", scrollTop: 0, selected: null,
+  const returnView = useRef<{ view: View; project: string; query: string; searchOpen: boolean; scrollTop: number; selected: string | null }>({
+    view: "all", project: "", query: "", searchOpen: false, scrollTop: 0, selected: null,
   });
   const openSearch = useCallback(() => {
     // Focus during the tap so iOS opens the keyboard on the first interaction.
@@ -142,7 +140,7 @@ export default function App({
     if (restoreScroll.current === null || !listPanel.current) return;
     listPanel.current.scrollTop = restoreScroll.current;
     restoreScroll.current = null;
-  }, [view, project, query, sort]);
+  }, [view, project, query]);
   const notify = useCallback((s: string) => {
     toast.success(s, { id: "pocket-feedback" });
   }, []);
@@ -205,6 +203,8 @@ export default function App({
     }
   });
   useEffect(() => { taskOperations.operations.forEach(seedCreationMessage); }, [taskOperations.operations, submissions]);
+  useEffect(() => { setPocketActivity(previous => rememberPocketCreations(previous, taskOperations.operations)); }, [taskOperations.operations]);
+  useEffect(() => { savePocketActivity(pocketActivity); }, [pocketActivity]);
   const showNewConversation = async () => {
     const prepared = await prepareCreationDialog({
       existing: taskOperations.operations.find(operation => operation.operation === "create" && activeOperation(operation)),
@@ -271,10 +271,19 @@ export default function App({
     try {
       localStorage.setItem(
         "navigator.view",
-        JSON.stringify({ view, sort, sortVersion: 2 }),
+        JSON.stringify({ view, project, sort: "smart", sortVersion: 3 }),
       );
     } catch {}
-  }, [view, sort]);
+  }, [view, project]);
+  const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
+  const runtimeStates = runtimeKnown ? taskStatuses.runtimeStates : undefined;
+  const draftIds = useMemo(() => draftThreadIds(conversationDrafts.current), [conversationDrafts, draftIndicatorRevision]);
+  // Runtime polling must not make the clock itself a new ranking signal.
+  const rankingTime = useMemo(() => Date.now(), [catalog, pocketActivity]);
+  useEffect(() => {
+    if (!loading && catalog.sourceInfo && !catalog.sourceError && project && project !== UNASSIGNED_PROJECT &&
+      !catalog.projects.some(item => item.id === project && !item.separator)) setProject("");
+  }, [catalog.projects, catalog.sourceInfo, catalog.sourceError, loading, project]);
   const threads = useMemo(
     () =>
       filterThreads(
@@ -282,18 +291,18 @@ export default function App({
         view,
         query,
         project,
-        sort,
-        taskStatuses.runtimeLoading || taskStatuses.runtimeUnavailable ? undefined : taskStatuses.runtimeStates,
+        "smart",
+        runtimeStates,
+        { now: rankingTime, draftIds, pocketActivity },
       ),
-    [catalog, view, query, project, sort, taskStatuses],
+    [catalog, view, query, project, runtimeStates, rankingTime, draftIds, pocketActivity],
   );
   const current = catalog.threads.find((t) => t.id === selected);
   const currentOperation = current ? taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create" && activeOperation(operation))
     || taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create") : undefined;
-  const title = titles[view];
+  const title = view === "all" && project ? project === UNASSIGNED_PROJECT ? "未归属项目" : catalog.projects.find(item => item.id === project)?.name || "项目" : titles[view];
   const unreadKnown = catalog.sourceInfo?.unread?.available === true;
-  const unreadCount = catalog.threads.filter(t => t.needsInput && !t.archived && !t.missing && !t.separator).length;
-  const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
+  const unreadCount = filterThreads(catalog.threads, "unread", "", "", "updated", runtimeStates).length;
   const runningCount = filterThreads(catalog.threads, "running", "", "", "updated",
     runtimeKnown ? taskStatuses.runtimeStates : undefined).length;
   const guard = async (action: () => Promise<void>) => {
@@ -308,13 +317,12 @@ export default function App({
     if (view === target) return;
     void guard(async () => {
       if (view !== "unread" && view !== "running")
-        returnView.current = { view, project, query, searchOpen, sort: latestSort.current, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
+        returnView.current = { view, project, query, searchOpen, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
       restoreScroll.current = 0;
       setView(target);
       setProject("");
       setQuery("");
       setSearchOpen(false);
-      setSort("updated");
       setSelected(null);
       setMobile(false);
       refreshAfterActivity();
@@ -327,22 +335,28 @@ export default function App({
     setProject(previous.project);
     setQuery(previous.query);
     setSearchOpen(previous.searchOpen);
-    setSort(previous.sort);
     setSelected(previous.selected);
     refreshAfterActivity();
   });
   const switchView = (v: View) => {
     if (v === "unread" || v === "running") return openActivity(v);
-    if ((view === "unread" || view === "running") && v === returnView.current.view)
-      return returnFromActivity();
     void guard(async () => {
+      restoreScroll.current = 0;
       setView(v);
       setProject("");
+      setQuery("");
+      setSearchOpen(false);
       setSelected(null);
       setMobile(false);
       refreshAfterActivity();
     });
   };
+  const switchProject = (id: string) => void guard(async () => {
+    restoreScroll.current = 0;
+    setView("all"); setProject(id); setQuery(""); setSearchOpen(false);
+    setSelected(null); setMobile(false);
+    refreshAfterActivity();
+  });
   useEffect(() => {
     const fromNotification = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
@@ -392,7 +406,6 @@ export default function App({
     catalogReader.invalidate();
     setCatalog(current => ({ ...current, threads: current.threads.map(item => item.id === thread.id
       ? { ...item, pinned: result.pinned, pinnedOrder: result.pinnedOrder, pinRevision: result.pinRevision, pinSource: result.pinSource } : item) }));
-    if (pinned) { setSort("pinned"); returnView.current = { ...returnView.current, sort: "pinned" }; }
     void refresh().catch(() => {});
   };
   if (loading) return <BootSplash />;
@@ -404,6 +417,8 @@ export default function App({
         mobileOpen={mobile}
         onClose={() => setMobile(false)}
         onView={switchView}
+        project={project}
+        onProject={switchProject}
         onSettings={() => setSettings(true)}
       />
       <main className={`workspace ${current ? "with-inspector" : ""}`} inert={narrow && mobile}>
@@ -418,9 +433,9 @@ export default function App({
               <Menu size={20} />
             </button>
             <div className="heading">
-              <h1>
-                {title}
-                <span>{view === "unread" && !unreadKnown || view === "running" && !runtimeKnown ? "—" : threads.length}</span>
+              <h1 title={title}>
+                <span className="workspace-title">{title}</span>
+                <span className="workspace-count">{view === "unread" && !unreadKnown || view === "running" && !runtimeKnown ? "—" : threads.length}</span>
               </h1>
             </div>
             <button
@@ -467,16 +482,8 @@ export default function App({
               >
                 <Search size={17} /><span>搜索</span><kbd aria-hidden="true">⌘ K</kbd>
               </button>
-              <ViewControls projects={catalog.projects} project={project} sort={sort}
-                onProject={setProject}
-                onSort={setSort} />
             </div>
           </div>
-          {project && <div className="active-filters" aria-label="已应用的筛选">
-            <button onClick={() => setProject("")} aria-label="清除来源项目筛选">
-              <Folder size={13} aria-hidden="true" />{catalog.projects.find(item => item.id === project)?.name || "来源项目"}<X size={13} aria-hidden="true" />
-            </button>
-          </div>}
           {searchOpen && <div className="search-box expanded-search" id="task-search-box">
             <input
               ref={search}
@@ -544,9 +551,7 @@ export default function App({
                 onCreate={() => void guard(showNewConversation)}
                 onShowAll={() => switchView("all")}
                 onRefresh={() => void syncTasks().catch(() => {})}
-                onClearFilters={() => { setQuery(""); setProject(""); }}
-                hasFilters={!!(query.trim() || project)}
-                draftIds={draftThreadIds(conversationDrafts.current)}
+                draftIds={draftIds}
                 threads={threads}
                 projectScope={project}
                 selected={selected}
@@ -555,6 +560,7 @@ export default function App({
                 unreadPending={catalog.sourceInfo?.unread?.pending ?? 0}
                 onSelect={(id) =>
                   void guard(async () => {
+                    setPocketActivity(previous => recordPocketVisit(previous, id));
                     setSelected(id);
                   })
                 }

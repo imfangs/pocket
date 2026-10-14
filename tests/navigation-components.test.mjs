@@ -64,14 +64,14 @@ test('rows hide retired notes and arrangement fields while retaining runtime sta
   assert.match(html, /data-state="running"/);
   assert.doesNotMatch(html, /稍后继续|回顾时间|分组|row-check|批量操作|draggable/);
 });
-test('navigation hides retired routes and archive counts while keeping primary view counts', () => {
+test('navigation shows projects without duplicate routes or counters', () => {
   const previous = globalThis.matchMedia;
   globalThis.matchMedia = () => ({ matches: false });
   try {
     const html = renderToStaticMarkup(createElement(Sidebar, { catalog: { threads: [thread], groups: [{ id: 'old-group', name: 'Old group', parentId: null }] }, view: 'all', onView: noop, onClose: noop, onSettings: noop, mobileOpen: false }));
     assert.doesNotMatch(html, /我的分组|我的安排|未分组|正在推进|稍后继续|留作参考|Old group|data-view="group"/);
-    assert.match(html, /data-view="pinned"[^>]*>[\s\S]*?<small>0<\/small>/);
-    assert.match(html, /data-view="recent"/);
+    assert.doesNotMatch(html, /data-view="(?:pinned|recent|unread)"|<small>/);
+    assert.match(html, /data-view="all"/);
     const archive = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]).find(button => button.includes('<span>归档</span>'));
     assert.ok(archive);
     assert.doesNotMatch(archive, /<small>/);

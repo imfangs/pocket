@@ -4,7 +4,7 @@ import {
   ArrowUpRight,
   Inbox,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Thread, View } from "./types";
 import { ago } from "./model";
 import { emptyListContent, threadListPresentation } from "./listPresentation";
@@ -35,11 +35,44 @@ interface Props {
   runtimeLoading?: boolean;
 }
 export default function TaskList(p: Props) {
-  const [limit, setLimit] = useState(80);
+  const [limits, setLimits] = useState(() => new Map<string, number>());
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [pinningId, setPinningId] = useState<string | null>(null);
   const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
   const pinning = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
+  const scope = `${p.view}\0${p.projectScope || ""}\0${p.query}`;
+  const limit = limits.get(scope) ?? 80;
+  const anchor = useRef<{ scope: string; id: string; offset: number } | null>(null);
+  const rememberAnchor = useCallback(() => {
+    const root = list.current, panel = root?.closest<HTMLElement>(".list-panel");
+    if (!root || !panel?.clientHeight) return;
+    if (panel.scrollTop < 1) { anchor.current = null; return; }
+    const top = panel.getBoundingClientRect().top;
+    const first = [...root.querySelectorAll<HTMLElement>("[data-thread-id]")].find(node => node.getBoundingClientRect().bottom > top);
+    anchor.current = first ? { scope, id: first.dataset.threadId!, offset: first.getBoundingClientRect().top - top } : null;
+  }, [scope]);
+  useEffect(() => {
+    const panel = list.current?.closest<HTMLElement>(".list-panel");
+    let frame = 0;
+    const scroll = () => {
+      if (panel && panel.scrollTop < 1) anchor.current = null;
+      cancelAnimationFrame(frame); frame = requestAnimationFrame(rememberAnchor);
+    };
+    panel?.addEventListener("scroll", scroll, { passive: true });
+    return () => { panel?.removeEventListener("scroll", scroll); cancelAnimationFrame(frame); };
+  }, [rememberAnchor]);
+  useLayoutEffect(() => {
+    const root = list.current, panel = root?.closest<HTMLElement>(".list-panel");
+    if (!root || !panel?.clientHeight) return;
+    const previous = anchor.current;
+    // DOM moves may already have clamped scrollTop to zero. Use the saved
+    // reader position, not that intermediate post-layout scroll value.
+    if (previous?.scope === scope) {
+      const target = [...root.querySelectorAll<HTMLElement>("[data-thread-id]")].find(node => node.dataset.threadId === previous.id);
+      if (target) panel.scrollTop += target.getBoundingClientRect().top - panel.getBoundingClientRect().top - previous.offset;
+    }
+    rememberAnchor();
+  }, [p.threads, p.selected, scope, limit, rememberAnchor]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { setOpenRowId(null); }, [p.view, p.query, p.projectScope]);
   useEffect(() => {
@@ -69,11 +102,10 @@ export default function TaskList(p: Props) {
       if (mounted.current) setPinningId(null);
     }
   };
-  const empty = emptyListContent({ view: p.view, query: p.query, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
+  const empty = emptyListContent({ view: p.view, query: p.query, projectScope: p.projectScope, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
     runtimeAvailable: !p.runtimeLoading && !p.runtimeUnavailable, runtimeLoading: p.runtimeLoading });
   const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll
     : empty.action === "refresh" ? p.onRefresh : empty.action === "clearFilters" ? p.onClearFilters : p.onClearQuery;
-  useEffect(() => setLimit(80), [p.threads.length, p.query, p.view]);
   return (
     <div
       ref={list}
@@ -148,7 +180,12 @@ export default function TaskList(p: Props) {
           {p.threads.length > limit && (
             <button
               className="load-more"
-              onClick={() => setLimit((n) => n + 80)}
+              onClick={() => setLimits(previous => {
+                const next = new Map(previous);
+                next.delete(scope); next.set(scope, limit + 80);
+                if (next.size > 10) next.delete(next.keys().next().value!);
+                return next;
+              })}
             >
               显示更多 · 还有 {p.threads.length - limit} 条
             </button>

@@ -12,14 +12,19 @@ test('sidebar view counts include separator records while excluding archived con
   assert.equal(navigationViewCount(catalog, 'archived'), 1);
   assert.equal(navigationViewCount(catalog, 'all'), 2);
 });
-test('old arrangement and group preferences return to all while preserving supported pin order', () => {
-  for (const view of ['group', 'unassigned', 'active', 'later', 'reference', 'unknown'])
+test('retired views migrate to the single smart order and valid project scope survives', () => {
+  for (const view of ['group', 'unassigned', 'active', 'later', 'reference', 'unknown', 'pinned', 'recent'])
     assert.deepEqual(normalizeNavigationPrefs({ view, groupId: 'old-group', sort: 'pinned', sortVersion: 2 }),
-      { view: 'all', sort: 'pinned', sortVersion: 2 });
-  for (const view of ['all', 'unread', 'running', 'pinned', 'recent', 'archived'])
+      { view: 'all', project: '', sort: 'smart', sortVersion: 3 });
+  for (const view of ['all', 'unread', 'running', 'archived'])
     assert.equal(normalizeNavigationPrefs({ view }).view, view);
   for (const value of [null, undefined, 'broken', 42, { view: 'all', sort: 'review', sortVersion: 2 }])
-    assert.deepEqual(normalizeNavigationPrefs(value), { view: 'all', sort: 'updated', sortVersion: 2 });
+    assert.deepEqual(normalizeNavigationPrefs(value), { view: 'all', project: '', sort: 'smart', sortVersion: 3 });
+});
+test('project navigation preference stays scoped without leaking into global activity views', () => {
+  assert.equal(normalizeNavigationPrefs({ view:'all', project:'project-a', sortVersion:3 }).project,'project-a');
+  assert.equal(normalizeNavigationPrefs({ view:'running', project:'project-a', sortVersion:3 }).project,'');
+  assert.equal(emptyListContent({ view:'all', query:'', projectScope:'project-a' }).action,'showAll');
 });
 test('row state labels describe evidence rather than treating ordinary idle as unread', () => {
   assert.deepEqual(threadListStates(thread), []);

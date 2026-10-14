@@ -6,9 +6,9 @@ export function navigationViewCount(catalog: Catalog, view: View) {
 }
 
 // Retired group and arrangement views must never restore an empty dead end.
-export function normalizeNavigationPrefs(value: unknown): { view: View; sort: "pinned" | "updated"; sortVersion: 2 } {
+export function normalizeNavigationPrefs(value: unknown): { view: View; project: string; sort: "smart"; sortVersion: 3 } {
   const prefs = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const view: View = prefs.view === "unread" || prefs.view === "running" || prefs.view === "pinned"
-    || prefs.view === "recent" || prefs.view === "archived" ? prefs.view : "all";
-  return { view, sort: prefs.sortVersion === 2 && prefs.sort === "pinned" ? "pinned" : "updated", sortVersion: 2 };
+  const view: View = prefs.view === "unread" || prefs.view === "running" || prefs.view === "archived" ? prefs.view : "all";
+  const project = view === "all" && prefs.sortVersion === 3 && typeof prefs.project === "string" && prefs.project.length <= 256 ? prefs.project : "";
+  return { view, project, sort: "smart", sortVersion: 3 };
 }
