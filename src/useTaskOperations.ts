@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { activeOperation, creationRecoveryIds, mergeOperation, pollOperation, readCreationRecoveryIds, saveCreationRecoveryIds, type TaskOperation } from "./taskOperations";
+import { activeOperation, creationRecoveryIds, failedOperation, mergeOperation, operationCheckError, pollOperation, readCreationRecoveryIds, saveCreationRecoveryIds, type TaskOperation } from "./taskOperations";
 import { useReloadGuard } from "./updateSafety";
 
 export default function useTaskOperations(onComplete: (operation: TaskOperation) => void) {
@@ -30,8 +30,8 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
         { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
       if (result.requestId !== requestId) throw new Error("操作回执编号不匹配。");
       return receive(result);
-    } catch {
-      if (mounted.current && !signal?.aborted) setErrors(previous => ({ ...previous, [requestId]: "暂时无法核对操作状态，请稍后再试。" }));
+    } catch (failure) {
+      if (mounted.current && !signal?.aborted) setErrors(previous => ({ ...previous, [requestId]: operationCheckError(failure as Error, receipts.current.get(requestId)?.operation) }));
     }
   }, [receive]);
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
       return receive(result);
     } catch (error) {
       const failure = error as Error & { status?: number; code?: string };
-      return receive({ ...initial, status: failure.status && failure.status < 500 ? "rejected" : "unknown", code: failure.code, message: failure.status && failure.status < 500 ? failure.message : undefined });
+      return receive(failedOperation(initial, failure));
     }
   };
   const cancel = async (requestId: string) => {

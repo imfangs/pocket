@@ -72,13 +72,14 @@ export default {
       return json(403, { error: "拒绝跨站请求" });
     if (!["GET", "HEAD"].includes(request.method) && origin !== url.origin)
       return json(403, { error: "缺少同源请求信息" });
+    let forwarded = false;
     try {
       const connection = await env.NAVIGATOR_CONNECTION.get("origin", {
         type: "json",
         cacheTtl: 60,
       });
       if (!connection?.connected || !connection.publicOrigin)
-        return json(503, { error: "Mac 暂时离线，请稍后重新连接" });
+        return json(503, { error: "Mac 暂时离线，请稍后重新连接", code: "relay_not_forwarded" });
       const upstream = new URL(connection.publicOrigin);
       if (
         upstream.protocol !== "https:" ||
@@ -87,7 +88,7 @@ export default {
         upstream.username ||
         upstream.password
       )
-        return json(503, { error: "Mac 接入地址不可用" });
+        return json(503, { error: "Mac 接入地址不可用", code: "relay_not_forwarded" });
       const headers = new Headers();
       for (const key of [
         "Content-Type",
@@ -101,6 +102,8 @@ export default {
       const target = new URL(url.pathname + url.search, upstream.origin);
       const uploading = request.method === "PUT" &&
         /^\/api\/tasks\/[a-f0-9-]{36}\/attachments\/[a-f0-9-]{36}$/i.test(url.pathname);
+      // Once fetch starts, a lost reply cannot prove the Mac did not execute.
+      forwarded = true;
       const response = await fetch(target, {
         method: request.method,
         headers,
@@ -114,14 +117,14 @@ export default {
         response.status >= 500 ||
         (response.status >= 300 && response.status < 400)
       )
-        return json(503, { error: "Mac 暂时不可达，请稍后重试" });
+        return json(503, { error: "Mac 暂时不可达，请稍后重试", code: "relay_unavailable" });
       const out = new Response(response.body, response);
       out.headers.set("Cache-Control", "no-store");
       out.headers.set("X-Navigator-Relay", "stable-v1");
       out.headers.delete("Access-Control-Allow-Origin");
       return out;
     } catch {
-      return json(503, { error: "暂时无法连接 Mac，请稍后重试" });
+      return json(503, { error: "暂时无法连接 Mac，请稍后重试", code: forwarded ? "relay_unavailable" : "relay_not_forwarded" });
     }
   },
 };

@@ -103,3 +103,28 @@ test("attachment uploads retain their stream and get time for mobile transfer an
     assert.deepEqual(budgets.slice(1),[20000,20000,20000]);
   } finally { globalThis.fetch=originalFetch; AbortSignal.timeout=originalTimeout; }
 });
+
+test("gateway distinguishes requests it never forwarded from ambiguous upstream failures", async () => {
+  const original = globalThis.fetch;
+  const request = () => new Request("https://x.fangs.cc/api/tasks", {
+    method: "POST", headers: { Origin: "https://x.fangs.cc", "Content-Type": "application/json" }, body: '{}',
+  });
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response("upstream failed", { status: 503 }); };
+  try {
+    for (const get of [async () => null, async () => ({ connected: true, publicOrigin: "http://127.0.0.1" }),
+      async () => ({ connected: true, publicOrigin: "invalid" }), async () => { throw new Error("KV unavailable"); }]) {
+      const response = await worker.fetch(request(), { NAVIGATOR_CONNECTION: { get } });
+      assert.equal(response.status, 503);
+      assert.equal((await response.json()).code, "relay_not_forwarded");
+    }
+    assert.equal(calls, 0, "a definite failure must have zero upstream attempts");
+    const response = await worker.fetch(request(), env);
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).code, "relay_unavailable");
+    globalThis.fetch = async () => { calls++; throw new Error("lost reply after possible execution"); };
+    const lost = await worker.fetch(request(), env);
+    assert.equal((await lost.json()).code, "relay_unavailable");
+    assert.equal(calls, 2);
+  } finally { globalThis.fetch = original; }
+});

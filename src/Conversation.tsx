@@ -255,6 +255,8 @@ export default function Conversation({
     : isConnectionCompatibilityFailure(connectionFailureCode) ? connectionFailureCode : undefined;
   const canAttemptSend = targetAvailable && !compatibilityCode && !!(history?.canAttemptSend ?? history?.canSend);
   const staleConnection = observedConnection.status === "connected" && history?.source !== "desktop" && (history?.checkedAt ?? 0) > observedConnection.checkedAt;
+  const showConnectionAction = targetAvailable && !!(history || historyError) &&
+    (history?.source !== "desktop" || connecting || observedConnection.status === "failed" || !!connectionError);
   const desktopHint = history?.source === "desktop" && history.canSend && routineDesktopHints.has(history.hint) ? undefined : history?.hint;
   const connectionHint = managementHint || (thread.archived ? "会话已归档，恢复后可继续。" : !targetAvailable ? history?.hint : connecting
     ? "正在连接 Mac 中的原任务。可以继续输入，草稿和待发消息会保留。"
@@ -631,10 +633,11 @@ export default function Conversation({
       </button>}
       </div>
       <div className="conversation-status">
+        {(connectionHint || showConnectionAction) && <div className="conversation-connection">
         {connectionHint && <p role="status">{connectionHint}</p>}
-        {targetAvailable && (history || historyError) && (history?.source !== "desktop" || connecting || observedConnection.status === "failed" || !!connectionError) && (
+        {showConnectionAction && (
           <button
-            className="secondary"
+            className="secondary conversation-connect"
             disabled={connecting || !online}
             title="连接原任务并重新读取实时状态"
             onClick={() => void connect()}
@@ -643,6 +646,8 @@ export default function Conversation({
             {connecting ? "正在连接…" : observedConnection.status === "failed" || staleConnection || connectionError ? "重试连接" : "连接任务"}
           </button>
         )}
+        </div>}
+        {(error || connectionError || historyError || notice || acceptedNotice || currentReadFeedback) && <div className="conversation-feedback">
         {(error || connectionError || historyError) && (
           <p className="inline-error" role="alert">
             {error || connectionError || historyError}
@@ -658,6 +663,7 @@ export default function Conversation({
           {currentReadFeedback.status === "stale" ? "进展已有更新，读取最新内容后再同步。" : currentReadFeedback.status === "unavailable" ? "暂时无法同步已读状态。" : "已读状态尚未确认。"}
           {" "}<button type="button" className="text-button" disabled={!online || retryingRead} onClick={() => void retryRead()}>{retryingRead ? "正在核对…" : "同步已读"}</button>
         </p>}
+        </div>}
       </div>
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
       <Outbox threadId={thread.id} items={shownOutbox} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}

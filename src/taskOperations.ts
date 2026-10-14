@@ -17,6 +17,25 @@ export type TaskOperation = {
   initialMessage?: { requestId: string; status: "not_queued" | "queued" | "pending" | "accepted" | "unknown" | "rejected" | "editing" | "cancelled"; code?: string };
 };
 export type CreateLocation = { id: string; label: string; cwd: string; projectId?: string | null; projectName?: string | null };
+type OperationFailure = { status?: number; code?: string; message?: string; name?: string };
+export function failedOperation(initial: TaskOperation, failure: OperationFailure): TaskOperation {
+  const rejected = !!failure.status && (failure.status < 500 ||
+    failure.status === 503 && failure.code === "relay_not_forwarded");
+  return { ...initial, status: rejected ? "rejected" : "unknown", code: failure.code,
+    message: rejected ? failure.message : undefined };
+}
+export function operationCheckError(failure: OperationFailure, operation?: TaskOperation["operation"]) {
+  // A missing receipt is not proof that a previous POST never reached the Mac.
+  if (failure.status === 404) return operation === "create"
+    ? "Mac 中暂未找到这次操作记录。可稍后核对，或停止核对后返回编辑；可能已创建的会话会保留。"
+    : "Mac 中暂未找到这次操作记录，请稍后核对。这不代表操作一定没有执行。";
+  if (failure.status === 401) return "登录已过期，重新登录后可继续核对。";
+  if (["relay_not_forwarded", "relay_unavailable"].includes(failure.code || ""))
+    return "暂时连接不到 Mac，连接恢复后可继续核对。原操作结果仍待确认。";
+  if (failure.name === "TimeoutError" || failure.name === "TypeError")
+    return "核对连接中断或超时，请恢复网络后重试。原操作仍待确认。";
+  return "暂时无法核对操作状态，请稍后再试。";
+}
 const creationRecoveryKey = "pocket.pending-creation-ids.v1";
 const validId = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 export function readCreationRecoveryIds(storage?: Pick<Storage, "getItem">): string[] {
@@ -68,6 +87,9 @@ export function operationText(operation: TaskOperation) {
   if (operation.status === "cancelled") return operation.operation === "create"
     ? "已停止此次新建结果核对；可能已创建的会话会保留。" : "已取消等待。";
   if (operation.status === "changed") return "会话有新活动或子会话发生变化，本次操作已停止，请重新查看后操作。";
+  if (operation.code === "relay_not_forwarded") return operation.operation === "create"
+    ? "新建请求还未送达 Mac，内容已保留。连接恢复后可再次创建。"
+    : "本次请求还未送达 Mac，连接恢复后可重试。";
   if (operation.code === "outbox_not_empty") return "还有待发消息，请先处理待发列表再归档。";
   if (operation.code === "active_or_unknown_thread") return `会话尚未确认结束，请先核对执行状态再${action}。`;
   if (["thread_active", "thread_running", "active_turn"].includes(operation.code || "")) return "会话正在运行，请先停止或等本轮结束再归档。";

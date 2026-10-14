@@ -1216,14 +1216,33 @@ hr {
   color: var(--text-secondary);
   line-height: 1.5;
   padding: 7px 0;
+}
+.conversation-feedback {
   max-height: 150px;
   overflow: auto;
+}
+.conversation-connection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.conversation-connection + .conversation-feedback {
+  margin-top: 4px;
 }
 .conversation-status p {
   margin: 0 0 4px;
 }
-.conversation-status .secondary {
-  margin-top: 6px;
+.conversation-connection > p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.conversation-status .conversation-connect {
+  flex-shrink: 0;
+  min-height: 44px;
+  margin: 0;
+  white-space: nowrap;
 }
 .message-notice {
   color: var(--ink);
@@ -1311,8 +1330,10 @@ hr {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
   .inspector[data-keyboard-open] .conversation-status {
-    max-height: 40px;
     padding: 4px 0;
+  }
+  .inspector[data-keyboard-open] .conversation-feedback {
+    max-height: 80px;
   }
   .inspector[data-keyboard-open] .conversation-messages { padding-top: 0; padding-bottom: 0; }
   .inspector[data-keyboard-open] .conversation-composer {

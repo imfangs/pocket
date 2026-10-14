@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeOperation, creationRecoveryIds, mergeOperation, operationCancelLabel, operationText, pollOperation, readCreationRecoveryIds, saveCreationRecoveryIds } from '../src/taskOperations.ts';
+import { activeOperation, creationRecoveryIds, failedOperation, mergeOperation, operationCheckError, operationCancelLabel, operationText, pollOperation, readCreationRecoveryIds, saveCreationRecoveryIds } from '../src/taskOperations.ts';
 import { filterThreads } from '../src/model.ts';
 
 test('created and first-message delivery are distinct; terminal creation only updates the matching message receipt', () => {
@@ -14,6 +14,24 @@ test('created and first-message delivery are distinct; terminal creation only up
 });
 
 const operation = status => ({ requestId: 'one', operation: 'archive', status, threadId: 'thread' });
+test('only proven pre-forward failures release a create; missing or lost replies stay unknown', () => {
+  const initial = { requestId: 'one', operation: 'create', status: 'pending' };
+  const rejected = failedOperation(initial, { status: 503, code: 'relay_not_forwarded' });
+  assert.equal(rejected.status, 'rejected');
+  assert.equal(activeOperation(rejected), false);
+  assert.match(operationText(rejected), /还未送达 Mac/);
+  for (const failure of [{}, { name: 'TimeoutError' }, { status: 503 }, { status: 502 },
+    { status: 503, code: 'relay_unavailable' }, { status: 500, code: 'relay_not_forwarded' }]) {
+    const result = failedOperation(initial, failure);
+    assert.equal(result.status, 'unknown'); assert.equal(result.requestId, initial.requestId);
+    assert.match(operationText(result), /结果尚未确认/);
+  }
+  assert.match(operationCheckError({ status: 404 }), /暂未找到/);
+  assert.match(operationCheckError({ status: 503, code: 'relay_not_forwarded' }), /连接不到 Mac/);
+  assert.match(operationCheckError({ status: 503, code: 'relay_unavailable' }), /连接不到 Mac/);
+  assert.match(operationCheckError({ name: 'TimeoutError' }), /超时/);
+  assert.match(operationCheckError({ status: 401 }), /登录已过期/);
+});
 test('waiting archive remains active and pollable, while unknown offers only explicit receipt checking', () => {
   assert.equal(activeOperation(operation('waiting')), true);
   assert.equal(pollOperation(operation('waiting')), true);
