@@ -4,3 +4,29 @@
 .task-list-surface .row-status-slot { display:inline-flex; align-items:center; justify-content:flex-end; flex:0 0 5.5em; width:5.5em; min-height:1.5em; margin-left:auto; font-size:11px; line-height:1.5; white-space:nowrap; }
 .task-list-surface .row-first .row-status-slot > time { width:auto; margin:0; order:0; font-size:inherit; }
 .task-list-surface .row-status-slot > .task-state-badge { padding:0; border-radius:0; background:none; line-height:inherit; }
+
+/* Keep status accents in the gutter and icons, leaving the reading surface quiet. */
+.task-list-surface { --row-pin-codex:#7557a3; }
+[data-theme="dark"] .task-list-surface { --row-pin-codex:#b9a2e6; }
+.task-list-surface .task-select { position:relative; }
+.task-list-surface .task-select[data-row-state="running"] { --row-state-color:var(--positive); }
+.task-list-surface .task-select[data-row-state="waiting_input"],
+.task-list-surface .task-select[data-row-state="waiting_approval"] { --row-state-color:var(--warning); }
+.task-list-surface .task-select[data-row-state="unread"] { --row-state-color:var(--accent); }
+.task-list-surface .task-select[data-row-state]::before {
+  content:"";
+  position:absolute;
+  left:-11px;
+  top:calc(50% - 9px);
+  width:3px;
+  height:18px;
+  border-radius:2px;
+  background:var(--row-state-color);
+  pointer-events:none;
+}
+.task-list-surface .pin-icon[data-pin-source="pocket"] {
+  color:var(--pin-highlight);
+  fill:color-mix(in srgb, currentColor 16%, transparent);
+  stroke-width:2;
+}
+.task-list-surface .pin-icon[data-pin-source="codex"] { color:var(--row-pin-codex); fill:none; }

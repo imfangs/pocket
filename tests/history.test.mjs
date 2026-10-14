@@ -46,6 +46,28 @@ test("provenance separates injected instructions from authored user text, includ
   ].join("\n"));
   assert.deepEqual(data.map(m => m.text), ["Please explain AGENTS.md and memory", "Real question"]);
 });
+test("last message time includes visible media without changing the existing text projection", () => {
+  const media = (id, content, kinds) => JSON.stringify({
+    timestamp: "2026-09-28T00:01:00Z", type: "response_item", payload: {
+      id, type: "message", role: "user", content,
+      internal_chat_message_metadata_passthrough: { content_item_kinds: kinds },
+    },
+  });
+  const previous = message("text", "assistant", ["Visible text"], ["unknown"]);
+  const image = { type: "input_image", image_url: "data:image/png;base64,fixture" };
+  const included = parseHistory([previous, media("image", [image], ["user.image"])].join("\n"));
+  assert.equal(included.lastMessageAt, Date.parse("2026-09-28T00:01:00Z"));
+  assert.deepEqual(included.messages, parseHistoryLines(previous));
+  const excluded = parseHistory([previous,
+    media("injected", [image], ["hooks.additional_context"]),
+    media("empty", [{ type: "input_image", image_url: "" }], ["user.image"]),
+  ].join("\n"));
+  assert.equal(excluded.lastMessageAt, Date.parse("2026-09-28T00:00:05Z"));
+  assert.deepEqual(excluded.messages, parseHistoryLines(previous));
+  const mixed = parseHistory(media("mixed", [image, { type: "input_text", text: "Real question" }],
+    ["hooks.additional_context", "user.text"]));
+  assert.deepEqual(mixed.messages.map(m => m.text), ["Real question"]);
+});
 test("legacy envelopes are hidden but explicit user quotations retain their original text", () => {
   const envelope = "# AGENTS.md instructions for /sample\n\n<INSTRUCTIONS>\nRules\n</INSTRUCTIONS>";
   const data = parseHistoryLines([

@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readLocalUnreadState, readRecordedTurnState } from "./unread.mjs";
+import { readLastMessageAt } from "./message-time.mjs";
 
 const separator = (s) => /^[-—–_\s]{3,}$/.test(s);
 export function readCodexSource(codexHome) {
@@ -97,9 +98,9 @@ export function readCodexSource(codexHome) {
           separator: separator(title),
           source: r.source,
           createdAt: r.created_at * 1000,
-          // Native recency is a list-order anchor and may stay fixed mid-turn.
-          // Pocket labels this as activity, so use the actual update timestamp.
+          // Keep native metadata time for compatibility; it is not message activity.
           updatedAt: r.updated_at_ms || r.updated_at * 1000,
+          lastMessageAt: readLastMessageAt(codexHome, r.id, r.rollout_path),
           branch: r.git_branch || null,
           hasUnreadTurn,
           needsInput: hasUnreadTurn === true && recordedTurnState === "ended",

@@ -1,5 +1,6 @@
 import type { Thread } from "./types";
 import type { TaskStatus } from "./taskStatuses";
+import { lastMessageTime } from "./threadTime.ts";
 
 export type PocketActivity = { createdAt?: number; visitedAt?: number };
 
@@ -38,20 +39,20 @@ function freshness(time: number, now: number, scale: number) {
 }
 
 // These are adjustable product heuristics, not model output or probabilities.
-// Pins from Codex are a soft preference; only explicit Pocket pins form a hard
-// priority tier. Each other signal is bounded, and old completions decay.
+// Every preference contributes to the same bounded score. Pins express ongoing
+// interest, but recent activity can outweigh them without changing pin state.
 export function smartThreadScore(thread: Thread, options: SmartOrderOptions) {
-  if (thread.missing || thread.separator) return 0;
+  if (thread.missing || thread.separator) return -1;
   const now = clockTime(options.now);
-  const updated = eventTime(thread.updatedAt, now);
+  const updated = eventTime(lastMessageTime(thread) ?? 0, now);
   const created = eventTime(thread.createdAt, now);
   const runtime = thread.archived ? undefined : options.runtimeStates?.get(thread.id);
   const waiting = waitingForUser(runtime);
   const completedUnread = !waiting && needsUserInput(thread, runtime);
   const activity = options.pocketActivity?.get(thread.id);
-  return (waiting ? 400 : 0)
+  return (waiting ? 180 : 0)
     + (completedUnread ? 160 * freshness(updated, now, 7 * day) : 0)
-    + (thread.pinned && thread.pinSource !== "pocket" ? 80 : 0)
+    + (thread.pinned ? thread.pinSource === "pocket" ? 90 : 60 : 0)
     + (options.draftIds?.has(thread.id) ? 85 : 0)
     + (runtime === "running" ? 70 : 0)
     + 100 * freshness(updated, now, 3 * day)
@@ -64,19 +65,13 @@ export function smartThreadOrder(threads: readonly Thread[], options: SmartOrder
   const now = clockTime(options.now);
   const ranked = threads.map(thread => ({
     thread,
-    unavailable: thread.missing || thread.separator ? 1 : 0,
-    pocketPin: thread.pinned && thread.pinSource === "pocket" ? 1 : 0,
     score: smartThreadScore(thread, options),
-    updated: eventTime(thread.updatedAt, now),
+    updated: eventTime(lastMessageTime(thread) ?? 0, now),
     created: eventTime(thread.createdAt, now),
-    pinOrder: thread.pinned && Number.isSafeInteger(thread.pinnedOrder) ? thread.pinnedOrder : 0,
   }));
-  ranked.sort((a, b) => a.unavailable - b.unavailable
-    || (a.unavailable ? 0 : b.pocketPin - a.pocketPin)
-    || b.score - a.score
+  ranked.sort((a, b) => b.score - a.score
     || b.updated - a.updated
     || b.created - a.created
-    || a.pinOrder - b.pinOrder
     || (a.thread.id < b.thread.id ? -1 : a.thread.id > b.thread.id ? 1 : 0));
   return ranked.map(entry => entry.thread);
 }

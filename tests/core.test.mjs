@@ -117,7 +117,7 @@ test("source import resolves desktop identity and pins, prefers renamed title, n
   assert.equal(s.threads[0].updatedAt, 2000);
   assert.equal(hash(), before);
 });
-test("recent activity follows updated timestamps even when native recency stays hours behind", t => {
+test("native update metadata remains available separately from message time", t => {
   const home=temp(t), db=new DatabaseSync(join(home,'state_5.sqlite'));
   t.after(()=>db.close());
   db.exec('CREATE TABLE threads(id TEXT PRIMARY KEY,title TEXT,cwd TEXT,archived INTEGER,created_at INTEGER,updated_at INTEGER,source TEXT,recency_at_ms INTEGER,updated_at_ms INTEGER)');
@@ -325,4 +325,22 @@ test("HTTP requires same origin and token, opens the exact known original id, ne
     headers: { Origin: "https://evil.example" },
   });
   assert.equal(r.status, 403);
+});
+
+test('catalog and persisted Pocket source keep the last message time when settings refresh metadata', t => {
+  const home=temp(t),db=new DatabaseSync(join(home,'state_5.sqlite'));t.after(()=>db.close());
+  mkdirSync(join(home,'sessions'));const rollout=join(home,'sessions','time.jsonl');
+  const messageAt=Date.parse('2026-10-13T11:39:41Z'),updatedAt=Date.parse('2026-10-14T06:16:09Z');
+  const records=[{type:'session_meta',payload:{id:id1}},
+    {type:'response_item',timestamp:new Date(messageAt).toISOString(),payload:{type:'message',role:'assistant',phase:'final_answer',content:[{type:'output_text',text:'A completed reply'}]}},
+    {type:'event_msg',timestamp:new Date(updatedAt).toISOString(),payload:{type:'thread_settings_applied'}}];
+  writeFileSync(rollout,records.map(row=>JSON.stringify(row)).join('\n')+'\n');
+  db.exec('CREATE TABLE threads(id TEXT PRIMARY KEY,title TEXT,cwd TEXT,archived INTEGER,created_at INTEGER,updated_at INTEGER,updated_at_ms INTEGER,source TEXT,rollout_path TEXT)');
+  db.prepare('INSERT INTO threads VALUES(?,?,?,?,?,?,?,?,?)').run(id1,'Time fixture','/synthetic',0,1,updatedAt/1000,updatedAt,'app',rollout);
+  writeFileSync(join(home,'.codex-global-state.json'),JSON.stringify({'pinned-thread-ids':[]}));
+  const store=new NavigatorStore(temp(t));t.after(()=>store.close());store.sync(readCodexSource(home));
+  assert.equal(store.catalog().threads[0].lastMessageAt,messageAt);
+  db.prepare('UPDATE threads SET updated_at_ms=?').run(updatedAt+60000);store.sync(readCodexSource(home));
+  assert.equal(store.catalog().threads[0].updatedAt,updatedAt+60000);
+  assert.equal(store.catalog().threads[0].lastMessageAt,messageAt);
 });

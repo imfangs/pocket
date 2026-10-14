@@ -7,6 +7,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Thread, View } from "./types";
 import { ago } from "./model";
+import { lastMessageTime } from "./threadTime";
 import { emptyListContent, threadListPresentation } from "./listPresentation";
 import type { TaskStatus } from "./taskStatuses";
 import SwipeTaskRow from "./SwipeTaskRow";
@@ -126,9 +127,11 @@ export default function TaskList(p: Props) {
       ) : (
         <div className="task-list" role="list" aria-label="任务列表">
           {p.threads.slice(0, limit).map((t) => {
+            const messageAt = lastMessageTime(t);
             const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
             const presentation = threadListPresentation(t, p.draftIds?.has(t.id), runtime);
             const states = presentation.secondaryStates.filter(state => state.key !== "archived" || p.view !== "archived");
+            const rowState = presentation.primaryState?.key ?? states.find(state => state.key === "unread")?.key;
             return (
               <SwipeTaskRow
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""}`}
@@ -142,6 +145,7 @@ export default function TaskList(p: Props) {
                 <button
                   className="task-select"
                   data-thread-id={t.id}
+                  data-row-state={rowState}
                   onClick={() => { setOpenRowId(null); p.onSelect(t.id); }}
                   aria-pressed={p.selected === t.id}
                   title={t.title}
@@ -154,7 +158,8 @@ export default function TaskList(p: Props) {
                     <span className="row-status-slot">
                       {presentation.primaryState ? <span className="task-state-badge" data-state={presentation.primaryState.key}>
                         {presentation.primaryState.label}
-                      </span> : <time dateTime={new Date(t.updatedAt).toISOString()}>{ago(t.updatedAt)}</time>}
+                      </span> : messageAt !== null ? <time dateTime={new Date(messageAt).toISOString()} title={`最后消息：${new Date(messageAt).toLocaleString("zh-CN")}`}>{ago(messageAt)}</time>
+                        : <span aria-label="暂无可确认的消息时间" title="暂无可确认的消息时间">—</span>}
                     </span>
                   </div>
                   {(!p.projectScope || states.length > 0 || pinningId === t.id) && <div className="row-second">

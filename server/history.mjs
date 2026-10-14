@@ -17,24 +17,33 @@ const injectedKinds = new Set([
   "multi_agent.role_instructions", "multi_agent.mode_instructions",
 ]);
 
-function visibleText(item) {
-  const content = item.content || [];
+function visibleContent(item) {
+  const content = Array.isArray(item.content) ? item.content : [];
   const kinds = item.internal_chat_message_metadata_passthrough?.content_item_kinds;
-  const value = content
-    .filter((c, index) => ["input_text", "output_text", "text"].includes(c.type) &&
-      !(Array.isArray(kinds) && kinds.length === content.length && injectedKinds.has(kinds[index])))
-    .map(c => c.text || "").join("\n");
+  const visible = content.filter((c, index) => c &&
+      !(Array.isArray(kinds) && kinds.length === content.length && injectedKinds.has(kinds[index])));
+  const value = visible
+    .filter(c => ["input_text", "output_text", "text"].includes(c.type))
+    .map(c => typeof c.text === "string" ? c.text : "").join("\n");
+  // Media-only user messages have a visible timestamp even when this text
+  // projection has nothing to render. Never retain their bytes or URLs here.
+  const hasMedia = visible.some(c => {
+    const fields = ["input_image", "output_image"].includes(c.type) ? ["image_url", "url", "data"]
+      : c.type === "input_file" ? ["file_id", "file_data", "file_url"]
+      : c.type === "localImage" ? ["path"] : c.type === "image" ? ["url"] : [];
+    return fields.some(field => typeof c[field] === "string" && c[field].length > 0);
+  });
   if (Array.isArray(kinds)) {
-    if (kinds.length && kinds.every(kind => injectedKinds.has(kind))) return "";
-    return value;
+    if (kinds.length && kinds.every(kind => injectedKinds.has(kind))) return { text: "", hasMedia: false };
+    return { text: value, hasMedia };
   }
   // Legacy records lack provenance. Recognize only full runtime envelopes;
   // ordinary discussion of AGENTS or memory remains a user message.
   if (item.role === "user" && (
     /^# AGENTS\.md instructions for [^\n]+\n+<INSTRUCTIONS>[\s\S]*<\/INSTRUCTIONS>(?:\s*<environment_context>[\s\S]*<\/environment_context>)?\s*$/.test(value) ||
     /^<environment_context>[\s\S]*<\/environment_context>\s*$/.test(value)
-  )) return "";
-  return value;
+  )) return { text: "", hasMedia: false };
+  return { text: value, hasMedia };
 }
 
 export function parseHistoryLines(text, startOffset = 0) {
@@ -63,7 +72,7 @@ export function parseHistory(text, startOffset = 0) {
       if (record.type === "compacted") {
         const summary = responseMessages.get(item?.compaction_response_id);
         if (summary) summaryIds.add(summary.id);
-        else if (lastAssistant && typeof item?.message === "string" && (
+        else if (lastAssistant?.fullText && typeof item?.message === "string" && (
           item.message.trim() === lastAssistant.fullText.trim() ||
           item.message.trimEnd().endsWith("\n" + lastAssistant.fullText.trim())
         )) summaryIds.add(lastAssistant.id);
@@ -91,8 +100,8 @@ export function parseHistory(text, startOffset = 0) {
         ["user", "assistant"].includes(item.role) &&
         item.phase !== "analysis"
       ) {
-        const value = visibleText(item);
-        if (value) {
+        const { text: value, hasMedia } = visibleContent(item);
+        if (value || hasMedia) {
           const id = item.id || `rollout:${offset}`;
           messages.push({
             id,
@@ -100,7 +109,7 @@ export function parseHistory(text, startOffset = 0) {
             turnId: item.internal_chat_message_metadata_passthrough?.turn_id || currentTurnId,
             text: value.slice(0, 24000),
             phase: item.phase,
-            timestamp: Date.parse(record.timestamp) || null,
+            timestamp: Number.isFinite(timestamp) ? timestamp : null,
             truncated: value.length > 24000,
           });
           if (item.role === "assistant") lastAssistant = { id, fullText: value };
@@ -112,12 +121,14 @@ export function parseHistory(text, startOffset = 0) {
     offset += Buffer.byteLength(line) + 1;
   }
   const visibleMessages = messages.filter(m => !summaryIds.has(m.id) || nativeMessageIds.has(m.id));
+  const lastMessageAt = visibleMessages.at(-1)?.timestamp ?? null;
+  const textMessages = visibleMessages.filter(m => m.text);
   const hiddenTurns = new Set(messages.filter(m => summaryIds.has(m.id) && !nativeMessageIds.has(m.id)).map(m => m.turnId));
   const visibleTurns = new Set(visibleMessages.map(m => m.turnId));
   if (hiddenTurns.has(latestTurnId) && !visibleTurns.has(latestTurnId))
     latestTurnId = [...turns.keys()].reverse().find(id => !hiddenTurns.has(id) || visibleTurns.has(id)) || null;
   const marked = new Set();
-  for (const message of [...visibleMessages].reverse()) {
+  for (const message of [...textMessages].reverse()) {
     const duration = turns.get(message.turnId)?.durationMs;
     if (message.role === "assistant" && ["final", "final_answer"].includes(message.phase) && duration != null && !marked.has(message.turnId)) {
       message.turnDurationMs = duration;
@@ -125,7 +136,7 @@ export function parseHistory(text, startOffset = 0) {
     }
   }
   let budget = 160000;
-  const visible = visibleMessages
+  const visible = textMessages
     .slice(-80)
     .reverse()
     .map((message) => {
@@ -139,7 +150,7 @@ export function parseHistory(text, startOffset = 0) {
     })
     .filter((m) => m.text)
     .reverse();
-  return { messages: visible, turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
+  return { messages: visible, lastMessageAt, turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
 }
 
 function openHistorySource(codexHome, threadId) {

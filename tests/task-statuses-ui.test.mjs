@@ -147,7 +147,7 @@ test('unmount cancels the request and prevents late state updates', async () => 
 });
 
 const thread = Object.freeze({ id: 'thread', title: 'Conversation', archived: false, separator: false, missing: false,
-  pinned: false, intent: 'active', groupIds: [], updatedAt: 1, createdAt: 1, revision: 0, note: 'Keep the note',
+  pinned: false, intent: 'active', groupIds: [], updatedAt: 1, lastMessageAt: 1, createdAt: 1, revision: 0, note: 'Keep the note',
   reviewAt: null, projectName: 'Project', cwd: '/synthetic', needsInput: true });
 test('native activity replaces stale unread while drafts coexist, and archived or missing rows never run', () => {
   for (const status of ['running', 'waiting_input', 'waiting_approval']) {
@@ -205,7 +205,7 @@ test('idle restores time in the same slot and primary activity adds no metadata 
     const html = renderToStaticMarkup(createElement(TaskList, { ...props, projectScope: 'Project',
       threads: [{ ...thread, needsInput: false }], runtimeStates: new Map([['thread', status]]) }));
     assert.doesNotMatch(html, /class="row-second"/);
-    if (status === 'idle') assert.match(html, /class="row-status-slot"><time dateTime="1970-01-01T00:00:00.001Z">/);
+    if (status === 'idle') assert.match(html, /class="row-status-slot"><time dateTime="1970-01-01T00:00:00.001Z"[^>]*>/);
     else assert.doesNotMatch(html, /<time\b/);
   }
 });

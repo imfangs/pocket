@@ -2,6 +2,7 @@ import type { Thread, View } from "./types";
 import type { TaskStatus } from "./taskStatuses";
 import { needsUserInput, smartThreadOrder, type SmartOrderOptions } from "./smartOrder.ts";
 import { UNASSIGNED_PROJECT } from "./projectNavigation.ts";
+import { lastMessageTime } from "./threadTime.ts";
 export function filterThreads(
   threads: Thread[],
   view: View,
@@ -39,6 +40,8 @@ export function filterThreads(
       return terms.every((q) => hay.includes(q));
     });
   if (sort === "smart" && view !== "archived") return smartThreadOrder(filtered, { now: ranking?.now ?? Date.now(), draftIds: ranking?.draftIds, pocketActivity: ranking?.pocketActivity, runtimeStates });
+  if (sort === "smart") return filtered.sort((a, b) => (lastMessageTime(b) ?? 0) - (lastMessageTime(a) ?? 0)
+    || b.createdAt - a.createdAt || a.id.localeCompare(b.id));
   return filtered.sort((a, b) => {
       if (sort === "pinned" && a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       if (sort === "pinned" && a.pinned && b.pinned)

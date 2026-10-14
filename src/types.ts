@@ -31,6 +31,7 @@ export interface Thread {
   source: string;
   createdAt: number;
   updatedAt: number;
+  lastMessageAt?: number | null;
   branch: string | null;
   missing: boolean;
   intent: Intent;
