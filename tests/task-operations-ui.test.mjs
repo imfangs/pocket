@@ -38,8 +38,8 @@ test('waiting archive remains active and pollable, while unknown offers only exp
   assert.equal(pollOperation(operation('waiting')), true);
   assert.equal(activeOperation(operation('unknown')), true);
   assert.equal(pollOperation(operation('unknown')), false);
-  assert.match(operationText(operation('waiting')), /忙碌.*空闲后自动归档/);
-  assert.doesNotMatch(operationText(operation('waiting')), /已归档/);
+  assert.match(operationText(operation('waiting')), /Codex.*占用.*释放后继续归档/);
+  assert.doesNotMatch(operationText(operation('waiting')), /已归档|忙碌|空闲后/);
 });
 test('late polls cannot undo a confirmed archive or cancellation, and mismatched receipts are ignored', () => {
   for (const status of ['succeeded', 'cancelled', 'changed', 'rejected']) {
@@ -60,7 +60,7 @@ test('archive blockers distinguish queued content from an uncertain send', () =>
 });
 test('waiting and cancellation describe the actual action without promising that external state is unchanged', () => {
   const restore = { ...operation('waiting'), operation: 'restore' };
-  assert.match(operationText(restore), /空闲后自动恢复/);
+  assert.match(operationText(restore), /释放后继续恢复/);
   assert.equal(operationCancelLabel(restore), '取消等待恢复');
   assert.equal(operationCancelLabel(operation('waiting')), '取消等待归档');
   assert.equal(operationCancelLabel(operation('unknown')), '停止后续尝试');

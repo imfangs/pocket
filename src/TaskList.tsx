@@ -15,6 +15,7 @@ import type { TaskStatus } from "./taskStatuses";
 import SwipeTaskRow from "./SwipeTaskRow";
 import { bindTaskListMotion } from "./taskListMotion";
 import { bindListInteraction, heldListRows } from "./listInteraction";
+import { inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
 import "./task-list-status.css";
 interface Props {
   threads: Thread[];
@@ -23,7 +24,7 @@ interface Props {
   view: View;
   unreadAvailable?: boolean;
   unreadPending?: number;
-  onSelect: (id: string, animate?: boolean) => void;
+  onSelect: (id: string, animate?: boolean, origin?: InspectorEntryOrigin) => void;
   onOpen: (t: Thread) => void;
   onPriority?: (t: Thread) => Promise<void>;
   busy: boolean;
@@ -188,7 +189,7 @@ export default function TaskList(p: Props) {
                   data-thread-id={t.id}
                   data-row-state={rowState}
                   disabled={inactive}
-                  onClick={event => { if (!latest.current.currentRows.has(t.id)) return; setOpenRowId(null); p.onSelect(t.id, event.detail !== 0); }}
+                  onClick={event => { if (!latest.current.currentRows.has(t.id)) return; setOpenRowId(null); p.onSelect(t.id, event.detail !== 0, inspectorEntryFromClick(event)); }}
                   aria-pressed={p.selected === t.id}
                   title={t.title}
                 >

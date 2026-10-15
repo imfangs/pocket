@@ -15,6 +15,7 @@ import type { SubmittedQueryStore } from "./submittedQueries";
 import { isMacBrowser } from "./browserPlatform";
 import "./navigation-motion.css";
 import ImagePreviewProvider from "./ImagePreviewProvider";
+import { focusInspectorEntry, type InspectorEntryOrigin } from "./inspectorFocus";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
@@ -31,9 +32,10 @@ interface Props {
   onClose: () => void;
   onActivity?: () => void;
   animateEntry?: boolean;
+  entryOrigin?: InspectorEntryOrigin;
 }
 export default function Inspector(p: Props) {
-  const panel = useRef<HTMLElement>(null), closeButton = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
   const close = useRef(p.onClose), overlayOpen = useRef(false), actionPending = useRef(false);
   const navigation = useRef<ReturnType<typeof bindInspectorMotion> | null>(null);
   const [infoOpen, setInfoOpen] = useState(false), [renaming, setRenaming] = useState(false);
@@ -44,14 +46,14 @@ export default function Inspector(p: Props) {
   overlayOpen.current = infoOpen || renaming;
   useLayoutEffect(() => { close.current = p.onClose; }, [p.onClose]);
   useLayoutEffect(() => {
+    if (panel.current && window.matchMedia("(max-width: 760px)").matches) focusInspectorEntry(panel.current, p.entryOrigin);
+  }, []);
+  useLayoutEffect(() => {
     if (!panel.current) return;
     const releaseViewport = bindInspectorViewport(panel.current);
     const controller = bindInspectorMotion(panel.current, { onClose: () => close.current(), enabled: () => !overlayOpen.current, animateEntry: p.animateEntry });
     navigation.current = controller;
     return () => { controller.dispose(); navigation.current = null; releaseViewport(); };
-  }, []);
-  useLayoutEffect(() => {
-    if (window.matchMedia("(max-width: 760px)").matches) closeButton.current?.focus({ preventScroll: true });
   }, []);
   useEffect(() => { window.dispatchEvent(new Event("pocket-reading-visibility-change")); }, [infoOpen, renaming]);
   const runAction = async (action: () => Promise<unknown>) => {
@@ -64,7 +66,7 @@ export default function Inspector(p: Props) {
   const operationStatus = p.operation && <TaskOperationStatus operation={p.operation} error={p.operationError}
     onCheck={() => p.onCheckOperation(p.operation!.requestId)} onCancel={() => p.onCancelOperation(p.operation!.requestId)} />;
   return (
-    <ImagePreviewProvider scope={p.thread.id}><aside className="inspector" aria-label="接续详情" ref={panel}>
+    <ImagePreviewProvider scope={p.thread.id}><aside className="inspector" aria-label="接续详情" ref={panel} tabIndex={-1} style={{ outline: "none" }}>
       <div className="inspector-header">
         <h2 className="inspector-title" title={p.thread.title}>
           <button type="button" className="inspector-title-trigger" aria-label={`会话信息：${p.thread.title}`}
@@ -73,7 +75,7 @@ export default function Inspector(p: Props) {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </h2>
-        <button ref={closeButton} data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0)}>
+        <button data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0)}>
           <ChevronLeft size={23} className="inspector-back-icon" />
           <X size={18} className="inspector-close-icon" />
         </button>

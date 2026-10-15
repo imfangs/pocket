@@ -39,6 +39,7 @@ import { activeOperation } from "./taskOperations";
 import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
 import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
+import { focusInspectorEntry, inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
 import { normalizeNavigationPrefs } from "./navigationModel";
 import "./task-operations.css";
 function readPrefs() {
@@ -112,9 +113,11 @@ export default function App({
     [createRequestId, setCreateRequestId] = useState<string | null>(null);
   const selectedRef = useRef(selected);
   const [animateSelection, setAnimateSelection] = useState(false);
+  const [entryOrigin, setEntryOrigin] = useState<InspectorEntryOrigin>("programmatic");
   const [newConversationClosing, setNewConversationClosing] = useState(false);
-  const setSelected = useCallback((id: string | null, animate = false) => {
+  const setSelected = useCallback((id: string | null, animate = false, origin: InspectorEntryOrigin = "programmatic") => {
     selectedRef.current = id;
+    setEntryOrigin(origin);
     setAnimateSelection(!!id && animate);
     setSelectedState(id);
   }, []);
@@ -580,7 +583,7 @@ export default function App({
               {retainedInputThreads.length > 0 && <section className="retained-inputs" aria-label="保留的输入">
                 <p>保留的输入</p>
                 {retainedInputThreads.map(thread => <button key={thread.id} aria-label={`继续输入：${thread.title}`}
-                  onClick={event => setSelected(thread.id, event.detail !== 0)}>
+                  onClick={event => setSelected(thread.id, event.detail !== 0, inspectorEntryFromClick(event))}>
                   <span>{thread.title}</span><small>继续处理</small>
                 </button>)}
               </section>}
@@ -600,10 +603,10 @@ export default function App({
                 view={view}
                 unreadAvailable={unreadKnown}
                 unreadPending={catalog.sourceInfo?.unread?.pending ?? 0}
-                onSelect={(id, animate) =>
+                onSelect={(id, animate, origin) =>
                   void guard(async () => {
                     setPocketActivity(previous => recordPocketVisit(previous, id));
-                    setSelected(id, animate);
+                    setSelected(id, animate, origin);
                   })
                 }
                 onOpen={(t) =>
@@ -620,6 +623,7 @@ export default function App({
             <Inspector
               key={current.id}
               animateEntry={animateSelection}
+              entryOrigin={entryOrigin}
               thread={current}
               queryDrafts={conversationDrafts.current}
               submissions={submissions}
@@ -668,8 +672,10 @@ export default function App({
           const focusThread = newConversationClosing ? selectedRef.current : null;
           newDialogOpen.current = false; setNewConversationClosing(false); setNewConversationOpen(false);
           if (focusThread) requestAnimationFrame(() => {
-            if (selectedRef.current === focusThread && document.activeElement === document.body && !document.querySelector("dialog[open]"))
-              document.querySelector<HTMLButtonElement>('.inspector button[aria-label="关闭详情"]')?.focus({ preventScroll: true });
+            if (selectedRef.current === focusThread && document.activeElement === document.body && !document.querySelector("dialog[open]")) {
+              const panel = document.querySelector<HTMLElement>('.inspector');
+              if (panel) focusInspectorEntry(panel, "programmatic");
+            }
           });
         }} />}
       {settings && (

@@ -80,7 +80,7 @@ export function operationText(operation: TaskOperation) {
     if (status === "unknown") return "会话已创建，首条消息结果待确认，请打开核对。";
     return "会话已创建，首条消息尚未入队，请核对。";
   }
-  if (operation.status === "waiting") return `会话暂时忙碌，空闲后自动${action}。`;
+  if (operation.status === "waiting") return `Codex 仍占用会话，释放后继续${action}。`;
   if (operation.status === "pending") return `正在${action}会话…`;
   if (operation.status === "unknown") return `${action}结果待确认，请核对。`;
   if (operation.status === "succeeded") return `会话已${operation.operation === "create" ? "创建" : action}。`;
