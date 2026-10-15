@@ -1,4 +1,4 @@
-const CACHE = "navigator-public-shell-v8";
+const CACHE = "navigator-public-shell-v9";
 const PUBLIC_FILES = [
   "/startup.css",
   "/theme.js",
@@ -19,7 +19,15 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(PUBLIC_FILES))
+      .then(async (cache) => {
+        await cache.addAll(PUBLIC_FILES);
+        const offline = await cache.match("/offline.html");
+        const html = offline ? await offline.text() : "";
+        // During a CDN rollout the script and offline page may arrive at
+        // different times. Keep the active shell until this pair agrees.
+        if (!html.includes(`name="pocket-offline-shell" content="${CACHE}"`))
+          throw new Error("Offline shell version is not ready");
+      })
       .then(() => self.skipWaiting()),
   );
 });
