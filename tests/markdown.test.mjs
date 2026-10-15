@@ -107,11 +107,11 @@ test("conversation image Markdown offers a link without requesting the image", (
   assert.ok(html.includes("本地图"));
 });
 
-test("registered local images render lazy previews and large-image links without exposing raw file routes", () => {
+test("registered local images render lazy previews and viewer buttons without exposing raw file routes", () => {
   const url='/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/images/'+'a'.repeat(64);
   const text='![本地图](</workspace/a b.jpg>)';
   const html=renderToStaticMarkup(createElement(MessageMarkdown,{text,images:{'/workspace/a b.jpg':url}}));
-  assert.ok(html.includes(`src="${url}"`));assert.ok(html.includes(`href="${url}"`));
+  assert.ok(html.includes(`src="${url}"`));assert.ok(!html.includes(`href="${url}"`));assert.match(html, /<button[^>]*aria-haspopup="dialog"/);
   assert.ok(html.includes('loading="lazy"'));assert.ok(html.includes('查看大图：本地图'));
   assert.doesNotMatch(html,/src="\/workspace|href="\/workspace|rel="preload"/);
   assert.doesNotMatch(render(`![fake](${url})`),/<img/);

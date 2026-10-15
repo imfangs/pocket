@@ -13,6 +13,7 @@
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 会话图片放大、缩放、关闭与阅读恢复 | [会话内大图](docs/design/2026-10-15-image-viewer.md)：共享host、固定关闭、原图与权限边界 |
 | 离线整页视觉、对齐、主题和公开壳更新 | [离线布局收敛](docs/design/2026-10-15-offline-layout.md)：独立公开页面、中轴与安全区、深链保留 |
 | 列表触摸稳定、草稿退出、新建/离线恢复、搜索扩围与归档主动作 | [交互稳定与原地恢复](docs/design/2026-10-15-interaction-recovery.md)：完整路径修复与原回执边界 |
 | 优先关注与Codex置顶、输入意图预连接、精简文案、消息相对时间 | [独立优先与输入意图](docs/design/2026-10-15-priority-and-composer.md)：双标记/加分、旧接口兼容、单主按钮和共享时钟 |
@@ -52,7 +53,7 @@
 | 原桌面控制与账本 | `server/desktop.mjs`、`server/bridge-process.mjs`、`bin/desktop-bridge.py`、`bin/request_actions.py` |
 | 历史读取与展示合并 | `server/history.mjs`、`src/conversationFeed.ts`、`src/transcript.ts` |
 | 会话交互与回执 | `src/Conversation.tsx`、`src/Outbox.tsx`、`src/QuestionPrompts.tsx`、`src/RequestActions.tsx`、`src/submissionReceipt.ts` |
-| Markdown/图片 | `src/MessageMarkdown.tsx`、`src/codexMarkup.ts`、`server/message-images.mjs` |
+| Markdown/图片 | `src/MessageMarkdown.tsx`、`src/ImageViewer.tsx`、`src/ImagePreviewProvider.tsx`、`src/codexMarkup.ts`、`server/message-images.mjs` |
 | 入站附件 | `server/attachments.mjs`、`src/attachments.ts`、`src/AttachmentList.tsx`；发送衔接仍在 `server/desktop.mjs` 和 `bin/desktop-bridge.py` |
 | 更新与输入保护 | `src/PocketUpdate.tsx`、`src/appUpdate.ts`、`src/updateSafety.ts`、`src/updateDrafts.ts`、`bin/build-version.mjs` |
 | HTTP/公网转发 | `server/index.mjs`、`edge/worker.mjs`、`bin/tunnel.mjs` |

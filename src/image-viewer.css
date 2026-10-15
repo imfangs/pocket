@@ -1,0 +1,14 @@
+dialog.pocket-image-viewer { position:fixed; inset:0; width:100%; height:100dvh; max-width:none; max-height:none; margin:0; padding:0; border:0; border-radius:0; background:#111317; color:#fff; overflow:hidden; overscroll-behavior:none; touch-action:none; animation:none; box-shadow:none; }
+dialog.pocket-image-viewer::backdrop { background:#111317; backdrop-filter:none; transition:none; }
+.image-viewer-stage { position:absolute; inset:0; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; }
+.image-viewer-canvas { position:absolute; inset:calc(64px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(70px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left)); pointer-events:none; }
+.image-viewer-image { position:absolute; top:50%; left:50%; max-width:100%; max-height:100%; object-fit:contain; transform-origin:center; pointer-events:none; user-select:none; -webkit-user-drag:none; }
+.pocket-image-viewer .image-viewer-close { position:absolute; z-index:2; top:calc(12px + env(safe-area-inset-top)); right:calc(12px + env(safe-area-inset-right)); display:flex; align-items:center; justify-content:center; gap:6px; min-width:80px; min-height:44px; padding:0 14px; border:1px solid #ffffffb3; border-radius:24px; background:#fff; color:#17191d; font-size:14px; font-weight:600; box-shadow:0 2px 12px #0005; transform:none; }
+.image-viewer-zoom { position:absolute; z-index:2; bottom:calc(12px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); width:max-content; max-width:calc(100% - 24px); display:flex; padding:3px; gap:2px; border:1px solid #ffffff50; border-radius:28px; background:#22252bea; color:#fff; box-shadow:0 2px 12px #0005; }
+.image-viewer-zoom > button { flex-shrink:0; white-space:nowrap; display:flex; align-items:center; justify-content:center; gap:6px; min-width:44px; min-height:44px; padding:0 12px; border:0; border-radius:24px; background:transparent; color:#fff; transform:none; }
+.image-viewer-zoom > .image-viewer-reset { font-size:12px; }
+.image-viewer-zoom > button:disabled { color:#ffffff65; opacity:1; }
+.pocket-image-viewer button:focus-visible { outline:3px solid #7ec3ff; outline-offset:3px; }
+.image-viewer-message { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); max-width:calc(100% - 40px); text-align:center; color:#e5e7eb; font-size:14px; }
+.image-viewer-message > p { margin:0 0 12px; }
+.image-viewer-message > button { min-height:44px; padding:0 16px; border:1px solid #ffffff70; border-radius:8px; background:#272b32; color:#fff; font:inherit; }

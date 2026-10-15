@@ -1,5 +1,6 @@
 .attachment-list, .draft-attachments { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:7px; min-width:0; margin:9px 0; }
 .attachment-card { display:flex; align-items:center; gap:9px; min-width:0; max-width:100%; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); color:var(--ink); text-decoration:none; }
+button.attachment-card { width:100%; text-align:left; }
 .attachment-preview, .attachment-placeholder { width:48px; height:48px; border-radius:5px; flex:none; }
 .attachment-preview { object-fit:cover; background:var(--surface); }
 .attachment-placeholder { display:grid; place-items:center; color:var(--muted); background:var(--surface); }

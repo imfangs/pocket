@@ -2,6 +2,7 @@ import { FileText, Image as ImageIcon, Paperclip, RefreshCw, X } from "lucide-re
 import { useEffect, useRef } from "react";
 import { attachmentSize, canRemoveLocalAttachment, safeAttachmentUrl, type AttachmentDraftController, type DraftAttachment, type PublicAttachment } from "./attachments";
 import "./attachments.css";
+import { useImagePreview } from "./ImagePreviewProvider";
 
 function Preview({ attachment, image }: { attachment?: PublicAttachment; image: boolean }) {
   const url = attachment && safeAttachmentUrl(attachment.previewUrl ?? attachment.url);
@@ -10,13 +11,17 @@ function Preview({ attachment, image }: { attachment?: PublicAttachment; image: 
 }
 
 export default function AttachmentList({ attachments = [] }: { attachments?: readonly PublicAttachment[] }) {
+  const openImage = useImagePreview();
   if (!attachments.length) return null;
   return <div className="attachment-list" aria-label="消息附件">
     {attachments.map(attachment => {
       const url = safeAttachmentUrl(attachment.url);
       const contents = <><Preview attachment={attachment} image={attachment.kind === "image"} /><span className="attachment-details">
         <span className="attachment-name" title={attachment.name}>{attachment.name}</span><small>{attachmentSize(attachment.size)}</small></span></>;
-      return url ? <a className="attachment-card" key={attachment.id} data-attachment-id={attachment.id} href={url} target="_blank" rel="noopener noreferrer"
+      return url && attachment.kind === "image" ? <button type="button" className="attachment-card" key={attachment.id} data-attachment-id={attachment.id}
+        aria-haspopup="dialog" aria-label={`查看大图：${attachment.name}`}
+        onClick={event => openImage(url, attachment.name, event.currentTarget)}>{contents}</button>
+        : url ? <a className="attachment-card" key={attachment.id} data-attachment-id={attachment.id} href={url} target="_blank" rel="noopener noreferrer"
         {...(attachment.kind === "file" ? { download: attachment.name } : {})} aria-label={`查看附件 ${attachment.name}`}>{contents}</a>
         : <div className="attachment-card" key={attachment.id} data-attachment-id={attachment.id}>{contents}</div>;
     })}

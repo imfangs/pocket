@@ -14,6 +14,7 @@ import RenameThreadDialog from "./RenameThreadDialog";
 import type { SubmittedQueryStore } from "./submittedQueries";
 import { isMacBrowser } from "./browserPlatform";
 import "./navigation-motion.css";
+import ImagePreviewProvider from "./ImagePreviewProvider";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
@@ -63,7 +64,7 @@ export default function Inspector(p: Props) {
   const operationStatus = p.operation && <TaskOperationStatus operation={p.operation} error={p.operationError}
     onCheck={() => p.onCheckOperation(p.operation!.requestId)} onCancel={() => p.onCancelOperation(p.operation!.requestId)} />;
   return (
-    <aside className="inspector" aria-label="接续详情" ref={panel}>
+    <ImagePreviewProvider scope={p.thread.id}><aside className="inspector" aria-label="接续详情" ref={panel}>
       <div className="inspector-header">
         <h2 className="inspector-title" title={p.thread.title}>
           <button type="button" className="inspector-title-trigger" aria-label={`会话信息：${p.thread.title}`}
@@ -117,6 +118,6 @@ export default function Inspector(p: Props) {
       </Modal>}
       {renaming && <RenameThreadDialog thread={p.thread} onClose={() => setRenaming(false)}
         onSaved={thread => { p.onRenamed(thread); setRenaming(false); }} />}
-    </aside>
+    </aside></ImagePreviewProvider>
   );
 }

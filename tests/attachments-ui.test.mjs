@@ -83,10 +83,11 @@ test('attachment-only native messages show a thumbnail and a downloadable file w
   assert.match(html, /<footer[^>]*>[\s\S]*dateTime="[^"]+"[\s\S]*<\/footer><\/article>$/);
 });
 
-test('small image previews keep the attachment link pointing at the original image', () => {
+test('small image previews use a same-page image viewer trigger rather than a thumbnail link', () => {
   const previewUrl = `${image.url}?preview=1`;
   const html = render(AttachmentList, { attachments: [{ ...image, previewUrl }] });
-  assert.ok(html.includes(`src="${previewUrl}"`)); assert.ok(html.includes(`href="${image.url}"`));
+  assert.ok(html.includes(`src="${previewUrl}"`)); assert.match(html, /<button[^>]+aria-haspopup="dialog"/);
+  assert.doesNotMatch(html, /<a\b|target="_blank"/);
   assert.ok(!html.includes(`href="${previewUrl}"`));
 });
 
