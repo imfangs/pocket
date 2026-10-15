@@ -6,7 +6,7 @@ import type { QueryDraft } from "./Conversation";
 import { bindInspectorViewport } from "./mobileInspector";
 import { bindInspectorMotion } from "./inspectorMotion";
 import type { HistoryCache } from "./conversationFeed";
-import type { OpenThreadResult } from "./threadConnection";
+import type { ConnectOptions, OpenThreadResult } from "./threadConnection";
 import { activeOperation, operationText, type TaskOperation } from "./taskOperations";
 import TaskOperationStatus from "./TaskOperationStatus";
 import { Modal } from "./Dialogs";
@@ -20,7 +20,7 @@ interface Props {
   submissions?: SubmittedQueryStore;
   historyCache: HistoryCache;
   thread: Thread;
-  onOpen: (t: Thread) => Promise<OpenThreadResult>;
+  onOpen: (t: Thread, options?: ConnectOptions) => Promise<OpenThreadResult>;
   operation?: TaskOperation;
   operationError?: string;
   onArchive: (thread: Thread, archived: boolean) => Promise<void>;
@@ -82,7 +82,7 @@ export default function Inspector(p: Props) {
         <Conversation key={p.thread.id} thread={p.thread} drafts={p.queryDrafts} submissions={p.submissions}
           historyCache={p.historyCache} onActivity={p.onActivity} managementBlocked={managementBlocked}
           managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
-          onConnect={() => p.onOpen(p.thread)} />
+          onConnect={options => p.onOpen(p.thread, options)} />
       </div>
       {infoOpen && <Modal title="会话信息" onClose={() => setInfoOpen(false)} busy={actionBusy}>
         <div className="conversation-info">
@@ -97,7 +97,7 @@ export default function Inspector(p: Props) {
             {showMacOpen && <button type="button" className="secondary" disabled={actionBusy || p.thread.missing || managementBlocked}
               onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>在 Mac 打开<ArrowUpRight size={14} aria-hidden="true" /></button>}
           </div>
-          {p.thread.missing ? <p className="field-help">原会话暂不可用，请先刷新来源。</p>
+          {p.thread.missing ? <p className="field-help">会话暂不可用，请刷新。</p>
             : p.thread.archived ? <p className="field-help">会话已归档，恢复后可继续对话或重命名。</p> : null}
           {operationStatus}
           {p.operation?.code === "outbox_not_empty" && <button type="button" className="text-button" onClick={() => setInfoOpen(false)}>查看待发消息</button>}
@@ -107,12 +107,12 @@ export default function Inspector(p: Props) {
             <dt>工作目录</dt><dd>{p.thread.cwd}</dd>
             {p.thread.branch && <><dt><GitBranch size={12} aria-hidden="true" />分支</dt><dd>{p.thread.branch}</dd></>}
             <dt>创建时间</dt><dd>{new Date(p.thread.createdAt).toLocaleString("zh-CN")}</dd>
-            <dt>原会话 ID</dt><dd className="thread-id">{p.thread.id}</dd>
+            <dt>会话 ID</dt><dd className="thread-id">{p.thread.id}</dd>
           </dl>
           <button type="button" className="text-button" onClick={async () => {
             try { await navigator.clipboard.writeText(`codex://threads/${p.thread.id}`); setCopied(true); }
-            catch { setError("复制未完成，请选取上方的原会话 ID"); }
-          }}><Clipboard size={13} aria-hidden="true" /><span aria-live="polite">{copied ? "链接已复制" : "复制原会话链接"}</span></button>
+            catch { setError("复制未完成，请选取上方的会话 ID"); }
+          }}><Clipboard size={13} aria-hidden="true" /><span aria-live="polite">{copied ? "链接已复制" : "复制会话链接"}</span></button>
         </div>
       </Modal>}
       {renaming && <RenameThreadDialog thread={p.thread} onClose={() => setRenaming(false)}

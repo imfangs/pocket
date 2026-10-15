@@ -10,55 +10,74 @@ const { default: Conversation } = await vite.ssrLoadModule('/src/Conversation.ts
 after(() => vite.close());
 const id = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
 const connection = status => ({ requestId: 'connection-one', status, startedAt: 10, checkedAt: 20, ...(status === 'failed' ? { code: 'connection_timeout' } : {}) });
-function render(state, override = {}) {
+function render(state, override = {}, seed = 'Keep this draft') {
   const history = { source: 'rollout', runtime: 'unavailable', canSend: false, canQueue: true, canAttemptSend: true, messages: [], outbox: [{ id: 'q', text: 'Saved instruction', status: 'queued', revision: 0 }], checkedAt: 15, hint: '显示已保存的历史。连接 Mac 中的原任务后可发送消息。', connection: connection(state), ...override };
-  const drafts = new Map([[id, { text: 'Keep this draft' }]]);
+  const drafts = new Map([[id, typeof seed === 'string' ? { text: seed } : seed]]);
   const html = renderToStaticMarkup(createElement(Conversation, { thread: { id, archived: false, missing: false }, drafts, historyCache: new Map([[id, { history, scrollTop: 0, nearBottom: true }]]), onConnect: async () => ({ connection: connection('connecting') }) }));
   return { html, drafts };
 }
 
 test('an acknowledged handoff remains visibly connecting and keeps the composer draft editable', () => {
   const { html, drafts } = render('connecting');
-  assert.match(html, /正在连接 Mac 中的原任务/);
-  assert.doesNotMatch(html, /已连接 Mac 中的原任务/);
+  assert.match(html, /连接中…/);
+  assert.doesNotMatch(html, /连接原任务|conversation-connect"/);
   assert.match(html, /<textarea[^>]*>Keep this draft<\/textarea>/);
   assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /disabled/);
   assert.equal(drafts.get(id).text, 'Keep this draft');
 });
 
-test('failed connection preserves queued text and draft, and offers an explicit connection retry', () => {
+test('failed connection preserves queued text and draft, with one main submission action', () => {
   const { html, drafts } = render('failed');
-  assert.match(html, /连接原任务超时/);
-  assert.match(html, /重试连接/);
+  assert.match(html, /连接超时/);
+  assert.doesNotMatch(html, /重试连接/);
   assert.match(html, /Saved instruction/);
   assert.equal(drafts.get(id).text, 'Keep this draft');
 });
 
 test('verified connection does not grant sending permission before a fresh desktop snapshot', () => {
   const { html } = render('connected', { outbox: [] });
-  assert.match(html, /已连接 Mac 中的原任务，正在同步发送状态/);
-  assert.match(html, /发送并连接/);
-  assert.doesNotMatch(html, />发送<\/button>/);
+  assert.match(html, /同步中…/);
+  assert.doesNotMatch(html, /发送并连接|连接原任务/);
+  assert.match(html, />发送<\/button>/);
 });
 
 test('a newer fallback read does not keep claiming an old verified connection is live', () => {
   const { html } = render('connected', { checkedAt: 30 });
-  assert.doesNotMatch(html, /已连接 Mac 中的原任务/);
-  assert.match(html, /重试连接/);
+  assert.doesNotMatch(html, /同步中…/);
+  assert.match(html, /连接失败/);
+});
+
+test('empty failed input reuses the primary button for connection retry', () => {
+  const { html } = render('failed', { outbox: [] }, '');
+  assert.match(html, /<button class="primary" type="button">.*重试连接<\/button>/);
+  assert.doesNotMatch(html, /conversation-connect"/);
+  assert.match(html, /composer-connection-state[^>]*><span role="status">[^<]*<\/span><\/span>/);
+});
+
+test('empty connecting input shows a disabled primary connection action', () => {
+  const { html } = render('connecting', { outbox: [] }, '');
+  assert.match(html, /<button class="primary" type="button" disabled="">/);
+  assert.match(html, /composer-connection-spinner/);
+});
+
+test('even an empty legacy unknown draft keeps a receipt-check action instead of reconnecting', () => {
+  const { html } = render('failed', { outbox: [] }, { text: '', requestId: 'previous-request' });
+  assert.match(html, /<button class="primary" type="submit">.*核对发送状态<\/button>/);
+  assert.doesNotMatch(html, /重试连接/);
 });
 
 test('a fresh resumed desktop clears an old failed connection without overriding approval restrictions', () => {
   const { html } = render('failed', { source: 'desktop', resumeState: 'resumed', checkedAt: 100, canSend: false, canAttemptSend: false, hint: '请先处理原任务中的确认。', pendingRequests: [{ key: 'k', kind: 'unsupported', reason: '请在 Mac 处理', choices: [] }] });
-  assert.doesNotMatch(html, /已连接 Mac 中的原任务/);
-  assert.doesNotMatch(html, /连接原任务超时|重试连接/);
-  assert.match(html, /请先处理原任务中的确认/);
+  assert.doesNotMatch(html, /同步中…/);
+  assert.doesNotMatch(html, /连接超时|重试连接/);
+  assert.match(html, /请先处理会话中的确认/);
   assert.doesNotMatch(html, />发送<\/button>/);
 });
 
 test('incompatible history keeps text editable and queue storage available without promising automatic connection', () => {
   for (const readOnlyReason of ['desktop_protocol_incompatible', 'unsupported_app_identity', 'app_version_changed']) {
     const { html, drafts } = render('idle', { connection: { status: 'idle' }, readOnlyReason, canAttemptSend: false, canAttemptCompact: false });
-    assert.match(html, /草稿和待发消息已保留/);
+    assert.match(html, /composer-connection-state/);
     assert.doesNotMatch(html, /版本已变化|提交消息后自动连接|发送并连接/);
     assert.match(html, /<button aria-label="直接发送第 1 条消息" disabled=""/);
     assert.doesNotMatch(html.match(/<button class="primary"[^>]*>/)[0], /disabled/);
@@ -74,7 +93,7 @@ test('incompatible history keeps text editable and queue storage available witho
 
 test('an incompatible connection result blocks stale sending permissions before history finishes refreshing', () => {
   const { html } = render('failed', { connection: { ...connection('failed'), code: 'desktop_protocol_incompatible' }, canAttemptSend: true });
-  assert.match(html, /接口与 Pocket 不兼容/);
+  assert.match(html, /Codex 接口暂不兼容/);
   assert.match(html, /<button aria-label="直接发送第 1 条消息" disabled=""/);
   assert.doesNotMatch(html, /发送并连接/);
 });
@@ -83,7 +102,7 @@ test('fresh resumed history clears an old incompatible connection while preservi
   const { html, drafts } = render('failed', { connection: { ...connection('failed'), code: 'desktop_protocol_incompatible' },
     source: 'desktop', resumeState: 'resumed', checkedAt: 100, canSend: true, canAttemptSend: true,
     hint: '消息会在 Mac 的原任务中运行，沿用原模型与权限。' });
-  assert.doesNotMatch(html, /接口与 Pocket 不兼容|重试连接/);
+  assert.doesNotMatch(html, /Codex 接口暂不兼容|重试连接/);
   assert.doesNotMatch(html.match(/<button aria-label="直接发送第 1 条消息"[^>]*>/)[0], /disabled/);
   assert.match(html, /Saved instruction/);
   assert.equal(drafts.get(id).text, 'Keep this draft');

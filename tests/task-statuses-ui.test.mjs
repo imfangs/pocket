@@ -193,7 +193,7 @@ test('active status replaces time in the first row while useful secondary contex
     assert.match(first, new RegExp(`class="row-status-slot"[^>]*><span class="task-state-badge" data-state="${status}">${label}`));
     assert.equal((html.match(new RegExp(`data-state="${status}"`, 'g')) || []).length, 1);
     assert.doesNotMatch(html, /<time\b|data-state="unread"/);
-    assert.match(first, /aria-label="Pocket 置顶"/);
+    assert.match(first, /aria-label="Pocket 优先关注"/);
     assert.match(second, /class="project-label">Project/);
     assert.match(second, /data-state="draft">草稿/);
     assert.doesNotMatch(second, new RegExp(`data-state="${status}"`));

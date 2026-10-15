@@ -50,16 +50,16 @@ test('unrelated requests cannot replace the receipt being checked', () => {
 
 test('rename feedback distinguishes uncertain results and concurrent title changes', () => {
   assert.match(renameOperationText({ ...pending, status: 'unknown' }), /尚未确认.*核对/);
-  assert.match(renameOperationText({ ...pending, status: 'changed' }), /已发生变化.*重新读取/);
-  assert.match(renameOperationText({ ...pending, status: 'rejected' }), /输入已保留/);
+  assert.match(renameOperationText({ ...pending, status: 'changed' }), /已变化.*重新读取/);
+  assert.match(renameOperationText({ ...pending, status: 'rejected' }), /未能重命名/);
   const notApplied = { ...pending, status: 'rejected', code: 'rename_not_applied' };
-  assert.match(renameOperationText(notApplied), /未生效.*可以重新保存/);
+  assert.match(renameOperationText(notApplied), /未生效.*可重新保存/);
   assert.equal(renameUnresolved(notApplied), false);
 });
 
 test('source hints match archived and unavailable codes emitted by the service', () => {
   assert.match(renameSourceHint({ code: 'archived_thread' }), /先恢复/);
-  assert.match(renameSourceHint({ code: 'thread_not_found' }), /刷新来源/);
+  assert.match(renameSourceHint({ code: 'thread_not_found' }), /刷新后再试/);
   assert.match(renameSourceHint({ code: 'lifecycle_pending' }), /未完成的管理操作/);
   for (const code of ['app_version_changed', 'cli_version_changed']) assert.match(renameSourceHint({ code }), /版本已变化/);
 });

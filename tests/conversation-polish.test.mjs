@@ -103,10 +103,10 @@ test('only known sendable desktop boilerplate is omitted; permission and unfamil
     const html = renderConversation({ ...base, hint });
     assert.equal(html.includes(hint), false);
     assert.doesNotMatch(html, /已连接 Mac 中的原任务/);
-    assert.equal(renderConversation({ ...base, hint, canSend: false }).includes(hint), true);
+    assert.equal(renderConversation({ ...base, hint, canSend: false }).includes(hint.replaceAll('原任务','会话')), true);
   }
   for (const hint of ['请先处理原任务中的确认。', '正在压缩上下文，完成后可继续。', '需要核对的新状态'])
-    assert.equal(renderConversation({ ...base, hint, canSend: false }).includes(hint), true);
+    assert.equal(renderConversation({ ...base, hint, canSend: false }).includes(hint.replaceAll('原任务','会话')), true);
   assert.equal(renderConversation({ ...base, hint: '需要核对的新状态' }).includes('需要核对的新状态'), true);
 });
 

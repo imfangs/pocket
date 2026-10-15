@@ -26,7 +26,9 @@
   background:var(--row-state-color);
   pointer-events:none;
 }
-.task-list-surface .pin-icon[data-pin-source="pocket"] {
+.task-list-surface .priority-icon {
+  flex-shrink:0;
+  width:13px;
   color:var(--pin-highlight);
   fill:color-mix(in srgb, currentColor 16%, transparent);
   stroke-width:2;

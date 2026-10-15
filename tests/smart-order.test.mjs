@@ -55,7 +55,7 @@ test("new completions and confirmed questions can outrank an inactive Codex pin"
   }), ["completed", "waiting", "codex"]);
 });
 
-test("a Pocket false override has no inherited Codex boost or hard pin priority", () => {
+test("a legacy false override cannot invent a native pin hidden from the old snapshot", () => {
   const ordinary = thread("ordinary");
   const override = thread("override", { pinned: false, pinSource: "pocket", pinnedOrder: -30 });
   const codex = thread("codex", { pinned: true });

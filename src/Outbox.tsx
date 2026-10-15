@@ -170,7 +170,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const remainingCount = items.filter(item => item.status !== "accepted" && !acceptedItems.has(item.id)).length;
   return (
     <section ref={section} className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong><span>{!remainingCount ? "原任务已接收，正在同步历史" : items[0]?.status === "unknown" ? "等待核对首条消息，自动发送已暂停" : paused ? "自动发送已暂停" : headEditing ? "首条正在编辑，自动发送已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理后继续" : connectionPending ? "已保存在 Mac，连接恢复后依次发送" : "当前轮完成后依次发送"}</span>
+      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? "首条结果待核对，队列已暂停" : paused ? "队列已暂停" : headEditing ? "首条编辑中，队列已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理" : connectionPending ? "连接恢复后依次发送" : "本轮结束后依次发送"}</span>}
         {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
       </div>
       {presence.rows.map(({ item, leaving }, index) => {
@@ -184,7 +184,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
             : <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
           <AttachmentList attachments={item.attachments} />
           <div className="outbox-actions">
-            <small>{accepted ? "原任务已接收" : busy === item.id || item.status === "pending" ? "正在提交…" :
+            <small>{accepted ? "已发送" : busy === item.id || item.status === "pending" ? "正在提交…" :
               item.status === "unknown" ? "结果待确认，不会自动重发" :
               item.status === "editing" ? "编辑中，已暂停发送" :
               item.status === "rejected" ? "发送未完成，可编辑后重试" : paused ? "已暂停" : "排队中"}</small>

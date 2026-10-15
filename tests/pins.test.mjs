@@ -154,7 +154,7 @@ test("pin revision overflow rejects a mutation and restore without changing pins
   assert.equal(store.setPin(two, { pinned: true }).pinRevision, Number.MAX_SAFE_INTEGER);
 });
 
-test("source pin changes advance the revision once while unrelated updates and overridden pins do not", t => {
+test("source pin changes advance the revision once even under Pocket overrides; unrelated updates do not", t => {
   const { store } = fixture(t);
   assert.equal(store.thread(one).pinRevision, 0);
   const next = source();
@@ -174,12 +174,12 @@ test("source pin changes advance the revision once while unrelated updates and o
   const localRevision = store.thread(one).pinRevision;
   next.threads[0].pinnedOrder = 0;
   store.sync(next);
-  assert.equal(store.thread(one).pinRevision, localRevision);
+  assert.equal(store.thread(one).pinRevision, localRevision + 1);
   assert.equal(store.thread(one).pinSource, "pocket");
   assert.equal(store.thread(one).pinned, false);
   next.threads[1].pinned = false;
   store.sync(next);
-  assert.equal(store.thread(two).pinRevision, localRevision + 1);
+  assert.equal(store.thread(two).pinRevision, localRevision + 2);
   assert.equal(store.thread(two).pinned, false);
   const before = store.catalog();
   const invalid = structuredClone(next);

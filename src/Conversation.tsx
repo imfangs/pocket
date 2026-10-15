@@ -5,7 +5,7 @@ import StopExecution from "./StopExecution";
 import TurnDuration from "./TurnDuration";
 import QuestionPrompts from "./QuestionPrompts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDown, RefreshCw, Send, Link2 } from "lucide-react";
+import { ArrowDown, RefreshCw, Send, LoaderCircle } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
@@ -19,7 +19,9 @@ import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { connectionFailureHint, connectionFromHistory, isConnectionCompatibilityFailure, newerConnection } from "./threadConnection";
-import type { OpenThreadResult, ThreadConnection } from "./threadConnection";
+import type { ConnectOptions, OpenThreadResult, ThreadConnection } from "./threadConnection";
+import { bindComposerConnectionIntent, createComposerConnectionIntent } from "./composerConnection";
+import "./composer-connection.css";
 import { displayedReadObservation, observeVisibleRead } from "./readObservation";
 import type { ReadAttempts, ReadObservation, ReadReceipt } from "./readObservation";
 import { createSubmissionFeedbackTracker, SEND_FEEDBACK_EXIT_MS } from "./submissionFeedback";
@@ -43,10 +45,11 @@ const statuses: Record<string, string> = {
   active: "正在运行",
   idle: "可继续",
   systemError: "上次运行出错",
-  unavailable: "已保存的历史",
+  unavailable: "未连接",
 };
 const routineDesktopHints = new Set([
   "消息会在 Mac 的原任务中运行，沿用原模型与权限。",
+  "消息会在 Mac 的会话中运行，沿用原模型与权限。",
   "正在运行，新消息默认进入 Pocket 待发列表。",
 ]);
 export default function Conversation({
@@ -63,7 +66,7 @@ export default function Conversation({
   drafts: Map<string, QueryDraft>;
   historyCache: HistoryCache;
   submissions?: SubmittedQueryStore;
-  onConnect: () => Promise<OpenThreadResult>;
+  onConnect: (options?: ConnectOptions) => Promise<OpenThreadResult>;
   onActivity?: () => void;
   managementBlocked?: boolean;
   managementHint?: string;
@@ -102,7 +105,7 @@ export default function Conversation({
   const showAcceptedFeedback = useCallback((feedback: AcceptedFeedback) => {
     setRecentAccepted(previous => new Map(previous).set(feedback.requestId, feedback.expiresAt));
     setAcceptedNotice(feedback);
-    setNotice(previous => /^(已加入|消息已交给|已在原任务历史)/.test(previous) ? "" : previous);
+    setNotice(previous => /^(已加入|消息已交给|已在(?:原任务|会话)历史)/.test(previous) ? "" : previous);
   }, []);
   const confirmAccepted = useCallback((receipt: Receipt, source: AcceptedFeedback["source"] = "composer") => {
     const feedback = feedbackTracker.accept(receipt, source);
@@ -197,7 +200,7 @@ export default function Conversation({
     [drafts, thread.id, uploads],
   );
   const addFiles = (files: File[]) => {
-    try { uploads.add(thread.id, files); setAttachmentError(""); }
+    try { uploads.add(thread.id, files); setAttachmentError(""); void inputConnection.current?.request(); }
     catch (failure) { setAttachmentError((failure as Error).message); }
   };
   const recoverAttachments = async () => {
@@ -218,6 +221,7 @@ export default function Conversation({
   const receiptRead = useRef<AbortController | null>(null);
   const checkingSubmissions = useRef(new Map<string, AbortController>());
   const connectionOpen = useRef<AbortController | null>(null);
+  const inputConnection = useRef<ReturnType<typeof createComposerConnectionIntent> | null>(null);
   useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
   useEffect(() => () => { checkingSubmissions.current.forEach(controller => controller.abort()); checkingSubmissions.current.clear(); }, [thread.id]);
   useEffect(() => () => connectionOpen.current?.abort(), [thread.id]);
@@ -262,17 +266,17 @@ export default function Conversation({
     : isConnectionCompatibilityFailure(connectionFailureCode) ? connectionFailureCode : undefined;
   const canAttemptSend = targetAvailable && !compatibilityCode && !!(history?.canAttemptSend ?? history?.canSend);
   const staleConnection = observedConnection.status === "connected" && history?.source !== "desktop" && (history?.checkedAt ?? 0) > observedConnection.checkedAt;
-  const showConnectionAction = targetAvailable && !!(history || historyError) &&
+  const showConnectionState = targetAvailable &&
     (history?.source !== "desktop" || connecting || observedConnection.status === "failed" || !!connectionError);
-  const desktopHint = history?.source === "desktop" && history.canSend && routineDesktopHints.has(history.hint) ? undefined : history?.hint;
-  const connectionHint = managementHint || (thread.archived ? "会话已归档，恢复后可继续。" : !targetAvailable ? history?.hint : connecting
-    ? "正在连接 Mac 中的原任务。可以继续输入，草稿和待发消息会保留。"
+  const desktopHint = history?.source === "desktop" && history.canSend && routineDesktopHints.has(history.hint) ? undefined
+    : history?.hint?.replaceAll("原任务", "会话").replaceAll("原会话", "会话");
+  const connectionHint = managementHint || (thread.archived ? "会话已归档，恢复后可继续。"
+    : !targetAvailable ? "会话暂不可用" : history?.source === "desktop" ? desktopHint : undefined);
+  const connectionFailed = !!connectionError || staleConnection || observedConnection.status === "failed";
+  const connectionLabel = !online ? "离线" : connecting ? "连接中…"
     : compatibilityCode ? connectionFailureHint(compatibilityCode)
-    : observedConnection.status === "failed" ? connectionFailureHint(observedConnection.code)
-    : staleConnection ? "暂时无法读取原任务的实时状态。草稿和待发消息已保留，可以重试连接。"
-    : observedConnection.status === "connected" && history?.source !== "desktop" ? "已连接 Mac 中的原任务，正在同步发送状态。"
-    : history?.source === "desktop" && observedConnection.status === "connected" ? desktopHint
-    : history?.source !== "desktop" && history ? "正在显示已保存的历史。连接原任务，或提交消息后自动连接。" : desktopHint);
+    : connectionFailed ? connectionFailureHint(connectionFailureCode)
+    : observedConnection.status === "connected" ? "同步中…" : "未连接";
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = !!compatibilityCode || history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
@@ -281,7 +285,7 @@ export default function Conversation({
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
     pending: sending || connecting || !!draft.requestId || shownOutbox.length > 0 || visibleSubmissions.length > 0 ||
       !!history?.pendingRequests?.length || questions.length > 0,
-    feedback: !!(error || historyError || connectionError || notice || acceptedNotice || currentReadFeedback) });
+    feedback: !!(error || historyError || connectionError || connectionFailed || compatibilityCode || notice || acceptedNotice || currentReadFeedback) });
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
@@ -321,7 +325,7 @@ export default function Conversation({
           : newerConnection(previous, data));
         if (data.status !== "connecting") void load();
       },
-      onError() { setConnectionError("暂时无法核对连接状态，联网后会继续核对。草稿和待发消息已保留。"); },
+      onError() { setConnectionError("连接状态待确认"); },
     });
     return () => subscription.stop();
   }, [thread.id, connectingId, load, managementBlocked]);
@@ -384,7 +388,7 @@ export default function Conversation({
           if (data.source === "desktop" && data.messages.some(message => message.role === "user" && message.clientMessageId === saved.requestId)) {
             confirmAccepted({ requestId: saved.requestId, status: "accepted" });
             setNotice("");
-          } else setNotice("已在原任务历史中确认这条消息。");
+          } else setNotice("已在会话历史中确认这条消息。");
         }
       },
       onError(error) {
@@ -435,7 +439,7 @@ export default function Conversation({
     return () => window.removeEventListener("beforeunload", warn);
   }, [draft.text, submissions, uploads, thread.id]);
   useEffect(() => {
-    if (!/^(消息已交给|已加入(?: Mac )?待发|已在原任务历史|当前执行已中断|这一轮已经结束)/.test(notice)) return;
+    if (!/^(消息已交给|已加入(?: Mac )?待发|已在(?:原任务|会话)历史|当前执行已中断|这一轮已经结束)/.test(notice)) return;
     const timer = setTimeout(() => setNotice(""), 4000);
     return () => clearTimeout(timer);
   }, [notice]);
@@ -445,7 +449,7 @@ export default function Conversation({
       if (receipt.status === "accepted") { onActivity?.(); confirmAccepted(receipt); }
       else feedbackTracker.trackQueued(receipt.requestId);
       setNotice(receipt.status === "queued" && !feedbackTracker.hasAccepted(receipt.requestId)
-        ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入 Mac 待发列表，正在连接原任务；确认可接收后发送。" : "");
+        ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入待发列表，连接后发送。" : "");
       nearBottom.current = true;
     } else if (
       receipt.status === "rejected" ||
@@ -454,8 +458,8 @@ export default function Conversation({
       setError(
         receipt.status === "not_found"
           ? "未收到这次提交，可以重新发送。"
-          : receipt.code === "desktop_preflight_timeout" ? "连接原任务超时，这次没有发送，可以重试。"
-          : "原任务暂时无法接收消息，请检查当前状态或重新连接。",
+          : receipt.code === "desktop_preflight_timeout" ? "连接超时，这次没有发送，可以重试。"
+          : "会话暂时无法接收消息，请稍后重试。",
       );
     } else setNotice("发送结果尚未确认。先刷新历史；核对状态不会重复发送。");
   };
@@ -497,7 +501,7 @@ export default function Conversation({
       if (receipt.requestId !== requestId) throw new Error("回执与当前消息不匹配，请重新核对。");
       submissions.receipt(thread.id, receipt);
       if (!ownsView()) return;
-      if (receipt.status === "pending") setNotice("Pocket 已收到，正在确认原任务…");
+      if (receipt.status === "pending") setNotice("Pocket 已收到，正在确认…");
       const confirmed = await waitForSubmission(receipt, signal => api<Receipt>(`/api/tasks/${thread.id}/messages/${requestId}`, "GET", undefined, { signal }), controller.signal);
       submissions.receipt(thread.id, confirmed);
       if (!ownsView()) return;
@@ -520,7 +524,7 @@ export default function Conversation({
     }
   };
   const connect = async () => {
-    if (connecting || connectionOpen.current) return;
+    if (connecting || connectionOpen.current || !online || !targetAvailable || compatibilityCode) return;
     const controller = new AbortController();
     connectionOpen.current = controller;
     setOpening(true);
@@ -528,17 +532,39 @@ export default function Conversation({
     setConnectionError("");
     const ownsView = () => !controller.signal.aborted && connectionOpen.current === controller;
     try {
-      const result = await onConnect();
+      const result = await onConnect({ quiet: true });
       if (!ownsView()) return;
       if (result.connection) setConnection(previous => newerConnection(previous, result.connection));
-      else setConnectionError("Mac 已收到打开请求，连接尚未确认。请刷新状态后重试。");
+      else setConnectionError("连接状态待确认");
       void load();
     } catch (error) {
-      if (ownsView()) setConnectionError((error as Error).message || "连接请求未完成，请重试连接。");
+      if (ownsView()) setConnectionError("连接失败");
     } finally {
       if (ownsView()) { connectionOpen.current = null; setOpening(false); }
     }
   };
+  const preconnectBlocked = !!thread.sourceExcluded || thread.separator || !!draft.requestId || sending || !!compatibilityCode || history?.canAttemptSend === false || !!history?.pendingRequests?.length ||
+    !!history?.compaction?.active || !!history?.queuePaused ||
+    ["pending", "accepted", "unknown"].includes(history?.compactionRequest?.status ?? "") ||
+    ["pending", "accepted", "unknown"].includes(history?.stopRequest?.status ?? "") ||
+    shownOutbox.some(item => ["pending", "unknown"].includes(item.status)) ||
+    visibleSubmissions.some(item => ["pending", "submitting", "connecting", "unknown"].includes(item.status));
+  const hasComposerContent = !!draft.text.trim() || attachments.length > 0;
+  const retryConnection = showConnectionState && connectionFailed && !compatibilityCode && !hasComposerContent && !draft.requestId && !preconnectBlocked;
+  const connectionOnlyAction = !hasComposerContent && !draft.requestId && (retryConnection || connecting);
+  const connectionContext = useRef<{ connect: () => Promise<void>; available: () => boolean }>({ connect, available: () => false });
+  connectionContext.current = { connect, available: () => online && targetAvailable && !preconnectBlocked && !connecting &&
+    (history?.source !== "desktop" || !!historyError) && (observedConnection.status !== "connected" || staleConnection) &&
+    document.visibilityState !== "hidden" && !!composer.ref.current?.isConnected &&
+    !composer.ref.current.closest('[inert], [aria-hidden="true"]') && !document.querySelector("[data-reading-overlay]") };
+  useEffect(() => {
+    const form = composer.ref.current;
+    if (!form) return;
+    const controller = createComposerConnectionIntent({ available: () => connectionContext.current.available(), connect: () => connectionContext.current.connect() });
+    inputConnection.current = controller;
+    const unbind = bindComposerConnectionIntent(form, () => { void controller.request(); });
+    return () => { unbind(); controller.dispose(); if (inputConnection.current === controller) inputConnection.current = null; };
+  }, [thread.id]);
   const retryRead = async () => {
     if (retryingRead) return;
     const generation = readViewGeneration.current;
@@ -561,11 +587,11 @@ export default function Conversation({
       <div className="conversation-toolbar">
         <div className="conversation-overview">
         <div className="runtime-summary">
-        <span className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>
-          {connecting ? "正在连接原任务…" : observedConnection.status === "failed" && history?.source !== "desktop" ? "连接未完成" : loading
+        {(!showConnectionState || composer.compact) && <span className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>
+          {connecting ? "连接中…" : observedConnection.status === "failed" && history?.source !== "desktop" ? "未连接" : loading
             ? shownMessages.length ? "正在同步状态…" : "正在读取历史…"
-            : historyError ? "等待重连" : history?.pendingRequests?.length ? "等待确认" : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断" : statuses[history?.runtime || ""] || "任务状态"}
-        </span>
+            : historyError ? "未连接" : history?.pendingRequests?.length ? "等待确认" : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断" : statuses[history?.runtime || ""] || "会话状态"}
+        </span>}
           <TurnDuration timing={toolbarTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
         </div>
           <ContextStatus threadId={thread.id} history={compatibilityCode && history ? { ...history, canCompact: false, canAttemptCompact: false } : history} disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} />
@@ -640,24 +666,13 @@ export default function Conversation({
       </button>}
       </div>
       <div className="conversation-status">
-        {(connectionHint || showConnectionAction) && <div className="conversation-connection">
+        {connectionHint && <div className="conversation-connection">
         {connectionHint && <p role="status">{connectionHint}</p>}
-        {showConnectionAction && (
-          <button
-            className="secondary conversation-connect"
-            disabled={connecting || !online}
-            title="连接原任务并重新读取实时状态"
-            onClick={() => void connect()}
-          >
-            <Link2 size={15} />
-            {connecting ? "正在连接…" : observedConnection.status === "failed" || staleConnection || connectionError ? "重试连接" : "连接任务"}
-          </button>
-        )}
         </div>}
-        {(error || connectionError || historyError || notice || acceptedNotice || currentReadFeedback) && <div className="conversation-feedback">
-        {(error || connectionError || historyError) && (
+        {(error || historyError || notice || acceptedNotice || currentReadFeedback) && <div className="conversation-feedback">
+        {(error || historyError) && (
           <p className="inline-error" role="alert">
-            {error || connectionError || historyError}
+            {error || historyError}
           </p>
         )}
         {notice && (
@@ -685,11 +700,11 @@ export default function Conversation({
         <DraftAttachmentList threadId={thread.id} items={attachments} controller={uploads} disabled={!online || !targetAvailable || !!draft.requestId} error={attachmentError}
           onRecover={attachmentRecoveryNeeded ? () => void recoverAttachments() : undefined} />
         <label className="sr-only" htmlFor="user-query">
-          发送给原任务的消息
+          发送消息
         </label>
         <AutoTextarea
           id="user-query"
-          aria-label="发送给原任务的消息"
+          aria-label="发送消息"
           rows={composer.compact ? 1 : 2}
           placeholder={composer.compact ? "继续对话…" : enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
           value={draft.text}
@@ -703,18 +718,22 @@ export default function Conversation({
         />
         <div className="composer-actions">
           <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} onPickingChange={composer.setPicking} preserveFocus />
+          {showConnectionState && <span className="composer-connection-state" data-failed={connectionFailed || !!compatibilityCode || undefined}>
+            <span role="status">{connectionLabel}</span>
+          </span>}
           <button
             className="primary"
+            type={connectionOnlyAction ? "button" : "submit"}
+            onClick={retryConnection ? () => { void inputConnection.current?.request(true); } : undefined}
             disabled={
-              sending ||
+              connectionOnlyAction ? !online || connecting || preconnectBlocked : sending ||
               !online ||
-              (!draft.text.trim() && !attachments.length) ||
-              (!draft.requestId && !readyAttachments(attachments)) ||
-              (!draft.requestId && (enqueue ? !canQueue : !targetAvailable || !history?.canSend))
+              (!draft.requestId && (!hasComposerContent || !readyAttachments(attachments) ||
+                (enqueue ? !canQueue : !targetAvailable || !history?.canSend)))
             }
           >
-            <Send size={15} />
-            {sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送并连接" : enqueue ? "加入队列" : "发送"}
+            {connectionOnlyAction ? connecting ? <LoaderCircle size={15} className="composer-connection-spinner" aria-hidden="true" /> : <RefreshCw size={15} aria-hidden="true" /> : <Send size={15} />}
+            {connectionOnlyAction ? connecting ? "连接中…" : "重试连接" : sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送" : enqueue ? "加入队列" : "发送"}
           </button>
         </div>
       </form>

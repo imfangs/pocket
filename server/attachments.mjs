@@ -94,7 +94,7 @@ export class Attachments {
   async upload(threadId, id, name, declaredType, stream) {
     this.validateId(threadId, id);
     const thread = this.store.thread(threadId);
-    if (thread.archived || thread.missing) throw new AppError("请先恢复这条原任务", 409);
+    if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
     if (typeof name !== "string" || !name.trim() || name.length > 180 || /[\\/\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(name) || name === "." || name === "..")
       throw new AppError("附件名称无效");
     if (this.uploads.has(id) || this.uploads.size >= 4) throw new AppError("附件正在上传，请稍后核对", 409);

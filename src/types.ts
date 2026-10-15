@@ -27,6 +27,8 @@ export interface Thread {
   pinnedOrder: number;
   pinRevision?: number;
   pinSource?: "pocket" | "codex";
+  codexPinned?: boolean;
+  pocketPriority?: boolean;
   separator: boolean;
   source: string;
   createdAt: number;

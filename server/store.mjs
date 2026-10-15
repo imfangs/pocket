@@ -25,9 +25,13 @@ const validDate = (s) =>
 export const intents = ["none", "active", "later", "reference"];
 function pinFromRow(source, row, pinRevision) {
   const titleRevision = parse(row.title_revision, 0);
-  if (row.pocket_pinned == null) return { ...source, pinRevision, titleRevision, pinSource: "codex" };
+  // These independent values are projections, never values supplied by an
+  // imported/source object. Keep the legacy effective pin fields for old PWAs.
+  const independent = { codexPinned: Boolean(source.pinned), pocketPriority: row.pocket_pinned === 1 };
+  if (row.pocket_pinned == null) return { ...source, ...independent, pinRevision, titleRevision, pinSource: "codex" };
   return {
     ...source,
+    ...independent,
     pinRevision,
     titleRevision,
     pinSource: "pocket",
@@ -122,7 +126,7 @@ export class NavigatorStore {
     }
     this.db.exec("BEGIN IMMEDIATE");
     try {
-      const previousRows = this.db.prepare("SELECT s.id,s.data,p.pinned AS pocket_pinned FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id").all();
+      const previousRows = this.db.prepare("SELECT id,data FROM source_threads").all();
       const previousById = new Map(previousRows.map(row => [row.id, row]));
       let pinsChanged = false, titlesChanged = false;
       const upsert = this.db.prepare(
@@ -135,7 +139,7 @@ export class NavigatorStore {
         const previous = previousById.get(t.id);
         if (previous && JSON.parse(previous.data).title !== t.title)
           titlesChanged = true;
-        if (previous && previous.pocket_pinned == null) {
+        if (previous) {
           const old = JSON.parse(previous.data);
           if (Boolean(old.pinned) !== Boolean(t.pinned) ||
               (t.pinned && old.pinnedOrder !== t.pinnedOrder))
@@ -204,7 +208,7 @@ export class NavigatorStore {
     const row = this.db
       .prepare("SELECT s.data,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision,(SELECT value FROM settings WHERE key='titleRevision') AS title_revision FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id WHERE s.id=?")
       .get(id);
-    if (!row) throw new AppError("找不到原会话", 404);
+    if (!row) throw new AppError("找不到会话", 404);
     return pinFromRow(JSON.parse(row.data), row, parse(row.pin_revision, 0));
   }
   catalog() {
@@ -249,22 +253,32 @@ export class NavigatorStore {
         Object.keys(input).some((key) => key !== "pinned") ||
         typeof input.pinned !== "boolean")
       throw new AppError("置顶请求只接受 pinned 布尔值");
+    return this.writePinPreference(id, input.pinned);
+  }
+  setPriority(id, input) {
+    if (!input || typeof input !== "object" || Array.isArray(input) ||
+        Object.keys(input).some((key) => key !== "priority") ||
+        typeof input.priority !== "boolean")
+      throw new AppError("优先关注请求只接受 priority 布尔值");
+    return this.writePinPreference(id, input.priority, true);
+  }
+  writePinPreference(id, pinned, unsetIsFalse = false) {
     let changed = false;
     this.db.exec("BEGIN IMMEDIATE");
     try {
       this.thread(id);
       const previous = this.db.prepare("SELECT pinned FROM pin_overrides WHERE thread_id=?").get(id);
-      // Explicitly choosing the source's current value still creates an
-      // override, so a later source refresh cannot undo the user's choice.
-      if (previous?.pinned !== Number(input.pinned)) {
-        const position = input.pinned
+      // The legacy API still persists an explicit false override. Priority has
+      // no native fallback, so an unset false is already the requested state.
+      if ((unsetIsFalse ? previous?.pinned ?? 0 : previous?.pinned) !== Number(pinned)) {
+        const position = pinned
           ? Math.min(0, this.db.prepare("SELECT MIN(position) AS minimum FROM pin_overrides").get().minimum ?? 0) - 1
           : null;
         if (position !== null && !Number.isSafeInteger(position))
           throw new AppError("置顶顺序已超出可用范围");
         this.db.prepare(`INSERT INTO pin_overrides(thread_id,pinned,position,updated_at) VALUES(?,?,?,?)
           ON CONFLICT(thread_id) DO UPDATE SET pinned=excluded.pinned,position=excluded.position,updated_at=excluded.updated_at`)
-          .run(id, Number(input.pinned), position, Date.now());
+          .run(id, Number(pinned), position, Date.now());
         this.advancePinRevision();
         changed = true;
       }

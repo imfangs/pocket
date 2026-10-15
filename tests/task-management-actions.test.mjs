@@ -15,14 +15,15 @@ function render(props = {}) {
 }
 test('an empty persisted conversation can submit its first message and connect without a prior owner', () => {
   const { html } = render();
-  assert.match(html, /发送并连接/);
+  assert.match(html, /<button class="primary"[^>]*>[\s\S]*发送<\/button>/);
+  assert.doesNotMatch(html, /发送并连接|连接任务/);
   const primary = html.match(/<button class="primary"([^>]*)>/)[1];
   assert.doesNotMatch(primary, /disabled/);
 });
 test('waiting archive blocks sending and reconnecting but preserves an editable draft', () => {
   const { html, drafts } = render({ managementBlocked: true, managementHint: '等待 Codex 释放会话，释放后自动归档，可取消。' });
   assert.match(html, /等待 Codex 释放会话/);
-  assert.match(html, /<button class="primary" disabled="">/);
+  assert.match(html, /<button class="primary"[^>]*disabled=""[^>]*>/);
   assert.match(html, /暂不可发送/);
   assert.doesNotMatch(html, /连接任务/);
   assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /disabled/);

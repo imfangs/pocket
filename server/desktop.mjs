@@ -77,8 +77,8 @@ export class DesktopService {
   connect(id, { open = true } = {}) {
     this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
-    if (thread.archived || thread.missing) throw new AppError("请先恢复这条原任务", 409);
-    if (!this.openThread) throw new AppError("当前环境无法连接桌面原任务", 503);
+    if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
+    if (!this.openThread) throw new AppError("当前环境无法连接桌面会话", 503);
     const previous = this.connections.get(id);
     if (previous?.state.status === "connecting") return { ...previous.state };
     const now = Date.now();
@@ -214,7 +214,7 @@ export class DesktopService {
           messages: [],
           runtime: "unavailable",
           canSend: false,
-          hint: "暂时无法读取历史，请连接 Mac 中的原任务后刷新。",
+          hint: "历史暂时无法载入，请稍后刷新。",
         };
       }
       const incompatible = compatibilityFailure(result);
@@ -316,7 +316,7 @@ export class DesktopService {
       return this.receipt(old);
     }
     if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pending(id) || this.compactionPending(id))
-      throw new AppError("原任务暂时无法接收回答，请刷新状态", 409);
+      throw new AppError("会话暂时无法接收回答，请刷新状态", 409);
     const prior = this.store.db.prepare("SELECT d.id FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? AND d.status IN('pending','accepted','unknown')").get(id, questionKey);
     if (prior) throw new AppError("这道问题已有回答，请先核对状态", 409);
     this.transaction(() => {
@@ -366,7 +366,7 @@ export class DesktopService {
       if (old.thread_id !== id || old.request_key !== requestKey || old.decision !== recordedDecision) throw new AppError("响应编号已用于其他操作", 409);
       return this.getResponseReceipt(id, input.responseId);
     }
-    if (thread.archived || thread.missing) throw new AppError("请先恢复原任务", 409);
+    if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
     const prior = this.store.db.prepare("SELECT id FROM request_responses WHERE thread_id=? AND request_key=? AND status IN('pending','accepted','unknown')").get(id, requestKey);
     if (prior) throw new AppError("这个请求已经响应，请先刷新核对", 409);
     this.store.db.prepare("INSERT INTO request_responses VALUES(?,?,?,?,'pending',NULL,?)")
@@ -396,7 +396,7 @@ export class DesktopService {
     this.sending.add(id);
     try {
       const state = await this.loadHistory(id);
-      if (!state.canCompact || state.source !== "desktop") throw new AppError("请等本轮执行结束、原任务连接恢复后再压缩", 409);
+      if (!state.canCompact || state.source !== "desktop") throw new AppError("请等本轮执行结束、会话连接恢复后再压缩", 409);
       this.store.db.prepare("INSERT INTO compactions VALUES(?,?,'pending',?,NULL,?)")
         .run(input.requestId, id, state.compaction?.latestId || null, Date.now());
       let result;
@@ -493,12 +493,12 @@ export class DesktopService {
   async dispatchQueued(id, requestId, input, delivery = "now", resumeAfterTurnId = null) {
     this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
-    if (thread.archived || thread.missing) throw new AppError("请先在 Mac 中恢复原任务", 409);
+    if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
     if (this.compactionPending(id)) throw new AppError("请先核对上下文压缩状态", 409);
     if (this.stops.pending(id) || (delivery !== "now" && this.stops.pause(id))) throw new AppError("待发消息已暂停，请先核对停止状态", 409);
     if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("发送参数无效", 400);
     const row = this.queued(id, requestId, input.expectedRevision);
-    if (this.sending.has(id)) throw new AppError("原任务正在提交另一条消息", 409);
+    if (this.sending.has(id)) throw new AppError("会话正在提交另一条消息", 409);
     this.sending.add(id);
     const claim = this.store.db.prepare("UPDATE dispatches SET status='pending',code=NULL WHERE id=? AND status IN('queued','rejected') AND EXISTS(SELECT 1 FROM outgoing_messages WHERE id=? AND revision=?)")
       .run(requestId, requestId, input.expectedRevision);
@@ -573,7 +573,7 @@ export class DesktopService {
     this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     if (thread.missing || thread.archived)
-      throw new AppError("请先在 Mac 中恢复这条原任务", 409);
+      throw new AppError("请先恢复会话", 409);
     if (
       !input ||
       Object.keys(input).some((k) => !["text", "requestId", "enqueue", "attachments"].includes(k)) ||

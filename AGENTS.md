@@ -13,6 +13,7 @@
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 优先关注与Codex置顶、输入意图预连接、精简文案、消息相对时间 | [独立优先与输入意图](docs/design/2026-10-15-priority-and-composer.md)：双标记/加分、旧接口兼容、单主按钮和共享时钟 |
 | 动效、详情转场、手势跟随与内容过渡 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：跟手、披露、创建/消息衔接、主动pin换位和轻反馈；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
 | 项目导航、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：单分数公式、消息来源、行为加分、有效状态与滚动锚 |
 | 手机阅读态输入区收放、列表时间/状态位置 | [阅读与列表收敛](docs/design/2026-10-13-reading-composer-and-row-state.md)：同一输入节点、焦点/IME/附件/待处理保护与固定状态槽 |

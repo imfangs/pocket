@@ -66,7 +66,7 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
       }
       if (currentView()) {
         setPending(p => ({ ...p, [request.key]: result }));
-        if (result.status === "rejected") setError("请求已变化或无法响应，请刷新后查看当前请求。");
+        if (result.status === "rejected") setError("请求已变化或无法响应，请刷新后查看。");
         await refresh();
       }
     } catch (e) {
@@ -78,8 +78,8 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
     } finally { release(); if (generation === viewGeneration.current) setBusy(null); }
   };
   if (!requests.length) return null;
-  return <section className="request-actions" aria-label="等待你的确认">
-    <strong>等待你的确认</strong>
+  return <section className="request-actions" aria-label="等待确认">
+    <strong>等待确认</strong>
     {requests.map(request => {
       const reply = pending[request.key] || request.response;
       const waiting = !!reply && ["pending", "accepted", "unknown", "resolved"].includes(reply.status);
@@ -105,7 +105,7 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
               onChange={event => answer(request, question.id, event.target.value)} />}
         </fieldset>)}
         <div className="approval-buttons">
-          {waiting ? <><small>{reply.status === "unknown" ? "结果待核对，不会重复响应" : "已提交，等待原任务更新"}</small>
+          {waiting ? <><small>{reply.status === "unknown" ? "结果待核对，不会重复响应" : "已提交，等待更新"}</small>
             <button disabled={disabled || !!busy} onClick={() => void act(request)}>核对状态</button></>
             : <>{request.choices.includes("cancel") && <button disabled={disabled || !!busy} onClick={() => void act(request, "cancel")}>拒绝本次</button>}
               {request.choices.includes("accept") && <button className="primary" disabled={disabled || !!busy} onClick={() => void act(request, "accept")}>{request.kind === "permissions" ? "允许本轮" : "允许这一次"}</button>}

@@ -221,7 +221,7 @@ export function readPersistedHistory(codexHome, threadId) {
       hasMore: start > 0,
       runtime: "unavailable",
       canSend: false,
-      hint: "显示已保存的历史。连接 Mac 中的原任务后可发送消息。",
+      hint: "历史已载入，连接后可发送。",
     };
   } finally {
     closeSync(fd);

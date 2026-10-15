@@ -27,13 +27,13 @@ export function failedOperation(initial: TaskOperation, failure: OperationFailur
 export function operationCheckError(failure: OperationFailure, operation?: TaskOperation["operation"]) {
   // A missing receipt is not proof that a previous POST never reached the Mac.
   if (failure.status === 404) return operation === "create"
-    ? "Mac 中暂未找到这次操作记录。可稍后核对，或停止核对后返回编辑；可能已创建的会话会保留。"
-    : "Mac 中暂未找到这次操作记录，请稍后核对。这不代表操作一定没有执行。";
+    ? "暂未找到操作记录，请稍后核对；停止核对不会删除已创建的会话。"
+    : "暂未找到操作记录，结果仍待确认，请稍后核对。";
   if (failure.status === 401) return "登录已过期，重新登录后可继续核对。";
   if (["relay_not_forwarded", "relay_unavailable"].includes(failure.code || ""))
-    return "暂时连接不到 Mac，连接恢复后可继续核对。原操作结果仍待确认。";
+    return "暂时连接不到 Mac，连接恢复后继续核对。";
   if (failure.name === "TimeoutError" || failure.name === "TypeError")
-    return "核对连接中断或超时，请恢复网络后重试。原操作仍待确认。";
+    return "核对中断或超时，请稍后继续核对。";
   return "暂时无法核对操作状态，请稍后再试。";
 }
 const creationRecoveryKey = "pocket.pending-creation-ids.v1";
@@ -72,28 +72,28 @@ export function operationText(operation: TaskOperation) {
   if (operation.operation === "create" && operation.creationStatus === "created" && operation.initialMessage && operation.status !== "cancelled") {
     const status = operation.initialMessage.status;
     if (status === "accepted") return "会话已创建，首条消息已发送。";
-    if (status === "queued") return "会话已创建，首条消息已保存在待发队列。";
-    if (status === "pending") return "会话已创建，正在确认首条消息的发送结果。";
+    if (status === "queued") return "会话已创建，首条消息待发送。";
+    if (status === "pending") return "会话已创建，首条消息正在提交。";
     if (status === "editing") return "会话已创建，首条消息正在编辑。";
     if (status === "cancelled") return "会话已创建，首条消息已取消。";
     if (status === "rejected") return "会话已创建，首条消息发送未完成，请打开处理。";
     if (status === "unknown") return "会话已创建，首条消息结果待确认，请打开核对。";
-    return "会话已创建，首条消息尚未交给发送队列，请核对操作状态。";
+    return "会话已创建，首条消息尚未入队，请核对。";
   }
-  if (operation.status === "waiting") return `等待 Codex 释放会话，释放后自动${action}，可取消。`;
+  if (operation.status === "waiting") return `会话暂时忙碌，空闲后自动${action}。`;
   if (operation.status === "pending") return `正在${action}会话…`;
-  if (operation.status === "unknown") return `${action}结果尚未确认，请核对状态。`;
+  if (operation.status === "unknown") return `${action}结果待确认，请核对。`;
   if (operation.status === "succeeded") return `会话已${operation.operation === "create" ? "创建" : action}。`;
   if (operation.status === "cancelled") return operation.operation === "create"
-    ? "已停止此次新建结果核对；可能已创建的会话会保留。" : "已取消等待。";
-  if (operation.status === "changed") return "会话有新活动或子会话发生变化，本次操作已停止，请重新查看后操作。";
+    ? "已停止核对；可能已创建的会话会保留。" : "已取消等待。";
+  if (operation.status === "changed") return "会话状态已变化，本次操作已停止，请确认后再操作。";
   if (operation.code === "relay_not_forwarded") return operation.operation === "create"
-    ? "新建请求还未送达 Mac，内容已保留。连接恢复后可再次创建。"
-    : "本次请求还未送达 Mac，连接恢复后可重试。";
-  if (operation.code === "outbox_not_empty") return "还有待发消息，请先处理待发列表再归档。";
-  if (operation.code === "active_or_unknown_thread") return `会话尚未确认结束，请先核对执行状态再${action}。`;
+    ? "请求还未送达 Mac，连接恢复后可再次创建。"
+    : "请求还未送达 Mac，连接恢复后可重试。";
+  if (operation.code === "outbox_not_empty") return "还有待发消息，请先处理再归档。";
+  if (operation.code === "active_or_unknown_thread") return "会话尚未确认结束，请先核对状态。";
   if (["thread_active", "thread_running", "active_turn"].includes(operation.code || "")) return "会话正在运行，请先停止或等本轮结束再归档。";
-  if (["dispatch_unknown", "pending_dispatch", "unresolved_dispatch", "unresolved_send"].includes(operation.code || "")) return "还有发送结果尚未确认，请先核对再归档。";
+  if (["dispatch_unknown", "pending_dispatch", "unresolved_dispatch", "unresolved_send"].includes(operation.code || "")) return "发送结果尚未确认，请先核对。";
   return operation.message || `未能${action}会话，请刷新状态后重试。`;
 }
 export function operationCancelLabel(operation: TaskOperation) {

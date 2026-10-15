@@ -159,14 +159,14 @@ export function submittedOutbox(entries: readonly SubmittedQuery[], messages: re
 }
 
 export function submittedQueryLabel(entry: SubmittedQuery, connecting = false) {
-  if (entry.status === "accepted") return "已接收，等待同步";
+  if (entry.status === "accepted") return "已发送";
   if (entry.status === "unknown") return "结果待核对";
   if (entry.status === "rejected") return "未能发送";
   if (entry.status === "not_found") return "未找到提交记录";
   if (entry.status === "cancelled") return "已取消发送";
   if (entry.status === "editing") return "编辑中，已暂停发送";
   if (entry.status === "not_queued") return "正在准备首条消息";
-  if (entry.status === "connecting" || (entry.status === "queued" && connecting)) return "正在连接原任务";
-  if (entry.status === "queued") return "已保存，等待发送";
+  if (entry.status === "connecting" || (entry.status === "queued" && connecting)) return "正在连接 Mac";
+  if (entry.status === "queued") return "待发送";
   return "正在提交";
 }

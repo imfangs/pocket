@@ -1,6 +1,7 @@
 import {
   Search,
   Pin,
+  Star,
   ArrowUpRight,
   Inbox,
 } from "lucide-react";
@@ -8,6 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { Thread, View } from "./types";
 import { ago } from "./model";
 import { lastMessageTime } from "./threadTime";
+import { codexPinned, pocketPriority } from "./priority";
 import { emptyListContent, threadListPresentation } from "./listPresentation";
 import type { TaskStatus } from "./taskStatuses";
 import SwipeTaskRow from "./SwipeTaskRow";
@@ -22,7 +24,7 @@ interface Props {
   unreadPending?: number;
   onSelect: (id: string, animate?: boolean) => void;
   onOpen: (t: Thread) => void;
-  onPin?: (t: Thread) => Promise<void>;
+  onPriority?: (t: Thread) => Promise<void>;
   busy: boolean;
   query: string;
   onClearQuery: () => void;
@@ -39,9 +41,9 @@ interface Props {
 export default function TaskList(p: Props) {
   const [limits, setLimits] = useState(() => new Map<string, number>());
   const [openRowId, setOpenRowId] = useState<string | null>(null);
-  const [pinningId, setPinningId] = useState<string | null>(null);
-  const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
-  const pinning = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
+  const [prioritizingId, setPrioritizingId] = useState<string | null>(null);
+  const [priorityErrors, setPriorityErrors] = useState<Record<string, string>>({});
+  const prioritizing = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
   const motion = useRef<ReturnType<typeof bindTaskListMotion> | null>(null);
   const scope = `${p.view}\0${p.projectScope || ""}\0${p.query}`;
   const limit = limits.get(scope) ?? 80;
@@ -85,7 +87,7 @@ export default function TaskList(p: Props) {
     }
     rememberAnchor();
     motion.current?.commit(scope);
-  }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, pinningId, scope, limit, rememberAnchor]);
+  }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, prioritizingId, scope, limit, rememberAnchor]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { setOpenRowId(null); }, [p.view, p.query, p.projectScope]);
   useEffect(() => {
@@ -101,21 +103,21 @@ export default function TaskList(p: Props) {
     document.addEventListener("focusin", outside);
     return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("focusin", outside); };
   }, [openRowId]);
-  const clearPinError = (id: string) => setPinErrors(previous => { const next = { ...previous }; delete next[id]; return next; });
-  const pin = async (thread: Thread, animate: boolean) => {
-    if (!p.onPin || p.busy || pinning.current) return;
-    motion.current?.beginPin(thread.id, !thread.pinned, animate);
-    pinning.current = thread.id; setPinningId(thread.id); setOpenRowId(thread.id); clearPinError(thread.id);
+  const clearPriorityError = (id: string) => setPriorityErrors(previous => { const next = { ...previous }; delete next[id]; return next; });
+  const changePriority = async (thread: Thread, animate: boolean) => {
+    if (!p.onPriority || p.busy || prioritizing.current) return;
+    motion.current?.beginPriority(thread.id, !pocketPriority(thread), animate);
+    prioritizing.current = thread.id; setPrioritizingId(thread.id); setOpenRowId(thread.id); clearPriorityError(thread.id);
     try {
-      await p.onPin(thread);
-      motion.current?.confirmPin(thread.id);
+      await p.onPriority(thread);
+      motion.current?.confirmPriority(thread.id);
       if (mounted.current) setOpenRowId(current => current === thread.id ? null : current);
     } catch (failure) {
-      motion.current?.cancelPin(thread.id);
-      if (mounted.current) setPinErrors(previous => ({ ...previous, [thread.id]: failure instanceof Error ? failure.message : "置顶未完成，请重试。" }));
+      motion.current?.cancelPriority(thread.id);
+      if (mounted.current) setPriorityErrors(previous => ({ ...previous, [thread.id]: failure instanceof Error ? failure.message : "关注状态未保存，请重试。" }));
     } finally {
-      pinning.current = null;
-      if (mounted.current) setPinningId(null);
+      prioritizing.current = null;
+      if (mounted.current) setPrioritizingId(null);
     }
   };
   const empty = emptyListContent({ view: p.view, query: p.query, projectScope: p.projectScope, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
@@ -140,7 +142,7 @@ export default function TaskList(p: Props) {
           </div>}
         </div>
       ) : (
-        <div className="task-list" role="list" aria-label="任务列表">
+        <div className="task-list" role="list" aria-label="会话列表">
           {p.threads.slice(0, limit).map((t) => {
             const messageAt = lastMessageTime(t);
             const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
@@ -151,11 +153,11 @@ export default function TaskList(p: Props) {
               <SwipeTaskRow
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""}`}
                 key={t.id}
-                threadId={t.id} title={t.title} pinned={t.pinned} open={openRowId === t.id}
-                disabled={p.busy || !!pinningId} pending={pinningId === t.id} error={pinErrors[t.id]}
-                onPin={p.onPin ? animate => void pin(t, animate) : undefined}
+                threadId={t.id} title={t.title} prioritized={pocketPriority(t)} open={openRowId === t.id}
+                disabled={p.busy || !!prioritizingId} pending={prioritizingId === t.id} error={priorityErrors[t.id]}
+                onPriority={p.onPriority ? animate => void changePriority(t, animate) : undefined}
                 onOpenChange={value => setOpenRowId(current => value ? t.id : current === t.id ? null : current)}
-                onClaim={() => setOpenRowId(current => current === t.id ? current : null)} onDismissError={() => clearPinError(t.id)}
+                onClaim={() => setOpenRowId(current => current === t.id ? current : null)} onDismissError={() => clearPriorityError(t.id)}
               >
                 <button
                   className="task-select"
@@ -167,10 +169,10 @@ export default function TaskList(p: Props) {
                 >
                   <div className="row-first">
                     <strong>{t.separator ? "分隔符会话" : t.title}</strong>
-                    {t.pinned && p.view !== "pinned" && <Pin size={13} className="pin-icon"
-                      data-list-status="pin" data-list-status-key={t.pinSource ?? "codex"}
-                      data-pin-source={t.pinSource ?? "codex"} role="img"
-                      aria-label={t.pinSource === "pocket" ? "Pocket 置顶" : "Codex 置顶"} />}
+                    {pocketPriority(t) && <Star size={13} className="priority-icon"
+                      data-list-status="priority" data-list-status-key="pocket" role="img" aria-label="Pocket 优先关注" />}
+                    {codexPinned(t) && <Pin size={13} className="pin-icon"
+                      data-list-status="codex-pin" data-list-status-key="codex" data-pin-source="codex" role="img" aria-label="Codex 置顶" />}
                     <span className="row-status-slot" data-list-status="primary" data-list-status-key={presentation.primaryState?.key ?? "time"}>
                       {presentation.primaryState ? <span className="task-state-badge" data-state={presentation.primaryState.key}>
                         {presentation.primaryState.label}
@@ -178,14 +180,14 @@ export default function TaskList(p: Props) {
                         : <span aria-label="暂无可确认的消息时间" title="暂无可确认的消息时间">—</span>}
                     </span>
                   </div>
-                  {(!p.projectScope || states.length > 0 || pinningId === t.id) && <div className="row-second">
+                  {(!p.projectScope || states.length > 0 || prioritizingId === t.id) && <div className="row-second">
                     {!p.projectScope && <span className="project-label">
                       {t.projectName === "无项目" ? "独立会话" : t.projectName}
                     </span>}
                     {states.length > 0 && <span className="row-secondary-states" data-list-status="secondary" data-list-status-key={states.map(state => state.key).join(" ")}>
                       {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
                     </span>}
-                    {pinningId === t.id && <span className="row-pin-pending" role="status">正在处理置顶…</span>}
+                    {prioritizingId === t.id && <span className="row-priority-pending" role="status">正在保存…</span>}
                   </div>}
                 </button>
                 <button

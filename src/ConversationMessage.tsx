@@ -8,6 +8,8 @@ import { readableCodexMarkdown } from "./codexMarkup";
 import { useMemo } from "react";
 import AttachmentList from "./AttachmentList";
 import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
+import MessageTimestamp from "./MessageTimestamp";
+import { validMessageTimestamp } from "./messageTime";
 import "./message-footer.css";
 
 export default function ConversationMessage({ message, recentlySent = false, queryDisclosure }: {
@@ -32,8 +34,8 @@ export default function ConversationMessage({ message, recentlySent = false, que
             : "Codex · 回复";
   const confirmed = kind === "user" && recentlySent;
   const copyable = !!displayText.trim();
-  const date = message.timestamp ? new Date(message.timestamp) : null;
-  const dateTime = date?.toJSON();
+  const timestamp = message.timestamp;
+  const hasTimestamp = validMessageTimestamp(timestamp);
   const duration = final && message.turnDurationMs != null ? formatDuration(message.turnDurationMs) : null;
   return (
     <article
@@ -48,12 +50,10 @@ export default function ConversationMessage({ message, recentlySent = false, que
       />}
       <AttachmentList attachments={message.attachments} />
       {message.truncated && <small>内容较长，此处已截取。</small>}
-      {(dateTime || copyable || confirmed || duration) && <footer className="message-footer">
+      {(hasTimestamp || copyable || confirmed || duration) && <footer className="message-footer">
         {confirmed && <span className="message-send-confirmed"><Check size={13} aria-hidden="true" />已发送</span>}
         {duration && <span className="message-duration">总用时 <time>{duration}</time></span>}
-        {dateTime && <time className="message-timestamp" dateTime={dateTime}>
-          {date!.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-        </time>}
+        {hasTimestamp && <MessageTimestamp timestamp={timestamp} />}
         {copyable && <CopyButton text={displayText} label={kind === "user" ? "复制这条消息" : progress ? "复制过程" : "复制回复"} />}
       </footer>}
     </article>

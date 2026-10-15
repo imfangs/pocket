@@ -24,7 +24,7 @@ export default function TaskListPanel({ children, busy, onRefresh, scrollRef, in
   }, []);
   const visible = pull.distance > 0 || pull.refreshing;
   return (
-    <section className="list-panel" ref={panel} aria-label="任务列表滚动区域" inert={inert}>
+    <section className="list-panel" ref={panel} aria-label="会话列表" inert={inert}>
       <div className="pull-refresh-indicator" data-loading={pull.refreshing || undefined}
         style={{ opacity: visible ? 1 : 0 }} role="status" aria-live="polite">
         {visible && <>{pull.refreshing ? <RefreshCw size={15} /> : <ArrowDown size={15} />}

@@ -10,12 +10,12 @@ const unresolved = status => status === "pending" || status === "unknown";
 const safeCode = code => typeof code === "string" && /^[a-z0-9_]{1,100}$/.test(code) ? code : null;
 const messages = {
   archived_thread: "请先恢复会话，再重命名。",
-  thread_missing: "来源中暂时找不到原会话，请刷新后再试。",
-  thread_not_found: "来源中暂时找不到原会话，请刷新后再试。",
+  thread_missing: "暂时找不到会话，请刷新后重试。",
+  thread_not_found: "暂时找不到会话，请刷新后重试。",
   lifecycle_pending: "此会话有未完成的管理操作，请先核对。",
   app_version_changed: "桌面版本已变化，重命名需更新兼容支持。",
   cli_version_changed: "桌面版本已变化，重命名需更新兼容支持。",
-  source_unavailable: "暂时无法读取原会话，请稍后重新读取。",
+  source_unavailable: "会话暂不可用，请稍后重试。",
   rename_not_applied: "已确认名称未改变，可以再次保存。",
 };
 function nativeRequest(payload) {

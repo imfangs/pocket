@@ -38,6 +38,7 @@ import useTaskStatuses from "./useTaskStatuses";
 import { activeOperation } from "./taskOperations";
 import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
+import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
 import { normalizeNavigationPrefs } from "./navigationModel";
 import "./task-operations.css";
 function readPrefs() {
@@ -48,9 +49,9 @@ function readPrefs() {
   }
 }
 const catalogError = (error: Error) => ["TimeoutError", "AbortError"].includes(error.name)
-  ? "读取任务较慢，保留当前列表。"
+  ? "读取较慢，请稍后重试。"
   : /failed to fetch|networkerror|load failed/i.test(error.message)
-    ? "连接暂时中断，保留当前列表。"
+    ? "连接中断，请重试。"
     : error.message;
 const empty: Catalog = {
   threads: [],
@@ -63,7 +64,7 @@ const titles: Record<View, string> = {
   all: "全部会话",
   unread: "待我输入",
   running: "运行中",
-  pinned: "置顶",
+  pinned: "已标记",
   recent: "最近打开",
   archived: "归档",
 };
@@ -181,7 +182,7 @@ export default function App({
     setBusy(true);
     setError("");
     return syncing.current.then(catalog => {
-      if (catalog) notify("任务已刷新");
+      if (catalog) notify("已刷新");
     }).finally(() => {
       setBusy(false);
     });
@@ -399,23 +400,24 @@ export default function App({
     return () => window.removeEventListener("pocket-open-task", fromNotification);
   });
   const open = useCallback(
-    async (t: Thread) => {
+    async (t: Thread, options?: { quiet?: boolean }) => {
       const result = await api<OpenThreadResult>(`/api/open/${t.id}`, "POST");
       catalogReader.invalidate();
       setCatalog((c) => ({
         ...c,
         threads: c.threads.map((x) => (x.id === t.id ? result.thread : x)),
       }));
-      notify(result.readOnly ? `已请求在 Mac 打开「${t.title}」` : result.connection?.status === "connected" ? `已连接「${t.title}」` : `正在连接「${t.title}」…`);
+      if (!options?.quiet) notify(result.readOnly ? "已在 Mac 打开" : result.connection?.status === "connected" ? "已连接" : "连接中…");
       return result;
     },
     [notify, catalogReader],
   );
-  const pinThread = async (thread: Thread) => {
-    const pinned = !thread.pinned;
+  const prioritizeThread = async (thread: Thread) => {
+    if (!hasPriorityState(thread)) throw new Error("请更新 Mac 上的 Pocket 后再使用优先关注。");
+    const priority = !pocketPriority(thread);
     let result: Thread;
     try {
-      result = await api<Thread>(`/api/tasks/${thread.id}/pin`, "POST", { pinned }, { signal: AbortSignal.timeout(15000) });
+      result = await api<Thread>(`/api/tasks/${thread.id}/priority`, "POST", { priority }, { signal: AbortSignal.timeout(15000) });
     } catch (error) {
       const status = (error as Error & { status?: number }).status;
       if (status && status < 500) throw error;
@@ -424,15 +426,15 @@ export default function App({
       try {
         const fresh = await api<Catalog>("/api/catalog", "GET", undefined, { signal: AbortSignal.timeout(15000) });
         const confirmed = fresh.threads.find(item => item.id === thread.id);
-        if (!confirmed || confirmed.pinned !== pinned || confirmed.pinSource !== "pocket" || !Number.isSafeInteger(confirmed.pinRevision)) throw error;
+        if (!confirmed || !hasPriorityState(confirmed) || confirmed.pocketPriority !== priority || !Number.isSafeInteger(confirmed.pinRevision)) throw error;
         result = confirmed;
-      } catch { throw new Error("置顶结果暂未确认，请刷新列表后再试。"); }
+      } catch { throw new Error("关注状态尚未确认，请刷新后再试。"); }
     }
-    if (result.id !== thread.id || result.pinned !== pinned || result.pinSource !== "pocket" || !Number.isSafeInteger(result.pinRevision))
-      throw new Error("置顶状态尚未确认，请刷新列表后再试。");
+    if (result.id !== thread.id || !hasPriorityState(result) || result.pocketPriority !== priority || !Number.isSafeInteger(result.pinRevision))
+      throw new Error("关注状态尚未确认，请刷新后再试。");
     catalogReader.invalidate();
     setCatalog(current => ({ ...current, threads: current.threads.map(item => item.id === thread.id
-      ? { ...item, pinned: result.pinned, pinnedOrder: result.pinnedOrder, pinRevision: result.pinRevision, pinSource: result.pinSource } : item) }));
+      ? { ...item, ...priorityFields(result) } : item) }));
     void refresh().catch(() => {});
   };
   if (loading) return <BootSplash />;
@@ -476,7 +478,7 @@ export default function App({
               className={`sync-button ${busy ? "spinning" : ""}`}
               onClick={() => { void syncTasks().catch(() => {}); }}
               disabled={busy || loading}
-              aria-label="刷新任务"
+              aria-label="刷新会话"
             >
               <RefreshCw size={16} />
               <span>同步</span>
@@ -485,13 +487,13 @@ export default function App({
           <div className="filter-row">
             <div className="activity-filters">
             <button className="needs-input-toggle" data-inbox={view === "unread"} onClick={view === "unread" ? returnFromActivity : () => openActivity("unread")}
-              title={view === "unread" ? "返回之前的列表、搜索与位置" : "查看所有项目的待输入任务"}>
+              title={view === "unread" ? "返回列表" : "查看待我输入的会话"}>
               {view === "unread" ? <ChevronLeft size={16} aria-hidden="true" /> : <span className="unread-dot" aria-hidden="true" />}
               <span>{view === "unread" ? "返回列表" : "待我输入"}</span>
               {view !== "unread" && <small>{unreadKnown ? unreadCount : "—"}</small>}
             </button>
             <button className="needs-input-toggle running-toggle" data-inbox={view === "running"} aria-pressed={view === "running"}
-              title={view === "running" ? "返回之前的列表、搜索与位置" : "查看所有项目中已确认运行的任务"}
+              title={view === "running" ? "返回列表" : "查看运行中的会话"}
               onClick={view === "running" ? returnFromActivity : () => openActivity("running")}>
               <span className="running-dot" aria-hidden="true" />
               <span>运行中</span><small>{runtimeKnown ? runningCount : "—"}</small>
@@ -514,7 +516,7 @@ export default function App({
           {searchOpen && <div className="search-box expanded-search" id="task-search-box">
             <input
               ref={search}
-              aria-label="搜索任务"
+              aria-label="搜索会话"
               placeholder={`搜索${title}…`}
               aria-describedby="task-search-help"
               inputMode="search"
@@ -539,11 +541,11 @@ export default function App({
             <AlertCircle size={17} />
             <span>
               {error || readError ||
-                `原版暂时无法读取，保留上次同步结果。${catalog.sourceError}`}
+                "暂时无法更新，显示上次内容。"}
             </span>
             <button
               className="icon-button"
-              aria-label={error ? "关闭提示" : readError ? "重新读取任务" : "重新读取来源"}
+              aria-label={error ? "关闭提示" : "重试刷新"}
               disabled={!error && busy}
               onClick={() => {
                 if (error) setError("");
@@ -578,7 +580,7 @@ export default function App({
                 </button>)}
               </section>}
               <TaskList
-                onPin={pinThread}
+                onPriority={prioritizeThread}
                 runtimeStates={taskStatuses.runtimeStates}
                 runtimeUnavailable={taskStatuses.runtimeUnavailable}
                 runtimeLoading={taskStatuses.runtimeLoading}

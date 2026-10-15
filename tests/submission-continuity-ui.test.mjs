@@ -26,7 +26,8 @@ test('accepted first query remains visible while native history has not echoed i
   const drafts = new Map([['thread', { text: 'An independent next query' }]]);
   const html = render(submissions, undefined, drafts);
   assert.match(html, /The submitted first query/);
-  assert.match(html, /已接收，等待同步/);
+  assert.match(html, /已发送/);
+  assert.doesNotMatch(html, /<strong>你<\/strong>|原文已保留|消息出现前会保留/);
   assert.match(html, /<textarea[^>]*>An independent next query<\/textarea>/);
   assert.equal(drafts.get('thread').text, 'An independent next query');
 });
@@ -35,7 +36,8 @@ test('quick creation shows a queued first query before the first history respons
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, { ...entry, status: 'queued' });
   const html = render(submissions);
   assert.match(html, /data-submission-id="submitted-one"/);
-  assert.match(html, /正在连接原任务/);
+  assert.match(html, /正在连接 Mac/);
+  assert.doesNotMatch(html, /已发送|原文已保留/);
   assert.match(html, /The submitted first query/);
 });
 
@@ -60,7 +62,8 @@ test('unknown submission retains its original text while the independent draft s
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, { ...entry, status: 'unknown' });
   const html = render(submissions, history(), new Map([['thread', { text: 'A new draft' }]]));
   assert.match(html, /结果待核对/);
-  assert.match(html, /原文已保留；核对不会重复发送/);
+  assert.match(html, /核对不会重复发送/);
+  assert.doesNotMatch(html, />重新编辑<|>收起<|>直接发送<|>重试发送<|data-feedback-state="accepted"/);
   assert.match(html, /The submitted first query/);
   assert.match(html, /<textarea[^>]*>A new draft<\/textarea>/);
   assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /disabled/);
@@ -73,7 +76,7 @@ test('a truncated history echo keeps the complete accepted text card rendered', 
   const html = render(submissions, history({ messages }));
   assert.match(html, /data-submission-id="submitted-one"/);
   assert.match(html, /The submitted first query/);
-  assert.match(html, /已接收，等待同步/);
+  assert.match(html, /已发送/);
   assert.ok(submissions.reloadBlocker());
 });
 
@@ -83,6 +86,6 @@ test('complete rollout text leaves unknown outbox status and verification contro
   const html = render(submissions, history({ source: 'rollout', messages, outbox: [{ ...outbox, status: 'unknown' }] }));
   assert.match(html, /data-feedback-state="unknown" data-outbox-id="submitted-one"/);
   assert.match(html, /核对状态/);
-  assert.match(html, /等待核对首条消息，自动发送已暂停/);
+  assert.match(html, /首条结果待核对，队列已暂停/);
   assert.ok(submissions.reloadBlocker());
 });

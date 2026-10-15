@@ -15,10 +15,11 @@ function renderOutbox(items, extra = {}) {
   return renderToStaticMarkup(createElement(Outbox, { threadId: 'thread', items, disabled: false, allowSend: true, refresh: async () => {}, drafts: new Map(), ...extra }));
 }
 test('accepted feedback is immediately visible without requiring a history message', () => {
-  const html = renderToStaticMarkup(createElement(Notice, { feedback: { requestId: 'r', source: 'composer', expiresAt: 1000 } }));
-  assert.match(html, /role="status"/);
-  assert.match(html, /已发送/);
-  assert.match(html, /原任务已接收这条消息/);
+  for (const source of ['composer', 'queue']) {
+    const html = renderToStaticMarkup(createElement(Notice, { feedback: { requestId: 'r', source, expiresAt: 1000 } }));
+    assert.match(html, /role="status"/);
+    assert.equal(html.replace(/<[^>]*>/g, ''), '已发送');
+  }
 });
 test('only a newly confirmed user message receives the green confirmation treatment', () => {
   const message = { id: 'one', role: 'user', text: 'Keep this exact text', clientMessageId: 'r' };
@@ -39,6 +40,7 @@ test('only unpaused queued rows breathe, while unknown and rejected rows retain 
 test('an accepted outbox row is green and no longer described as queued', () => {
   const html = renderOutbox([queueItem('accepted')]);
   assert.match(html, /data-feedback-state="accepted"/);
-  assert.match(html, /原任务已接收/);
+  assert.match(html, /已发送/);
+  assert.doesNotMatch(html, /原任务|等待同步|正在同步历史/);
   assert.doesNotMatch(html, /排队中|is-queue-breathing/);
 });

@@ -1,8 +1,8 @@
 import { MOTION_EASE, MOTION_MS, prefersReducedMotion } from "./motion.ts";
 
 type StatusSnapshot = { key: string; node: Element };
-type RowSnapshot = { node: HTMLElement; top: number; bottom: number; visible: boolean; pinned: boolean; statuses: Map<string, StatusSnapshot> };
-type PinIntent = { id: string; pinned: boolean; scope: string; confirmed: boolean };
+type RowSnapshot = { node: HTMLElement; top: number; bottom: number; visible: boolean; prioritized: boolean; statuses: Map<string, StatusSnapshot> };
+type PriorityIntent = { id: string; prioritized: boolean; scope: string; confirmed: boolean };
 
 // The outer list item owns Y motion. The existing swipe track retains its own
 // X transform, so rank movement never takes control away from a swipe.
@@ -13,7 +13,7 @@ export function bindTaskListMotion(root: HTMLElement, browser = window) {
   const pointers = new Set<number>();
   const animations = new Map<Animation, { node: Element; moving: boolean }>();
   let touching = false, stopped = false, scope = "", quietUntil = 0;
-  let previous = new Map<string, RowSnapshot>(), intent: PinIntent | null = null;
+  let previous = new Map<string, RowSnapshot>(), intent: PriorityIntent | null = null;
   let scrollTop = panel?.scrollTop ?? 0;
   const now = () => browser.performance.now();
   const release = (animation: Animation) => {
@@ -42,7 +42,7 @@ export function bindTaskListMotion(root: HTMLElement, browser = window) {
         statuses.set(status.dataset.listStatus!, { key: status.dataset.listStatusKey ?? "", node: status });
       }
       rows.set(node.dataset.rowMotionId!, { node, top: rect.top, bottom: rect.bottom, visible: !!panel?.clientHeight && bottom > top && rect.bottom > top && rect.top < bottom,
-        pinned: node.dataset.rowPinned === "true", statuses });
+        prioritized: node.dataset.rowPriority === "true", statuses });
     }
     return rows;
   };
@@ -88,13 +88,13 @@ export function bindTaskListMotion(root: HTMLElement, browser = window) {
   reduced?.addEventListener("change", preference);
 
   return {
-    beginPin(id: string, pinned: boolean, animate = true) {
+    beginPriority(id: string, prioritized: boolean, animate = true) {
       interrupt();
       // Keyboard actions and interactions that just scrolled remain immediate.
-      if (animate && available()) intent = { id, pinned, scope, confirmed: false };
+      if (animate && available()) intent = { id, prioritized, scope, confirmed: false };
     },
-    confirmPin(id: string) { if (intent?.id === id) intent.confirmed = true; },
-    cancelPin(id: string) { if (intent?.id === id) intent = null; },
+    confirmPriority(id: string) { if (intent?.id === id) intent.confirmed = true; },
+    cancelPriority(id: string) { if (intent?.id === id) intent = null; },
     prepareLayout: cancelAnimations,
     isMoving: () => [...animations.values()].some(animation => animation.moving),
     commit(nextScope: string) {
@@ -105,9 +105,9 @@ export function bindTaskListMotion(root: HTMLElement, browser = window) {
       const action = intent;
       if (action && action.scope === scope) {
         const actedRow = current.get(action.id);
-        // An unpin in the pinned view may legitimately remove its row. Do not
+        // Cancelling priority in a scoped view may legitimately remove its row. Do not
         // infer success from absence until the actual action has confirmed it.
-        if (actedRow?.pinned === action.pinned || (!actedRow && action.confirmed)) {
+        if (actedRow?.prioritized === action.prioritized || (!actedRow && action.confirmed)) {
           intent = null;
           if (canAnimate) {
             const center = actedRow?.top ?? previous.get(action.id)?.top ?? 0;

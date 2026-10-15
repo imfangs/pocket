@@ -24,7 +24,8 @@ test('only proven pre-forward failures release a create; missing or lost replies
     { status: 503, code: 'relay_unavailable' }, { status: 500, code: 'relay_not_forwarded' }]) {
     const result = failedOperation(initial, failure);
     assert.equal(result.status, 'unknown'); assert.equal(result.requestId, initial.requestId);
-    assert.match(operationText(result), /结果尚未确认/);
+    assert.match(operationText(result), /结果待确认/);
+    assert.doesNotMatch(operationText(result), /再次创建|重试|已创建/);
   }
   assert.match(operationCheckError({ status: 404 }), /暂未找到/);
   assert.match(operationCheckError({ status: 503, code: 'relay_not_forwarded' }), /连接不到 Mac/);
@@ -37,7 +38,7 @@ test('waiting archive remains active and pollable, while unknown offers only exp
   assert.equal(pollOperation(operation('waiting')), true);
   assert.equal(activeOperation(operation('unknown')), true);
   assert.equal(pollOperation(operation('unknown')), false);
-  assert.match(operationText(operation('waiting')), /等待 Codex 释放/);
+  assert.match(operationText(operation('waiting')), /忙碌.*空闲后自动归档/);
   assert.doesNotMatch(operationText(operation('waiting')), /已归档/);
 });
 test('late polls cannot undo a confirmed archive or cancellation, and mismatched receipts are ignored', () => {
@@ -59,7 +60,7 @@ test('archive blockers distinguish queued content from an uncertain send', () =>
 });
 test('waiting and cancellation describe the actual action without promising that external state is unchanged', () => {
   const restore = { ...operation('waiting'), operation: 'restore' };
-  assert.match(operationText(restore), /释放后自动恢复/);
+  assert.match(operationText(restore), /空闲后自动恢复/);
   assert.equal(operationCancelLabel(restore), '取消等待恢复');
   assert.equal(operationCancelLabel(operation('waiting')), '取消等待归档');
   assert.equal(operationCancelLabel(operation('unknown')), '停止后续尝试');
@@ -97,7 +98,7 @@ test('stopping an unconfirmed creation frees recovery without claiming to remove
   const cancelled = mergeOperation(current, { ...current, status: 'cancelled' });
   assert.equal(activeOperation(cancelled), false);
   assert.deepEqual(creationRecoveryIds([cancelled], new Set([current.requestId])), []);
-  assert.match(operationText(cancelled), /已停止此次新建结果核对/);
+  assert.match(operationText(cancelled), /已停止核对/);
   assert.match(operationText(cancelled), /可能已创建的会话会保留/);
   assert.doesNotMatch(operationText(cancelled), /未创建|已删除|保持原状/);
 });

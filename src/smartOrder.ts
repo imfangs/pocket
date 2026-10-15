@@ -1,6 +1,7 @@
 import type { Thread } from "./types";
 import type { TaskStatus } from "./taskStatuses";
 import { lastMessageTime } from "./threadTime.ts";
+import { codexPinned, pocketPriority } from "./priority.ts";
 
 export type PocketActivity = { createdAt?: number; visitedAt?: number };
 
@@ -52,7 +53,8 @@ export function smartThreadScore(thread: Thread, options: SmartOrderOptions) {
   const activity = options.pocketActivity?.get(thread.id);
   return (waiting ? 180 : 0)
     + (completedUnread ? 160 * freshness(updated, now, 7 * day) : 0)
-    + (thread.pinned ? thread.pinSource === "pocket" ? 90 : 60 : 0)
+    + (pocketPriority(thread) ? 90 : 0)
+    + (codexPinned(thread) ? 60 : 0)
     + (options.draftIds?.has(thread.id) ? 85 : 0)
     + (runtime === "running" ? 70 : 0)
     + 100 * freshness(updated, now, 3 * day)

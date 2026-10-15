@@ -305,6 +305,9 @@ export function makeApp(options = {}) {
       const taskPin = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)\/pin$/);
       if (taskPin && method === "POST")
         return json(res, 200, store.setPin(taskPin[1], await body(req, 2048)));
+      const taskPriority = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)\/priority$/);
+      if (taskPriority && method === "POST")
+        return json(res, 200, store.setPriority(taskPriority[1], await body(req, 2048)));
       const taskConnection = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/connection$/i);
       if (taskConnection && method === "GET")
         return json(res, 200, desktop.connection(taskConnection[1]));

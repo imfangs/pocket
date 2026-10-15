@@ -54,13 +54,13 @@ test('only a sufficiently fresh resumed desktop can override a previous failure'
 test('interface and identity errors are distinguished from retryable owner timeouts and old version receipts remain readable', () => {
   for (const code of ['desktop_protocol_incompatible', 'desktop_protocol_error', 'unsupported_app_identity', 'app_version_changed']) {
     assert.equal(isConnectionCompatibilityFailure(code), true);
-    assert.match(connectionFailureHint(code), /草稿和待发消息已保留/);
-    assert.doesNotMatch(connectionFailureHint(code), /版本已变化|请重试连接/);
+    assert.ok(connectionFailureHint(code).length < 20);
+    assert.doesNotMatch(connectionFailureHint(code), /原任务|版本已变化|请重试连接/);
   }
-  assert.match(connectionFailureHint('desktop_protocol_incompatible'), /接口与 Pocket 不兼容/);
-  assert.match(connectionFailureHint('unsupported_app_identity'), /不是受支持的 Codex/);
+  assert.match(connectionFailureHint('desktop_protocol_incompatible'), /Codex 接口暂不兼容/);
+  assert.match(connectionFailureHint('unsupported_app_identity'), /暂不支持此桌面应用/);
   assert.equal(isConnectionCompatibilityFailure('owner_lookup_timeout'), false);
-  assert.match(connectionFailureHint('owner_lookup_timeout'), /连接原任务超时/);
+  assert.match(connectionFailureHint('owner_lookup_timeout'), /连接超时/);
 });
 
 test('connection observation polls until verified or failed and stops without reopening', async () => {

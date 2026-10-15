@@ -39,7 +39,7 @@ export class ExecutionStops {
       if (old.thread_id !== id || old.target_turn_id !== input.expectedTurnId) throw new AppError("停止请求编号已用于其他执行", 409);
       return this.receipt(id, input.requestId);
     }
-    if (thread.archived || thread.missing) throw new AppError("请先恢复原任务", 409);
+    if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
     if (this.pending(id)) throw new AppError("已有停止请求，请先核对状态", 409);
     // Pause before the RPC, including timeouts and stale-target outcomes.
     this.store.db.exec("BEGIN IMMEDIATE");
@@ -60,7 +60,7 @@ export class ExecutionStops {
     const thread = this.store.thread(id);
     if (!input || Object.keys(input).some(k => k !== "expectedStopId") || typeof input.expectedStopId !== "string" || !uuid.test(input.expectedStopId))
       throw new AppError("恢复排队参数无效", 400);
-    if (thread.archived || thread.missing || this.pending(id)) throw new AppError("请先核对原任务和停止状态", 409);
+    if (thread.archived || thread.missing || this.pending(id)) throw new AppError("请先核对会话和停止状态", 409);
     const paused = this.pause(id);
     if (!paused) return;
     if (paused.stopId !== input.expectedStopId) throw new AppError("任务又收到了一次停止请求，请刷新后确认", 409);

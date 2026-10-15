@@ -1,4 +1,5 @@
 import type { Catalog, Thread } from "./types";
+import { hasPriorityState, priorityFields } from "./priority.ts";
 
 const version = (value: number | undefined) => Number.isSafeInteger(value) && value! >= 0 ? value! : 0;
 
@@ -10,14 +11,21 @@ export function preserveNewerThreadMetadata(current: Catalog, incoming: Catalog)
   const threads = incoming.threads.map(thread => {
     const known = previous.get(thread.id);
     if (!known) return thread;
-    const stalePin = version(known.pinRevision) > version(thread.pinRevision);
+    // Never attach a newer revision to an older half of the independent pair.
+    // Legacy/partial payloads cannot withdraw a known complete projection.
+    const stalePin = version(known.pinRevision) > version(thread.pinRevision)
+      || hasPriorityState(known) && !hasPriorityState(thread);
     const staleTitle = version(known.titleRevision) > version(thread.titleRevision);
     if (!stalePin && !staleTitle) return thread;
     changed = true;
-    return { ...thread,
-      ...(stalePin ? { pinned: known.pinned, pinnedOrder: known.pinnedOrder, pinRevision: known.pinRevision, pinSource: known.pinSource } : {}),
+    const merged = { ...thread,
+      ...(stalePin ? priorityFields(known) : {}),
       ...(staleTitle ? { title: known.title, titleRevision: known.titleRevision } : {}),
     };
+    if (stalePin && !hasPriorityState(known)) {
+      delete merged.codexPinned; delete merged.pocketPriority;
+    }
+    return merged;
   });
   return changed ? { ...incoming, threads } : incoming;
 }

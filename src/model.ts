@@ -3,6 +3,7 @@ import type { TaskStatus } from "./taskStatuses";
 import { needsUserInput, smartThreadOrder, type SmartOrderOptions } from "./smartOrder.ts";
 import { UNASSIGNED_PROJECT } from "./projectNavigation.ts";
 import { lastMessageTime } from "./threadTime.ts";
+import { codexPinned, pocketPriority } from "./priority.ts";
 export function filterThreads(
   threads: Thread[],
   view: View,
@@ -27,7 +28,7 @@ export function filterThreads(
       if (view === "unread" && !needsUserInput(t, runtimeStates?.get(t.id))) return false;
       if (view === "running" && (t.missing || t.separator || runtimeStates?.get(t.id) !== "running")) return false;
       if (project === UNASSIGNED_PROJECT ? !!t.projectId : project && t.projectId !== project) return false;
-      if (view === "pinned" && !t.pinned) return false;
+      if (view === "pinned" && !pocketPriority(t) && !codexPinned(t)) return false;
       if (view === "recent" && !t.lastOpenedAt) return false;
       if (!terms.length) return true;
       const hay = [
