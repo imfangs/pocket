@@ -1,1 +1,57 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ffffff"><meta name="color-scheme" content="light dark"><script src="/theme.js"></script><title>Pocket · 等待连接</title><style>body{margin:0;background:#ffffff;color:#292824;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;min-height:100svh;display:grid;place-items:center}main{max-width:320px;padding:40px;text-align:center}img{width:72px;height:72px;border-radius:22%}h1{font-size:24px;font-weight:600}p{font-size:15px;line-height:1.9;color:#57564f}a{display:inline-block;background:#292824;color:white;padding:12px 22px;border-radius:8px;text-decoration:none;margin-top:18px}small{display:block;color:#6f6e67;margin-top:26px;line-height:1.8}html[data-theme="dark"] body{background:#191919;color:#e9e9e5}html[data-theme="dark"] p,html[data-theme="dark"] small{color:#bcbcb4}html[data-theme="dark"] a{background:#e9e9e5;color:#191919}</style></head><body><main><img src="/icons/pocket-v1.svg" alt="Pocket"><h1>等 Mac 回来，再接上。</h1><p>当前网络或 Mac 暂时不可达。<br>连接恢复后即可继续。</p><a href="">重新连接</a><small>私人任务不会缓存在离线页面中。<br>已保存的整理仍在 Mac 上。</small></main></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light dark">
+  <script src="/theme.js"></script>
+  <title>Pocket · 等待连接</title>
+  <style>
+    :root { --background:#ffffff; --ink:#292824; --muted:#6f6e67; --button-ink:#ffffff; }
+    html[data-theme="dark"] { --background:#191919; --ink:#e9e9e5; --muted:#bcbcb4; --button-ink:#191919; }
+    @media (prefers-color-scheme:dark) {
+      html:not([data-theme]) { --background:#191919; --ink:#e9e9e5; --muted:#bcbcb4; --button-ink:#191919; }
+    }
+    * { box-sizing:border-box; }
+    html { min-height:100%; background:var(--background); -webkit-text-size-adjust:100%; }
+    body {
+      --side-space:max(24px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+      margin:0; width:100%; min-height:100vh; min-height:100dvh;
+      padding:max(28px, env(safe-area-inset-top, 0px)) var(--side-space) max(28px, env(safe-area-inset-bottom, 0px));
+      display:flex; flex-direction:column; align-items:center;
+      background:var(--background); color:var(--ink);
+      font-family:-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    main {
+      width:100%; max-width:320px; margin-block:auto;
+      display:flex; flex-direction:column; align-items:center; text-align:center;
+    }
+    img { display:block; width:64px; height:64px; margin:0 0 24px; border-radius:22%; flex-shrink:0; }
+    h1 { width:100%; margin:0; font-size:25px; font-weight:650; line-height:1.35; letter-spacing:-.5px; text-wrap:balance; }
+    p { width:100%; margin:12px 0 0; color:var(--muted); font-size:15px; line-height:1.7; text-wrap:balance; }
+    .retry {
+      display:inline-flex; align-items:center; justify-content:center;
+      max-width:100%; min-width:144px; min-height:48px; margin-top:28px; padding:12px 24px;
+      background:var(--ink); color:var(--button-ink); border-radius:8px;
+      font-size:15px; font-weight:550; line-height:1.5; text-decoration:none; text-align:center;
+      overflow-wrap:anywhere; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    }
+    .retry:focus-visible { outline:2px solid var(--muted); outline-offset:4px; }
+    .retry:active { opacity:.8; }
+    @media (max-height:420px) and (min-width:500px) {
+      img { width:48px; height:48px; margin-bottom:16px; }
+      .retry { margin-top:20px; }
+    }
+  </style>
+</head>
+<body>
+  <main aria-labelledby="offline-title">
+    <img src="/icons/pocket-v1.svg" width="64" height="64" alt="Pocket">
+    <h1 id="offline-title">暂时无法连接</h1>
+    <p>网络或 Mac 暂时不可达。<br>恢复连接后再试一次。</p>
+    <a href="" class="retry">重新连接</a>
+  </main>
+</body>
+</html>

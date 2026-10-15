@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 test('public shell upgrade retains deep links on offline retry and never adds private resources to the cache', async () => {
-  const handlers = {}, stored = new Map([['navigator-public-shell-v6', new Map([['/offline.html', 'old shell']])], ['unrelated-cache', new Map()]]);
+  const handlers = {}, stored = new Map([['navigator-public-shell-v7', new Map([['/offline.html', 'old shell']])], ['unrelated-cache', new Map()]]);
   const offline = readFileSync(new URL('../public/offline.html', import.meta.url), 'utf8');
   let skipped = 0, claimed = 0, fetched;
   const caches = {
@@ -17,7 +17,7 @@ test('public shell upgrade retains deep links on offline retry and never adds pr
   vm.runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), { URL, Response, caches, self, fetch: async request => { fetched = request.url; throw new Error('offline'); } });
   let pending; handlers.install({ waitUntil: value => { pending = value; } }); await pending;
   handlers.activate({ waitUntil: value => { pending = value; } }); await pending;
-  assert.equal(stored.has('navigator-public-shell-v6'), false); assert.equal(stored.has('unrelated-cache'), true);
+  assert.equal(stored.has('navigator-public-shell-v7'), false); assert.equal(stored.has('unrelated-cache'), true);
   assert.equal(skipped, 1); assert.equal(claimed, 1);
   const resources = [...stored.values()].flatMap(cache => [...cache.keys()]);
   assert.ok(resources.includes('/offline.html')); assert.ok(resources.every(path => !path.startsWith('/api/')));
