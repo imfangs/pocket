@@ -82,7 +82,7 @@ export default function Inspector(p: Props) {
         <Conversation key={p.thread.id} thread={p.thread} drafts={p.queryDrafts} submissions={p.submissions}
           historyCache={p.historyCache} onActivity={p.onActivity} managementBlocked={managementBlocked}
           managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
-          onConnect={options => p.onOpen(p.thread, options)} />
+          onConnect={options => p.onOpen(p.thread, options)} onRestore={() => p.onArchive(p.thread, false)} />
       </div>
       {infoOpen && <Modal title="会话信息" onClose={() => setInfoOpen(false)} busy={actionBusy}>
         <div className="conversation-info">

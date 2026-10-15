@@ -54,6 +54,7 @@ export function createQuestionPresentationStore(storage?: PresentationStorage) {
       catch { /* Keep the new state in memory when persistence is unavailable. */ }
       notify();
     },
+    notifyDraftChange: notify,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
   };
 }
@@ -75,6 +76,29 @@ export function ignoreQuestion(store: QuestionPresentationStore, threadId: strin
   if (!questionPresentation({ ...options, ignored: false, postPending: !!store.answerRequestId(threadId, fingerprint) }).canIgnore) return false;
   store.setIgnored(threadId, fingerprint, true);
   return store.isIgnored(threadId, fingerprint);
+}
+
+// Discard only a local, unsubmitted answer. An in-flight or unknown answer must
+// retain its identity even if this view was remounted with a fresh busy flag.
+export function discardQuestionDraft(store: QuestionPresentationStore, threadId: string, fingerprint: string,
+  drafts: Map<string, QueryDraft>, options: { responseStatus?: string; busy?: boolean } = {}) {
+  const key = `${threadId}/question/${fingerprint}`;
+  const presentation = questionPresentation({ ...options, ignored: store.isIgnored(threadId, fingerprint),
+    draft: drafts.get(key), postPending: !!store.answerRequestId(threadId, fingerprint) });
+  if (!presentation.canIgnore || !presentation.hasDraft) return false;
+  drafts.delete(key);
+  store.notifyDraftChange();
+  return true;
+}
+
+export function questionComposerPending(store: QuestionPresentationStore, threadId: string,
+  questions: readonly { key: string; response?: { status: string } | null }[], drafts: ReadonlyMap<string, QueryDraft>) {
+  return questions.some(question => {
+    const presentation = questionPresentation({ ignored: store.isIgnored(threadId, question.key),
+      draft: drafts.get(`${threadId}/question/${question.key}`), responseStatus: question.response?.status,
+      postPending: !!store.answerRequestId(threadId, question.key) });
+    return !presentation.ignored || presentation.hasDraft || presentation.waiting;
+  });
 }
 
 export async function withQuestionAnswerPost<T>(store: QuestionPresentationStore, threadId: string, fingerprint: string, requestId: string, post: () => Promise<T>) {

@@ -2,6 +2,33 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+
+test('public shell upgrade retains deep links on offline retry and never adds private resources to the cache', async () => {
+  const handlers = {}, stored = new Map([['navigator-public-shell-v6', new Map([['/offline.html', 'old shell']])], ['unrelated-cache', new Map()]]);
+  const offline = readFileSync(new URL('../public/offline.html', import.meta.url), 'utf8');
+  let skipped = 0, claimed = 0, fetched;
+  const caches = {
+    open: async name => { const cache = new Map(); stored.set(name, cache); return { addAll: async files => { for (const path of files) cache.set(path, path === '/offline.html' ? offline : 'public asset'); } }; },
+    keys: async () => [...stored.keys()], delete: async name => stored.delete(name),
+    match: async path => { for (const cache of stored.values()) if (cache.has(path)) return new Response(cache.get(path)); },
+  };
+  const self = { location: { origin: 'https://example.test' }, addEventListener: (type, listener) => { handlers[type] = listener; },
+    skipWaiting: async () => { skipped++; }, clients: { claim: async () => { claimed++; } } };
+  vm.runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), { URL, Response, caches, self, fetch: async request => { fetched = request.url; throw new Error('offline'); } });
+  let pending; handlers.install({ waitUntil: value => { pending = value; } }); await pending;
+  handlers.activate({ waitUntil: value => { pending = value; } }); await pending;
+  assert.equal(stored.has('navigator-public-shell-v6'), false); assert.equal(stored.has('unrelated-cache'), true);
+  assert.equal(skipped, 1); assert.equal(claimed, 1);
+  const resources = [...stored.values()].flatMap(cache => [...cache.keys()]);
+  assert.ok(resources.includes('/offline.html')); assert.ok(resources.every(path => !path.startsWith('/api/')));
+  const original = 'https://example.test/?task=aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+  handlers.fetch({ request: { url: original, method: 'GET', mode: 'navigate' }, respondWith: value => { pending = value; } });
+  const html = await (await pending).text();
+  const href = /<a\s+href="([^"]*)"[^>]*>重新连接<\/a>/.exec(html)?.[1];
+  assert.equal(fetched, original); assert.notEqual(href, undefined);
+  assert.equal(new URL(href, original).href, original);
+});
+
 test("worker handles real fetch failures and 502 navigations with only the public offline response", async () => {
   const handlers = {};
   let fail = true;

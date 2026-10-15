@@ -36,6 +36,9 @@ test('empty views offer a relevant next step, and unavailable unread state is ne
   assert.equal(emptyListContent({ view: 'all', query: '' }).action, 'create');
   assert.equal(emptyListContent({ view: 'recent', query: '' }).action, 'showAll');
   assert.equal(emptyListContent({ view: 'all', query: 'search' }).action, 'clearQuery');
+  assert.equal(emptyListContent({ view: 'all', query: 'search', projectScope: 'project-a' }).action, 'searchAll');
+  assert.equal(emptyListContent({ view: 'all', query: 'search', projectScope: 'project-a' }).actionLabel, '在全部会话搜索');
+  assert.equal(emptyListContent({ view: 'archived', query: 'search', projectScope: 'project-a' }).action, 'clearQuery');
   assert.equal(emptyListContent({ view: 'all', query: '', hasFilters: true }).action, 'clearFilters');
   const unread = emptyListContent({ view: 'unread', query: '', unreadAvailable: false });
   assert.equal(unread.action, 'refresh'); assert.match(unread.title, /无法读取/);

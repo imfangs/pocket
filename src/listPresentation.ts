@@ -25,13 +25,15 @@ export function threadListPresentation(thread: Thread, hasDraft = false, runtime
   return { primaryState, secondaryStates: states.filter(state => state !== primaryState) };
 }
 
-export type EmptyListAction = "create" | "showAll" | "refresh" | "clearQuery" | "clearFilters";
+export type EmptyListAction = "create" | "showAll" | "searchAll" | "refresh" | "clearQuery" | "clearFilters";
 export function emptyListContent({ view, query, projectScope, hasFilters = false, unreadAvailable = false, unreadPending = 0, runtimeAvailable = false, runtimeLoading = false }: {
   view: View; query: string; projectScope?: string; hasFilters?: boolean; unreadAvailable?: boolean; unreadPending?: number; runtimeAvailable?: boolean; runtimeLoading?: boolean;
 }): { title: string; description: string; action?: EmptyListAction; actionLabel?: string } {
   if (view === "unread" && !unreadAvailable) return { title: "暂时无法读取未读状态", description: "", action: "refresh", actionLabel: "重新读取" };
   if (view === "running" && !runtimeAvailable) return { title: runtimeLoading ? "正在确认运行状态" : "运行状态暂时不可用", description: "恢复后会自动更新。", action: "showAll", actionLabel: "查看全部会话" };
-  if (query.trim()) return { title: "没有找到匹配的会话", description: "", action: "clearQuery", actionLabel: "清除搜索" };
+  if (query.trim()) return { title: "没有找到匹配的会话", description: "",
+    action: projectScope && view !== "archived" ? "searchAll" : "clearQuery",
+    actionLabel: projectScope && view !== "archived" ? "在全部会话搜索" : "清除搜索" };
   if (projectScope && view === "all") return { title: projectScope === "__unassigned__" ? "没有未归属项目的会话" : "这个项目还没有会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (hasFilters) return { title: "当前筛选下没有会话", description: "", action: "clearFilters", actionLabel: "清除筛选" };
   if (view === "unread") return { title: "暂时没有待处理会话", description: unreadPending ? "未读会话结束后会出现在这里。" : "", action: "showAll", actionLabel: "查看全部会话" };

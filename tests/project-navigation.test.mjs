@@ -29,6 +29,7 @@ test('same names and shared directories never merge native project identities', 
   assert.equal(items[1].ariaLabel, 'Shared，/workspace/two');
   assert.equal(items[2].ariaLabel, 'Different');
   assert.match(items[2].title, /\/workspace\/two/);
+  assert.deepEqual(items.map(item => item.suffix), ['one', 'two', undefined]);
 });
 
 test('identical names and paths or missing paths retain distinguishable accessible names', () => {
@@ -37,7 +38,19 @@ test('identical names and paths or missing paths retain distinguishable accessib
     assert.notEqual(items[0].ariaLabel, items[1].ariaLabel);
     assert.match(items[0].ariaLabel, /one/);
     assert.match(items[1].ariaLabel, /two/);
+    assert.notEqual(items[0].suffix, items[1].suffix);
   }
+});
+
+test('duplicate names show only the shortest path tail that distinguishes each native project', () => {
+  const items = projectNavigationItems([
+    project('alpha', 'App', 0, ['/workspace/alpha/app']),
+    project('beta', 'App', 1, ['/workspace/beta/app']),
+    project('other', 'App', 2, ['/workspace/other']),
+    project('normal', 'Unique', 3, ['/workspace/unique']),
+  ]);
+  assert.deepEqual(items.map(item => item.suffix), ['alpha/app', 'beta/app', 'other', undefined]);
+  assert.deepEqual(items.map(item => item.name), ['App', 'App', 'App', 'Unique']);
 });
 
 test('unassigned entry appears only for active unassigned conversations, without their titles or counts', () => {

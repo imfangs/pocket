@@ -61,6 +61,17 @@ test('unknown uploads expose read-only verification and removal without an uploa
   assert.match(failed, /aria-label="重试上传 现场图片.heic"/);
 });
 
+test('offline removal is available only for a local attachment in an editable composer', () => {
+  const removal = (status, extra = {}, localRemovalAllowed = true) => {
+    const html = render(DraftAttachmentList, { threadId, items: [{ ...draftAttachment(status), ...extra }], controller: {}, disabled: true, localRemovalAllowed });
+    return html.match(/<button[^>]*aria-label="移除附件 [^"]+"[^>]*>/)?.[0];
+  };
+  for (const status of ['queued', 'failed']) assert.doesNotMatch(removal(status), /disabled/);
+  for (const status of ['uploaded', 'uploading', 'unknown', 'removing']) assert.match(removal(status), /disabled/);
+  for (const extra of [{ attachment: image }, { checking: true }, { deletePending: true }]) assert.match(removal('failed', extra), /disabled/);
+  assert.match(removal('failed', {}, false), /disabled/, 'sending or management restrictions cannot be bypassed');
+});
+
 test('attachment-only native messages show a thumbnail and a downloadable file without an empty copy action', () => {
   const html = render(Message, { message: { id: 'native', role: 'user', text: '', attachments: [image, file], timestamp: 1 } });
   assert.match(html, /aria-label="消息附件"/); assert.match(html, /<img[^>]*src="\/api\/tasks\//);

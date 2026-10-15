@@ -8,7 +8,7 @@ import { holdReload, useReloadGuard } from "./updateSafety";
 import { captureDraft } from "./draftTransaction";
 import { answerMode, editAnswer, hasAnswerText, switchAnswerMode } from "./questionDrafts";
 import MessageMarkdown from "./MessageMarkdown";
-import { checkQuestionAnswer, ignoreQuestion, questionPresentation, questionPresentationStore, questionSourceText, withQuestionAnswerPost, type QuestionPresentationStore } from "./questionPresentation";
+import { checkQuestionAnswer, discardQuestionDraft, ignoreQuestion, questionPresentation, questionPresentationStore, questionSourceText, withQuestionAnswerPost, type QuestionPresentationStore } from "./questionPresentation";
 
 type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; drafts: Map<string, QueryDraft>; refresh: () => Promise<void> | undefined;
   sourceText?: string; sourceImages?: Message["images"]; sourceTruncated?: boolean; presentationStore?: QuestionPresentationStore;
@@ -46,7 +46,12 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
   }, []);
   const presentation = questionPresentation({ ignored, draft, responseStatus: question.response?.status, busy, answerOpen, postPending: !!activeRequestId });
   const { waiting, expanded } = presentation;
-  const update = (value: QueryDraft) => { setDraft(value); drafts.set(key, value); };
+  const update = (value: QueryDraft) => { setDraft(value); drafts.set(key, value); presentationStore.notifyDraftChange(); };
+  const discard = () => {
+    if (!discardQuestionDraft(presentationStore, threadId, question.key, drafts,
+      { responseStatus: question.response?.status, busy: submitting.current })) return;
+    setDraft({ text: "" }); setError(""); setEditing(false); setAnswerOpen(false);
+  };
   const ignore = () => {
     if (!ignoreQuestion(presentationStore, threadId, question.key,
       { draft: drafts.get(key), responseStatus: question.response?.status, busy: submitting.current })) return;
@@ -66,6 +71,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
     const updateSubmitted = (value: QueryDraft) => {
       if (!saved.set(value)) return false;
       if (currentView()) setDraft(value);
+      presentationStore.notifyDraftChange();
       return true;
     };
     setBusy(true); setError("");
@@ -85,7 +91,10 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
         result = await withQuestionAnswerPost(presentationStore, threadId, question.key, requestId,
           () => api(`/api/tasks/${threadId}/questions/${question.key}/answer`, "POST", { requestId, text: draft.text }));
       }
-      if (result.status === "accepted") saved.clear();
+      if (result.status === "accepted" && saved.clear()) {
+        if (currentView()) setDraft({ text: "" });
+        presentationStore.notifyDraftChange();
+      }
       else if (["rejected", "not_found"].includes(result.status)) {
         if (updateSubmitted({ ...draft, requestId: undefined }) && currentView()) setError("问题可能已经变化，请刷新后再回答。");
       }
@@ -104,6 +113,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
         <button type="button" className="question-answer-toggle" aria-expanded={false} aria-controls={`${titleId}-answer`} onClick={openAnswer}>回答</button>
         {!presentation.ignored && <button type="button" className="question-ignore" disabled={!presentation.canIgnore} onClick={ignore}>忽略</button>}
         {presentation.ignored && presentation.hasDraft && <small className="question-draft-preserved">答案草稿已保留</small>}
+        {presentation.hasDraft && presentation.canIgnore && <button type="button" className="question-ignore" onClick={discard}>丢弃草稿</button>}
       </div>
     </>}
     {expanded && <div className="question-answer-panel" id={`${titleId}-answer`}>
@@ -121,6 +131,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
       onChange={e => update(editAnswer(draft, question.options, e.target.value, "custom"))} />}
     </fieldset>
     <div className="question-submit"><button type="button" className="question-ignore" disabled={!presentation.canIgnore} onClick={ignore}>忽略</button>
+    {presentation.hasDraft && presentation.canIgnore && <button type="button" className="question-ignore" onClick={discard}>丢弃草稿</button>}
     <button type="submit" className="primary" disabled={disabled || busy || (!waiting && !draft.text.trim())}>
       {busy ? "提交中…" : waiting ? "核对回答状态" : "提交回答"}
     </button></div>

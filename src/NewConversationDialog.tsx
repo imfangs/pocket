@@ -6,10 +6,11 @@ import { activeOperation, type CreateLocation, type TaskOperation } from "./task
 import TaskOperationStatus from "./TaskOperationStatus";
 import { useReloadGuard } from "./updateSafety";
 import { creationDirectories, creationDirectoryChoices, creationLocation, creationProjectChoices, searchCreationDirectories } from "./creationLocations";
-import { initialCreationSelection, readCreationPreference, saveCreationPreference } from "./creationPreference";
+import { initialCreationSelection, readCreationPreference, saveCreationPreference, type CreationPreference } from "./creationPreference";
 import AutoTextarea from "./AutoTextarea";
 import AnimatedDetails from "./AnimatedDetails";
 import { applyCreationClipboard, creationQueryPayload, editCreationQuery, type CreationClipboard, type CreationQueryDraft } from "./creationQuery";
+import { createCreationOptionsReader, type CreationOptions } from "./creationOptions";
 
 export default function NewConversationDialog({ preferredCwd, initialQuery, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose, closeRequested = false }: {
   preferredCwd?: string; operation?: TaskOperation; operationError?: string;
@@ -31,6 +32,13 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
   const queryBox = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState(false);
   const [name, setName] = useState(""), [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const [optionsError, setOptionsError] = useState("");
+  const optionsReader = useRef<ReturnType<typeof createCreationOptionsReader> | null>(null);
+  const selection = useRef({ cwd: "", locationId: "" }), optionsLoaded = useRef(false);
+  const selectLocation = (cwd: string, locationId: string) => {
+    selection.current = { cwd, locationId };
+    setDirectoryCwd(cwd); setProjectLocationId(locationId);
+  };
   const submitting = useRef(false), [busy, setBusy] = useState(false);
   const directorySelect = useRef<HTMLSelectElement>(null);
   const settings = useRef<HTMLDetailsElement>(null);
@@ -55,20 +63,31 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
   useEffect(() => { if (directorySearchOpen) directorySearch.current?.focus(); }, [directorySearchOpen]);
   useReloadGuard(() => busy ? "会话正在创建，请稍后更新。" : dirty ? "新会话还有未提交的内容，请先处理。" : null);
   useEffect(() => {
-    const controller = new AbortController();
-    void api<{ available: boolean; locations: CreateLocation[] }>("/api/tasks/create-options", "GET", undefined, { signal: controller.signal })
-      .then(result => {
-        if (controller.signal.aborted) return;
+    const reader = createCreationOptionsReader({
+      request: signal => api<CreationOptions>("/api/tasks/create-options", "GET", undefined, { signal }),
+      onData(result) {
+        setAvailable(result.available && result.locations.length > 0);
+        // Failed reads retain the current choice for a later successful retry.
+        if (!result.available || !result.locations.length) return;
         setLocations(result.locations);
-        setAvailable(result.available);
-        const initial = initialCreationSelection(creationDirectories(result.locations), rememberedSelection, startingCwd.current);
-        setDirectoryCwd(initial.cwd);
-        setProjectLocationId(initial.locationId);
+        const initial: CreationPreference & { unavailable?: true } = optionsLoaded.current && !selection.current.cwd ? selection.current
+          : initialCreationSelection(creationDirectories(result.locations), optionsLoaded.current ? selection.current : rememberedSelection, startingCwd.current);
+        optionsLoaded.current = true;
+        selectLocation(initial.cwd, initial.locationId);
         setRememberedUnavailable(!!initial.unavailable);
-        if (!result.available || !result.locations.length) setError("暂时没有可用的工作目录，请同步任务后重试。");
-      }).catch(failure => { if (!controller.signal.aborted) setError(failure.message); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
+      },
+      onError: setOptionsError,
+      onLoading: setLoading,
+    });
+    optionsReader.current = reader;
+    const online = () => { if (navigator.onLine !== false) void reader.reconnect(); };
+    const offline = () => reader.offline();
+    window.addEventListener("online", online); window.addEventListener("offline", offline);
+    void reader.read();
+    return () => {
+      reader.dispose(); if (optionsReader.current === reader) optionsReader.current = null;
+      window.removeEventListener("online", online); window.removeEventListener("offline", offline);
+    };
   }, []);
   return <Modal title="新建会话" onClose={() => (closeRequested || !busy) && onClose()} busy={busy} dirty={dirty} closeRequested={closeRequested}>
     <form className="new-conversation-form" noValidate onSubmit={async event => {
@@ -122,8 +141,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
           }} />
       </div>}
       <select ref={directorySelect} id="new-conversation-location" value={directoryCwd} disabled={loading || locked} onChange={event => {
-        setDirectoryCwd(event.target.value);
-        setProjectLocationId("");
+        selectLocation(event.target.value, "");
         setSelectionTouched(true);
         setDirectoryQuery("");
         setError("");
@@ -144,7 +162,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         <label className="field-label" htmlFor="new-conversation-project">归属项目</label>
         <select ref={projectSelect} id="new-conversation-project" value={projectLocationId} disabled={loading || locked}
           onChange={event => {
-            setProjectLocationId(event.target.value); setSelectionTouched(true);
+            selectLocation(directoryCwd, event.target.value); setSelectionTouched(true);
             setError("");
             saveCreationPreference({ cwd: directoryCwd, locationId: event.target.value });
           }} required>
@@ -158,8 +176,9 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       </div>
       </AnimatedDetails>
       {operation && <TaskOperationStatus operation={operation} error={operationError} onCheck={onCheck} onCancel={onCancelOperation} />}
-      {error && <p className="inline-error" role="alert">{error}</p>}
+      {(error || optionsError) && <p className="inline-error" role="alert">{error || optionsError}</p>}
       <footer>
+        {optionsError && <button type="button" className="secondary" disabled={loading || locked} onClick={() => { setError(""); void optionsReader.current?.read(); }}>{loading ? "正在读取…" : "重新读取目录"}</button>}
         {activeOperation(operation) && <button type="button" className="secondary" disabled={busy} onClick={onClose}>返回列表</button>}
         <button className="primary" disabled={loading || !available || locked || queryTooLong}>{busy || operation?.status === "pending" ? "正在创建…" : loading ? "正在准备…" : query.trim() ? "创建并发送" : "创建会话"}</button>
       </footer>

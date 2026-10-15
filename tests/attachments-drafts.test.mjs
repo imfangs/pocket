@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
-import { createAttachmentDraftController, attachmentPath, attachmentRefs, readyAttachments, validateAttachment, MAX_ATTACHMENT_BYTES } from '../src/attachments.ts';
+import { createAttachmentDraftController, attachmentPath, attachmentRefs, canRemoveLocalAttachment, readyAttachments, validateAttachment, MAX_ATTACHMENT_BYTES } from '../src/attachments.ts';
 import { createDraftMap, draftThreadIds } from '../src/draftIndicators.ts';
 import { hasUpdateBlockingDraft } from '../src/updateDrafts.ts';
 
@@ -22,6 +22,23 @@ function fixture(overrides = {}, digest = async () => hash) {
   };
   return { controller: createAttachmentDraftController(drafts, request, digest), drafts, calls, request };
 }
+
+test('an offline selection can be removed locally without networking or losing independent text', async () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+  try {
+    const f = fixture();
+    f.drafts.set(thread, { text: 'Keep editing offline' });
+    const [id] = f.controller.add(thread, [file()]);
+    assert.equal(f.controller.get(thread)[0].status, 'failed');
+    assert.equal(canRemoveLocalAttachment(f.controller.get(thread)[0]), true);
+    await f.controller.remove(thread, id);
+    assert.deepEqual(f.calls, []); assert.deepEqual(f.controller.get(thread), []);
+    assert.equal(f.drafts.get(thread).text, 'Keep editing offline');
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'navigator', previous); else delete globalThis.navigator;
+  }
+});
 
 test('attachment-only selection is a protected draft and a late upload preserves the independently edited text', async () => {
   let uploaded;

@@ -7,6 +7,23 @@ export interface ProjectNavigationItem {
   name: string;
   title: string;
   ariaLabel: string;
+  suffix?: string;
+}
+
+function distinctSuffix(project: Project, peers: readonly Project[]) {
+  const parts = (item: Project) => (item.paths.find(Boolean) || "").replaceAll("\\", "/").split("/").filter(Boolean);
+  const own = parts(project);
+  for (let length = 1; length <= own.length; length++) {
+    const tail = own.slice(-length).join("/");
+    if (peers.every(other => other.id === project.id || parts(other).slice(-length).join("/") !== tail)) return tail;
+  }
+  // Shared/missing directories still represent different native projects.
+  // A short identity suffix is the last resort, never a reason to merge them.
+  for (let length = Math.min(4, project.id.length); length <= project.id.length; length++) {
+    const tail = project.id.slice(-length);
+    if (peers.every(other => other.id === project.id || other.id.slice(-length) !== tail)) return `ID ${tail}`;
+  }
+  return `ID ${project.id}`;
 }
 
 // Project identity comes from Codex, never from a shared name or directory.
@@ -48,6 +65,7 @@ export function projectNavigationItems(
       name: project.name,
       title: detail ? `${project.name}\n${detail}` : project.name,
       ariaLabel: duplicate && detail ? `${project.name}，${detail}` : project.name,
+      ...(duplicate ? { suffix: distinctSuffix(project, ordered.filter(other => nameKey(other.name) === nameKey(project.name))) } : {}),
     };
   });
   if (threads.some(thread => !thread.sourceExcluded && !thread.archived && !thread.separator && !thread.projectId)) {

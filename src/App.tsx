@@ -385,6 +385,11 @@ export default function App({
     setSelected(null); setMobile(false);
     refreshAfterActivity();
   });
+  const searchAllProjects = () => {
+    restoreScroll.current = 0;
+    setView("all"); setProject(""); setSelected(null); setMobile(false); setSearchOpen(true);
+    refreshAfterActivity();
+  };
   useEffect(() => {
     const fromNotification = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
@@ -586,6 +591,7 @@ export default function App({
                 runtimeLoading={taskStatuses.runtimeLoading}
                 onCreate={() => void guard(showNewConversation)}
                 onShowAll={() => switchView("all")}
+                onSearchAll={searchAllProjects}
                 onRefresh={() => void syncTasks().catch(() => {})}
                 draftIds={draftIds}
                 threads={threads}

@@ -14,6 +14,7 @@ import { emptyListContent, threadListPresentation } from "./listPresentation";
 import type { TaskStatus } from "./taskStatuses";
 import SwipeTaskRow from "./SwipeTaskRow";
 import { bindTaskListMotion } from "./taskListMotion";
+import { bindListInteraction, heldListRows } from "./listInteraction";
 import "./task-list-status.css";
 interface Props {
   threads: Thread[];
@@ -30,6 +31,7 @@ interface Props {
   onClearQuery: () => void;
   onCreate?: () => void;
   onShowAll?: () => void;
+  onSearchAll?: () => void;
   onRefresh?: () => void;
   onClearFilters?: () => void;
   hasFilters?: boolean;
@@ -47,6 +49,24 @@ export default function TaskList(p: Props) {
   const motion = useRef<ReturnType<typeof bindTaskListMotion> | null>(null);
   const scope = `${p.view}\0${p.projectScope || ""}\0${p.query}`;
   const limit = limits.get(scope) ?? 80;
+  const [held, setHeld] = useState<{ scope: string; rows: Thread[] } | null>(null);
+  const currentRows = new Map(p.threads.map(thread => [thread.id, thread]));
+  const rows = held?.scope === scope ? heldListRows(p.threads, held.rows) : p.threads.slice(0, limit);
+  const latest = useRef({ scope, rows, currentRows });
+  latest.current = { scope, rows, currentRows };
+  const interaction = useRef<ReturnType<typeof bindListInteraction> | null>(null);
+  useLayoutEffect(() => {
+    if (!list.current) return;
+    const control = bindListInteraction(list.current, {
+      scope: () => latest.current.scope,
+      current: id => latest.current.currentRows.has(id),
+      hold: () => setHeld({ scope: latest.current.scope, rows: latest.current.rows }),
+      release: () => setHeld(null),
+    });
+    interaction.current = control;
+    return () => { control.dispose(); interaction.current = null; };
+  }, []);
+  useLayoutEffect(() => { interaction.current?.scopeChanged(); }, [scope]);
   const anchor = useRef<{ scope: string; id: string; offset: number } | null>(null);
   useLayoutEffect(() => {
     if (!list.current) return;
@@ -87,7 +107,7 @@ export default function TaskList(p: Props) {
     }
     rememberAnchor();
     motion.current?.commit(scope);
-  }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, prioritizingId, scope, limit, rememberAnchor]);
+  }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, prioritizingId, held, scope, limit, rememberAnchor]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { setOpenRowId(null); }, [p.view, p.query, p.projectScope]);
   useEffect(() => {
@@ -106,6 +126,9 @@ export default function TaskList(p: Props) {
   const clearPriorityError = (id: string) => setPriorityErrors(previous => { const next = { ...previous }; delete next[id]; return next; });
   const changePriority = async (thread: Thread, animate: boolean) => {
     if (!p.onPriority || p.busy || prioritizing.current) return;
+    const current = latest.current.currentRows.get(thread.id);
+    if (!current) return;
+    thread = current;
     motion.current?.beginPriority(thread.id, !pocketPriority(thread), animate);
     prioritizing.current = thread.id; setPrioritizingId(thread.id); setOpenRowId(thread.id); clearPriorityError(thread.id);
     try {
@@ -122,17 +145,17 @@ export default function TaskList(p: Props) {
   };
   const empty = emptyListContent({ view: p.view, query: p.query, projectScope: p.projectScope, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
     runtimeAvailable: !p.runtimeLoading && !p.runtimeUnavailable, runtimeLoading: p.runtimeLoading });
-  const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll
+  const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll : empty.action === "searchAll" ? p.onSearchAll
     : empty.action === "refresh" ? p.onRefresh : empty.action === "clearFilters" ? p.onClearFilters : p.onClearQuery;
   return (
     <div
       ref={list}
       className="task-list-surface"
     >
-      {p.threads.length > 0 && p.runtimeUnavailable && <p className="task-runtime-availability" role="status">
+      {rows.length > 0 && p.runtimeUnavailable && <p className="task-runtime-availability" role="status">
         运行状态暂不可用
       </p>}
-      {p.threads.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="empty-list">
           {p.query ? <Search size={30} /> : <Inbox size={32} />}
           <h2>{empty.title}</h2>
@@ -143,7 +166,8 @@ export default function TaskList(p: Props) {
         </div>
       ) : (
         <div className="task-list" role="list" aria-label="会话列表">
-          {p.threads.slice(0, limit).map((t) => {
+          {rows.map((t) => {
+            const inactive = !currentRows.has(t.id);
             const messageAt = lastMessageTime(t);
             const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
             const presentation = threadListPresentation(t, p.draftIds?.has(t.id), runtime);
@@ -154,7 +178,7 @@ export default function TaskList(p: Props) {
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""}`}
                 key={t.id}
                 threadId={t.id} title={t.title} prioritized={pocketPriority(t)} open={openRowId === t.id}
-                disabled={p.busy || !!prioritizingId} pending={prioritizingId === t.id} error={priorityErrors[t.id]}
+                disabled={inactive || p.busy || !!prioritizingId} pending={prioritizingId === t.id} error={priorityErrors[t.id]}
                 onPriority={p.onPriority ? animate => void changePriority(t, animate) : undefined}
                 onOpenChange={value => setOpenRowId(current => value ? t.id : current === t.id ? null : current)}
                 onClaim={() => setOpenRowId(current => current === t.id ? current : null)} onDismissError={() => clearPriorityError(t.id)}
@@ -163,7 +187,8 @@ export default function TaskList(p: Props) {
                   className="task-select"
                   data-thread-id={t.id}
                   data-row-state={rowState}
-                  onClick={event => { setOpenRowId(null); p.onSelect(t.id, event.detail !== 0); }}
+                  disabled={inactive}
+                  onClick={event => { if (!latest.current.currentRows.has(t.id)) return; setOpenRowId(null); p.onSelect(t.id, event.detail !== 0); }}
                   aria-pressed={p.selected === t.id}
                   title={t.title}
                 >
@@ -194,8 +219,8 @@ export default function TaskList(p: Props) {
                   className="row-open icon-button"
                   aria-label={`在 Codex 打开 ${t.title}`}
                   title="在 Codex 打开"
-                  onClick={() => p.onOpen(t)}
-                  disabled={t.missing}
+                  onClick={() => { const current = latest.current.currentRows.get(t.id); if (current) p.onOpen(current); }}
+                  disabled={inactive || t.missing}
                 >
                   <ArrowUpRight size={18} />
                 </button>

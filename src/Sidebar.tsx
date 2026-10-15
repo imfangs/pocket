@@ -123,7 +123,9 @@ export default function Sidebar(p: Props) {
                 onClick={() => p.onProject?.(project.id)}
               >
                 <Folder size={17} aria-hidden="true" />
-                <span>{project.name}</span>
+                <span className="sidebar-project-label"><span className="sidebar-project-name">{project.name}</span>
+                  {project.suffix && <small className="sidebar-project-suffix">{project.suffix}</small>}
+                </span>
               </button>;
             })}
           </nav>}

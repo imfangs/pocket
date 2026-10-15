@@ -165,12 +165,20 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
     } catch (e) { setError((e as Error).message); }
     finally { release(); setBusy(null); }
   };
+  const discardEdit = (item: QueuedMessage) => {
+    if (busy || editing?.id !== item.id) return;
+    // The server acknowledgement already paused this item. Leaving the editor
+    // discards only local changes; restoring delivery remains a separate action.
+    drafts.delete(key(item.id));
+    focusNext.current = { id: item.id, target: "action" };
+    setEditing(null); setText(""); setError("");
+  };
   if (!presence.rows.length) return null;
   const { editing: headEditing, blocked: headBlocked } = queueHeadState(items[0] ?? presence.rows[0].item, editing?.id);
   const remainingCount = items.filter(item => item.status !== "accepted" && !acceptedItems.has(item.id)).length;
   return (
     <section ref={section} className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? "首条结果待核对，队列已暂停" : paused ? "队列已暂停" : headEditing ? "首条编辑中，队列已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理" : connectionPending ? "连接恢复后依次发送" : "本轮结束后依次发送"}</span>}
+      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? "首条结果待核对，队列已暂停" : paused ? "队列已暂停" : headEditing ? editing?.id === items[0]?.id ? "首条编辑中，队列已暂停" : "首条已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理" : connectionPending ? "连接恢复后依次发送" : "本轮结束后依次发送"}</span>}
         {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
       </div>
       {presence.rows.map(({ item, leaving }, index) => {
@@ -186,11 +194,11 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
           <div className="outbox-actions">
             <small>{accepted ? "已发送" : busy === item.id || item.status === "pending" ? "正在提交…" :
               item.status === "unknown" ? "结果待确认，不会自动重发" :
-              item.status === "editing" ? "编辑中，已暂停发送" :
+              item.status === "editing" ? editing?.id === item.id ? "编辑中，已暂停发送" : "已暂停" :
               item.status === "rejected" ? "发送未完成，可编辑后重试" : paused ? "已暂停" : "排队中"}</small>
             {editing?.id === item.id ? <>
-              <button disabled={!!busy || disabled || (!text.trim() && !item.attachments?.length)} onClick={() => void act(item, "save")}>保存</button>
-              <button disabled={!!busy || disabled} onClick={() => void act(item, "resume")}>取消编辑</button>
+              <button disabled={!!busy || disabled || (!text.trim() && !item.attachments?.length)} onClick={() => void act(item, "save")}>{paused ? "保存并保持暂停" : "保存并排队"}</button>
+              <button disabled={!!busy} onClick={() => discardEdit(item)}>放弃修改</button>
             </> : mutable ? <>
               <button data-outbox-action="edit" aria-label={`${item.status === "editing" ? "继续编辑" : "编辑"}第 ${index + 1} 条待发消息`} disabled={!!busy || disabled} onClick={() => void act(item, "edit")}>{item.status === "editing" ? "继续编辑" : "编辑"}</button>
               <button aria-label={`删除第 ${index + 1} 条待发消息`} disabled={!!busy || disabled} onClick={() => void act(item, "cancel")}>删除</button>

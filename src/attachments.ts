@@ -18,6 +18,8 @@ const empty: readonly DraftAttachment[] = Object.freeze([]);
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export const attachmentPath = (threadId: string, id: string) => `/api/tasks/${threadId}/attachments/${id}`;
 export const hasDraftAttachments = (draft?: { attachments?: readonly unknown[] }) => !!draft?.attachments?.length;
+export const canRemoveLocalAttachment = (item: DraftAttachment) => !item.attachment &&
+  ["queued", "failed"].includes(item.status) && !item.checking && !item.deletePending;
 export function attachmentSize(size: number) { return size >= 1024 * 1024 ? `${(size / 1024 / 1024).toFixed(1)} MB` : size >= 1024 ? `${Math.ceil(size / 1024)} KB` : `${size} B`; }
 export function safeAttachmentUrl(value: string) { return /^\/api\/tasks\/[a-z0-9-]+\/attachments\/[a-f0-9-]{36}(?:\?[^#]*)?$/i.test(value) ? value : ""; }
 export function readyAttachments(items: readonly DraftAttachment[]) { return items.length <= MAX_ATTACHMENTS && items.every(item => item.status === "uploaded" && !!item.attachment); }

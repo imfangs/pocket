@@ -36,6 +36,7 @@ import { useReadingComposer } from "./useReadingComposer";
 import "./reading-composer.css";
 import { receiptHandoffs } from "./receiptMotion";
 import { useReceiptEntrances } from "./useReceiptHandoff";
+import { questionComposerPending, questionPresentationStore } from "./questionPresentation";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   attachments?: readonly DraftAttachment[];
@@ -58,6 +59,7 @@ export default function Conversation({
   historyCache,
   submissions: providedSubmissions,
   onConnect,
+  onRestore,
   onActivity,
   managementBlocked = false,
   managementHint,
@@ -67,6 +69,7 @@ export default function Conversation({
   historyCache: HistoryCache;
   submissions?: SubmittedQueryStore;
   onConnect: (options?: ConnectOptions) => Promise<OpenThreadResult>;
+  onRestore?: () => Promise<void>;
   onActivity?: () => void;
   managementBlocked?: boolean;
   managementHint?: string;
@@ -90,6 +93,7 @@ export default function Conversation({
       () => drafts.get(thread.id) || { text: "" },
     ),
     [sending, setSending] = useState(false),
+    [restoring, setRestoring] = useState(false),
     [opening, setOpening] = useState(false),
     [connection, setConnection] = useState<ThreadConnection>(() => historyCache.get(thread.id)?.history?.connection ?? { status: "idle" }),
     [connectionError, setConnectionError] = useState(""),
@@ -153,6 +157,9 @@ export default function Conversation({
   useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
   useEffect(() => { submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted]);
   const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
+  const [questionStore] = useState(questionPresentationStore);
+  const readQuestionPending = useCallback(() => questionComposerPending(questionStore, thread.id, questions, drafts), [questionStore, thread.id, questions, drafts]);
+  const hasPendingQuestions = useSyncExternalStore(questionStore.subscribe, readQuestionPending, readQuestionPending);
   const questionsByMessage = useMemo(() => {
     const groups = new Map<string, typeof questions>();
     for (const question of questions) groups.set(question.sourceMessageId, [...(groups.get(question.sourceMessageId) ?? []), question]);
@@ -186,7 +193,7 @@ export default function Conversation({
     (!readObservation || readFeedback.version === readObservation.visibleVersion) ? readFeedback : null;
   const observedConnection = connectionFromHistory(connection, history);
   const connecting = opening || observedConnection.status === "connecting";
-  useReloadGuard(() => sending || connecting ? "操作尚未完成，请稍后更新。"
+  useReloadGuard(() => sending || connecting || restoring ? "操作尚未完成，请稍后更新。"
     : draft.text || draft.requestId || attachments.length ? "还有未发送或待核对的消息，请处理后再更新。" : submissions.reloadBlocker());
   const updateDraft = useCallback(
     (next: QueryDraft, preserveAttachments = true) => {
@@ -221,6 +228,7 @@ export default function Conversation({
   const receiptRead = useRef<AbortController | null>(null);
   const checkingSubmissions = useRef(new Map<string, AbortController>());
   const connectionOpen = useRef<AbortController | null>(null);
+  const restorePending = useRef(false);
   const inputConnection = useRef<ReturnType<typeof createComposerConnectionIntent> | null>(null);
   useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
   useEffect(() => () => { checkingSubmissions.current.forEach(controller => controller.abort()); checkingSubmissions.current.clear(); }, [thread.id]);
@@ -284,7 +292,7 @@ export default function Conversation({
   const composer = useReadingComposer({ hasContent: shownMessages.length > 0, hasDraft: draft.text.length > 0,
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
     pending: sending || connecting || !!draft.requestId || shownOutbox.length > 0 || visibleSubmissions.length > 0 ||
-      !!history?.pendingRequests?.length || questions.length > 0,
+      !!history?.pendingRequests?.length || hasPendingQuestions,
     feedback: !!(error || historyError || connectionError || connectionFailed || compatibilityCode || notice || acceptedNotice || currentReadFeedback) });
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
@@ -543,13 +551,24 @@ export default function Conversation({
       if (ownsView()) { connectionOpen.current = null; setOpening(false); }
     }
   };
-  const preconnectBlocked = !!thread.sourceExcluded || thread.separator || !!draft.requestId || sending || !!compatibilityCode || history?.canAttemptSend === false || !!history?.pendingRequests?.length ||
+  const restore = async () => {
+    if (!onRestore || !thread.archived || thread.missing || managementBlocked || restorePending.current || sending || !online || draft.requestId) return;
+    restorePending.current = true;
+    const generation = readViewGeneration.current;
+    const release = holdReload();
+    setRestoring(true); setError("");
+    try { await onRestore(); }
+    catch (failure) { if (generation === readViewGeneration.current) setError((failure as Error).message || "恢复未完成，请重试。"); }
+    finally { restorePending.current = false; release(); if (generation === readViewGeneration.current) setRestoring(false); }
+  };
+  const preconnectBlocked = !!thread.sourceExcluded || thread.separator || !!draft.requestId || sending || restoring || !!compatibilityCode || history?.canAttemptSend === false || !!history?.pendingRequests?.length ||
     !!history?.compaction?.active || !!history?.queuePaused ||
     ["pending", "accepted", "unknown"].includes(history?.compactionRequest?.status ?? "") ||
     ["pending", "accepted", "unknown"].includes(history?.stopRequest?.status ?? "") ||
     shownOutbox.some(item => ["pending", "unknown"].includes(item.status)) ||
     visibleSubmissions.some(item => ["pending", "submitting", "connecting", "unknown"].includes(item.status));
   const hasComposerContent = !!draft.text.trim() || attachments.length > 0;
+  const restoreOnlyAction = thread.archived && !!onRestore && !draft.requestId;
   const retryConnection = showConnectionState && connectionFailed && !compatibilityCode && !hasComposerContent && !draft.requestId && !preconnectBlocked;
   const connectionOnlyAction = !hasComposerContent && !draft.requestId && (retryConnection || connecting);
   const connectionContext = useRef<{ connect: () => Promise<void>; available: () => boolean }>({ connect, available: () => false });
@@ -648,14 +667,14 @@ export default function Conversation({
           const message = entry.message;
           const messageQuestions = questionsByMessage.get(message.id);
           return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceTruncated={message.truncated}
-            disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} />
+            disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />
             : <ConversationMessage key={message.id} message={message}
               queryDisclosure={message.role === "user" ? { expanded: expandedQueries.has(message.clientMessageId || message.id),
                 toggle: (open, anchor) => toggleQuery(message, open, anchor) } : undefined}
               recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />;
         })}
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
-          disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} />}
+          disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
         <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
         <SubmittedQueryCards items={visibleSubmissions} exitIds={handoffs.submissions} explicitExitIds={handoffs.explicit} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
           disabled={!online || managementBlocked} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} />
@@ -698,6 +717,7 @@ export default function Conversation({
         onCompositionStart={composer.onCompositionStart} onCompositionEnd={composer.onCompositionEnd}
         onSubmit={(e) => void submit(e)}>
         <DraftAttachmentList threadId={thread.id} items={attachments} controller={uploads} disabled={!online || !targetAvailable || !!draft.requestId} error={attachmentError}
+          localRemovalAllowed={targetAvailable && !draft.requestId}
           onRecover={attachmentRecoveryNeeded ? () => void recoverAttachments() : undefined} />
         <label className="sr-only" htmlFor="user-query">
           发送消息
@@ -723,17 +743,17 @@ export default function Conversation({
           </span>}
           <button
             className="primary"
-            type={connectionOnlyAction ? "button" : "submit"}
-            onClick={retryConnection ? () => { void inputConnection.current?.request(true); } : undefined}
+            type={restoreOnlyAction || connectionOnlyAction ? "button" : "submit"}
+            onClick={restoreOnlyAction ? () => { void restore(); } : retryConnection ? () => { void inputConnection.current?.request(true); } : undefined}
             disabled={
-              connectionOnlyAction ? !online || connecting || preconnectBlocked : sending ||
+              restoreOnlyAction ? !online || thread.missing || managementBlocked || restoring || sending : connectionOnlyAction ? !online || connecting || preconnectBlocked : sending || restoring ||
               !online ||
               (!draft.requestId && (!hasComposerContent || !readyAttachments(attachments) ||
                 (enqueue ? !canQueue : !targetAvailable || !history?.canSend)))
             }
           >
-            {connectionOnlyAction ? connecting ? <LoaderCircle size={15} className="composer-connection-spinner" aria-hidden="true" /> : <RefreshCw size={15} aria-hidden="true" /> : <Send size={15} />}
-            {connectionOnlyAction ? connecting ? "连接中…" : "重试连接" : sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送" : enqueue ? "加入队列" : "发送"}
+            {restoring || connectionOnlyAction && connecting ? <LoaderCircle size={15} className="composer-connection-spinner" aria-hidden="true" /> : restoreOnlyAction || connectionOnlyAction ? <RefreshCw size={15} aria-hidden="true" /> : <Send size={15} />}
+            {restoreOnlyAction ? restoring ? "恢复中…" : "恢复会话" : connectionOnlyAction ? connecting ? "连接中…" : "重试连接" : sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送" : enqueue ? "加入队列" : "发送"}
           </button>
         </div>
       </form>

@@ -1,6 +1,6 @@
 import { FileText, Image as ImageIcon, Paperclip, RefreshCw, X } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { attachmentSize, safeAttachmentUrl, type AttachmentDraftController, type DraftAttachment, type PublicAttachment } from "./attachments";
+import { attachmentSize, canRemoveLocalAttachment, safeAttachmentUrl, type AttachmentDraftController, type DraftAttachment, type PublicAttachment } from "./attachments";
 import "./attachments.css";
 
 function Preview({ attachment, image }: { attachment?: PublicAttachment; image: boolean }) {
@@ -24,8 +24,8 @@ export default function AttachmentList({ attachments = [] }: { attachments?: rea
 }
 
 const labels: Record<DraftAttachment["status"], string> = { queued: "等待上传", uploading: "上传中…", uploaded: "已上传", failed: "上传未完成", unknown: "结果待核对", removing: "正在移除…" };
-export function DraftAttachmentList({ threadId, items, controller, disabled, error, onRecover }: {
-  threadId: string; items: readonly DraftAttachment[]; controller: AttachmentDraftController; disabled: boolean; error?: string; onRecover?: () => void;
+export function DraftAttachmentList({ threadId, items, controller, disabled, localRemovalAllowed = false, error, onRecover }: {
+  threadId: string; items: readonly DraftAttachment[]; controller: AttachmentDraftController; disabled: boolean; localRemovalAllowed?: boolean; error?: string; onRecover?: () => void;
 }) {
   if (!items.length && !error) return null;
   return <section className="draft-attachments" aria-label="待发送附件">
@@ -39,7 +39,7 @@ export function DraftAttachmentList({ threadId, items, controller, disabled, err
       <div className="attachment-controls">
         {item.status === "failed" && <button type="button" disabled={disabled} aria-label={`重试上传 ${item.name}`} onClick={() => controller.retry(threadId, item.id)}><RefreshCw size={15} /></button>}
         {item.status === "unknown" && <button type="button" disabled={disabled || item.checking} aria-label={`核对附件 ${item.name}`} onClick={() => void controller.check(threadId, item.id)}>核对</button>}
-        <button type="button" disabled={disabled || item.status === "removing" || item.checking} aria-label={`移除附件 ${item.name}`} onClick={() => void controller.remove(threadId, item.id)}><X size={16} /></button>
+        <button type="button" disabled={disabled && !(localRemovalAllowed && canRemoveLocalAttachment(item)) || item.status === "removing" || item.checking} aria-label={`移除附件 ${item.name}`} onClick={() => void controller.remove(threadId, item.id)}><X size={16} /></button>
       </div>
     </div>)}
     {(error || items.length > 6) && <p className="attachment-error" role="alert">{error || "每条消息最多6个附件，请移除多余附件。"}</p>}
