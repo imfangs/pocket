@@ -79,3 +79,5 @@
 本轮只修正等待文案为“Codex仍占用会话，释放后继续归档/恢复”，保留原请求编号、取消和真实状态核对，不声称修复了原owner接口缺口。**当前支持的是无占用时的归档及可取消等待，不能承诺手机立即归档所有已结束会话。** 后续需受支持的原owner控制入口才能补齐。
 
 实证入口：`.local/qa/archive-owner-2026-10-15/proof.json`与`subtree-proof.json`；源版本和提示回归在CURRENT。所有测试owner和临时home已清理。
+
+2026-10-16继续研究“下一次启动时共享原Core”的接入方案，区分普通WS迁移、官方raw proxy与保留桌面父链的stdio适配器；当前产品限制没有因此自动解除。新证据、原型结果及真实GUI验收边界统一见[归档owner路线](../research/2026-10-16-archive-owner-route.md)。
