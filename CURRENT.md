@@ -1,5 +1,7 @@
 # Pocket 当前状态
 
+2026-10-16用户消息包装修复已上线：完整浏览器上下文附带的`My request:`不再显示，复制只保留实际Query；用户自写标题、代码和附件保留，原消息/回执/已读数据不改。924项回归与构建、两引擎本地31项和公网静态资源配合成API31项通过，21个公开文件完整匹配；Mac API、Codex和连接器均未重启。详见[用户消息包装](docs/design/2026-10-16-user-message-envelope.md)。
+
 2026-10-16归档接入研究：下一次启动时以fork/exec保留原Core父链的stdio适配器，隔离原型26项检查通过；侧客户端成功归档同Core持有的目标与子树，无关会话、原帧与通知保留，0模型请求/token，临时进程和home已清理。真实GUI、AppTools、日常启动/升级、置顶/工作树等仍未验收；未安装适配器、未重启Codex、未改线上归档行为，也未恢复用户已取消的请求。技术路线与完整边界见[归档owner研究](docs/research/2026-10-16-archive-owner-route.md)。
 
 2026-10-15 返回按钮焦点修复已上线：普通触摸/鼠标进入详情时聚焦中性容器，不再把返回按钮显示成蓝圈选中；键盘/辅助技术激活仍聚焦返回并保留轮廓，通知/深链/新建完成采用程序入口。919项完整回归/构建、两引擎25项焦点流程和公开构建配合成API10项通过，21文件与功能匹配。归档另已实证是原桌面持有已结束子会话的writer：本轮只把等待文案改准确，原owner归档接口缺口未解决；用户明确先保留本次对象，未执行真实归档或恢复旧请求。详见[入口焦点](docs/design/2026-10-15-inspector-entry-focus.md)与[归档限制复核](docs/design/2026-10-05-thread-lifecycle.md#2026-10-15-持锁子会话导致长期等待)。
@@ -19,12 +21,12 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `f1b7aa5c4ec5d2914772baa7c83ae18a5b419929`（详情入口焦点与准确归档提示）；后续文档commit不代表部署更新 |
+| 已发布前端与网关源码 | `103d37f481e52277ee0ed619b3da7b6109a783f2`（隐藏用户消息中的浏览器包装标题）；后续文档commit不代表部署更新 |
 | Mac API与桥接源码 | 保持 `f48e83a7838794d0cfb52a113d2ffa4463cdee4b`，独立priority接口、双状态投影和回执协议不变。Pocket API PID `30489`、连接器PID `12488` 健康；本轮未重启API、Codex或连接器 |
-| Pages 部署 | `d0fb5d94-265a-4e25-8668-ecb277549b73`；10-15 ready=true、21文件匹配、功能通过，上传一次 |
-| 前端 build ID | `455e88073286f6ce75256aa5a2e5558fe7cd2ebc64ed223bfcfaa55732377c76`；源码、公开manifest、HTML与资源匹配 |
-| 验证快照 | 919项完整回归/构建；Chromium/WebKit最终焦点流程25项、公开构建配合成API10项通过。证据 `.local/qa/inspector-focus-2026-10-15/`、`.local/qa/archive-focus-2026-10-15/`；归档隔离官方协议对照在 `.local/qa/archive-owner-2026-10-15/` |
-| 最后健康复核 | 10-15公开HTML/JS/CSS一致，21文件与匿名API保护功能通过；公开构建触摸/键盘焦点、图片关闭与草稿10项通过，API仅用合成服务。此次未操作真实归档/发送，本机服务未重启 |
+| Pages 部署 | `4da56ca6-6326-45c1-a5da-31a8fe43373b`；10-16 ready=true、21文件匹配、功能通过，上传一次 |
+| 前端 build ID | `2f0b52525be7302402de8b27c7d75b29fdadcd052cd24038d65793325ba039e5`；源码、公开manifest、HTML与资源匹配 |
+| 验证快照 | 924项完整回归/构建；Chromium/WebKit消息显示/复制/附件/草稿31项、公开构建配合成API31项通过；用户指定原记录只读回放正文逐字保留。证据 `.local/qa/user-request-2026-10-16/`；10-15焦点/图片和归档原始证据仍保留 |
+| 最后健康复核 | 10-16公开HTML/JS/CSS一致，21文件与匿名API保护功能通过；公网构建的独立桌面/落盘历史、复制、代码、附件和草稿31项通过，API仅用合成服务。此次未操作真实归档/发送，本机服务未重启 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
 需要确认今天的在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。

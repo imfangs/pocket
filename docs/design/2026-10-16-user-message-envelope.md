@@ -25,3 +25,5 @@ Pocket 的 Markdown `skipHtml` 隐藏了前面的 HTML 块，但其后的 Markdo
 `tests/user-message-envelope.test.mjs` 从真实组件入口复现修复前的 `<h2>My request:</h2>`，修复后验证原生/落盘两条路径、原数据不变、标题与代码反例、CRLF、异常包装和问题回答。用户指定会话的原始记录也已做只读回放：463字符投影为51字符，实际Query逐字保留，原存储未改。私人样本及回放证明在 `.local/qa/user-request-2026-10-16/`。
 
 924项完整回归与构建通过；Chromium/WebKit的31项浏览器检查通过，涵盖独立的落盘/桌面历史、真实复制按钮、用户标题/代码、附件和往返草稿。所有API均来自临时合成服务，未执行真实发送或管理操作。发布身份以 CURRENT 和该目录最终回执为准；未将自动浏览器验证表述为 iPhone 主屏幕真机验收。
+
+发布源码`103d37f481e52277ee0ed619b3da7b6109a783f2`，Pages`4da56ca6-6326-45c1-a5da-31a8fe43373b`，build`2f0b52525be7302402de8b27c7d75b29fdadcd052cd24038d65793325ba039e5`。21个公开文件匹配、功能检查通过；公开静态资源配合成API再次完成两引擎31项检查。首次发布在管理GET预检遇401，按既有流程用同一Wrangler续期OAuth后成功，仅上传一次。未重启本机API、Codex或连接器。
