@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import CopyButton from "./CopyButton";
 import MessageMarkdown from "./MessageMarkdown";
-import { readableQuestionReply } from "./questionReply";
+import { readableUserMessage } from "./userMessage";
 import type { Message } from "./conversationFeed";
 import { formatDuration } from "./TurnDuration";
 import { readableCodexMarkdown } from "./codexMarkup";
@@ -16,7 +16,7 @@ export default function ConversationMessage({ message, recentlySent = false, que
   message: Message; recentlySent?: boolean; queryDisclosure?: QueryDisclosure;
 }) {
   const displayText = useMemo(() => message.role === "user"
-    ? readableQuestionReply(message.text) : readableCodexMarkdown(message.text), [message.role, message.text]);
+    ? readableUserMessage(message.text) : readableCodexMarkdown(message.text), [message.role, message.text]);
   const progress =
     message.role === "assistant" && message.phase === "commentary";
   const final = message.phase === "final_answer" || message.phase === "final";
