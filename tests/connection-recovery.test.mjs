@@ -145,6 +145,17 @@ test('initialization retries fresh snapshots and only a resumed owner counts as 
   assert.equal((await service.history(id)).canSend, false);
 });
 
+test('a not-yet-discovered owner triggers one original-thread open after a read-first connection attempt', async t => {
+  let opened = 0, reads = 0;
+  const { service } = fixture(t, async () => {
+    reads++;
+    return opened ? live() : { ok: false, sent: false, code: 'desktop_unavailable', connectionReason: 'owner_unavailable' };
+  }, async () => { opened++; });
+  service.connect(id, { open: false });
+  assert.equal((await settled(service)).status, 'connected');
+  assert.equal(opened, 1); assert.equal(reads, 2);
+});
+
 test('quick resuming snapshots do not exhaust the attachment window before the owner can initialize', async t => {
   let openedAt, reads = 0;
   const { service } = fixture(t, async () => {

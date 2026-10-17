@@ -44,3 +44,11 @@
 豌豆实际App为26.1013.40934:20770、内置CLI0.163.0-alpha.10.2。隔离临时home完成创建/改名等26项及归档/恢复专项14项，并只放行这一确切版本；未运行模型或改真实Codex数据。resumed-empty成为unknown的既有保守归档条件没有放宽，原失败和超时诊断保留在私有证据汇总。
 
 归档仍受原桌面 writer 条件限制；多机路由不等于已经安装此前研究的共享 Core 适配器。先前用户要求保留的会话和已取消操作不恢复。
+
+## 真实连接补充：首次未找到 owner
+
+真实首发创建成功，但新会话首次查找返回`no-client-found`。旧异常映射将它当作`desktop_protocol_error`，read-first恢复因此在打开原会话之前退出；消息保持原队列，未重复提交。安装包与真socket证明快照仍为v11、owner discovery为v1、start turn为v2，不需要放宽协议版本。
+
+修复只将“尚未派发、owner查找阶段、精确no-client-found”归为可恢复的`owner_unavailable`，继续原有单次打开/有界快照核对。初始化中的同名错误仍拒绝；写入已发出的错误仍是unknown，不能重放。只有验证到原owner的resumed快照后才能发送。
+
+对同一验收会话的一次明确连接已使原队列完成：原requestId恰好1轮、1条用户消息，1条final与marker完全匹配；source=desktop/resumed/idle，轮次completed；格得API无该线程。没有启动第二Core、重启Codex或重复发消息。GUI存在两个同路径listener，但本次正常导航已成功，不能将它们认定为此故障原因。相应证据在`live-check.json`、`remote-protocol-after-open.json`，自动恢复修复的部署状态回CURRENT。

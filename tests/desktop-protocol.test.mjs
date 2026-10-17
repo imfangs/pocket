@@ -18,7 +18,7 @@ const idle = {
   requests: [],
   turns: [],
 };
-async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0 } = {}) {
+async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0, errors = {} } = {}) {
   const home = mkdtempSync("/tmp/navigator-ipc-");
   mkdirSync(join(home, "ipc"), { mode: 0o700 });
   const calls = [];
@@ -47,6 +47,10 @@ async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0 } = {}
         pending = pending.subarray(4 + size);
         calls.push(m);
         if (m.type === "request") {
+          if (errors[m.method]) {
+            send({ type: "response", requestId: m.requestId, resultType: "error", error: errors[m.method] });
+            continue;
+          }
           const answer = () => send({
             type: "response",
             method: m.method,
@@ -92,6 +96,23 @@ async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0 } = {}
   });
   return { home, calls };
 }
+test("an undiscovered owner permits recovery without being treated as protocol incompatibility", async t => {
+  const f = await fakeDesktop(t, [idle], { errors: { "thread-owner-discovery": "no-client-found" } });
+  const result = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+  assert.equal(result.ok, false); assert.equal(result.sent, false);
+  assert.equal(result.code, "desktop_unavailable");
+  assert.equal(result.connectionReason, "owner_unavailable");
+  assert.equal(f.calls.some(call => call.params?.following || call.method === "thread-follower-start-turn"), false);
+});
+
+test("no-client-found is not reclassified during initialization or after a dispatched write", async t => {
+  const init = await fakeDesktop(t, [idle], { errors: { initialize: "no-client-found" } });
+  const failedInit = await desktopRequest({ operation: "history", threadId: id, codexHome: init.home });
+  assert.equal(failedInit.sent, false); assert.equal(failedInit.connectionReason, "desktop_protocol_error");
+  const write = await fakeDesktop(t, [idle], { errors: { "thread-follower-start-turn": "no-client-found" } });
+  const failedWrite = await desktopRequest({ operation: "send", threadId: id, requestId, text: "Keep the original request", codexHome: write.home });
+  assert.equal(failedWrite.code, "dispatch_unknown"); assert.equal(failedWrite.sent, null);
+});
 function attachmentFixture(t) {
   const directory = realpathSync(mkdtempSync("/tmp/navigator-attachment-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));

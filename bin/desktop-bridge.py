@@ -626,6 +626,12 @@ def main():
                     "sent": False, "connectionReason": "desktop_protocol_error"}
         if isinstance(error, FileNotFoundError):
             reason = "app_not_running"
+        elif (not dispatched and isinstance(error, RuntimeError) and str(error) == "no-client-found"
+              and getattr(client, "connection_stage", None) == "owner"):
+            # The router has not found an owner for this exact thread yet.
+            # Recovery may open it, but must still validate a resumed snapshot
+            # before permitting any write. Other methods/errors stay strict.
+            reason = "owner_unavailable"
         elif isinstance(error, (ConnectionRefusedError, ConnectionResetError, EOFError)):
             reason = "desktop_disconnected"
         elif isinstance(error, TimeoutError):
