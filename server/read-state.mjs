@@ -1,5 +1,5 @@
+import { readBridgeConfig } from "./bridge-config.mjs";
 import { createHash, randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { AppError } from './store.mjs';
 import { readHistorySourceVersion } from './history.mjs';
@@ -13,7 +13,7 @@ const snapshotKey = (id, value) => hash(JSON.stringify([id, value.sourceVersion,
 const statuses = new Set(['read', 'stale', 'unavailable', 'unknown']);
 
 export async function writeNativeReadState(payload) {
-  const config = JSON.parse(readFileSync(new URL('../config/desktop-bridge.json', import.meta.url), 'utf8'));
+  const config = readBridgeConfig();
   const result = await runBridge({ ...payload, operation: 'mark-read' }, {
     command: config.python,
     args: [fileURLToPath(new URL('../bin/read-state.py', import.meta.url))], timeoutMs: 12000,

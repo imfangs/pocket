@@ -28,8 +28,9 @@ function stateOf(history) {
     active: history.runtime === 'active' };
 }
 export class Notifications {
-  constructor(store, desktop, { send = webpush.sendNotification.bind(webpush), now = Date.now, subject = 'https://x.fangs.cc' } = {}) {
-    Object.assign(this, { store, desktop, send, now, subject, stopped: false });
+  constructor(store, desktop, { send = webpush.sendNotification.bind(webpush), now = Date.now, subject = 'https://x.fangs.cc', machineId = 'ged' } = {}) {
+    if (typeof machineId !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(machineId)) throw new Error('Invalid Pocket machine ID');
+    Object.assign(this, { store, desktop, send, now, subject, machineId, stopped: false });
     const path = join(store.directory, 'web-push-keys.json');
     try { this.keys = JSON.parse(readFileSync(path, 'utf8')); }
     catch (e) {
@@ -41,7 +42,7 @@ export class Notifications {
       CREATE TABLE IF NOT EXISTS push_watches(thread_id TEXT PRIMARY KEY,state TEXT,source_updated INTEGER,touched_at INTEGER NOT NULL,checked_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS push_deliveries(id TEXT NOT NULL,device_id TEXT NOT NULL,thread_id TEXT NOT NULL,kind TEXT NOT NULL,created_at INTEGER NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,next_at INTEGER NOT NULL,PRIMARY KEY(id,device_id));`);
   }
-  config() { return { publicKey: this.keys.publicKey, scope: 'pocket', deviceCount: this.devices().length }; }
+  config() { return { publicKey: this.keys.publicKey, scope: 'pocket', machineId: this.machineId, deviceCount: this.devices().length }; }
   devices() { return this.store.db.prepare('SELECT * FROM push_devices WHERE updated_at>?').all(this.now() - 30 * DAY); }
   subscriptionState(endpoint) { return { enabled: typeof endpoint === 'string' && !!this.store.db.prepare('SELECT id FROM push_devices WHERE id=? AND updated_at>?').get(hash(endpoint), this.now() - 30 * DAY) }; }
   subscribe(input) {
@@ -156,7 +157,7 @@ export class Notifications {
             continue;
           }
         }
-        await this.send(JSON.parse(row.subscription), JSON.stringify({ title: 'Pocket', body: labels[row.kind], threadId: row.thread_id, eventId: row.id }), {
+        await this.send(JSON.parse(row.subscription), JSON.stringify({ title: 'Pocket', body: labels[row.kind], machineId: this.machineId, threadId: row.thread_id, eventId: row.id }), {
           TTL: 120, urgency: row.kind === 'attention' ? 'high' : 'normal', timeout: 10000,
           vapidDetails: { subject: this.subject, ...this.keys },
         });

@@ -33,14 +33,17 @@ export default function NotificationSettings() {
       if (enabled) {
         if (subscription) {
           await api('/api/notifications/subscription', 'DELETE', {endpoint:subscription.endpoint});
-          await subscription.unsubscribe();
         }
         setEnabled(false);
       } else {
         const bytes = Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
+        const existingKey = subscription?.options.applicationServerKey;
+        if (existingKey && (new Uint8Array(existingKey).length !== bytes.length || new Uint8Array(existingKey).some((value, index) => value !== bytes[index])))
+          throw Error('这台电脑的通知配置尚未同步，请稍后重试。');
         subscription ||= await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});
-        try { await api('/api/notifications/subscription', 'POST', subscription.toJSON()); }
-        catch (error) { await subscription.unsubscribe(); throw error; }
+        // One browser subscription serves all machines. A failed registration
+        // or disabling this machine must not revoke another machine's delivery.
+        await api('/api/notifications/subscription', 'POST', subscription.toJSON());
         setEnabled(true);
       }
     } catch (error) { setError((error as Error).message); }

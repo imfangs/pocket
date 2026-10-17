@@ -17,7 +17,9 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bundled_cli import bundled_cli, verify_cli, BundledCLIError
 
-CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
+from bridge_config import load_bridge_config
+
+CONFIG = load_bridge_config()
 ALLOWED_METHODS = {"initialize", "project/read", "thread/start", "thread/name/set", "thread/read", "thread/metadata/update"}
 
 

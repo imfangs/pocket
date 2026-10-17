@@ -35,7 +35,20 @@ test('only fresh owner transitions notify; fallback reads and an old completed t
   state.history={source:'rollout',runtime:'idle',latestTurnStatus:'completed'};state.now+=11000;await s.tick();assert.equal(state.sends.length,0);
   state.history={source:'desktop',runtime:'idle',latestTurnId:'turn-1',latestTurnStatus:'completed',pendingRequests:[]};state.now+=11000;await s.tick();
   assert.equal(state.sends.length,1);const payload=JSON.parse(state.sends[0][1]);assert.equal(payload.body,'任务已完成');assert.equal(payload.threadId,id);assert.ok(!state.sends[0][1].includes('Private'));
+  assert.equal(payload.machineId, 'ged');
   state.now+=11000;await s.tick();assert.equal(state.sends.length,1);
+});
+test('remote notifications retain their machine while the same thread ID remains local to its store', async t => {
+  const { service, state, store, desktop, options } = fixture(t);
+  service.stop();
+  const remote = new Notifications(store, desktop, { ...options, machineId: 'wandou' });
+  t.after(() => remote.stop());
+  remote.subscribe(subscription());
+  remote.watch(id, state.history);
+  remote.watch(id, { ...state.history, runtime: 'idle', latestTurnStatus: 'completed' });
+  await remote.deliver();
+  assert.equal(JSON.parse(state.sends[0][1]).machineId, 'wandou');
+  assert.equal(remote.config().machineId, 'wandou');
 });
 test('attention is deduplicated across reload and restart, keys stay private',async t=>{
   const {service:s,state,store,directory,desktop,options}=fixture(t);s.subscribe(subscription());s.watch(id,state.history);

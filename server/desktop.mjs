@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readBridgeConfig } from "./bridge-config.mjs";
 import { fileURLToPath } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
 import { AppError } from "./store.mjs";
@@ -18,12 +18,7 @@ const compatibilityFailure = result => !result.ok &&
   [result.code, result.connectionReason].find(code => Object.hasOwn(compatibilityHints, code));
 
 export function desktopRequest(payload) {
-  const config = JSON.parse(
-    readFileSync(
-      new URL("../config/desktop-bridge.json", import.meta.url),
-      "utf8",
-    ),
-  );
+  const config = readBridgeConfig();
   return runBridge(payload, {
     command: config.python,
     args: [fileURLToPath(new URL("../bin/desktop-bridge.py", import.meta.url))],

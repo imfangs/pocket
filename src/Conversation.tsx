@@ -24,9 +24,8 @@ import { bindComposerConnectionIntent, createComposerConnectionIntent } from "./
 import "./composer-connection.css";
 import { displayedReadObservation, observeVisibleRead } from "./readObservation";
 import type { ReadAttempts, ReadObservation, ReadReceipt } from "./readObservation";
-import { createSubmissionFeedbackTracker, SEND_FEEDBACK_EXIT_MS } from "./submissionFeedback";
+import { createSubmissionFeedbackTracker } from "./submissionFeedback";
 import type { AcceptedFeedback } from "./submissionFeedback";
-import SubmissionFeedbackNotice from "./SubmissionFeedbackNotice";
 import SubmittedQueryCards from "./SubmittedQueryCards";
 import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, withSubmittedAttachments, withSubmittedQueryPost } from "./submittedQueries";
 import type { SubmittedQuery, SubmittedQueryStore, SubmittedQueryReceipt } from "./submittedQueries";
@@ -104,25 +103,15 @@ export default function Conversation({
     [awayFromLatest, setAwayFromLatest] = useState(() => historyCache.get(thread.id)?.nearBottom === false),
     [hasNewContent, setHasNewContent] = useState(false);
   const [feedbackTracker] = useState(createSubmissionFeedbackTracker);
-  const [acceptedNotice, setAcceptedNotice] = useState<(AcceptedFeedback & { leaving?: boolean }) | null>(null);
   const [recentAccepted, setRecentAccepted] = useState(new Map<string, number>());
   const showAcceptedFeedback = useCallback((feedback: AcceptedFeedback) => {
     setRecentAccepted(previous => new Map(previous).set(feedback.requestId, feedback.expiresAt));
-    setAcceptedNotice(feedback);
     setNotice(previous => /^(已加入|消息已交给|已在(?:原任务|会话)历史)/.test(previous) ? "" : previous);
   }, []);
   const confirmAccepted = useCallback((receipt: Receipt, source: AcceptedFeedback["source"] = "composer") => {
     const feedback = feedbackTracker.accept(receipt, source);
     if (feedback) showAcceptedFeedback(feedback);
   }, [feedbackTracker, showAcceptedFeedback]);
-  useEffect(() => {
-    if (!acceptedNotice) return;
-    const { requestId, expiresAt } = acceptedNotice;
-    const remaining = Math.max(0, expiresAt - Date.now());
-    const fade = setTimeout(() => setAcceptedNotice(current => current?.requestId === requestId ? { ...current, leaving: true } : current), remaining);
-    const remove = setTimeout(() => setAcceptedNotice(current => current?.requestId === requestId ? null : current), remaining + SEND_FEEDBACK_EXIT_MS);
-    return () => { clearTimeout(fade); clearTimeout(remove); };
-  }, [acceptedNotice?.requestId, acceptedNotice?.expiresAt]);
   useEffect(() => {
     if (!recentAccepted.size) return;
     const timer = setTimeout(() => setRecentAccepted(current => new Map([...current].filter(([, expiresAt]) => expiresAt > Date.now()))),
@@ -293,7 +282,7 @@ export default function Conversation({
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
     pending: sending || connecting || !!draft.requestId || shownOutbox.length > 0 || visibleSubmissions.length > 0 ||
       !!history?.pendingRequests?.length || hasPendingQuestions,
-    feedback: !!(error || historyError || connectionError || connectionFailed || compatibilityCode || notice || acceptedNotice || currentReadFeedback) });
+    feedback: !!(error || historyError || connectionError || connectionFailed || compatibilityCode || notice || currentReadFeedback) });
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
@@ -478,7 +467,6 @@ export default function Conversation({
     setSending(true);
     setError("");
     setNotice("");
-    setAcceptedNotice(null);
     const controller = new AbortController();
     const requestId = draft.requestId || crypto.randomUUID();
     const submittedText = draft.text;
@@ -688,7 +676,7 @@ export default function Conversation({
         {connectionHint && <div className="conversation-connection">
         {connectionHint && <p role="status">{connectionHint}</p>}
         </div>}
-        {(error || historyError || notice || acceptedNotice || currentReadFeedback) && <div className="conversation-feedback">
+        {(error || historyError || notice || currentReadFeedback) && <div className="conversation-feedback">
         {(error || historyError) && (
           <p className="inline-error" role="alert">
             {error || historyError}
@@ -699,7 +687,6 @@ export default function Conversation({
             {notice}
           </p>
         )}
-        {acceptedNotice && <SubmissionFeedbackNotice feedback={acceptedNotice} leaving={acceptedNotice.leaving} />}
         {currentReadFeedback && <p className="inline-hint" role="status">
           {currentReadFeedback.status === "stale" ? "进展已有更新，读取最新内容后再同步。" : currentReadFeedback.status === "unavailable" ? "暂时无法同步已读状态。" : "已读状态尚未确认。"}
           {" "}<button type="button" className="text-button" disabled={!online || retryingRead} onClick={() => void retryRead()}>{retryingRead ? "正在核对…" : "同步已读"}</button>

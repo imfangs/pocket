@@ -1,6 +1,7 @@
+import { readBridgeConfig } from "./bridge-config.mjs";
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppError } from './store.mjs';
@@ -17,7 +18,7 @@ const initialMessageId=id=>{
 };
 
 function nativeRequest(script,payload) {
-  const config=JSON.parse(readFileSync(new URL('../config/desktop-bridge.json',import.meta.url),'utf8'));
+  const config=readBridgeConfig();
   return runBridge(payload,{command:config.python,args:[fileURLToPath(new URL(`../bin/${script}`,import.meta.url))],timeoutMs:45000});
 }
 

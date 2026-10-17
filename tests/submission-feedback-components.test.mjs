@@ -6,21 +6,14 @@ import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 
 const vite = await createServer({ configFile: false, root: fileURLToPath(new URL('..', import.meta.url)), esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
-const [{ default: Message }, { default: Notice }, { default: Outbox }] = await Promise.all([
-  vite.ssrLoadModule('/src/ConversationMessage.tsx'), vite.ssrLoadModule('/src/SubmissionFeedbackNotice.tsx'), vite.ssrLoadModule('/src/Outbox.tsx'),
+const [{ default: Message }, { default: Outbox }] = await Promise.all([
+  vite.ssrLoadModule('/src/ConversationMessage.tsx'), vite.ssrLoadModule('/src/Outbox.tsx'),
 ]);
 after(() => vite.close());
 const queueItem = status => ({ id: status, status, revision: 0, text: 'One queued instruction', createdAt: 1 });
 function renderOutbox(items, extra = {}) {
   return renderToStaticMarkup(createElement(Outbox, { threadId: 'thread', items, disabled: false, allowSend: true, refresh: async () => {}, drafts: new Map(), ...extra }));
 }
-test('accepted feedback is immediately visible without requiring a history message', () => {
-  for (const source of ['composer', 'queue']) {
-    const html = renderToStaticMarkup(createElement(Notice, { feedback: { requestId: 'r', source, expiresAt: 1000 } }));
-    assert.match(html, /role="status"/);
-    assert.equal(html.replace(/<[^>]*>/g, ''), '已发送');
-  }
-});
 test('only a newly confirmed user message receives the green confirmation treatment', () => {
   const message = { id: 'one', role: 'user', text: 'Keep this exact text', clientMessageId: 'r' };
   const html = renderToStaticMarkup(createElement(Message, { message, recentlySent: true }));

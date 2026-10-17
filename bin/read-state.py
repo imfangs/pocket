@@ -11,7 +11,9 @@ import time
 import uuid
 from bundled_cli import desktop_app, BundledCLIError
 
-CONFIG = json.loads((Path(__file__).resolve().parent.parent / "config/desktop-bridge.json").read_text())
+from bridge_config import load_bridge_config
+
+CONFIG = load_bridge_config()
 sys.path.insert(0, CONFIG["ipcModuleDirectory"])
 from app_ipc import AppIPC
 from contracts import CompatibilityError

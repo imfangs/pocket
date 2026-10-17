@@ -139,7 +139,7 @@ from unittest.mock import patch
 sys.path.insert(0,sys.argv[1])
 from bundled_cli import verify_cli,BundledCLIError
 results=[]
-for value in ['codex-cli 0.153.4','codex-cli 0.162.0-alpha.17.2','codex-cli 99.0.0']:
+for value in ['codex-cli 0.153.4','codex-cli 0.162.0-alpha.17.2','codex-cli 0.163.0-alpha.10.2','codex-cli 0.163.0-alpha.10.3','codex-cli 99.0.0']:
  with patch('bundled_cli.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=value)) as run:
   try: results.append({'version':verify_cli('/fake/codex',sys.argv[2])})
   except BundledCLIError as error: results.append({'code':error.code})
@@ -147,5 +147,11 @@ for value in ['codex-cli 0.153.4','codex-cli 0.162.0-alpha.17.2','codex-cli 99.0
   assert 'CODEX_THREAD_ID' not in run.call_args.kwargs['env']
 print(json.dumps(results))
 `, bin, app]);
-  assert.deepEqual(JSON.parse(stdout), [{ version: 'codex-cli 0.153.4' }, { version: 'codex-cli 0.162.0-alpha.17.2' }, { code: 'cli_version_changed' }]);
+  assert.deepEqual(JSON.parse(stdout), [
+    { version: 'codex-cli 0.153.4' },
+    { version: 'codex-cli 0.162.0-alpha.17.2' },
+    { version: 'codex-cli 0.163.0-alpha.10.2' },
+    { code: 'cli_version_changed' },
+    { code: 'cli_version_changed' },
+  ]);
 });

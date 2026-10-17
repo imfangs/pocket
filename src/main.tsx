@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import PocketToaster from "./PocketToaster";
 import AccessGate from "./AccessGate";
+import { currentMachineId, machineStorageKey } from "./machineScope";
 import "./styles.css";
 import "./pwa.css";
 import "./polish.css";
@@ -15,8 +16,9 @@ createRoot(document.getElementById("root")!).render(
 );
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", event => {
-    if (event.data?.type !== "pocket-open-task" || !/^[a-f0-9-]{36}$/i.test(event.data.threadId)) return;
-    try { sessionStorage.setItem("pocket.pending-task", event.data.threadId); } catch {}
+    if (!["pocket-open-task", "pocket-open-machine-task"].includes(event.data?.type) || !/^[a-f0-9-]{36}$/i.test(event.data.threadId)) return;
+    if ((event.data.machineId ?? "ged") !== currentMachineId()) return;
+    try { sessionStorage.setItem(machineStorageKey("pocket.pending-task"), event.data.threadId); } catch {}
     window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: event.data.threadId }));
     event.ports[0]?.postMessage("pocket-task-received");
   });

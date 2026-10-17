@@ -1,6 +1,6 @@
 # Pocket · 开发接续
 
-个人 Mac 上 Codex 的手机入口：查看和接续原任务，管理名称与归档。产品名为 **Pocket**；仓库、服务、数据目录和备份格式继续使用 `codex-navigator` / `CodexNavigator` 兼容标识。
+Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称与归档。产品名为 **Pocket**；仓库、服务、数据目录和备份格式继续使用 `codex-navigator` / `CodexNavigator` 兼容标识。
 
 ## 开工顺序
 
@@ -13,6 +13,7 @@
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 多机连接、机器切换、远端部署、跨机链接/资源/通知 | [多机连接](docs/design/2026-10-17-multi-machine.md)：原owner、独立路由/Cookie/草稿保护、机器私有配置；真实安装状态回CURRENT |
 | 进入详情后返回按钮蓝圈、指针/键盘/通知焦点 | [入口焦点](docs/design/2026-10-15-inspector-entry-focus.md)：保留键盘轮廓，普通触摸落在中性容器 |
 | 会话图片放大、缩放、关闭与阅读恢复 | [会话内大图](docs/design/2026-10-15-image-viewer.md)：共享host、固定关闭、原图与权限边界 |
 | 离线整页视觉、对齐、主题和公开壳更新 | [离线布局收敛](docs/design/2026-10-15-offline-layout.md)：独立公开页面、中轴与安全区、深链保留 |

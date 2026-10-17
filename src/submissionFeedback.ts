@@ -2,7 +2,6 @@ import type { History, QueuedMessage } from "./conversationFeed";
 import type { SubmissionReceipt } from "./submissionReceipt";
 
 export const SEND_FEEDBACK_MS = 6000;
-export const SEND_FEEDBACK_EXIT_MS = 180;
 export type AcceptedFeedback = { requestId: string; source: "composer" | "queue"; expiresAt: number };
 
 // This tracker belongs to one mounted conversation. Cached history alone never

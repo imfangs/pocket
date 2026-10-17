@@ -102,12 +102,31 @@ test('push shows a notification without caching private data and click reuses a 
   registration:{showNotification:async(...args)=>shown.push(args)},clients:{matchAll:async()=>[{url:'https://example.test/',postMessage:(m,ports)=>{messages.push(m);if(acknowledge)ports[0].ack();},focus:async()=>focused++,navigate:async url=>navigated.push(url)}],openWindow:async url=>opened.push(url)}};
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,URL,MessageChannel:Channel,setTimeout:(fn)=>setTimeout(fn,10),clearTimeout});
  let pending;handlers.push({data:{json:()=>({threadId:id,eventId:'event-1',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;
- assert.equal(shown[0][0],'Pocket');assert.equal(shown[0][1].data.threadId,id);
+ assert.equal(shown[0][0],'Pocket · 格得 Mac');assert.equal(shown[0][1].data.threadId,id);assert.equal(shown[0][1].data.machineId,'ged');
  handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;
  assert.equal(messages[0].threadId,id);assert.equal(focused,1);assert.equal(opened.length,0);
- acknowledge=false;handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;assert.equal(navigated[0],`/?task=${id}`);
+ acknowledge=false;handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;assert.equal(navigated.length,0);assert.equal(opened[0],`/?task=${id}`);
  self.clients.matchAll=async()=>[];handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;
  assert.equal(opened[0],`/?task=${id}`);
+});
+
+test('push clicks choose the correct machine even for identical thread IDs and never navigate another machine', async () => {
+ const handlers={},shown=[],messages=[],opened=[];
+ const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+ class Channel {constructor(){this.port1={close(){}};this.port2={ack:()=>this.port1.onmessage({data:'pocket-task-received'})};}}
+ const client=machine=>({url:`https://example.test/?machine=${machine}`,focus:async()=>{},postMessage:(message,ports)=>{messages.push({machine,...message});ports[0].ack()},navigate:async()=>{throw Error('Existing drafts must not be replaced')}});
+ const self={location:{origin:'https://example.test'},addEventListener:(name,fn)=>handlers[name]=fn,registration:{showNotification:async(...args)=>shown.push(args)},clients:{matchAll:async()=>[client('ged'),client('wandou')],openWindow:async url=>opened.push(url)}};
+ vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,URL,MessageChannel:Channel,setTimeout,clearTimeout});
+ let pending;
+ for(const machineId of ['ged','wandou']) {handlers.push({data:{json:()=>({threadId:id,machineId,eventId:'same-event',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;}
+ assert.notEqual(shown[0][1].tag,shown[1][1].tag);
+ handlers.notificationclick({notification:{close(){},data:{threadId:id,machineId:'wandou'}},waitUntil:p=>pending=p});await pending;
+ assert.equal(messages.length,1);assert.equal(messages[0].machine,'wandou');assert.equal(messages[0].type,'pocket-open-machine-task');
+ self.clients.matchAll=async()=>[client('ged')];
+ handlers.notificationclick({notification:{close(){},data:{threadId:id,machineId:'wandou'}},waitUntil:p=>pending=p});await pending;
+ assert.equal(opened.at(-1),`/?machine=wandou&task=${id}`);assert.equal(messages.length,1);
+ handlers.push({data:{json:()=>({threadId:id,machineId:'unknown',body:'ignore'})},waitUntil:()=>{throw Error('Unknown machine must not notify')}});
+ assert.equal(shown.length,2);
 });
 
 

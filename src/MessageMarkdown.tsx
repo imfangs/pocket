@@ -1,7 +1,9 @@
 import MarkdownCode from "./MarkdownCode";
 import MessageImage from "./MessageImage";
 import { memo, useMemo } from "react";
-import { pocketTaskUrl, readableCodexMarkdown } from "./codexMarkup";
+import { pocketTaskTarget, pocketTaskUrl, readableCodexMarkdown } from "./codexMarkup";
+import { changeMachine, currentMachineId } from "./machineScope";
+import { toast } from "sonner";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -24,7 +26,12 @@ const components: Components = {
     if (taskUrl) return <a className="pocket-task-link" href={taskUrl} onClick={event => {
       if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
-      window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: taskUrl.slice("/?task=".length) }));
+      const target = pocketTaskTarget(taskUrl);
+      if (!target) return;
+      if (target.machine !== currentMachineId()) {
+        const error = changeMachine(target.machine, target.threadId);
+        if (error) toast.error(error);
+      } else window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: target.threadId }));
     }}>{children}</a>;
     return href ? (
       <a href={href} target="_blank" rel="noopener noreferrer">

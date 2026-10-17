@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import type { Catalog, View } from "./types";
 import { projectNavigationItems } from "./projectNavigation";
 import "./project-navigation.css";
+import MachinePicker from "./MachinePicker";
 interface Props {
   catalog: Catalog;
   view: View;
@@ -97,6 +98,7 @@ export default function Sidebar(p: Props) {
             <X size={18} />
           </button>
         </div>
+        <MachinePicker />
         <div className="sidebar-scroll">
           <nav aria-label="会话视图">
             <button

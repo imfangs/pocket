@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { bindImageGestures, clampImageTransform, fitImage, imageIdentity, IMAGE_ZOOM_MAX, zoomImage, type ImageBounds, type ImageTransform } from "./imageViewerGestures";
 import "./image-viewer.css";
+import { machineApiPath } from "./machineScope";
 
 export default function ImageViewer({ src, alt, onClose, opener }: { src: string; alt: string; onClose: () => void; opener?: HTMLElement | null }) {
   const dialog = useRef<HTMLDialogElement>(null), stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLDivElement>(null), closeButton = useRef<HTMLButtonElement>(null);
@@ -82,7 +83,7 @@ export default function ImageViewer({ src, alt, onClose, opener }: { src: string
     onCancel={event => { event.preventDefault(); requestClose(); }}>
     <div ref={stage} className="image-viewer-stage">
       <div ref={canvas} className="image-viewer-canvas">
-        <img key={`${src}:${attempt}`} className="image-viewer-image" src={src} alt={alt || "图片"} draggable={false} decoding="async" referrerPolicy="no-referrer"
+        <img key={`${src}:${attempt}`} className="image-viewer-image" src={machineApiPath(src)} alt={alt || "图片"} draggable={false} decoding="async" referrerPolicy="no-referrer"
           data-scale={value.scale} style={{ width: fitted.width || undefined, height: fitted.height || undefined, visibility: phase === "ready" ? "visible" : "hidden",
             transform: `translate(-50%, -50%) translate(${value.x}px, ${value.y}px) scale(${value.scale})` }}
           onLoad={event => {

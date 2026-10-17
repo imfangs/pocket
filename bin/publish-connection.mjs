@@ -8,6 +8,9 @@ export async function publishConnection(connection, options = {}) {
   if (!connection.connected || !connection.publicOrigin)
     throw failure("tunnel_not_connected");
   const config = options.config || JSON.parse(readFileSync(new URL("../config/relay.json", import.meta.url), "utf8"));
+  const machineId = config.machineId === undefined ? process.env.NAVIGATOR_MACHINE_ID ?? "ged" : config.machineId;
+  if (typeof machineId !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(machineId))
+    throw failure("registration_machine_invalid");
   const directory = options.dataDir || process.env.NAVIGATOR_DATA_DIR ||
     join(homedir(), "Library/Application Support/CodexNavigator");
   let token;
@@ -24,18 +27,20 @@ export async function publishConnection(connection, options = {}) {
     const response = await (options.fetch || fetch)(new URL("/api/relay/register", entry), {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ connected: true, publicOrigin: connection.publicOrigin }),
+      body: JSON.stringify({ connected: true, machineId, publicOrigin: connection.publicOrigin }),
       redirect: "error",
       signal: AbortSignal.timeout(20000),
     });
     if (!response.ok) throw failure(`registration_http_${response.status}`);
     const receipt = await response.json();
     if (receipt.ok !== true || receipt.entryOrigin !== entry.origin ||
+        (receipt.machineId !== machineId && !(machineId === "ged" && receipt.machineId === undefined)) ||
+        (response.headers.has("X-Pocket-Machine") && response.headers.get("X-Pocket-Machine") !== machineId) ||
         receipt.publicOrigin !== connection.publicOrigin ||
         !Number.isFinite(Date.parse(receipt.publishedAt)) || Date.parse(receipt.expiresAt) <= Date.now() ||
         !Number.isFinite(Date.parse(receipt.expiresAt)))
       throw failure("registration_receipt_invalid");
-    return { entryOrigin: receipt.entryOrigin, publishedAt: receipt.publishedAt, expiresAt: receipt.expiresAt };
+    return { machineId, entryOrigin: receipt.entryOrigin, publishedAt: receipt.publishedAt, expiresAt: receipt.expiresAt };
   } catch (e) {
     // Never include raw request/response bodies or credentials in service logs.
     if (typeof e.code === "string" && e.code.startsWith("registration_")) throw e;

@@ -1,5 +1,5 @@
+import { readBridgeConfig } from "./bridge-config.mjs";
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const kinds = new Set(['running', 'waiting_input', 'waiting_approval', 'idle', 'unknown']);
@@ -9,7 +9,7 @@ const unavailable = checkedAt => ({ available: false, checkedAt, states: [] });
 export function readNativeTaskStatuses(payload, { signal } = {}) {
   return new Promise(resolve => {
     let config;
-    try { config = JSON.parse(readFileSync(new URL('../config/desktop-bridge.json', import.meta.url), 'utf8')); }
+    try { config = readBridgeConfig(); }
     catch { resolve(unavailable(Date.now())); return; }
     const child = execFile(config.python, [fileURLToPath(new URL('../bin/task-statuses.py', import.meta.url))],
       { signal, timeout: 6500, maxBuffer: 128 * 1024, encoding: 'utf8' }, (error, stdout) => {

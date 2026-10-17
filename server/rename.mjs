@@ -1,5 +1,5 @@
+import { readBridgeConfig } from "./bridge-config.mjs";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { AppError } from "./store.mjs";
 import { runBridge } from "./bridge-process.mjs";
@@ -19,7 +19,7 @@ const messages = {
   rename_not_applied: "已确认名称未改变，可以再次保存。",
 };
 function nativeRequest(payload) {
-  const config = JSON.parse(readFileSync(new URL("../config/desktop-bridge.json", import.meta.url), "utf8"));
+  const config = readBridgeConfig();
   return runBridge(payload, { command: config.python,
     args: [fileURLToPath(new URL("../bin/rename-thread.py", import.meta.url))], timeoutMs: 50000 });
 }

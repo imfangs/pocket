@@ -40,11 +40,12 @@ import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
 import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
 import { focusInspectorEntry, inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
+import { currentMachine, machineStorageKey } from "./machineScope";
 import { normalizeNavigationPrefs } from "./navigationModel";
 import "./task-operations.css";
 function readPrefs() {
   try {
-    return normalizeNavigationPrefs(JSON.parse(localStorage.getItem("navigator.view") || "{}"));
+    return normalizeNavigationPrefs(JSON.parse(localStorage.getItem(machineStorageKey("navigator.view")) || "{}"));
   } catch {
     return normalizeNavigationPrefs(null);
   }
@@ -97,7 +98,7 @@ export default function App({
     [view, setView] = useState<View>(prefs.view),
     [selected, setSelectedState] = useState<string | null>(() => {
       let id = new URLSearchParams(location.search).get("task");
-      try { id ||= sessionStorage.getItem("pocket.pending-task"); sessionStorage.removeItem("pocket.pending-task"); } catch {}
+      try { id ||= sessionStorage.getItem(machineStorageKey("pocket.pending-task")); sessionStorage.removeItem(machineStorageKey("pocket.pending-task")); } catch {}
       return id && /^[a-f0-9-]{36}$/i.test(id) ? id : null;
     }),
     [query, setQuery] = useState(""),
@@ -298,7 +299,7 @@ export default function App({
   useEffect(() => {
     try {
       localStorage.setItem(
-        "navigator.view",
+        machineStorageKey("navigator.view"),
         JSON.stringify({ view, project, sort: "smart", sortVersion: 3 }),
       );
     } catch {}
@@ -401,7 +402,7 @@ export default function App({
         await syncTasks(true);
         setSelected(id);
         setMobile(false);
-        try { sessionStorage.removeItem("pocket.pending-task"); } catch {}
+        try { sessionStorage.removeItem(machineStorageKey("pocket.pending-task")); } catch {}
       });
     };
     window.addEventListener("pocket-open-task", fromNotification);
@@ -474,6 +475,7 @@ export default function App({
                 <span className="workspace-title">{title}</span>
                 <span className="workspace-count">{view === "unread" && !unreadKnown || view === "running" && !runtimeKnown ? "—" : threads.length}</span>
               </h1>
+              <span className="machine-context">{currentMachine()?.label}</span>
             </div>
             <button
               className="new-conversation-button"

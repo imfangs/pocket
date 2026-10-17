@@ -1,4 +1,5 @@
 import type { Thread } from "./types";
+import { machineStorageKey } from "./machineScope.ts";
 import type { ThreadConnection } from "./threadConnection";
 
 export type TaskOperation = {
@@ -40,12 +41,12 @@ const creationRecoveryKey = "pocket.pending-creation-ids.v1";
 const validId = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 export function readCreationRecoveryIds(storage?: Pick<Storage, "getItem">): string[] {
   try {
-    const value = JSON.parse((storage ?? sessionStorage).getItem(creationRecoveryKey) || "[]");
+    const value = JSON.parse((storage ?? sessionStorage).getItem(machineStorageKey(creationRecoveryKey)) || "[]");
     return Array.isArray(value) ? [...new Set(value.filter(validId))].slice(-100) : [];
   } catch { return []; }
 }
 export function saveCreationRecoveryIds(ids: string[], storage?: Pick<Storage, "setItem">) {
-  try { (storage ?? sessionStorage).setItem(creationRecoveryKey, JSON.stringify([...new Set(ids.filter(validId))].slice(-100))); }
+  try { (storage ?? sessionStorage).setItem(machineStorageKey(creationRecoveryKey), JSON.stringify([...new Set(ids.filter(validId))].slice(-100))); }
   catch { /* An unavailable session store must not change the operation itself. */ }
 }
 export function creationRecoveryIds(operations: Iterable<TaskOperation>, watched: ReadonlySet<string>) {

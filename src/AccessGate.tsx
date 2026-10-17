@@ -14,11 +14,14 @@ import BootSplash from "./BootSplash";
 import { api } from "./api";
 import { createAccessCheck } from "./accessCheck";
 import { holdReload, useReloadGuard } from "./updateSafety";
+import MachinePicker from "./MachinePicker";
+import { bindMachineUnloadGuard, changeMachine, currentMachine, currentMachineId, needsPublicMachine } from "./machineScope";
 
 function AppLoadFailure() {
   return <main className="access-screen">
     <section className="access-card" role="alert">
       <div className="access-brand"><PocketLogo /><span>Pocket</span></div>
+      <MachinePicker />
       <h1>暂时无法打开 Pocket</h1>
       <p className="access-intro">可能遇到了版本更新或网络中断。请确认网络后重新加载。</p>
       <button type="button" className="primary access-submit" onClick={() => location.reload()}>重新加载 Pocket</button>
@@ -30,21 +33,21 @@ function AppLoadFailure() {
 // of its drafts, and no network or version event triggers a reload here.
 const App = lazy(() => import("./App").catch(() => ({ default: AppLoadFailure })));
 export default function AccessGate() {
+  const machine = currentMachineId();
   const [state, setState] = useState<
-      "loading" | "locked" | "authenticated" | "offline"
-    >("loading"),
+      "loading" | "locked" | "authenticated" | "offline" | "select"
+    >(machine ? "loading" : "select"),
     [passphrase, setPassphrase] = useState(""),
     [visible, setVisible] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const installController = usePwaInstallController();
+  useEffect(() => bindMachineUnloadGuard(), []);
   useReloadGuard(() => busy ? "登录操作尚未完成，请稍后更新。"
     : passphrase ? "访问口令尚未提交，请登录或清空后再更新。" : null);
   const [checks] = useState(() => createAccessCheck({
     async request() {
-      const r = await fetch("/api/auth/status", { cache: "no-store", signal: AbortSignal.timeout(12000) });
-      if (!r.ok) throw new Error();
-      const d = await r.json();
+      const d = await api<{ authenticated: boolean }>("/api/auth/status", "GET", undefined, { signal: AbortSignal.timeout(12000) });
       return d.authenticated === true;
     },
     onResult(authenticated) { setState(authenticated ? "authenticated" : "locked"); },
@@ -54,9 +57,18 @@ export default function AccessGate() {
   }));
   const check = useCallback(() => checks.check(), [checks]);
   useEffect(() => {
+    if (!machine) return;
+    if (needsPublicMachine(machine)) {
+      const task = new URLSearchParams(location.search).get("task");
+      const reason = changeMachine(machine, task && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(task) ? task : undefined);
+      if (reason) { setError(reason); setState("select"); }
+      return;
+    }
     checks.resume();
     void check();
-    const expired = () => {
+    const expired = (event: Event) => {
+      const source = (event as CustomEvent<{ machine?: string }>).detail?.machine;
+      if (source && source !== machine) return;
       checks.invalidate();
       setState("locked");
       setError("登录已过期，请重新输入口令。");
@@ -74,22 +86,17 @@ export default function AccessGate() {
       window.removeEventListener("online", online);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [check, checks]);
+  }, [check, checks, machine]);
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy) return;
+    if (!machine || busy) return;
     const release = holdReload();
     checks.pause();
     setBusy(true);
     setError("");
     try {
-      const r = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passphrase }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "登录未完成");
+      const result = await api<{ authenticated: boolean }>("/api/auth/login", "POST", { passphrase });
+      if (!result.authenticated) throw new Error("登录未完成");
       setPassphrase("");
       setState("authenticated");
     } catch (e) {
@@ -111,15 +118,9 @@ export default function AccessGate() {
         const subscription = await registration?.pushManager.getSubscription();
         if (subscription) {
           await api('/api/notifications/subscription', 'DELETE', {endpoint: subscription.endpoint});
-          await subscription.unsubscribe();
         }
       }
-      const r = await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      if (!r.ok) throw new Error();
+      await api("/api/auth/logout", "POST", {});
       setState("locked");
       setError("");
       setPassphrase("");
@@ -165,11 +166,12 @@ export default function AccessGate() {
           <PocketLogo />
           <span>Pocket</span>
         </div>
-        <h1>连接 Codex</h1>
-        {state === "offline" ? (
+        <MachinePicker />
+        <h1>{state === "select" ? "选择电脑" : "连接 Codex"}</h1>
+        {state === "select" ? <p className="access-intro" role={error ? "alert" : undefined}>{error || "请选择要连接的电脑。"}</p> : state === "offline" ? (
           <div className="access-offline">
             <WifiOff size={24} />
-            <p>暂时连接不到 Mac。</p>
+            <p>暂时连接不到{currentMachine()?.label}。</p>
             <small>确认 Mac 和网络可用后再试。</small>
             <button className="primary" onClick={() => void check()}>
               重新连接

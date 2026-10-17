@@ -36,6 +36,8 @@ const safeEqual = (a, b) =>
   Buffer.byteLength(a) === Buffer.byteLength(b) &&
   timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export function makeApp(options = {}) {
+  const machineId = options.machineId ?? process.env.NAVIGATOR_MACHINE_ID ?? "ged";
+  if (typeof machineId !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(machineId)) throw new Error("Invalid Pocket machine ID");
   const store = new NavigatorStore(
     options.dataDir ||
       process.env.NAVIGATOR_DATA_DIR ||
@@ -58,7 +60,7 @@ export function makeApp(options = {}) {
     { openThread, connectionTimeoutMs: options.connectionTimeoutMs, connectionPollMs: options.connectionPollMs, attachmentOptions: options.attachments },
   );
   const readState = new ReadStateService(store, codexHome, options.readState);
-  const notifications = new Notifications(store, desktop, options.notifications);
+  const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
   const images = new MessageImages();
   desktop.onAccepted = (id, turnId) => {
     try { notifications.followSubmission(id, turnId); }
@@ -128,6 +130,7 @@ export function makeApp(options = {}) {
     }
   }
   const server = http.createServer(async (req, res) => {
+    res.setHeader("X-Pocket-Machine", machineId);
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -176,6 +179,7 @@ export function makeApp(options = {}) {
         return json(res, 200, {
           ok: true,
           app: "codex-navigator",
+          machineId,
         });
       const localBearerAllowed =
         ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&

@@ -1,5 +1,6 @@
 import type { PocketActivity } from "./smartOrder.ts";
 import type { TaskOperation } from "./taskOperations.ts";
+import { machineStorageKey } from "./machineScope.ts";
 
 const key = "pocket.activity.v1";
 const lifetime = 90 * 86400000;
@@ -22,14 +23,14 @@ function preserveUnchanged(current: ReadonlyMap<string, PocketActivity>, next: R
 
 export function readPocketActivity(storage?: Pick<Storage, "getItem">, now = Date.now()): ReadonlyMap<string, PocketActivity> {
   try {
-    const entries: unknown = JSON.parse((storage ?? localStorage).getItem(key) || "[]");
+    const entries: unknown = JSON.parse((storage ?? localStorage).getItem(machineStorageKey(key)) || "[]");
     if (!Array.isArray(entries)) return new Map();
     return bounded(entries.filter(entry => Array.isArray(entry) && entry.length === 2 && entry[1] && typeof entry[1] === "object") as [string, PocketActivity][], now);
   } catch { return new Map(); }
 }
 
 export function savePocketActivity(activity: ReadonlyMap<string, PocketActivity>, storage?: Pick<Storage, "setItem">) {
-  try { (storage ?? localStorage).setItem(key, JSON.stringify([...activity])); }
+  try { (storage ?? localStorage).setItem(machineStorageKey(key), JSON.stringify([...activity])); }
   catch { /* Private/limited browser storage must not prevent opening a chat. */ }
 }
 

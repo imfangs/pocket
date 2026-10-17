@@ -26,7 +26,8 @@ test('accepted first query remains visible while native history has not echoed i
   const drafts = new Map([['thread', { text: 'An independent next query' }]]);
   const html = render(submissions, undefined, drafts);
   assert.match(html, /The submitted first query/);
-  assert.match(html, /已发送/);
+  assert.equal(html.split('已发送').length - 1, 1, 'the submitted query card owns the success feedback');
+  assert.doesNotMatch(html, /conversation-feedback|send-feedback/);
   assert.doesNotMatch(html, /<strong>你<\/strong>|原文已保留|消息出现前会保留/);
   assert.match(html, /<textarea[^>]*>An independent next query<\/textarea>/);
   assert.equal(drafts.get('thread').text, 'An independent next query');

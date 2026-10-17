@@ -1,10 +1,25 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Nodes } from "mdast";
+import { currentMachineId, isMachineId, machineTaskUrl, type MachineId } from "./machineScope.ts";
 
 const taskId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-export function pocketTaskUrl(value: string) {
-  const match = /^(?:codex:\/\/threads\/|\/\?task=)([^/?#]+)$/.exec(value);
-  return match && taskId.test(match[1]) ? `/?task=${match[1]}` : null;
+export function pocketTaskTarget(value: string, current: MachineId | null = currentMachineId()): { threadId: string; machine: MachineId } | null {
+  const native = /^codex:\/\/threads\/([^/?#]+)$/.exec(value);
+  if (native) return current && taskId.test(native[1]) ? { threadId: native[1], machine: current } : null;
+  const origin = typeof window === "undefined" ? "https://pocket.invalid" : window.location.origin;
+  if (!value.startsWith("/?") && !value.startsWith(origin + "/?")) return null;
+  try {
+    const url = new URL(value, origin), ids = url.searchParams.getAll("task"), scope = url.searchParams.getAll("machine");
+    if (url.pathname !== "/" || url.hash || ids.length !== 1 || !taskId.test(ids[0]) || scope.length > 1 ||
+        [...url.searchParams.keys()].some(key => key !== "task" && key !== "machine")) return null;
+    const machine = scope.length ? scope[0] : "ged";
+    return isMachineId(machine) ? { threadId: ids[0], machine } : null;
+  } catch { return null; }
+}
+export function pocketTaskUrl(value: string, current: MachineId | null = currentMachineId()) {
+  const target = pocketTaskTarget(value, current);
+  if (!target) return null;
+  return target.machine === "ged" && current !== "ged" ? `/?machine=ged&task=${target.threadId}` : machineTaskUrl(target.threadId, target.machine);
 }
 
 function attributes(source: string) {
@@ -61,7 +76,7 @@ export function readableCodexMarkdown(source: string): string {
     if (!attrs) return null;
     if (name === "created-thread") {
       return attrs.threadId && taskId.test(attrs.threadId)
-        ? `[打开任务](/?task=${attrs.threadId})`
+        ? `[打开任务](${machineTaskUrl(attrs.threadId)})`
         : attrs.clientThreadId ? "任务正在准备中" : null;
     }
     if (name === "code-comment") {

@@ -18,30 +18,6 @@
   --send-blue-line: rgb(116 170 241 / 34%);
   --send-blue-glow: rgb(75 146 236 / 20%);
 }
-.conversation-status .send-feedback {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  position: relative;
-  isolation: isolate;
-  padding: 11px 13px;
-  border: 1px solid var(--send-green-line);
-  border-radius: 10px;
-  color: var(--send-green);
-  background: var(--send-green-bg);
-  box-shadow: 0 5px 22px var(--send-green-glow);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 180ms var(--ease), transform 180ms var(--ease);
-}
-.send-feedback > svg { flex: none; }
-.send-feedback > span { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 9px; }
-.send-feedback strong { font-size: 13px; font-weight: 650; }
-.send-feedback > span > span { font-size: 12px; }
-.conversation-status .send-feedback[data-phase="leaving"] { opacity: 0; transform: translateY(8%); }
-@starting-style { .conversation-status .send-feedback { opacity: 0; transform: translateY(8%); } }
 .conversation-status .queue-receipt-notice { color: var(--send-blue); }
 .conversation-message.message-user.is-recently-sent {
   position: relative;
@@ -77,8 +53,6 @@
 @keyframes pocket-queue-breathe { 0%, 100% { opacity: .25; } 50% { opacity: .9; } }
 @keyframes pocket-confirm-glow { 0%, 100% { opacity: .35; } 50% { opacity: .95; } }
 @media (prefers-reduced-motion: reduce) {
-  .conversation-status .send-feedback,
-  .conversation-status .send-feedback[data-phase="leaving"] { transition: none; transform: none; }
   .conversation-message.message-user.is-recently-sent::before,
   .outbox .outbox-item.queue-feedback.is-queue-breathing::before { animation: none; opacity: .55; }
 }

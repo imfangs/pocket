@@ -10,7 +10,11 @@ from xml.parsers.expat import ExpatError
 # materialization, and archive/unarchive semantics used by Pocket. They are
 # exercised by the isolated create/rename/archive protocol tests, not inferred
 # from an App release number or a syntactically valid CLI version string.
-_VERIFIED_CLI_VERSIONS = frozenset({"codex-cli 0.153.4", "codex-cli 0.162.0-alpha.17.2"})
+_VERIFIED_CLI_VERSIONS = frozenset({
+    "codex-cli 0.153.4",
+    "codex-cli 0.162.0-alpha.17.2",
+    "codex-cli 0.163.0-alpha.10.2",
+})
 _PACKAGED_LAYOUT = ("codex-cli/bin/codex", "codex-cli/CodexCLI.app/Contents/MacOS/codex")
 
 

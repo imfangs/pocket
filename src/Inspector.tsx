@@ -16,6 +16,7 @@ import { isMacBrowser } from "./browserPlatform";
 import "./navigation-motion.css";
 import ImagePreviewProvider from "./ImagePreviewProvider";
 import { focusInspectorEntry, type InspectorEntryOrigin } from "./inspectorFocus";
+import { currentMachine, machineTaskUrl } from "./machineScope";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
@@ -75,6 +76,7 @@ export default function Inspector(p: Props) {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </h2>
+        <span className="machine-context inspector-machine">{currentMachine()?.label}</span>
         <button data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0)}>
           <ChevronLeft size={23} className="inspector-back-icon" />
           <X size={18} className="inspector-close-icon" />
@@ -113,7 +115,7 @@ export default function Inspector(p: Props) {
             <dt>会话 ID</dt><dd className="thread-id">{p.thread.id}</dd>
           </dl>
           <button type="button" className="text-button" onClick={async () => {
-            try { await navigator.clipboard.writeText(`codex://threads/${p.thread.id}`); setCopied(true); }
+            try { await navigator.clipboard.writeText(new URL(machineTaskUrl(p.thread.id), location.origin).href); setCopied(true); }
             catch { setError("复制未完成，请选取上方的会话 ID"); }
           }}><Clipboard size={13} aria-hidden="true" /><span aria-live="polite">{copied ? "链接已复制" : "复制会话链接"}</span></button>
         </div>

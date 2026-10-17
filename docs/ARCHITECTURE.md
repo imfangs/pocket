@@ -1,5 +1,7 @@
 # 数据与接口
 
+2026-10-17增加机器路由层：每台 Mac 仍各运行一个只读 Codex 适配器和私有 Pocket 数据库，Worker 按机器选择后端；前端切机重新建立状态，不把两台机器的同名 ID 合并。路径、Cookie 和消息资源的隔离契约见[多机连接](design/2026-10-17-multi-machine.md)。
+
 ## 所有权
 
 `server/source.mjs` 是 Codex 桌面只读适配器；`server/store.mjs` 管理 Pocket SQLite；`server/index.mjs` 提供本机 HTTP；React 按导航、列表、接续详情和对话框组织。

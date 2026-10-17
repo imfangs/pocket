@@ -26,10 +26,10 @@ test('raw PUT refreshes an explicitly rejected CSRF token with the same File, bu
     if (path === '/api/catalog') return new Response(JSON.stringify({ csrfToken: 'fresh-token' }));
     return new Response(JSON.stringify({ ok: true }));
   };
-  await api('/attachment', 'PUT', file, { raw: true, contentType: file.type });
+  await api('/api/tasks/thread/attachments/upload', 'PUT', file, { raw: true, contentType: file.type });
   assert.equal(calls.length, 3); assert.equal(calls[0].options.body, file); assert.equal(calls[2].options.body, file);
   assert.equal(calls[2].options.headers['X-Navigator-Token'], 'fresh-token');
   let retries = 0; globalThis.fetch = async () => { retries++; throw new Error('connection lost'); };
-  await assert.rejects(api('/attachment', 'PUT', file, { raw: true, contentType: file.type }), /connection lost/);
+  await assert.rejects(api('/api/tasks/thread/attachments/upload', 'PUT', file, { raw: true, contentType: file.type }), /connection lost/);
   assert.equal(retries, 1); assert.equal(getReloadBlocker(), null);
 });

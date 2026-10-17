@@ -1,5 +1,6 @@
 import type { QueryDraft } from "./Conversation";
 import { hasAnswerText } from "./questionDrafts.ts";
+import { machineStorageKey } from "./machineScope.ts";
 
 const storageKey = "pocket.ignored-questions.v1";
 export const MAX_IGNORED_QUESTIONS = 200;
@@ -17,13 +18,14 @@ function validKey(key: unknown): key is string {
 // Only thread identity and the backend question fingerprint are persisted.
 // Neither question text nor any answer is passed to this store.
 export function createQuestionPresentationStore(storage?: PresentationStorage) {
+  const scopedKey = machineStorageKey(storageKey);
   const ignored = new Set<string>(), listeners = new Set<() => void>();
   const activeAnswers = new Map<string, Map<string, Set<symbol>>>();
   const notify = () => listeners.forEach(listener => listener());
   let local = storage;
   try { if (!local && typeof window !== "undefined") local = window.localStorage; } catch { /* Keep a session-only store. */ }
   try {
-    const saved = JSON.parse(local?.getItem(storageKey) || "null");
+    const saved = JSON.parse(local?.getItem(scopedKey) || "null");
     if (saved?.version === 1 && Array.isArray(saved.ignored)) {
       const keys = [...new Set(saved.ignored.filter(validKey))] as string[];
       keys.slice(-MAX_IGNORED_QUESTIONS).forEach(key => ignored.add(key));
@@ -50,7 +52,7 @@ export function createQuestionPresentationStore(storage?: PresentationStorage) {
       if (!validKey(key) || ignored.has(key) === value) return;
       if (value) ignored.add(key); else ignored.delete(key);
       while (ignored.size > MAX_IGNORED_QUESTIONS) ignored.delete(ignored.values().next().value!);
-      try { local?.setItem(storageKey, JSON.stringify({ version: 1, ignored: [...ignored] })); }
+      try { local?.setItem(scopedKey, JSON.stringify({ version: 1, ignored: [...ignored] })); }
       catch { /* Keep the new state in memory when persistence is unavailable. */ }
       notify();
     },
