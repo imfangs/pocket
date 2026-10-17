@@ -1,6 +1,6 @@
 # Pocket
 
-把 Mac 上的 Codex 带到手机，随时查看对话、接着工作。多机入口：**https://x.fangs.cc**；格得本机仍可使用 **https://threads.local**。
+把 Mac 上的 Codex 带到手机，随时查看对话、接着工作。多机入口：**https://x.fangs.cc**；格得本机另配置 **https://threads.local**（当前在线状态见 CURRENT）。
 
 原名任务架 / Codex Navigator，2026-09-28 更名为 Pocket。仓库目录、服务与数据标识沿用原值，既有口令、已保存数据及备份保持兼容。
 

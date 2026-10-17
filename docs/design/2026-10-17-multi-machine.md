@@ -52,3 +52,16 @@
 修复只将“尚未派发、owner查找阶段、精确no-client-found”归为可恢复的`owner_unavailable`，继续原有单次打开/有界快照核对。初始化中的同名错误仍拒绝；写入已发出的错误仍是unknown，不能重放。只有验证到原owner的resumed快照后才能发送。
 
 对同一验收会话的一次明确连接已使原队列完成：原requestId恰好1轮、1条用户消息，1条final与marker完全匹配；source=desktop/resumed/idle，轮次completed；格得API无该线程。没有启动第二Core、重启Codex或重复发消息。GUI存在两个同路径listener，但本次正常导航已成功，不能将它们认定为此故障原因。相应证据在`live-check.json`、`remote-protocol-after-open.json`，自动恢复修复的部署状态回CURRENT。
+
+
+## 2026-10-17 部署与实际回读
+
+前端/Worker发布源码`19d91ed4776d79fce17a79ed88ed3b79622197e7`，Pages`1bb8232d-13e9-4116-9944-70e19a590253`，build`b887f088730a12dc1a90a0153223089f2df88734460cb6fc7631aca800f19f43`；21文件和功能通过，上传一次。首次owner恢复修复仅更新桥接，豌豆API运行`ca5c97c2462a970a460560dadc1cc069ee65e454`，无需重新发布不变的前端。
+
+豌豆安装版本化代码和8个带SHA的桥接/FBT管理依赖，使用已存在的Node24/Python3.13及新装cloudflared2026.10.0。两端访问口令校验与应用VAPID配对，本机bearer和机器登记key独立；仅通过已验证SSH传必要配置，无凭据或聊天记录进入Git/公开包。实际配置和回滚路径在远端项目CURRENT及私有安装回执。
+
+API与连接器均以原版FBT local登记登录启动/KeepAlive，loopback绑定；Codex没有重启。初次隧道启动超过管理器短健康窗口，临时service-only配置明确保持ready=false，真实握手/自动续登记变200后再由正式200配置接管同PID，临时配置删除；网络对照未证明需要改Node或系统网络，因此未永久修改。API升级曾遇bootout/bootstrap竞态并回滚，随后先stop等待卸载、再up成功，tunnel保持原PID/版本。失败与恢复均保留在回执，未伪造最终健康。
+
+真实公网验证两台独立登录与catalog、两机health/匿名拒绝、消息目标隔离。自动恢复修复后另建专用冷启动验收，只提交一次创建及initialQuery，完全没有手工open：原owner为desktop/resumed/v11，恰好1轮、1条user、1条final与原requestId/Query/marker一致，0工具调用；格得catalog无这条远端线程。原测试和新测试使用各自唯一回执，不重放旧请求。两个专用验收会话作为真实链路证据保留，既有用户会话未用于试发。
+
+最终955项完整回归，66项双引擎流程、真实冷启动与独立原owner回读通过。`live-cold-check.json`和`remote-cold-readback.json`保存精确元数据；`wandou-install.json`、`wandou-connector.json`、`wandou-api-upgrade.json`保存各层部署/清理结果。浏览器与真实Mac验证不替代iPhone主屏幕长期使用验收。
