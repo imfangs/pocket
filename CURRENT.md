@@ -2,7 +2,7 @@
 
 2026-10-18 测试隔离修复：通知 HTTP 回归曾用合成 thread ID 调用真实 macOS opener，触发 Codex `no rollout found`。已在进程启动前安全复现，补齐 fixture 与 `npm test` 的原生打开拦截；43项相关回归、956项完整回归通过。仅测试与文档改动，无需产品部署，未改 Codex 会话数据或重启服务。证据与范围见[排障记录](docs/research/2026-10-18-codex-rollout-test-isolation.md)。
 
-2026-10-18取消归档入口修复，待发布：手机有历史、无草稿时的紧凑输入区曾隐藏恢复主按钮；现在归档详情直接显示「取消归档」，菜单与列表标题统一「已归档」，会话信息和操作提示同步用词。保留原ID、正文与草稿，不自动发送，取消归档仅处理所选会话。956项完整回归、构建及Chromium/WebKit两机合成流程170项通过；发布结果待补齐。后端保持原官方CLI与writer守卫，没有修改用户真实归档状态。见[生命周期补记](docs/design/2026-10-05-thread-lifecycle.md#2026-10-18-取消归档入口)。
+2026-10-18取消归档入口修复已上线：手机有历史、无草稿时的紧凑输入区曾隐藏恢复主按钮；现在归档详情直接显示「取消归档」，菜单与列表标题统一「已归档」，会话信息和操作提示同步用词。保留原ID、正文与草稿，不自动发送，取消归档仅处理所选会话。956项完整回归、构建及Chromium/WebKit两机合成流程170项通过；21个公开文件与功能检查通过。后端保持原官方CLI与writer守卫，没有修改用户真实归档状态。见[生命周期补记](docs/design/2026-10-05-thread-lifecycle.md#2026-10-18-取消归档入口)。
 
 2026-10-17多机连接与发送提示减法已上线：同一Pocket入口按「格得 Mac / 豌豆 Mac」切换并记住选择，Session、偏好、图片/附件、链接和通知按机器隔离；未完成输入先保护当前页，不跨机发送或自动降级。豌豆已独立安装常驻API/连接器，真实双机登录与各自catalog通过，全新会话无需手工连接即由豌豆原owner单次完成精确回显。输入框上方重复「已发送」已移除，绿色消息卡状态保留。955项完整回归、双浏览器66项及真实原请求去重回读通过。见[多机连接](docs/design/2026-10-17-multi-machine.md)。
 
@@ -27,11 +27,11 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `19d91ed4776d79fce17a79ed88ed3b79622197e7`（多机隔离与删除重复成功提示）；后续仅桥接/文档变更不代表前端重发 |
+| 已发布前端与网关源码 | `413f52c8dac3397e80ea63e969310150d0a36b2e`（归档详情保留可见取消归档动作）；从独立干净快照构建，主工作区并行测试改动未带入。前次多机发布身份保留在[多机记录](docs/design/2026-10-17-multi-machine.md) |
 | Mac API与桥接源码 | 格得Node服务仍是原PID `30489`，未重启，按需Python桥接脚本已随工作区更新；豌豆API为 `ca5c97c2462a970a460560dadc1cc069ee65e454`、PID `69913`，修复首次owner查找误判。豌豆连接器固定 `19d91ed`、PID `57163`。两边Codex均未重启，原会话、Model/权限与私有数据各自保留 |
-| Pages 部署 | `1bb8232d-13e9-4116-9944-70e19a590253`；10-17 ready=true、21文件匹配、功能通过，上传一次；新增wandou独立登记verifier，Ged key保留 |
-| 前端 build ID | `b887f088730a12dc1a90a0153223089f2df88734460cb6fc7631aca800f19f43`；公开manifest、HTML与资源匹配；API小修未改变此build |
-| 验证快照 | 955项完整回归；实际Worker配两套合成Mac、Chromium/WebKit本地TLS66项通过。豌豆CLI40项隔离契约通过；真实公网双登录、各自列表与全新会话自动连接/单次首发精确回显通过，0工具调用。证据 `.local/qa/multi-machine-2026-10-17/` |
+| Pages 部署 | `a3feddf7-2e35-4dc8-b6ae-beaddf74ac2b`；10-18 ready=true、21文件匹配、功能通过，上传一次；本次未更改机器凭据或服务 |
+| 前端 build ID | `ed2a1c923cf3ebda34459ddd47d206108e007c4ae4d7137f54d2ff535d007262`；独立发布快照与浏览器验收构建一致，公开HTML、版本清单与资源匹配 |
+| 验证快照 | 10-18：956项完整回归，实际Worker配两套合成Mac、Chromium/WebKit本地TLS取消归档170项通过；本机CLI归档/恢复隔离26项及真实锁对照通过。证据 `.local/qa/unarchive-2026-10-18/`。10-17真实双机登录、豌豆自动首发等证据仍在 `.local/qa/multi-machine-2026-10-17/`；不把本轮合成流程当成两台真实Mac重验 |
 | 最后健康复核 | 10-17公开两机health均200且机器头正确、匿名catalog均401；认证catalog来源独立，无sourceError。豌豆API/tunnel仅loopback监听、登录启动与KeepAlive，实际登记machineId=wandou。真实消息只在专用验收线程发送，原请求没有重放；实际iPhone主屏幕仍需使用反馈 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json` 或机器私有 `NAVIGATOR_BRIDGE_CONFIG`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
