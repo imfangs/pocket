@@ -12,12 +12,13 @@ const { default: NewConversationDialog } = await vite.ssrLoadModule('/src/NewCon
 after(() => vite.close());
 const render = props => renderToStaticMarkup(createElement(NewConversationDialog, { onCreate: async () => {}, onCheck() {}, onCancelOperation() {}, onClose() {}, ...props }));
 
-test('ordinary creation always puts Query and its clear action before directory and optional title', () => {
+test('ordinary creation begins with an accessible message field before directory and optional title', () => {
   const html = render({});
   assert.match(html, /<textarea[^>]*id="quick-create-query"/);
   assert.ok(html.indexOf('id="quick-create-query"') < html.indexOf('id="new-conversation-location"'));
   assert.ok(html.indexOf('id="new-conversation-location"') < html.indexOf('id="new-conversation-name"'));
-  assert.match(html, /aria-label="清空 Query"/);
+  assert.match(html, /<label class="sr-only" for="quick-create-query">首条消息<\/label>/);
+  assert.doesNotMatch(html, /quick-create-query-heading|首条消息，可留空|aria-label="清空输入"/);
   assert.match(html, /<details[^>]*class="new-conversation-settings"/);
   assert.doesNotMatch(html.match(/<details[^>]*>/)[0], /\bopen\b/);
   assert.match(html, /noValidate/);
@@ -28,6 +29,7 @@ test('ordinary creation always puts Query and its clear action before directory 
 test('a nonempty initial Query stays visible while creation options load', () => {
   const html = render({ initialQuery: 'The clipboard query' });
   assert.match(html, />The clipboard query<\/textarea>/);
+  assert.match(html, /class="icon-button quick-create-clear"[^>]*aria-label="清空输入"/);
   assert.match(html, />正在准备…<\/button>/);
 });
 
@@ -43,13 +45,13 @@ test('restored pending creation displays its original Query with editing and cle
   const html = render({ initialQuery: 'Original pending query', operation: { requestId: 'pending-id', operation: 'create', status: 'pending' } });
   assert.match(html, />Original pending query<\/textarea>/);
   assert.match(html.match(/<textarea[^>]*>/)[0], /disabled/);
-  assert.match(html, /aria-label="清空 Query" disabled/);
+  assert.match(html, /aria-label="清空输入" disabled/);
   assert.match(html, /正在创建/);
 });
 
 test('a completed creation cannot turn its original Query into an enabled second submit', () => {
   const html = render({ initialQuery: 'Already submitted query', operation: { requestId: 'done-id', operation: 'create', status: 'succeeded', threadId: 'created-thread' } });
   assert.match(html.match(/<textarea[^>]*>/)[0], /disabled/);
-  assert.match(html, /aria-label="清空 Query" disabled/);
+  assert.match(html, /aria-label="清空输入" disabled/);
   assert.match(html, /class="primary" disabled/);
 });

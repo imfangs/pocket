@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Modal } from "./Dialogs";
 import { api } from "./api";
 import { activeOperation, type CreateLocation, type TaskOperation } from "./taskOperations";
@@ -108,16 +108,16 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       finally { submitting.current = false; setBusy(false); }
     }}>
       <div className="quick-create-query" ref={queryBox}>
-        <div className="quick-create-query-heading">
-          <label className="field-label" htmlFor="quick-create-query">Query <small>首条消息，可留空</small></label>
-          <button type="button" className="text-button" aria-label="清空 Query" disabled={locked} onClick={() => {
+        <div className="quick-create-query-input">
+          <label className="sr-only" htmlFor="quick-create-query">首条消息</label>
+          <AutoTextarea id="quick-create-query" data-autofocus value={query} disabled={locked} maxLength={16000}
+            aria-invalid={queryTooLong || undefined} placeholder="写下想讨论或完成的事，也可以粘贴内容"
+            onChange={event => { const text = event.target.value; setQueryDraft(draft => editCreationQuery(draft, text)); }} />
+          {query.length > 0 && <button type="button" className="icon-button quick-create-clear" title="清空输入" aria-label="清空输入" disabled={locked} onClick={() => {
             setQueryDraft(draft => editCreationQuery(draft, ""));
             queryBox.current?.querySelector("textarea")?.focus();
-          }}>清空</button>
+          }}><X size={16} aria-hidden="true" /></button>}
         </div>
-        <AutoTextarea id="quick-create-query" data-autofocus value={query} disabled={locked} maxLength={16000}
-          aria-invalid={queryTooLong || undefined} placeholder="写下想讨论或完成的事，也可以粘贴内容"
-          onChange={event => { const text = event.target.value; setQueryDraft(draft => editCreationQuery(draft, text)); }} />
         {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
         {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}
       </div>

@@ -4,6 +4,12 @@ import { needsUserInput, smartThreadOrder, type SmartOrderOptions } from "./smar
 import { UNASSIGNED_PROJECT } from "./projectNavigation.ts";
 import { lastMessageTime } from "./threadTime.ts";
 import { codexPinned, pocketPriority } from "./priority.ts";
+
+function creationTime(thread: Thread): number {
+  const value = thread.createdAt;
+  return typeof value === "number" && value > 0 && Number.isFinite(new Date(value).getTime()) ? value : 0;
+}
+
 export function filterThreads(
   threads: Thread[],
   view: View,
@@ -43,6 +49,7 @@ export function filterThreads(
         .toLocaleLowerCase();
       return terms.every((q) => hay.includes(q));
     });
+  if (view === "created") return filtered.sort((a, b) => creationTime(b) - creationTime(a) || a.id.localeCompare(b.id));
   if (sort === "smart" && view !== "archived") return smartThreadOrder(filtered, { now: ranking?.now ?? Date.now(), draftIds: ranking?.draftIds, pocketActivity: ranking?.pocketActivity, runtimeStates });
   if (sort === "smart") return filtered.sort((a, b) => (lastMessageTime(b) ?? 0) - (lastMessageTime(a) ?? 0)
     || b.createdAt - a.createdAt || a.id.localeCompare(b.id));

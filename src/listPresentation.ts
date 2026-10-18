@@ -34,11 +34,11 @@ export function emptyListContent({ view, query, projectScope, hasFilters = false
   if (query.trim()) return { title: "没有找到匹配的会话", description: "",
     action: projectScope && view !== "archived" ? "searchAll" : "clearQuery",
     actionLabel: projectScope && view !== "archived" ? "在全部会话搜索" : "清除搜索" };
-  if (projectScope && view === "all") return { title: projectScope === "__unassigned__" ? "没有未归属项目的会话" : "这个项目还没有会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
+  if (projectScope && (view === "all" || view === "created")) return { title: projectScope === "__unassigned__" ? "没有未归属项目的会话" : "这个项目还没有会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (hasFilters) return { title: "当前筛选下没有会话", description: "", action: "clearFilters", actionLabel: "清除筛选" };
   if (view === "unread") return { title: "暂时没有待处理会话", description: unreadPending ? "未读会话结束后会出现在这里。" : "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "running") return { title: "暂未发现运行中的会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
-  if (view === "all") return { title: "还没有会话", description: "", action: "create", actionLabel: "新建会话" };
+  if (view === "all" || view === "created") return { title: "还没有会话", description: "", action: "create", actionLabel: "新建会话" };
   if (view === "priority") return { title: "还没有优先关注的会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "codex-pinned") return { title: "还没有 Codex 置顶会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "pinned") return { title: "还没有已标记的会话", description: "", action: "showAll", actionLabel: "查看全部会话" };

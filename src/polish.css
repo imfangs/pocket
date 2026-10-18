@@ -41,15 +41,15 @@ button:active:not(:disabled) { filter:brightness(.96); }
   .workspace-header .heading-line > .sync-button { display:none; }
 }
 .filter-row { min-height:52px; margin-top:12px; gap:8px; flex-wrap:wrap; }
-.activity-filters { display:flex; align-items:center; gap:5px; }
+.activity-filters { display:flex; align-items:center; flex-wrap:wrap; gap:5px; max-width:100%; }
 .running-dot { width:7px; height:7px; border-radius:50%; background:var(--positive); flex:none; }
 .running-toggle[data-inbox="true"] { color:var(--positive); background:var(--positive-soft); }
 .unread-toggle[data-inbox="true"] { color:var(--accent); background:var(--accent-soft); }
+.created-toggle[data-inbox="true"] { color:var(--accent); background:var(--accent-soft); }
 .quick-create-query { margin-bottom:18px; }
-.quick-create-query-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.quick-create-query-heading .field-label { margin:0; }
-.quick-create-query-heading .text-button { min-height:44px; min-width:44px; }
-.quick-create-query textarea { width:100%; min-height:88px; max-height:180px; padding:10px 12px; border:1px solid var(--line-strong); border-radius:7px; background:var(--surface); color:var(--ink); font:inherit; font-size:14px; resize:none; }
+.quick-create-query-input { position:relative; }
+.quick-create-query textarea { width:100%; min-height:88px; max-height:180px; padding:10px 48px 10px 12px; border:1px solid var(--line-strong); border-radius:7px; background:var(--surface); color:var(--ink); font:inherit; font-size:14px; resize:none; }
+.quick-create-clear { position:absolute; top:1px; right:1px; width:44px; height:44px; min-width:44px; min-height:44px; }
 .list-controls { margin-left:auto; display:flex; align-items:center; gap:6px; }
 .search-toggle { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:36px; padding:7px 10px; width:auto; color:var(--muted); border-radius:6px; font-size:13px; }
 .search-toggle kbd { font:inherit; font-size:10px; border:1px solid var(--line); border-radius:3px; padding:0 4px; margin-left:8px; }
@@ -277,9 +277,6 @@ dialog footer button { min-height:38px; border-radius:7px; }
   .task-row:hover { background:var(--surface-soft); }
   .task-row .row-open { opacity:0; }
   .task-row:hover .row-open, .task-row:focus-within .row-open { opacity:1; }
-}
-@media (min-width:761px) {
-  .needs-input-toggle[data-inbox="false"] { display:none; }
 }
 @media (min-width:761px) and (max-width:1100px) {
   .sidebar { width:200px; padding:0 8px; }

@@ -4,6 +4,7 @@ import {
   RefreshCw,
   X,
   AlertCircle,
+  ArrowDownWideNarrow,
   Plus,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -65,6 +66,7 @@ const titles: Record<View, string> = {
   all: "全部会话",
   unread: "待我输入",
   running: "运行中",
+  created: "最近创建",
   pinned: "已标记",
   priority: "优先关注",
   "codex-pinned": "Codex 置顶",
@@ -346,10 +348,10 @@ export default function App({
       setError((e as Error).message);
     }
   };
-  const openActivity = (target: "unread" | "running") => {
+  const openActivity = (target: "unread" | "running" | "created") => {
     if (view === target) return;
     void guard(async () => {
-      if (view !== "unread" && view !== "running")
+      if (view !== "unread" && view !== "running" && view !== "created")
         returnView.current = { view, project, query, searchOpen, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
       restoreScroll.current = 0;
       setView(target);
@@ -372,7 +374,7 @@ export default function App({
     refreshAfterActivity();
   });
   const switchView = (v: View) => {
-    if (v === "unread" || v === "running") return openActivity(v);
+    if (v === "unread" || v === "running" || v === "created") return openActivity(v);
     void guard(async () => {
       restoreScroll.current = 0;
       setView(v);
@@ -499,13 +501,14 @@ export default function App({
               {([
                 { view: "unread", label: "待我输入", count: unreadKnown ? unreadCount : "—" },
                 { view: "running", label: "运行中", count: runtimeKnown ? runningCount : "—" },
+                { view: "created", label: "最近创建", count: null },
               ] as const).map(filter => (
                 <button key={filter.view} className={`needs-input-toggle ${filter.view}-toggle`}
                   data-inbox={view === filter.view} aria-pressed={view === filter.view}
-                  title={view === filter.view ? "返回列表" : `查看${filter.label}的会话`}
+                  title={view === filter.view ? "返回列表" : filter.view === "created" ? "按创建时间从新到旧排列" : `查看${filter.label}的会话`}
                   onClick={view === filter.view ? returnFromActivity : () => openActivity(filter.view)}>
-                  <span className={`${filter.view}-dot`} aria-hidden="true" />
-                  <span>{filter.label}</span><small>{filter.count}</small>
+                  {filter.view === "created" ? <ArrowDownWideNarrow size={15} aria-hidden="true" /> : <span className={`${filter.view}-dot`} aria-hidden="true" />}
+                  <span>{filter.label}</span>{filter.count !== null && <small>{filter.count}</small>}
                 </button>
               ))}
             </div>

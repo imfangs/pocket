@@ -42,7 +42,7 @@ export default function Sidebar(p: Props) {
     wasOpen.current = isOpen;
   }, [narrow, p.mobileOpen]);
   const projects = useMemo(() => projectNavigationItems(p.catalog.projects || [], p.catalog.threads), [p.catalog.projects, p.catalog.threads]);
-  const projectScopedView = p.view === "all" || p.view === "unread" || p.view === "running";
+  const projectScopedView = p.view === "all" || p.view === "unread" || p.view === "running" || p.view === "created";
   const allSelected = !p.project && projectScopedView;
   return (
     <>

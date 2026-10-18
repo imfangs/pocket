@@ -95,6 +95,22 @@ test('each independent shortcut is the only selected menu item even with a stale
     }
   } finally { globalThis.matchMedia = previous; }
 });
+test('recent creation uses the existing all-conversations or project navigation base', () => {
+  const previous = globalThis.matchMedia;
+  globalThis.matchMedia = () => ({ matches: false });
+  try {
+    for (const project of ['', 'project-a']) {
+      const html = renderToStaticMarkup(createElement(Sidebar, {
+        catalog: { threads: [{ ...thread, projectId: 'project-a' }], projects: [{ id: 'project-a', name: 'Project', paths: ['/synthetic'], order: 0, separator: false }], groups: [] },
+        view: 'created', project, onView: noop, onProject: noop, onClose: noop, onSettings: noop, mobileOpen: false,
+      }));
+      const current = [...html.matchAll(/<button\b[^>]*aria-current="page"[^>]*>/g)].map(match => match[0]);
+      assert.equal(current.length, 1);
+      assert.match(current[0], project ? /data-project-id="project-a"/ : /data-view="all"/);
+      assert.doesNotMatch(html, /data-view="created"/);
+    }
+  } finally { globalThis.matchMedia = previous; }
+});
 test('a busy modal makes the close affordance explicitly unavailable', () => {
   const html = renderToStaticMarkup(createElement(Modal, { title: 'Saving', busy: true, onClose: noop }, 'Content'));
   assert.match(html, /aria-busy="true"/);
