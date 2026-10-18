@@ -29,4 +29,8 @@
 
 原生只读实测能准确读取 Astra Ultra；独立 Core 的窄设置写入保持模式、注入指令和权限。真实会话修改与两机发布结果以 CURRENT 为准，不能把上述隔离结果当作真机验收。证据 `.local/qa/model-settings-2026-10-18/`，独立组件证据 `.local/qa/model-ui-2026-10-18/`；iPhone主屏幕仍待实际使用反馈。
 
+本轮后续真实验收：新建专用空白会话后，格得API将未指定强度设为High，原owner和回执均确认；型号保持Astra，消息数和tokens均为0。该新对象没有先前用户设置需要恢复，验收后通过Codex原生工具归档，原用户会话未用于试改。公网认证GET确认当前开发会话的Astra Ultra，以及格得/豌豆两机归档会话的saved投影；未猜测豌豆归档记录中为null的强度。豌豆只做目录与实际设置只读，没有真实写验收。
+
+发布源码 `127985cd42f992704bf645d51cbe1f597c00d702`，两机API均更新；Pages `71252841-7ec0-46a2-a623-7fc5d55d609c`，build `74774c4f79ee14e8ccd2ede64ed612ae655785395e5f6674a1f439691128bb4e`，21文件和功能检查通过。原用户/操作数据保留，来源缓存新增模型投影和同步时间，新QA导航记录与生命周期/设置回执单独核对。私有回执为 `live-settings.json`、`public-read.json`、`ged-data-preserved.json`、`remote-upgrade.json`。
+
 官方依据：[model/list](https://learn.chatgpt.com/docs/app-server#list-models-modellist)、[模型与思考强度](https://learn.chatgpt.com/docs/models)。可选强度取当前安装包返回值，不硬编码型号候选。

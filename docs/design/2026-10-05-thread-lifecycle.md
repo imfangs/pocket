@@ -93,3 +93,5 @@
 本机 CLI `0.162.0-alpha.17.2` 的隔离复核确认：已归档、旧生命周期 unknown 且无 writer 的 root 可以恢复；真实独占锁下 Pocket 等待，官方 unarchive 同样失败，释放后成功。因此不放宽 writer 守卫，也不把本次入口完善描述成已解决原 owner 归档限制。所有复核对象均为合成或临时 home，没有改动用户已归档的真实会话。
 
 验证：956项完整回归、构建通过；新增组件回归覆盖手机有历史/空稿、不聚焦时主动作仍可见。Chromium/WebKit 390×844、真实Worker配两机合成API共170项通过，包含菜单导航、两处取消归档入口、同ID与草稿保留、无自动发送、显式后续发送、等待取消、unknown核对和机器路由。证据位于 `.local/qa/unarchive-2026-10-18/`，保留修复前DOM与失败回执；浏览器和临时API已清理。未声称iPhone主屏幕真机或本轮真实豌豆CLI已验证，发布身份回CURRENT。
+
+当次发布源码 `413f52c8dac3397e80ea63e969310150d0a36b2e`，Pages `a3feddf7-2e35-4dc8-b6ae-beaddf74ac2b`，build `ed2a1c923cf3ebda34459ddd47d206108e007c4ae4d7137f54d2ff535d007262`；21文件和功能检查通过，后续模型设置版本保留此行为。
