@@ -69,9 +69,12 @@ export function makeApp(options = {}) {
   const readSource = options.readSource || (() => readCodexSource(codexHome));
   const lifecycle = new LifecycleService(store, desktop, codexHome, sync, options.lifecycle);
   const rename = new RenameService(store, codexHome, sync, {
-    ...options.rename, lifecycleBlocked: id => lifecycle.blocked.has(id),
+    ...options.rename, lifecycleBlocked: id => lifecycle.blocked.has(id) || desktop.models.pending(id),
   });
+  desktop.renamePending = id => !!rename.active(id);
   lifecycle.renamePending = id => !!rename.active(id);
+  lifecycle.modelPending = id => desktop.models.pending(id);
+  desktop.onModelChanged = () => { try { sync(); } catch { /* Keep the last source snapshot on a read failure. */ } };
   const taskStatuses = new TaskStatusService({ codexHome, threads: () => store.catalog().threads,
     excluded: () => lifecycle.blocked, ...options.taskStatuses });
   lifecycle.onBlockedChange = () => taskStatuses.invalidate();
@@ -251,6 +254,15 @@ export function makeApp(options = {}) {
           : await rename.inspect(taskName[1]));
       if (taskName && method === "POST" && !taskName[2]) {
         const result = rename.start(taskName[1], await body(req, 8192));
+        return json(res, result.status === "pending" ? 202 : 200, result);
+      }
+      const modelSettings = path.match(/^\/api\/tasks\/([^/]+)\/model-settings(?:\/([^/]+))?$/);
+      if (modelSettings && method === "GET")
+        return json(res, 200, modelSettings[2]
+          ? await desktop.models.get(modelSettings[1], modelSettings[2])
+          : await desktop.models.read(modelSettings[1]));
+      if (modelSettings && method === "POST" && !modelSettings[2]) {
+        const result = desktop.models.start(modelSettings[1], await body(req, 2048));
         return json(res, result.status === "pending" ? 202 : 200, result);
       }
       if (method === "GET" && path === "/api/notifications")
@@ -450,6 +462,7 @@ export function makeApp(options = {}) {
     taskStatuses.stop();
     lifecycle.stop();
     rename.stop();
+    desktop.models.stop();
     notifications.stop();
     desktop.stopQueue();
     store.close();

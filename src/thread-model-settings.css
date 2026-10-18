@@ -1,0 +1,16 @@
+.thread-model-settings { margin:0 0 16px; min-width:0; }
+.thread-model-summary { display:flex; align-items:center; gap:12px; min-height:44px; }
+.thread-model-label { flex:none; color:var(--muted); font-size:12px; }
+.thread-model-value { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; flex:1; min-width:0; color:var(--text-secondary); font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+.thread-model-value small { color:var(--muted); font-size:11px; white-space:nowrap; }
+.thread-model-summary .thread-model-edit { flex:none; margin-left:auto; padding:8px 0 8px 8px; font-size:12px; }
+.thread-model-editor { margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); }
+.thread-model-editor > label { display:grid; gap:6px; min-width:0; margin-bottom:10px; color:var(--muted); font-size:12px; }
+.thread-model-editor select { width:100%; min-width:0; height:44px; min-height:44px; padding:8px 10px; font:inherit; font-size:16px; color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:7px; }
+.conversation-info .thread-model-status { margin:6px 0 0; }
+.thread-model-actions { display:flex; justify-content:flex-end; align-items:center; gap:12px; margin-top:8px; }
+.thread-model-actions > button { min-height:44px; }
+.thread-model-error { margin:8px 0 0; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.thread-model-recovery { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; line-height:1.6; }
+.thread-model-recovery > span { flex:1; }
+.thread-model-recovery > button { flex:none; }

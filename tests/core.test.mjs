@@ -115,7 +115,62 @@ test("source import resolves desktop identity and pins, prefers renamed title, n
   assert.equal(s.threads[0].projectId, "project");
   assert.equal(s.threads[0].cwd, "/different");
   assert.equal(s.threads[0].updatedAt, 2000);
+  assert.equal(s.threads[0].savedModelSettings, undefined);
   assert.equal(hash(), before);
+});
+test("source imports only saved model and effort, including archived conversations, without writing Codex", t => {
+  const home = temp(t), file = join(home, "state_5.sqlite"), db = new DatabaseSync(file);
+  db.exec("CREATE TABLE threads(id TEXT PRIMARY KEY,title TEXT,cwd TEXT,archived INTEGER,created_at INTEGER,updated_at INTEGER,source TEXT,model TEXT,reasoning_effort TEXT,model_provider TEXT)");
+  const insert = db.prepare("INSERT INTO threads VALUES(?,?,?,?,?,?,?,?,?,?)");
+  insert.run(id1, "Current", "/sample", 0, 1, 2, "app", "gpt-6-astra", "ultra", "PRIVATE-PROVIDER");
+  insert.run(id2, "Archived", "/sample", 1, 1, 2, "app", "vendor/custom-model:2026.10", "medium", "PRIVATE-PROVIDER");
+  db.close();
+  const globalFile = join(home, ".codex-global-state.json");
+  writeFileSync(globalFile, JSON.stringify({ "pinned-thread-ids": [] }));
+  const hash = path => createHash("sha256").update(readFileSync(path)).digest("hex");
+  const before = [hash(file), hash(globalFile)];
+  const source = readCodexSource(home);
+  assert.deepEqual(source.threads.find(thread => thread.id === id1).savedModelSettings, { model: "gpt-6-astra", effort: "ultra" });
+  assert.deepEqual(source.threads.find(thread => thread.id === id2).savedModelSettings, { model: "vendor/custom-model:2026.10", effort: "medium" });
+  assert.equal(source.threads.find(thread => thread.id === id2).archived, true);
+  assert.doesNotMatch(JSON.stringify(source), /PRIVATE-PROVIDER|model_provider/);
+  assert.deepEqual([hash(file), hash(globalFile)], before);
+  const store = new NavigatorStore(temp(t)); t.after(() => store.close());
+  store.sync(source);
+  assert.deepEqual(store.thread(id1).savedModelSettings, { model: "gpt-6-astra", effort: "ultra" });
+});
+test("source preserves known model settings independently and never fills unknown values from defaults", t => {
+  const home = temp(t), db = new DatabaseSync(join(home, "state_5.sqlite"));
+  t.after(() => db.close());
+  db.exec("CREATE TABLE threads(id TEXT PRIMARY KEY,title TEXT,cwd TEXT,archived INTEGER,created_at INTEGER,updated_at INTEGER,source TEXT,model,reasoning_effort)");
+  const insert = db.prepare("INSERT INTO threads VALUES(?,?,?,?,?,?,?,?,?)");
+  const cases = [
+    ["gpt-6-astra", "future-effort", { model: "gpt-6-astra", effort: null }],
+    [null, "ultra", { model: null, effort: "ultra" }],
+    ["x".repeat(120), null, { model: "x".repeat(120), effort: null }],
+    ["x".repeat(121), "low", { model: null, effort: "low" }],
+    [null, null, undefined], ["   ", "ULTRA", undefined], [123, 456, undefined],
+    ...["\n", "\r", "\t", "\u0000", "\u007f", "\u0085", "\u2028", "\u2029", "\u202e"].map(control => [`model${control}name`, null, undefined]),
+    ...["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"].map(effort => ["gpt-6-astra", effort, { model: "gpt-6-astra", effort }]),
+  ];
+  cases.forEach(([model, effort], index) => insert.run(`case-${index}`, "Saved settings", "/sample", 0, 1, 2, "app", model, effort));
+  writeFileSync(join(home, ".codex-global-state.json"), JSON.stringify({ "pinned-thread-ids": [],
+    "electron-persisted-atom-state": { "composer-recent-model-configurations-v1": [{ model: "do-not-use-global", effort: "ultra" }] } }));
+  const result = new Map(readCodexSource(home).threads.map(thread => [thread.id, thread.savedModelSettings]));
+  cases.forEach(([, , expected], index) => assert.deepEqual(result.get(`case-${index}`), expected, `case ${index}`));
+});
+test("source accepts either optional model column independently on older schemas", t => {
+  for (const [column, value, expected] of [
+    ["model", "gpt-6-astra", { model: "gpt-6-astra", effort: null }],
+    ["reasoning_effort", "ultra", { model: null, effort: "ultra" }],
+  ]) {
+    const home = temp(t), db = new DatabaseSync(join(home, "state_5.sqlite"));
+    db.exec(`CREATE TABLE threads(id TEXT PRIMARY KEY,title TEXT,cwd TEXT,archived INTEGER,created_at INTEGER,updated_at INTEGER,source TEXT,${column} TEXT)`);
+    db.prepare("INSERT INTO threads VALUES(?,?,?,?,?,?,?,?)").run(id1, "Older schema", "/sample", 0, 1, 2, "app", value);
+    db.close();
+    writeFileSync(join(home, ".codex-global-state.json"), JSON.stringify({ "pinned-thread-ids": [] }));
+    assert.deepEqual(readCodexSource(home).threads[0].savedModelSettings, expected);
+  }
 });
 test("native update metadata remains available separately from message time", t => {
   const home=temp(t), db=new DatabaseSync(join(home,'state_5.sqlite'));

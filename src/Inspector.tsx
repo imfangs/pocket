@@ -17,6 +17,7 @@ import "./navigation-motion.css";
 import ImagePreviewProvider from "./ImagePreviewProvider";
 import { focusInspectorEntry, type InspectorEntryOrigin } from "./inspectorFocus";
 import { currentMachine, machineTaskUrl } from "./machineScope";
+import ThreadModelSettings from "./ThreadModelSettings";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
@@ -41,6 +42,7 @@ export default function Inspector(p: Props) {
   const navigation = useRef<ReturnType<typeof bindInspectorMotion> | null>(null);
   const [infoOpen, setInfoOpen] = useState(false), [renaming, setRenaming] = useState(false);
   const [actionBusy, setActionBusy] = useState(false), [error, setError] = useState("");
+  const [modelBusy, setModelBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const showMacOpen = isMacBrowser(typeof navigator === "undefined" ? undefined : navigator);
   const managementBlocked = activeOperation(p.operation);
@@ -58,7 +60,7 @@ export default function Inspector(p: Props) {
   }, []);
   useEffect(() => { window.dispatchEvent(new Event("pocket-reading-visibility-change")); }, [infoOpen, renaming]);
   const runAction = async (action: () => Promise<unknown>) => {
-    if (actionPending.current || p.thread.missing || managementBlocked) return;
+    if (actionPending.current || modelBusy || p.thread.missing || managementBlocked) return;
     actionPending.current = true; setActionBusy(true); setError("");
     try { await action(); }
     catch (failure) { setError((failure as Error).message); }
@@ -89,17 +91,19 @@ export default function Inspector(p: Props) {
           managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
           onConnect={options => p.onOpen(p.thread, options)} onRestore={() => p.onArchive(p.thread, false)} />
       </div>
-      {infoOpen && <Modal title="会话信息" onClose={() => setInfoOpen(false)} busy={actionBusy}>
+      {infoOpen && <Modal title="会话信息" onClose={() => setInfoOpen(false)} busy={actionBusy || modelBusy}>
         <div className="conversation-info">
           <p className="conversation-info-title">{p.thread.title}</p>
+          <ThreadModelSettings thread={p.thread} disabled={actionBusy || managementBlocked}
+            onConnect={() => p.onOpen(p.thread, { quiet: true })} onActivity={p.onActivity} onBusyChange={setModelBusy} />
           <div className="thread-management-actions">
-            <button type="button" className="secondary" disabled={actionBusy || p.thread.missing || p.thread.archived || managementBlocked}
+            <button type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || p.thread.archived || managementBlocked}
               onClick={() => setRenaming(true)}><Pencil size={14} aria-hidden="true" />重命名</button>
-            <button type="button" className="secondary" disabled={actionBusy || p.thread.missing || managementBlocked}
+            <button type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || managementBlocked}
               onClick={() => void runAction(() => p.onArchive(p.thread, !p.thread.archived))}>
               {p.thread.archived ? <ArchiveRestore size={14} aria-hidden="true" /> : <Archive size={14} aria-hidden="true" />}{p.thread.archived ? "取消归档" : "归档会话"}
             </button>
-            {showMacOpen && <button type="button" className="secondary" disabled={actionBusy || p.thread.missing || managementBlocked}
+            {showMacOpen && <button type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || managementBlocked}
               onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>在 Mac 打开<ArrowUpRight size={14} aria-hidden="true" /></button>}
           </div>
           {p.thread.missing ? <p className="field-help">会话暂不可用，请刷新。</p>

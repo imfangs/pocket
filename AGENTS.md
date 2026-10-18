@@ -13,6 +13,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 会话型号、思考强度显示与修改 | [模型设置](docs/design/2026-10-18-model-settings.md)：有效设置优先级、同型号下一轮强度、原生条件更新/回读、未知回执与跨型号兼容边界 |
 | 多机连接、机器切换、远端部署、跨机链接/资源/通知 | [多机连接](docs/design/2026-10-17-multi-machine.md)：原owner、独立路由/Cookie/草稿保护、机器私有配置；真实安装状态回CURRENT |
 | 进入详情后返回按钮蓝圈、指针/键盘/通知焦点 | [入口焦点](docs/design/2026-10-15-inspector-entry-focus.md)：保留键盘轮廓，普通触摸落在中性容器 |
 | 会话图片放大、缩放、关闭与阅读恢复 | [会话内大图](docs/design/2026-10-15-image-viewer.md)：共享host、固定关闭、原图与权限边界 |
@@ -51,6 +52,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 来源/元数据/列表 | `server/source.mjs`、`server/source-scope.mjs`、`server/unread.mjs`、`server/store.mjs`、`src/App.tsx`、`src/catalogReader.ts` |
 | 已读同步 | `server/read-state.mjs`、`bin/read-state.py`、`src/readObservation.ts` |
 | 重命名 | `server/rename.mjs`、`bin/rename-thread.py`、`src/RenameThreadDialog.tsx`、`src/threadMetadata.ts` |
+| 型号展示/思考强度 | `server/thread-models.mjs`、`bin/model_settings.py`、`src/ThreadModelSettings.tsx`、`src/threadModels.ts` |
 | 新建/归档/恢复 | `server/lifecycle.mjs`、`bin/create-thread.py`、`bin/archive-thread.py`、`src/useTaskOperations.ts` |
 | 原桌面控制与账本 | `server/desktop.mjs`、`server/bridge-process.mjs`、`bin/desktop-bridge.py`、`bin/request_actions.py` |
 | 历史读取与展示合并 | `server/history.mjs`、`src/conversationFeed.ts`、`src/transcript.ts` |

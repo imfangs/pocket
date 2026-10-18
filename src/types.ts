@@ -35,6 +35,7 @@ export interface Thread {
   updatedAt: number;
   lastMessageAt?: number | null;
   branch: string | null;
+  savedModelSettings?: { model: string | null; effort: string | null };
   missing: boolean;
   sourceExcluded?: boolean;
   intent: Intent;

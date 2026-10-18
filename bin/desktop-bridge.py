@@ -12,6 +12,8 @@ import stat
 from pathlib import Path
 
 from bridge_config import load_bridge_config
+from model_settings import (ModelSettingsError, valid_thread_id, validate_identity,
+                            model_state, preserved_binding, read_bundled_model, validate_change)
 
 CONFIG = load_bridge_config()
 sys.path.insert(0, CONFIG["ipcModuleDirectory"])
@@ -499,6 +501,27 @@ def history(state):
             "latestTurnId": turns[-1].get("turnId") if turns else None}
 
 
+def settled_model_snapshot(client, thread_id, owner):
+    # This route waits for the owner's pending settings operation. Its own
+    # reasoningEffort can be stale/null, so use the subsequent complete snapshot.
+    result = client.request("thread-follower-read-model-settings", {"conversationId": thread_id}, 1, owner)
+    if not isinstance(result.get("result", {}).get("settings"), dict):
+        raise ModelSettingsError("model_settings_unavailable")
+    fresh_owner, state = client.snapshot(thread_id)
+    validate_identity(state, thread_id, fresh_owner)
+    if fresh_owner != owner:
+        raise ModelSettingsError("model_state_changed")
+    return state
+
+
+def model_catalog(current_model):
+    try:
+        return read_bundled_model(CONFIG["appPath"], current_model)
+    except Exception:
+        # Installed metadata is optional for display, but required for edits.
+        return []
+
+
 def main():
     raw = sys.stdin.buffer.read(MAX_PAYLOAD_BYTES + 1)
     if len(raw) > MAX_PAYLOAD_BYTES:
@@ -515,18 +538,64 @@ def main():
     if data.get("operation") in ("send", "answer") and (
             not isinstance(data.get("text"), str) or not data["text"].strip() and not attachments):
         return {"ok": False, "code": "invalid_payload", "sent": False}
-    thread_id = data["threadId"]
+    thread_id = data.get("threadId")
+    if data.get("operation") in ("model", "set-model"):
+        allowed = {"operation", "threadId", "codexHome", "ownerLookupTimeoutMs"}
+        if data["operation"] == "set-model":
+            allowed |= {"requestId", "model", "effort", "expectedRevision"}
+        if (not valid_thread_id(thread_id) or set(data) - allowed
+                or not isinstance(data.get("codexHome"), str) or not Path(data["codexHome"]).is_absolute()
+                or data["operation"] == "set-model" and not valid_thread_id(data.get("requestId"))):
+            return {"ok": False, "code": "invalid_model_settings", "sent": False}
     dispatched = False
     client = None
     print("POCKET_BRIDGE_PHASE_V1 preflight", file=sys.stderr, flush=True)
     try:
         desktop_app(CONFIG["appPath"])
         with NavigatorIPC(Path(data["codexHome"]) / "ipc/ipc.sock") as client:
-            if data["operation"] == "history":
+            if data["operation"] in ("history", "model"):
                 client.owner_lookup_timeout = {5000: 5.0, 10000: 10.0}.get(data.get("ownerLookupTimeoutMs"), 2.0)
             owner, state = client.snapshot(thread_id)
             if data["operation"] == "history":
                 return {"ok": True, **history(state)}
+            if data["operation"] in ("model", "set-model"):
+                validate_identity(state, thread_id, owner)
+                state = settled_model_snapshot(client, thread_id, owner)
+                initial = model_state(state, owner, thread_id, [], writable(state)[0])
+                models = model_catalog(initial["current"]["model"])
+                projected = model_state(state, owner, thread_id, models, writable(state)[0])
+                if data["operation"] == "model":
+                    return {"ok": True, **projected}
+                problem = validate_change(data, projected)
+                if problem:
+                    return {"ok": False, "code": problem, "sent": False}
+                fresh = settled_model_snapshot(client, thread_id, owner)
+                latest = model_state(fresh, owner, thread_id, models, writable(fresh)[0])
+                problem = validate_change(data, latest)
+                if problem:
+                    return {"ok": False, "code": problem, "sent": False}
+                if latest["current"]["effort"] == data["effort"]:
+                    return {"ok": True, **latest, "status": "succeeded", "verified": True}
+                binding = preserved_binding(fresh, owner)
+                dispatched = True
+                print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
+                response = client.request("thread-follower-update-thread-settings", {
+                    "conversationId": thread_id,
+                    "threadSettings": {"effort": data["effort"]},
+                    "condition": {"ifModelEquals": fresh.get("latestModel"),
+                                  "ifEffortEquals": fresh.get("latestReasoningEffort")},
+                }, 2, owner)
+                applied = response.get("result", {}).get("applied")
+                if applied is False:
+                    return {"ok": False, "code": "model_state_changed", "sent": False}
+                if applied is not True:
+                    raise ModelSettingsError("model_update_unconfirmed")
+                confirmed = settled_model_snapshot(client, thread_id, owner)
+                verified = model_state(confirmed, owner, thread_id, models, writable(confirmed)[0])
+                expected = {**latest["current"], "effort": data["effort"]}
+                if verified["current"] != expected or preserved_binding(confirmed, owner) != binding:
+                    raise ModelSettingsError("model_update_unconfirmed")
+                return {"ok": True, **verified, "status": "succeeded", "verified": True}
             if data["operation"] == "stop":
                 target = data.get("expectedTurnId")
                 if not isinstance(target, str) or not target:
@@ -621,6 +690,8 @@ def main():
             return {"ok": True, "status": "accepted", "turnId": turns[-1].get("turnId") if active and turns else None}
     except Exception as error:
         # Expose bounded reason codes, never exception text or private IPC data.
+        if isinstance(error, ModelSettingsError):
+            return {"ok": False, "code": error.code, "sent": None if dispatched else False}
         if not dispatched and isinstance(error, (CompatibilityError, BundledCLIError)):
             return {"ok": False, "code": error.code if isinstance(error, BundledCLIError) else "desktop_protocol_incompatible",
                     "sent": False, "connectionReason": "desktop_protocol_error"}

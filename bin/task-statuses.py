@@ -235,8 +235,10 @@ class TaskStatusIPC(_bridge.NavigatorIPC):
         owner = response.get("handledByClientId")
         if not isinstance(owner, str) or not owner:
             raise ValueError("missing_owner")
-        self.set_following(thread_id, owner, True)
         try:
+            # A cancellation can arrive as soon as the subscription is sent,
+            # before set_following returns. Cover that window with cleanup too.
+            self.set_following(thread_id, owner, True)
             while True:
                 remaining(self.deadline)
                 message = self.receive()

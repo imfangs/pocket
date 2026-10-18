@@ -5,6 +5,7 @@ import { AppError } from "./store.mjs";
 import { readPersistedHistory } from "./history.mjs";
 import { ExecutionStops } from "./execution-stops.mjs";
 import { runBridge } from "./bridge-process.mjs";
+import { ThreadModels } from "./thread-models.mjs";
 import { Attachments, messageFingerprint } from "./attachments.mjs";
 
 const compatibilityHints = {
@@ -22,7 +23,7 @@ export function desktopRequest(payload) {
   return runBridge(payload, {
     command: config.python,
     args: [fileURLToPath(new URL("../bin/desktop-bridge.py", import.meta.url))],
-    timeoutMs: payload.operation === "send" ? 45000 : 16000,
+    timeoutMs: payload.operation === "send" || payload.operation === "set-model" ? 45000 : 16000,
   });
 }
 
@@ -50,6 +51,11 @@ export class DesktopService {
     store.db.exec("CREATE TABLE IF NOT EXISTS request_responses(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,request_key TEXT NOT NULL,decision TEXT NOT NULL,status TEXT NOT NULL,code TEXT,created_at INTEGER NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS question_answers(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,question_key TEXT NOT NULL)");
     this.attachments = new Attachments(store, attachmentOptions);
+    this.models = new ThreadModels(store, payload => this.request({ ...payload, codexHome: this.codexHome }), {
+      busy: id => this.isLifecycleBlocked(id) || this.sending.has(id) || this.queueReservations.has(id) ||
+        this.compactionPending(id) || this.stops.pending(id) || this.renamePending?.(id),
+      onChanged: id => { this.cache.delete(id); this.onModelChanged?.(id); },
+    });
   }
   isLifecycleBlocked(id) { return this.lifecycleBlocked?.(id) === true; }
   requireLifecycleOpen(id) {
@@ -266,7 +272,8 @@ export class DesktopService {
   }
   withActions(id, data) {
     const action = this.compactionRequest(id);
-    const blocked = this.compactionPending(id) || this.stops.pending(id);
+    const modelOperation = this.models.active(id);
+    const blocked = this.compactionPending(id) || this.stops.pending(id) || !!modelOperation;
     const queuePaused = this.stops.pause(id);
     const outbox = this.outbox(id);
     const thread = this.store.thread(id);
@@ -284,7 +291,7 @@ export class DesktopService {
       response: this.store.db.prepare("SELECT id AS responseId,status FROM request_responses WHERE thread_id=? AND request_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id, request.key) || null }));
     const asyncQuestions = (data.asyncQuestions || []).map(question => ({ ...question,
       response: this.store.db.prepare("SELECT d.id AS requestId,d.status FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? ORDER BY d.created_at DESC LIMIT 1").get(id, question.key) || null }));
-    return { ...this.attachments.enrich(id, data), connection, outbox, pendingRequests, canCompact: executionAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
+    return { ...this.attachments.enrich(id, data), ...(modelOperation ? { hint: "思考强度尚待核对，请打开会话信息。" } : {}), connection, outbox, pendingRequests, canCompact: executionAvailable && !!data.canCompact && !blocked && !this.sending.has(id),
       canAttemptCompact: executionAvailable && !blocked && !this.sending.has(id) &&
         (!!data.canCompact || data.source !== "desktop"),
       asyncQuestions,
@@ -310,7 +317,7 @@ export class DesktopService {
       if (old.thread_id !== id || old.text_hash !== hash) throw new AppError("请求编号已用于另一条回答", 409);
       return this.receipt(old);
     }
-    if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pending(id) || this.compactionPending(id))
+    if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pending(id) || this.compactionPending(id) || this.models.pending(id))
       throw new AppError("会话暂时无法接收回答，请刷新状态", 409);
     const prior = this.store.db.prepare("SELECT d.id FROM question_answers q JOIN dispatches d ON d.id=q.id WHERE q.thread_id=? AND q.question_key=? AND d.status IN('pending','accepted','unknown')").get(id, questionKey);
     if (prior) throw new AppError("这道问题已有回答，请先核对状态", 409);
@@ -386,7 +393,7 @@ export class DesktopService {
       if (old.thread_id !== id) throw new AppError("请求编号已用于其他任务", 409);
       return { requestId: old.id, status: old.status, code: old.code };
     }
-    if (thread.archived || thread.missing || this.sending.has(id) || this.compactionPending(id) || this.stops.pending(id))
+    if (thread.archived || thread.missing || this.sending.has(id) || this.compactionPending(id) || this.stops.pending(id) || this.models.pending(id))
       throw new AppError("请等当前操作完成并确认任务可用后再压缩", 409);
     this.sending.add(id);
     try {
@@ -490,6 +497,7 @@ export class DesktopService {
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
     if (this.compactionPending(id)) throw new AppError("请先核对上下文压缩状态", 409);
+    if (this.models.pending(id)) throw new AppError("请先在会话信息中核对思考强度", 409);
     if (this.stops.pending(id) || (delivery !== "now" && this.stops.pause(id))) throw new AppError("待发消息已暂停，请先核对停止状态", 409);
     if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("发送参数无效", 400);
     const row = this.queued(id, requestId, input.expectedRevision);
@@ -532,6 +540,10 @@ export class DesktopService {
     if (this.isLifecycleBlocked(id)) return;
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pause(id) || this.stops.pending(id)) return;
+    if (this.models.pending(id)) {
+      await this.models.read(id);
+      if (this.models.pending(id)) return;
+    }
     const head = this.outbox(id)[0];
     if (!head || head.status !== "queued") return;
     const history = await this.history(id);
@@ -593,7 +605,7 @@ export class DesktopService {
         throw new AppError("请求编号已用于另一条消息", 409);
       return this.receipt(old);
     }
-    if ((this.sending.has(id) || this.compactionPending(id) || this.stops.pending(id)) && !input.enqueue && !this.outbox(id).length)
+    if ((this.sending.has(id) || this.compactionPending(id) || this.stops.pending(id) || this.models.pending(id)) && !input.enqueue && !this.outbox(id).length)
       throw new AppError("这条任务正在提交消息，请稍后再试", 409);
     if (this.queueSize(id) >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
     const queueInitially = input.enqueue || this.outbox(id).length > 0;

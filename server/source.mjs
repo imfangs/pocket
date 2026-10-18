@@ -6,6 +6,14 @@ import { readLastMessageAt } from "./message-time.mjs";
 import { readSourceScope } from "./source-scope.mjs";
 
 const separator = (s) => /^[-—–_\s]{3,}$/.test(s);
+const reasoningEfforts = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
+function savedModelSettings(row) {
+  const model = typeof row.model === "string" && row.model.length <= 120 &&
+    !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(row.model) && row.model.trim()
+    ? row.model.trim() : null;
+  const effort = reasoningEfforts.has(row.reasoning_effort) ? row.reasoning_effort : null;
+  return model || effort ? { model, effort } : null;
+}
 export function readCodexSource(codexHome) {
   const file = join(codexHome, "state_5.sqlite");
   const globalFile = join(codexHome, ".codex-global-state.json");
@@ -38,7 +46,7 @@ export function readCodexSource(codexHome) {
     const rows = db
       .prepare(
         `SELECT id, title, cwd, archived, created_at, updated_at, source,
-      ${["name", "thread_source", "agent_path", "project_id", "updated_at_ms", "git_branch", "rollout_path"].map((f) => optional(f)).join(", ")}
+      ${["name", "thread_source", "agent_path", "project_id", "updated_at_ms", "git_branch", "rollout_path", "model", "reasoning_effort"].map((f) => optional(f)).join(", ")}
       FROM threads`,
       )
       .all();
@@ -80,6 +88,7 @@ export function readCodexSource(codexHome) {
         const hasUnreadTurn = unread.available ? unread.ids.has(r.id) : null;
         const recordedTurnState = hasUnreadTurn && !r.archived && !separator(title)
           ? readRecordedTurnState(codexHome, r.id, r.rollout_path) : undefined;
+        const savedSettings = savedModelSettings(r);
         return {
           id: r.id,
           hostId: "local",
@@ -97,6 +106,7 @@ export function readCodexSource(codexHome) {
           updatedAt: r.updated_at_ms || r.updated_at * 1000,
           lastMessageAt: readLastMessageAt(codexHome, r.id, r.rollout_path),
           branch: r.git_branch || null,
+          ...(savedSettings ? { savedModelSettings: savedSettings } : {}),
           hasUnreadTurn,
           needsInput: hasUnreadTurn === true && recordedTurnState === "ended",
           ...(recordedTurnState ? { recordedTurnState } : {}),
