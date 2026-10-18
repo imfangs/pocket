@@ -32,6 +32,8 @@ UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-eleme
 
 ## 已建立的验收基线
 
+- 合成测试通过 `npm test` 运行，入口会阻断真实原生 opener；定向测试使用 `node --import ./tests/helpers/block-native-open.mjs --test tests/<name>.test.mjs`。`makeApp` fixture 显式注入 `openThread`，需要已恢复 owner 时返回 `source: 'desktop', resumeState: 'resumed'`；不能让假 thread ID 打开用户桌面。来源与覆盖边界见[10-18恢复报错排查](research/2026-10-18-codex-rollout-test-isolation.md)。
+
 - 公网可达性需区分探针与实际浏览器：09-30 urllib返回Cloudflare403/1010，而curl和手机尺寸浏览器正常。具体回读见CURRENT.md的18:04记录；单一探针失败先对照正常访问路径，不直接当成Pocket故障或据此重启、发布。
 
 - 刷新/输入连续性：2026-09-30复现并修复旧目录覆盖新结果和已保存说明、迟到发送回执影响重进后的新草稿、输入框长高时底部阅读滞后。合成手机/桌面验收、168项检查与边界见 `docs/design/2026-09-30-steady-interaction.md`，发布状态见CURRENT.md。后续改动需保留原requestId核对和向上阅读的位置，不以取消前端轮询当作取消已提交任务。

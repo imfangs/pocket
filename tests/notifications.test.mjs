@@ -105,8 +105,9 @@ test('following an accepted send retains pending approval state until the owner 
 test('direct and queued HTTP sends register notification tracking without opening history',async t=>{
  const {makeApp}=await import('../server/index.mjs');
  const directory=mkdtempSync(join(tmpdir(),'pocket-send-watch-'));
- const app=makeApp({dataDir:directory,readSource:()=>({threads:[{id,title:'Fixture',archived:false}],projects:[],sourceInfo:{}}),
-  notifications:{send:async()=>{}},desktopRequest:async p=>p.operation==='history'?{ok:true,source:'desktop',runtime:'active',canSend:true,messages:[]}:{ok:true,turnId:'accepted-turn'}});
+ const openThread=t.mock.fn(async()=>{});
+ const app=makeApp({dataDir:directory,codexHome:directory,openThread,readSource:()=>({threads:[{id,title:'Fixture',archived:false}],projects:[],sourceInfo:{}}),
+  notifications:{send:async()=>{}},desktopRequest:async p=>p.operation==='history'?{ok:true,source:'desktop',resumeState:'resumed',runtime:'active',canSend:true,messages:[]}:{ok:true,turnId:'accepted-turn'}});
  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
  t.after(async()=>{await new Promise(resolve=>app.server.close(resolve));rmSync(directory,{recursive:true,force:true});});
  const base=`http://127.0.0.1:${app.server.address().port}`,authorization=`Bearer ${app.auth.localToken}`;
@@ -119,5 +120,8 @@ test('direct and queued HTTP sends register notification tracking without openin
  app.store.db.prepare('DELETE FROM push_watches').run();
  const qid='cccccccc-cccc-7ccc-8ccc-cccccccccccc';
  assert.equal((await post(`/api/tasks/${id}/messages`,{requestId:qid,text:'Queued',enqueue:true})).status,'queued');
+ const connection=await fetch(base+`/api/tasks/${id}/connection`,{headers:{Authorization:authorization}}).then(r=>r.json());
+ assert.equal(connection.status,'connected');
  assert.equal((await post(`/api/tasks/${id}/outbox/${qid}/send`,{expectedRevision:0})).status,'accepted');assert.equal(read().turn,'accepted-turn');
+ assert.equal(openThread.mock.callCount(),0);
 });
