@@ -4,7 +4,6 @@ import {
   RefreshCw,
   X,
   AlertCircle,
-  ChevronLeft,
   Plus,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -497,18 +496,18 @@ export default function App({
           </div>
           <div className="filter-row">
             <div className="activity-filters">
-            <button className="needs-input-toggle" data-inbox={view === "unread"} onClick={view === "unread" ? returnFromActivity : () => openActivity("unread")}
-              title={view === "unread" ? "返回列表" : "查看待我输入的会话"}>
-              {view === "unread" ? <ChevronLeft size={16} aria-hidden="true" /> : <span className="unread-dot" aria-hidden="true" />}
-              <span>{view === "unread" ? "返回列表" : "待我输入"}</span>
-              {view !== "unread" && <small>{unreadKnown ? unreadCount : "—"}</small>}
-            </button>
-            <button className="needs-input-toggle running-toggle" data-inbox={view === "running"} aria-pressed={view === "running"}
-              title={view === "running" ? "返回列表" : "查看运行中的会话"}
-              onClick={view === "running" ? returnFromActivity : () => openActivity("running")}>
-              <span className="running-dot" aria-hidden="true" />
-              <span>运行中</span><small>{runtimeKnown ? runningCount : "—"}</small>
-            </button>
+              {([
+                { view: "unread", label: "待我输入", count: unreadKnown ? unreadCount : "—" },
+                { view: "running", label: "运行中", count: runtimeKnown ? runningCount : "—" },
+              ] as const).map(filter => (
+                <button key={filter.view} className={`needs-input-toggle ${filter.view}-toggle`}
+                  data-inbox={view === filter.view} aria-pressed={view === filter.view}
+                  title={view === filter.view ? "返回列表" : `查看${filter.label}的会话`}
+                  onClick={view === filter.view ? returnFromActivity : () => openActivity(filter.view)}>
+                  <span className={`${filter.view}-dot`} aria-hidden="true" />
+                  <span>{filter.label}</span><small>{filter.count}</small>
+                </button>
+              ))}
             </div>
             <div className="list-controls">
               <button

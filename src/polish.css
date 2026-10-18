@@ -44,6 +44,7 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .activity-filters { display:flex; align-items:center; gap:5px; }
 .running-dot { width:7px; height:7px; border-radius:50%; background:var(--positive); flex:none; }
 .running-toggle[data-inbox="true"] { color:var(--positive); background:var(--positive-soft); }
+.unread-toggle[data-inbox="true"] { color:var(--accent); background:var(--accent-soft); }
 .quick-create-query { margin-bottom:18px; }
 .quick-create-query-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .quick-create-query-heading .field-label { margin:0; }
