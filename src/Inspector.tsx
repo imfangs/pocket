@@ -1,4 +1,4 @@
-import { Archive, ArrowUpRight, ChevronDown, ChevronLeft, Clipboard, GitBranch, Pencil, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowUpRight, ChevronDown, ChevronLeft, Clipboard, GitBranch, Pencil, X } from "lucide-react";
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import type { Thread } from "./types";
 import Conversation from "./Conversation";
@@ -97,13 +97,13 @@ export default function Inspector(p: Props) {
               onClick={() => setRenaming(true)}><Pencil size={14} aria-hidden="true" />重命名</button>
             <button type="button" className="secondary" disabled={actionBusy || p.thread.missing || managementBlocked}
               onClick={() => void runAction(() => p.onArchive(p.thread, !p.thread.archived))}>
-              <Archive size={14} aria-hidden="true" />{p.thread.archived ? "恢复会话" : "归档会话"}
+              {p.thread.archived ? <ArchiveRestore size={14} aria-hidden="true" /> : <Archive size={14} aria-hidden="true" />}{p.thread.archived ? "取消归档" : "归档会话"}
             </button>
             {showMacOpen && <button type="button" className="secondary" disabled={actionBusy || p.thread.missing || managementBlocked}
               onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>在 Mac 打开<ArrowUpRight size={14} aria-hidden="true" /></button>}
           </div>
           {p.thread.missing ? <p className="field-help">会话暂不可用，请刷新。</p>
-            : p.thread.archived ? <p className="field-help">会话已归档，恢复后可继续对话或重命名。</p> : null}
+            : p.thread.archived ? <p className="field-help">取消归档后可继续对话或重命名。</p> : null}
           {operationStatus}
           {p.operation?.code === "outbox_not_empty" && <button type="button" className="text-button" onClick={() => setInfoOpen(false)}>查看待发消息</button>}
           {error && <p className="inline-error" role="alert">{error}</p>}

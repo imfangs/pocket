@@ -68,7 +68,7 @@ const titles: Record<View, string> = {
   running: "运行中",
   pinned: "已标记",
   recent: "最近打开",
-  archived: "归档",
+  archived: "已归档",
 };
 export default function App({
   appearanceActions,

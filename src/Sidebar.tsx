@@ -140,7 +140,7 @@ export default function Sidebar(p: Props) {
               onClick={() => p.onView("archived")}
             >
               <Archive size={17} />
-              <span>归档</span>
+              <span>已归档</span>
             </button>
             <button
               className="icon-button sidebar-settings"

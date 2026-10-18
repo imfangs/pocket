@@ -69,7 +69,7 @@ export function mergeOperation(current: TaskOperation | undefined, incoming: Tas
   return { ...current, ...incoming };
 }
 export function operationText(operation: TaskOperation) {
-  const action = operation.operation === "create" ? "新建" : operation.operation === "restore" ? "恢复" : "归档";
+  const action = operation.operation === "create" ? "新建" : operation.operation === "restore" ? "取消归档" : "归档";
   if (operation.operation === "create" && operation.creationStatus === "created" && operation.initialMessage && operation.status !== "cancelled") {
     const status = operation.initialMessage.status;
     if (status === "accepted") return "会话已创建，首条消息已发送。";
@@ -100,7 +100,7 @@ export function operationText(operation: TaskOperation) {
 export function operationCancelLabel(operation: TaskOperation) {
   if (operation.operation === "create") return operation.status === "unknown" ? "停止核对" : null;
   if (operation.status === "unknown") return "停止后续尝试";
-  return operation.status === "waiting" ? `取消等待${operation.operation === "restore" ? "恢复" : "归档"}` : null;
+  return operation.status === "waiting" ? operation.operation === "restore" ? "取消等待" : "取消等待归档" : null;
 }
 
 type CreationNoticeOptions = {

@@ -60,8 +60,8 @@ test('archive blockers distinguish queued content from an uncertain send', () =>
 });
 test('waiting and cancellation describe the actual action without promising that external state is unchanged', () => {
   const restore = { ...operation('waiting'), operation: 'restore' };
-  assert.match(operationText(restore), /释放后继续恢复/);
-  assert.equal(operationCancelLabel(restore), '取消等待恢复');
+  assert.match(operationText(restore), /释放后继续取消归档/);
+  assert.equal(operationCancelLabel(restore), '取消等待');
   assert.equal(operationCancelLabel(operation('waiting')), '取消等待归档');
   assert.equal(operationCancelLabel(operation('unknown')), '停止后续尝试');
   assert.equal(operationCancelLabel({ ...operation('unknown'), operation: 'create' }), '停止核对');

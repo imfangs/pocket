@@ -51,7 +51,7 @@ export function renameOperationText(operation: RenameOperation): string {
 }
 
 export function renameSourceHint(source: RenameSource): string {
-  if (["archived", "thread_archived", "archived_thread"].includes(source.code || "")) return "请先恢复会话，再重命名。";
+  if (["archived", "thread_archived", "archived_thread"].includes(source.code || "")) return "请先取消归档，再重命名。";
   if (["missing", "thread_missing", "not_found", "thread_not_found"].includes(source.code || "")) return "会话暂不可用，请刷新后再试。";
   if (source.code === "lifecycle_pending") return "此会话有未完成的管理操作，请先核对。";
   if (["app_version_changed", "cli_version_changed"].includes(source.code || "")) return "桌面版本已变化，重命名需更新兼容支持。";

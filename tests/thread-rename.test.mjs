@@ -58,7 +58,7 @@ test('rename feedback distinguishes uncertain results and concurrent title chang
 });
 
 test('source hints match archived and unavailable codes emitted by the service', () => {
-  assert.match(renameSourceHint({ code: 'archived_thread' }), /先恢复/);
+  assert.match(renameSourceHint({ code: 'archived_thread' }), /先取消归档/);
   assert.match(renameSourceHint({ code: 'thread_not_found' }), /刷新后再试/);
   assert.match(renameSourceHint({ code: 'lifecycle_pending' }), /未完成的管理操作/);
   for (const code of ['app_version_changed', 'cli_version_changed']) assert.match(renameSourceHint({ code }), /版本已变化/);

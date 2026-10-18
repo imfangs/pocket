@@ -5,7 +5,7 @@ import StopExecution from "./StopExecution";
 import TurnDuration from "./TurnDuration";
 import QuestionPrompts from "./QuestionPrompts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDown, RefreshCw, Send, LoaderCircle } from "lucide-react";
+import { ArchiveRestore, ArrowDown, RefreshCw, Send, LoaderCircle } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
@@ -267,7 +267,7 @@ export default function Conversation({
     (history?.source !== "desktop" || connecting || observedConnection.status === "failed" || !!connectionError);
   const desktopHint = history?.source === "desktop" && history.canSend && routineDesktopHints.has(history.hint) ? undefined
     : history?.hint?.replaceAll("原任务", "会话").replaceAll("原会话", "会话");
-  const connectionHint = managementHint || (thread.archived ? "会话已归档，恢复后可继续。"
+  const connectionHint = managementHint || (thread.archived ? "已归档，取消归档后可继续对话。"
     : !targetAvailable ? "会话暂不可用" : history?.source === "desktop" ? desktopHint : undefined);
   const connectionFailed = !!connectionError || staleConnection || observedConnection.status === "failed";
   const connectionLabel = !online ? "离线" : connecting ? "连接中…"
@@ -282,7 +282,8 @@ export default function Conversation({
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
     pending: sending || connecting || !!draft.requestId || shownOutbox.length > 0 || visibleSubmissions.length > 0 ||
       !!history?.pendingRequests?.length || hasPendingQuestions,
-    feedback: !!(error || historyError || connectionError || connectionFailed || compatibilityCode || notice || currentReadFeedback) });
+    // Archived history still has an actionable unarchive button with no draft.
+    feedback: !!(thread.archived || error || historyError || connectionError || connectionFailed || compatibilityCode || notice || currentReadFeedback) });
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
@@ -546,7 +547,7 @@ export default function Conversation({
     const release = holdReload();
     setRestoring(true); setError("");
     try { await onRestore(); }
-    catch (failure) { if (generation === readViewGeneration.current) setError((failure as Error).message || "恢复未完成，请重试。"); }
+    catch (failure) { if (generation === readViewGeneration.current) setError((failure as Error).message || "取消归档未完成，请重试。"); }
     finally { restorePending.current = false; release(); if (generation === readViewGeneration.current) setRestoring(false); }
   };
   const preconnectBlocked = !!thread.sourceExcluded || thread.separator || !!draft.requestId || sending || restoring || !!compatibilityCode || history?.canAttemptSend === false || !!history?.pendingRequests?.length ||
@@ -713,7 +714,7 @@ export default function Conversation({
           id="user-query"
           aria-label="发送消息"
           rows={composer.compact ? 1 : 2}
-          placeholder={composer.compact ? "继续对话…" : enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
+          placeholder={thread.archived ? "取消归档后可继续对话…" : composer.compact ? "继续对话…" : enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
           value={draft.text}
           maxLength={16000}
           onChange={(e) => updateDraft({ text: e.target.value })}
@@ -739,8 +740,8 @@ export default function Conversation({
                 (enqueue ? !canQueue : !targetAvailable || !history?.canSend)))
             }
           >
-            {restoring || connectionOnlyAction && connecting ? <LoaderCircle size={15} className="composer-connection-spinner" aria-hidden="true" /> : restoreOnlyAction || connectionOnlyAction ? <RefreshCw size={15} aria-hidden="true" /> : <Send size={15} />}
-            {restoreOnlyAction ? restoring ? "恢复中…" : "恢复会话" : connectionOnlyAction ? connecting ? "连接中…" : "重试连接" : sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送" : enqueue ? "加入队列" : "发送"}
+            {restoring || connectionOnlyAction && connecting ? <LoaderCircle size={15} className="composer-connection-spinner" aria-hidden="true" /> : restoreOnlyAction ? <ArchiveRestore size={15} aria-hidden="true" /> : connectionOnlyAction ? <RefreshCw size={15} aria-hidden="true" /> : <Send size={15} />}
+            {restoreOnlyAction ? restoring ? "取消归档中…" : "取消归档" : connectionOnlyAction ? connecting ? "连接中…" : "重试连接" : sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送" : enqueue ? "加入队列" : "发送"}
           </button>
         </div>
       </form>

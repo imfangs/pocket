@@ -72,7 +72,7 @@ test('navigation shows projects without duplicate routes or counters', () => {
     assert.doesNotMatch(html, /我的分组|我的安排|未分组|正在推进|稍后继续|留作参考|Old group|data-view="group"/);
     assert.doesNotMatch(html, /data-view="(?:pinned|recent|unread)"|<small>/);
     assert.match(html, /data-view="all"/);
-    const archive = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]).find(button => button.includes('<span>归档</span>'));
+    const archive = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]).find(button => button.includes('<span>已归档</span>'));
     assert.ok(archive);
     assert.doesNotMatch(archive, /<small>/);
   } finally { globalThis.matchMedia = previous; }
