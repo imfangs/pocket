@@ -37,9 +37,7 @@ self.addEventListener("push", event => {
   if (!/^[a-f0-9-]{36}$/i.test(data?.threadId) || typeof data.body !== "string") return;
   const machineId = data.machineId ?? "ged";
   if (!["ged", "wandou"].includes(machineId)) return;
-  const machineName = { ged: "格得 Mac", wandou: "豌豆 Mac" }[machineId];
-  if (!machineName) return;
-  event.waitUntil(self.registration.showNotification(`Pocket · ${machineName}`, {
+  event.waitUntil(self.registration.showNotification("Pocket", {
     body: data.body.slice(0, 100), icon: "/icons/pocket-v1-192.png", badge: "/icons/pocket-v1-192.png",
     tag: `pocket-${machineId}-${data.eventId}`, data: { threadId: data.threadId, machineId },
   }));

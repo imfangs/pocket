@@ -1,10 +1,9 @@
 import PocketLogo from "./PocketLogo";
-import { Archive, Folder, Layers3, Settings2, X } from "lucide-react";
+import { Archive, Folder, Layers3, Pin, Settings2, Star, X } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { Catalog, View } from "./types";
 import { projectNavigationItems } from "./projectNavigation";
 import "./project-navigation.css";
-import MachinePicker from "./MachinePicker";
 interface Props {
   catalog: Catalog;
   view: View;
@@ -43,7 +42,8 @@ export default function Sidebar(p: Props) {
     wasOpen.current = isOpen;
   }, [narrow, p.mobileOpen]);
   const projects = useMemo(() => projectNavigationItems(p.catalog.projects || [], p.catalog.threads), [p.catalog.projects, p.catalog.threads]);
-  const allSelected = !p.project && p.view !== "archived";
+  const projectScopedView = p.view === "all" || p.view === "unread" || p.view === "running";
+  const allSelected = !p.project && projectScopedView;
   return (
     <>
       <button
@@ -98,7 +98,6 @@ export default function Sidebar(p: Props) {
             <X size={18} />
           </button>
         </div>
-        <MachinePicker />
         <div className="sidebar-scroll">
           <nav aria-label="会话视图">
             <button
@@ -110,11 +109,29 @@ export default function Sidebar(p: Props) {
               <Layers3 size={18} aria-hidden="true" />
               <span>全部会话</span>
             </button>
+            <button
+              data-view="priority"
+              aria-current={p.view === "priority" ? "page" : undefined}
+              className={`nav-item ${p.view === "priority" ? "selected" : ""}`}
+              onClick={() => p.onView("priority")}
+            >
+              <Star size={18} aria-hidden="true" />
+              <span>优先关注</span>
+            </button>
+            <button
+              data-view="codex-pinned"
+              aria-current={p.view === "codex-pinned" ? "page" : undefined}
+              className={`nav-item ${p.view === "codex-pinned" ? "selected" : ""}`}
+              onClick={() => p.onView("codex-pinned")}
+            >
+              <Pin size={18} aria-hidden="true" />
+              <span>Codex 置顶</span>
+            </button>
           </nav>
           {projects.length > 0 && <nav className="sidebar-projects" aria-label="项目">
             <p className="sidebar-projects-heading">项目</p>
             {projects.map(project => {
-              const selected = p.project === project.id && p.view !== "archived";
+              const selected = p.project === project.id && projectScopedView;
               return <button
                 key={project.id}
                 data-project-id={project.id}

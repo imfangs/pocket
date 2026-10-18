@@ -64,17 +64,35 @@ test('rows hide retired notes and arrangement fields while retaining runtime sta
   assert.match(html, /data-state="running"/);
   assert.doesNotMatch(html, /稍后继续|回顾时间|分组|row-check|批量操作|draggable/);
 });
-test('navigation shows projects without duplicate routes or counters', () => {
+test('navigation places independent shortcuts below all conversations without machine controls or counters', () => {
   const previous = globalThis.matchMedia;
   globalThis.matchMedia = () => ({ matches: false });
   try {
     const html = renderToStaticMarkup(createElement(Sidebar, { catalog: { threads: [thread], groups: [{ id: 'old-group', name: 'Old group', parentId: null }] }, view: 'all', onView: noop, onClose: noop, onSettings: noop, mobileOpen: false }));
     assert.doesNotMatch(html, /我的分组|我的安排|未分组|正在推进|稍后继续|留作参考|Old group|data-view="group"/);
     assert.doesNotMatch(html, /data-view="(?:pinned|recent|unread)"|<small>/);
-    assert.match(html, /data-view="all"/);
+    assert.deepEqual([...html.matchAll(/data-view="([^"]+)"/g)].map(match => match[1]), ['all', 'priority', 'codex-pinned']);
+    assert.match(html, /<span>优先关注<\/span>/);
+    assert.match(html, /<span>Codex 置顶<\/span>/);
+    assert.doesNotMatch(html, /machine-picker|格得 Mac|豌豆 Mac|切换电脑/);
     const archive = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]).find(button => button.includes('<span>已归档</span>'));
     assert.ok(archive);
     assert.doesNotMatch(archive, /<small>/);
+  } finally { globalThis.matchMedia = previous; }
+});
+test('each independent shortcut is the only selected menu item even with a stale project scope', () => {
+  const previous = globalThis.matchMedia;
+  globalThis.matchMedia = () => ({ matches: false });
+  try {
+    for (const view of ['priority', 'codex-pinned']) {
+      const html = renderToStaticMarkup(createElement(Sidebar, {
+        catalog: { threads: [{ ...thread, projectId: 'project-a' }], projects: [{ id: 'project-a', name: 'Project', paths: ['/synthetic'], order: 0, separator: false }], groups: [] },
+        view, project: 'project-a', onView: noop, onProject: noop, onClose: noop, onSettings: noop, mobileOpen: false,
+      }));
+      const current = [...html.matchAll(/<button\b[^>]*aria-current="page"[^>]*>/g)].map(match => match[0]);
+      assert.equal(current.length, 1, view);
+      assert.match(current[0], new RegExp(`data-view="${view}"`));
+    }
   } finally { globalThis.matchMedia = previous; }
 });
 test('a busy modal makes the close affordance explicitly unavailable', () => {

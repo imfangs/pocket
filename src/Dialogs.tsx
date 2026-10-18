@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import NotificationSettings from "./NotificationSettings";
+import MachinePicker from "./MachinePicker";
 import { modalCloseDecision } from "./modalInteraction";
 import { MOTION_EASE, MOTION_MS, holdReadingMotion, prefersReducedMotion } from "./motion";
 export function Modal({
@@ -134,13 +135,18 @@ export function Modal({
 export function SettingsDialog(p: {
   appearanceActions?: React.ReactNode;
   logoutAction?: React.ReactNode;
+  notificationsAvailable?: boolean;
   onClose: () => void;
 }) {
   return (
     <Modal title="设置" onClose={p.onClose}>
       <div className="settings-content">
+        <section className="settings-connection" aria-label="电脑">
+          <h3>连接电脑</h3>
+          <MachinePicker />
+        </section>
         {p.appearanceActions && <section className="settings-appearance" aria-label="外观与安装">{p.appearanceActions}</section>}
-        <NotificationSettings />
+        {p.notificationsAvailable !== false && <NotificationSettings />}
         {p.logoutAction && <div className="settings-logout">{p.logoutAction}</div>}
       </div>
     </Modal>

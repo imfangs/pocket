@@ -28,6 +28,8 @@ export function filterThreads(
       if (view === "unread" && !needsUserInput(t, runtimeStates?.get(t.id))) return false;
       if (view === "running" && (t.missing || t.separator || runtimeStates?.get(t.id) !== "running")) return false;
       if (project === UNASSIGNED_PROJECT ? !!t.projectId : project && t.projectId !== project) return false;
+      if (view === "priority" && !pocketPriority(t)) return false;
+      if (view === "codex-pinned" && !codexPinned(t)) return false;
       if (view === "pinned" && !pocketPriority(t) && !codexPinned(t)) return false;
       if (view === "recent" && !t.lastOpenedAt) return false;
       if (!terms.length) return true;

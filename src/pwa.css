@@ -28,9 +28,12 @@ button:not(:disabled):active,
   background: var(--surface-soft);
 }
 .access-card {
+  position: relative;
   width: 100%;
   max-width: 350px;
 }
+.access-settings { position:absolute; top:0; right:0; }
+.access-settings > .icon-button { min-width:44px; min-height:44px; }
 .access-brand {
   display: flex;
   align-items: center;

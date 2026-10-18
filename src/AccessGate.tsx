@@ -6,6 +6,7 @@ import {
   LogOut,
   Eye,
   EyeOff,
+  Settings2,
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import PwaInstall, { usePwaInstallController } from "./PwaInstall";
@@ -14,14 +15,24 @@ import BootSplash from "./BootSplash";
 import { api } from "./api";
 import { createAccessCheck } from "./accessCheck";
 import { holdReload, useReloadGuard } from "./updateSafety";
-import MachinePicker from "./MachinePicker";
-import { bindMachineUnloadGuard, changeMachine, currentMachine, currentMachineId, needsPublicMachine } from "./machineScope";
+import { SettingsDialog } from "./Dialogs";
+import { bindMachineUnloadGuard, changeMachine, currentMachineId, needsPublicMachine } from "./machineScope";
+
+function AccessSettings() {
+  const [open, setOpen] = useState(false);
+  return <div className="access-settings">
+    <button type="button" className="icon-button" aria-label="设置" title="设置" onClick={() => setOpen(true)}>
+      <Settings2 size={18} aria-hidden="true" />
+    </button>
+    {open && <SettingsDialog notificationsAvailable={false} onClose={() => setOpen(false)} />}
+  </div>;
+}
 
 function AppLoadFailure() {
   return <main className="access-screen">
     <section className="access-card" role="alert">
+      <AccessSettings />
       <div className="access-brand"><PocketLogo /><span>Pocket</span></div>
-      <MachinePicker />
       <h1>暂时无法打开 Pocket</h1>
       <p className="access-intro">可能遇到了版本更新或网络中断。请确认网络后重新加载。</p>
       <button type="button" className="primary access-submit" onClick={() => location.reload()}>重新加载 Pocket</button>
@@ -36,7 +47,7 @@ export default function AccessGate() {
   const machine = currentMachineId();
   const [state, setState] = useState<
       "loading" | "locked" | "authenticated" | "offline" | "select"
-    >(machine ? "loading" : "select"),
+    >("loading"),
     [passphrase, setPassphrase] = useState(""),
     [visible, setVisible] = useState(false),
     [busy, setBusy] = useState(false),
@@ -57,7 +68,9 @@ export default function AccessGate() {
   }));
   const check = useCallback(() => checks.check(), [checks]);
   useEffect(() => {
-    if (!machine) return;
+    // Even an invalid target must release the shared startup screen through
+    // the normal loading-stage handoff before its settings become interactive.
+    if (!machine) { setState("select"); return; }
     if (needsPublicMachine(machine)) {
       const task = new URLSearchParams(location.search).get("task");
       const reason = changeMachine(machine, task && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(task) ? task : undefined);
@@ -162,16 +175,16 @@ export default function AccessGate() {
   return (
     <main className="access-screen">
       <section className="access-card">
+        <AccessSettings />
         <div className="access-brand">
           <PocketLogo />
           <span>Pocket</span>
         </div>
-        <MachinePicker />
-        <h1>{state === "select" ? "选择电脑" : "连接 Codex"}</h1>
-        {state === "select" ? <p className="access-intro" role={error ? "alert" : undefined}>{error || "请选择要连接的电脑。"}</p> : state === "offline" ? (
+        <h1>连接 Codex</h1>
+        {state === "select" ? <p className="access-intro" role={error ? "alert" : undefined}>{error || "请在设置中选择电脑。"}</p> : state === "offline" ? (
           <div className="access-offline">
             <WifiOff size={24} />
-            <p>暂时连接不到{currentMachine()?.label}。</p>
+            <p>暂时无法连接。</p>
             <small>确认 Mac 和网络可用后再试。</small>
             <button className="primary" onClick={() => void check()}>
               重新连接

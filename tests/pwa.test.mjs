@@ -102,7 +102,7 @@ test('push shows a notification without caching private data and click reuses a 
   registration:{showNotification:async(...args)=>shown.push(args)},clients:{matchAll:async()=>[{url:'https://example.test/',postMessage:(m,ports)=>{messages.push(m);if(acknowledge)ports[0].ack();},focus:async()=>focused++,navigate:async url=>navigated.push(url)}],openWindow:async url=>opened.push(url)}};
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,URL,MessageChannel:Channel,setTimeout:(fn)=>setTimeout(fn,10),clearTimeout});
  let pending;handlers.push({data:{json:()=>({threadId:id,eventId:'event-1',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;
- assert.equal(shown[0][0],'Pocket · 格得 Mac');assert.equal(shown[0][1].data.threadId,id);assert.equal(shown[0][1].data.machineId,'ged');
+ assert.equal(shown[0][0],'Pocket');assert.equal(shown[0][1].data.threadId,id);assert.equal(shown[0][1].data.machineId,'ged');
  handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;
  assert.equal(messages[0].threadId,id);assert.equal(focused,1);assert.equal(opened.length,0);
  acknowledge=false;handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;assert.equal(navigated.length,0);assert.equal(opened[0],`/?task=${id}`);
@@ -119,6 +119,7 @@ test('push clicks choose the correct machine even for identical thread IDs and n
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,URL,MessageChannel:Channel,setTimeout,clearTimeout});
  let pending;
  for(const machineId of ['ged','wandou']) {handlers.push({data:{json:()=>({threadId:id,machineId,eventId:'same-event',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;}
+ assert.deepEqual(shown.map(([title])=>title),['Pocket','Pocket']);
  assert.notEqual(shown[0][1].tag,shown[1][1].tag);
  handlers.notificationclick({notification:{close(){},data:{threadId:id,machineId:'wandou'}},waitUntil:p=>pending=p});await pending;
  assert.equal(messages.length,1);assert.equal(messages[0].machine,'wandou');assert.equal(messages[0].type,'pocket-open-machine-task');

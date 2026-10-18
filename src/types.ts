@@ -64,4 +64,4 @@ export interface Catalog {
   sourceError: string | null;
   csrfToken?: string;
 }
-export type View = "all" | "unread" | "running" | "pinned" | "recent" | "archived";
+export type View = "all" | "unread" | "running" | "priority" | "codex-pinned" | "pinned" | "recent" | "archived";

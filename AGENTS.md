@@ -14,14 +14,14 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
 | 会话型号、思考强度显示与修改 | [模型设置](docs/design/2026-10-18-model-settings.md)：有效设置优先级、同型号下一轮强度、原生条件更新/回读、未知回执与跨型号兼容边界 |
-| 多机连接、机器切换、远端部署、跨机链接/资源/通知 | [多机连接](docs/design/2026-10-17-multi-machine.md)：原owner、独立路由/Cookie/草稿保护、机器私有配置；真实安装状态回CURRENT |
+| 多机连接、设置内电脑切换、远端部署、跨机链接/资源/通知 | [多机连接](docs/design/2026-10-17-multi-machine.md)：电脑身份只在设置显示，原owner、独立路由/Cookie/草稿保护、机器私有配置；真实安装状态回CURRENT |
 | 进入详情后返回按钮蓝圈、指针/键盘/通知焦点 | [入口焦点](docs/design/2026-10-15-inspector-entry-focus.md)：保留键盘轮廓，普通触摸落在中性容器 |
 | 会话图片放大、缩放、关闭与阅读恢复 | [会话内大图](docs/design/2026-10-15-image-viewer.md)：共享host、固定关闭、原图与权限边界 |
 | 离线整页视觉、对齐、主题和公开壳更新 | [离线布局收敛](docs/design/2026-10-15-offline-layout.md)：独立公开页面、中轴与安全区、深链保留 |
 | 列表触摸稳定、草稿退出、新建/离线恢复、搜索扩围与归档主动作 | [交互稳定与原地恢复](docs/design/2026-10-15-interaction-recovery.md)：完整路径修复与原回执边界 |
 | 优先关注与Codex置顶、输入意图预连接、精简文案、消息相对时间 | [独立优先与输入意图](docs/design/2026-10-15-priority-and-composer.md)：双标记/加分、旧接口兼容、单主按钮和共享时钟 |
 | 动效、详情转场、手势跟随与内容过渡 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：跟手、披露、创建/消息衔接、主动pin换位和轻反馈；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
-| 项目导航、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：单分数公式、消息来源、行为加分、有效状态与滚动锚 |
+| 项目导航、关注/Codex置顶快捷分类、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：独立范围、单分数公式、消息来源、行为加分、有效状态与滚动锚 |
 | 手机阅读态输入区收放、列表时间/状态位置 | [阅读与列表收敛](docs/design/2026-10-13-reading-composer-and-row-state.md)：同一输入节点、焦点/IME/附件/待处理保护与固定状态槽 |
 | 全局toast、消息身份标签、底部时间/复制与发送确认 | [轻量反馈与消息footer](docs/design/2026-10-12-light-feedback-and-message-footer.md)：统一Sonner样式、消息语义与待处理状态边界 |
 | 操作类产品的顺手标准、功能取舍、UI 复盘或跨项目借鉴 | [迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)：整体脉络、可观察标准、反例与验证办法；按目标项目重新判断适用性 |

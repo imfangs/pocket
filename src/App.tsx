@@ -40,7 +40,7 @@ import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
 import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
 import { focusInspectorEntry, inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
-import { currentMachine, machineStorageKey } from "./machineScope";
+import { machineStorageKey } from "./machineScope";
 import { normalizeNavigationPrefs } from "./navigationModel";
 import "./task-operations.css";
 function readPrefs() {
@@ -67,6 +67,8 @@ const titles: Record<View, string> = {
   unread: "待我输入",
   running: "运行中",
   pinned: "已标记",
+  priority: "优先关注",
+  "codex-pinned": "Codex 置顶",
   recent: "最近打开",
   archived: "已归档",
 };
@@ -475,7 +477,6 @@ export default function App({
                 <span className="workspace-title">{title}</span>
                 <span className="workspace-count">{view === "unread" && !unreadKnown || view === "running" && !runtimeKnown ? "—" : threads.length}</span>
               </h1>
-              <span className="machine-context">{currentMachine()?.label}</span>
             </div>
             <button
               className="new-conversation-button"

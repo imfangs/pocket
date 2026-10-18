@@ -39,6 +39,8 @@ export function emptyListContent({ view, query, projectScope, hasFilters = false
   if (view === "unread") return { title: "暂时没有待处理会话", description: unreadPending ? "未读会话结束后会出现在这里。" : "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "running") return { title: "暂未发现运行中的会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "all") return { title: "还没有会话", description: "", action: "create", actionLabel: "新建会话" };
+  if (view === "priority") return { title: "还没有优先关注的会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
+  if (view === "codex-pinned") return { title: "还没有 Codex 置顶会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "pinned") return { title: "还没有已标记的会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "archived") return { title: "没有已归档会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "recent") return { title: "还没有打开记录", description: "", action: "showAll", actionLabel: "查看全部会话" };
