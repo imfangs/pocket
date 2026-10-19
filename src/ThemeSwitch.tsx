@@ -15,7 +15,7 @@ const choices = [
 export default function ThemeSwitch() {
   const preference = useSyncExternalStore(subscribe, snapshot, () => "system");
   return <div className="theme-switch" role="group" aria-label="外观主题">
-    {choices.map(({ value, label, Icon }) => <Button key={value} type="button" size="2" variant={preference === value ? "soft" : "ghost"} color={preference === value ? "indigo" : "gray"}
+    {choices.map(({ value, label, Icon }) => <Button key={value} type="button" size="2" variant="soft" color={preference === value ? "indigo" : "gray"}
       aria-label={value === "system" ? "跟随系统" : `${label}模式`}
       aria-pressed={preference === value}
       onClick={() => window.dispatchEvent(new CustomEvent("pocket-set-theme", { detail: value }))}>
