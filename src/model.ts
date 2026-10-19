@@ -1,9 +1,10 @@
-import type { Catalog, Thread, View } from "./types";
+import type { ActivityFilter, Catalog, Thread, View } from "./types";
 import type { TaskStatus } from "./taskStatuses";
-import { needsUserInput, smartThreadOrder, type SmartOrderOptions } from "./smartOrder.ts";
+import { smartThreadOrder, type SmartOrderOptions } from "./smartOrder.ts";
 import { UNASSIGNED_PROJECT } from "./projectNavigation.ts";
 import { lastMessageTime } from "./threadTime.ts";
 import { codexPinned, pocketPriority } from "./priority.ts";
+import { hasUnreadContent } from "./unread.ts";
 
 function creationTime(thread: Thread): number {
   const value = thread.createdAt;
@@ -11,13 +12,14 @@ function creationTime(thread: Thread): number {
 }
 
 export function filterThreads(
-  threads: Thread[],
+  threads: readonly Thread[],
   view: View,
   query: string,
   project: string,
   sort: string,
   runtimeStates?: ReadonlyMap<string, TaskStatus>,
   ranking?: Pick<SmartOrderOptions, "now" | "draftIds" | "pocketActivity">,
+  activity: ActivityFilter = view === "unread" || view === "running" ? view : "all",
 ) {
   const terms = query
     .normalize("NFKC")
@@ -31,8 +33,8 @@ export function filterThreads(
       if (view === "archived" && !t.archived) return false;
       if (view !== "archived" && t.archived)
         return false;
-      if (view === "unread" && !needsUserInput(t, runtimeStates?.get(t.id))) return false;
-      if (view === "running" && (t.missing || t.separator || runtimeStates?.get(t.id) !== "running")) return false;
+      if (activity === "unread" && !hasUnreadContent(t, runtimeStates?.get(t.id))) return false;
+      if (activity === "running" && (t.missing || t.separator || runtimeStates?.get(t.id) !== "running")) return false;
       if (project === UNASSIGNED_PROJECT ? !!t.projectId : project && t.projectId !== project) return false;
       if (view === "priority" && !pocketPriority(t)) return false;
       if (view === "codex-pinned" && !codexPinned(t)) return false;
@@ -49,7 +51,7 @@ export function filterThreads(
         .toLocaleLowerCase();
       return terms.every((q) => hay.includes(q));
     });
-  if (view === "created") return filtered.sort((a, b) => creationTime(b) - creationTime(a) || a.id.localeCompare(b.id));
+  if (sort === "created" || view === "created") return filtered.sort((a, b) => creationTime(b) - creationTime(a) || a.id.localeCompare(b.id));
   if (sort === "smart" && view !== "archived") return smartThreadOrder(filtered, { now: ranking?.now ?? Date.now(), draftIds: ranking?.draftIds, pocketActivity: ranking?.pocketActivity, runtimeStates });
   if (sort === "smart") return filtered.sort((a, b) => (lastMessageTime(b) ?? 0) - (lastMessageTime(a) ?? 0)
     || b.createdAt - a.createdAt || a.id.localeCompare(b.id));

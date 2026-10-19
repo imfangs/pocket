@@ -14,7 +14,7 @@ const ids = rows => rows.map(row => row.id);
 
 test('recently created orders the complete visible scope by creation regardless of rank and activity', () => {
   const oldPriority = { ...base, id: 'old-priority', pocketPriority: true, codexPinned: true,
-    needsInput: true, lastOpenedAt: now, lastMessageAt: now };
+    hasUnreadTurn: true, needsInput: true, lastOpenedAt: now, lastMessageAt: now };
   const newer = { ...base, id: 'newer', createdAt: now - day, updatedAt: 1 };
   const oldest = { ...base, id: 'oldest', createdAt: now - 1000 * day };
   const rows = [oldPriority, oldest, newer];

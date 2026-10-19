@@ -1018,22 +1018,6 @@ hr {
   flex: 1;
   min-height: 0;
 }
-.conversation-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-.conversation-toolbar > div {
-  display: flex;
-}
-.conversation-toolbar .runtime-active {
-  color: var(--text-secondary);
-}
 .conversation-messages {
   flex: 1;
   min-height: 0;
@@ -1277,7 +1261,6 @@ hr {
   .inspector[data-keyboard-open] .outbox { max-height: 110px; }
   .inspector[data-keyboard-open] .conversation:has(.outbox textarea) .outbox { max-height: 200px; }
 }
-.conversation:has(.outbox textarea) .conversation-composer { display: none; }
 .inspector .conversation-composer textarea {
   display: block;
   width: 100%;
@@ -1346,9 +1329,6 @@ hr {
   }
 }
 
-.conversation-toolbar { position: relative; gap: 6px; }
-.conversation-overview { align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
-.conversation-controls { align-items: center; flex-shrink: 0; }
 .context-status { font-size: 10px; color: var(--text-secondary); }
 .context-status summary { cursor: pointer; padding: 8px 0; }
 .context-popover { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 4; max-height: min(300px, 60dvh); overflow: auto; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 4px 20px #0001; font-size: 12px; }
@@ -1389,8 +1369,6 @@ hr {
   .inspector-title { display: block; min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--ink); }
   .inspector-header .icon-button { width: 40px; min-height: 40px; flex-shrink: 0; }
   .inspector-conversation { padding: 4px 14px 0; }
-  .conversation-toolbar { min-height: 44px; padding: 0; }
-  .conversation-overview { gap: 8px; }
   .composer-actions > small { display: none; }
   .conversation-status { padding: 2px 0; }
   .conversation-status:empty { padding: 0; }

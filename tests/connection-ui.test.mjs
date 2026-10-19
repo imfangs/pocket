@@ -51,7 +51,7 @@ test('empty failed input reuses the primary button for connection retry', () => 
   const { html } = render('failed', { outbox: [] }, '');
   assert.match(html, /<button class="primary" type="button">.*重试连接<\/button>/);
   assert.doesNotMatch(html, /conversation-connect"/);
-  assert.match(html, /composer-connection-state[^>]*><span role="status">[^<]*<\/span><\/span>/);
+  assert.match(html, /<span role="status" class="composer-connection-state"[^>]*>[^<]*<\/span>/);
 });
 
 test('empty connecting input shows a disabled primary connection action', () => {

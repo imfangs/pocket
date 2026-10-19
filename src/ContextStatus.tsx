@@ -18,11 +18,13 @@ export default function ContextStatus({
   history,
   disabled,
   refresh,
+  onInteractionChange,
 }: {
   threadId: string;
   history: History | null;
   disabled: boolean;
   refresh: () => Promise<void> | undefined;
+  onInteractionChange?: (active: boolean) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -30,11 +32,19 @@ export default function ContextStatus({
   const [uncertainId, setUncertainId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const watchedRequest = useRef<string | null>(null);
+  const pointerOpened = useRef(false);
   const usage = history?.contextUsage;
   const status = history?.compactionRequest?.status;
   const pending =
     !!uncertainId || ["pending", "accepted", "unknown"].includes(status || "");
+  const interacting = open || busy || pending || !!history?.compaction?.active;
+  useEffect(() => {
+    onInteractionChange?.(interacting);
+    return () => onInteractionChange?.(false);
+  }, [interacting, onInteractionChange]);
   const requestId = history?.compactionRequest?.requestId;
+  const usageLabel = usage ? `上下文用量 ${Math.round(usage.percent)}%` : "上下文用量与压缩";
+  const triggerLabel = `${usageLabel}${history?.compaction?.active ? "，压缩中" : pending ? "，压缩结果待核对" : ""}`;
   useReloadGuard(() => busy ? "压缩操作尚未完成，请稍后更新。"
     : uncertainId && !(requestId === uncertainId && status && !["pending", "unknown"].includes(status))
       ? "压缩结果尚待核对，请处理后再更新。" : null);
@@ -84,7 +94,12 @@ export default function ContextStatus({
   return (
     <div className="context-status">
       <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Trigger className="context-trigger">
+        <Popover.Trigger type="button" className="context-trigger" title={triggerLabel} aria-label={triggerLabel}
+          onPointerDown={event => {
+            // Keep the composer layout stable until click opens the popover.
+            // Keyboard focus and activation retain their normal behavior.
+            if (event.button === 0) { pointerOpened.current = true; event.preventDefault(); }
+          }}>
           {usage && (
             <svg
               className="context-ring"
@@ -108,7 +123,7 @@ export default function ContextStatus({
             : pending
               ? "压缩待核对"
               : usage
-                ? `上下文 ${Math.round(usage.percent)}%`
+                ? `${Math.round(usage.percent)}%`
                 : "上下文"}
           <ChevronDown size={12} aria-hidden="true" />
         </Popover.Trigger>
@@ -116,10 +131,17 @@ export default function ContextStatus({
           <Popover.Content
             className="context-popover"
             data-reading-overlay=""
+            side="top"
             sideOffset={8}
             collisionPadding={16}
             align="start"
             aria-label="上下文用量与压缩"
+            onCloseAutoFocus={event => {
+              // Pointer readers return to the compact input; keyboard users
+              // retain the trigger as their next focus target.
+              if (pointerOpened.current) event.preventDefault();
+              pointerOpened.current = false;
+            }}
           >
             <p className="context-usage">
               {usage

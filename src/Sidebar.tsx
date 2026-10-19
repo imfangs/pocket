@@ -3,6 +3,7 @@ import { Archive, Folder, Layers3, Pin, Settings2, Star, X } from "lucide-react"
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { Catalog, View } from "./types";
 import { projectNavigationItems } from "./projectNavigation";
+import { sidebarNavigationCounts } from "./navigationModel";
 import "./project-navigation.css";
 interface Props {
   catalog: Catalog;
@@ -42,6 +43,7 @@ export default function Sidebar(p: Props) {
     wasOpen.current = isOpen;
   }, [narrow, p.mobileOpen]);
   const projects = useMemo(() => projectNavigationItems(p.catalog.projects || [], p.catalog.threads), [p.catalog.projects, p.catalog.threads]);
+  const counts = useMemo(() => sidebarNavigationCounts(p.catalog.threads), [p.catalog.threads]);
   const projectScopedView = p.view === "all" || p.view === "unread" || p.view === "running" || p.view === "created";
   const allSelected = !p.project && projectScopedView;
   return (
@@ -102,41 +104,48 @@ export default function Sidebar(p: Props) {
           <nav aria-label="会话视图">
             <button
               data-view="all"
+              aria-label={`全部，${counts.all} 个会话`}
               aria-current={allSelected ? "page" : undefined}
               className={`nav-item ${allSelected ? "selected" : ""}`}
               onClick={() => p.onView("all")}
             >
               <Layers3 size={18} aria-hidden="true" />
-              <span>全部会话</span>
+              <span>全部</span>
+              <small className="sidebar-nav-count" aria-hidden="true">{counts.all}</small>
             </button>
             <button
               data-view="priority"
+              aria-label={`关注，${counts.priority} 个会话`}
               aria-current={p.view === "priority" ? "page" : undefined}
               className={`nav-item ${p.view === "priority" ? "selected" : ""}`}
               onClick={() => p.onView("priority")}
             >
               <Star size={18} aria-hidden="true" />
-              <span>优先关注</span>
+              <span>关注</span>
+              <small className="sidebar-nav-count" aria-hidden="true">{counts.priority}</small>
             </button>
             <button
               data-view="codex-pinned"
+              aria-label={`置顶，${counts.codexPinned} 个会话`}
               aria-current={p.view === "codex-pinned" ? "page" : undefined}
               className={`nav-item ${p.view === "codex-pinned" ? "selected" : ""}`}
               onClick={() => p.onView("codex-pinned")}
             >
               <Pin size={18} aria-hidden="true" />
-              <span>Codex 置顶</span>
+              <span>置顶</span>
+              <small className="sidebar-nav-count" aria-hidden="true">{counts.codexPinned}</small>
             </button>
           </nav>
           {projects.length > 0 && <nav className="sidebar-projects" aria-label="项目">
             <p className="sidebar-projects-heading">项目</p>
             {projects.map(project => {
               const selected = p.project === project.id && projectScopedView;
+              const count = counts.projects.get(project.id) || 0;
               return <button
                 key={project.id}
                 data-project-id={project.id}
                 aria-current={selected ? "page" : undefined}
-                aria-label={project.ariaLabel}
+                aria-label={`${project.ariaLabel}，${count} 个会话`}
                 title={project.title}
                 className={`nav-item sidebar-project ${selected ? "selected" : ""}`}
                 onClick={() => p.onProject?.(project.id)}
@@ -145,6 +154,7 @@ export default function Sidebar(p: Props) {
                 <span className="sidebar-project-label"><span className="sidebar-project-name">{project.name}</span>
                   {project.suffix && <small className="sidebar-project-suffix">{project.suffix}</small>}
                 </span>
+                <small className="sidebar-nav-count" aria-hidden="true">{count}</small>
               </button>;
             })}
           </nav>}

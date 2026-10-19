@@ -12,6 +12,3 @@
 .composer-connection-spinner { animation: composer-connection-spin 1s linear infinite; }
 @keyframes composer-connection-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .composer-connection-spinner { animation: none; } }
-@media (max-width: 760px) and (hover: none) and (pointer: coarse) {
-  .conversation-composer.is-compact .composer-connection-state { display: none; }
-}

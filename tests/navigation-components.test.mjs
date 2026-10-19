@@ -64,20 +64,46 @@ test('rows hide retired notes and arrangement fields while retaining runtime sta
   assert.match(html, /data-state="running"/);
   assert.doesNotMatch(html, /稍后继续|回顾时间|分组|row-check|批量操作|draggable/);
 });
-test('navigation places independent shortcuts below all conversations without machine controls or counters', () => {
+test('navigation shows concise independent shortcuts and counts while keeping archive and machine controls quiet', () => {
   const previous = globalThis.matchMedia;
   globalThis.matchMedia = () => ({ matches: false });
   try {
     const html = renderToStaticMarkup(createElement(Sidebar, { catalog: { threads: [thread], groups: [{ id: 'old-group', name: 'Old group', parentId: null }] }, view: 'all', onView: noop, onClose: noop, onSettings: noop, mobileOpen: false }));
     assert.doesNotMatch(html, /我的分组|我的安排|未分组|正在推进|稍后继续|留作参考|Old group|data-view="group"/);
-    assert.doesNotMatch(html, /data-view="(?:pinned|recent|unread)"|<small>/);
+    assert.doesNotMatch(html, /data-view="(?:pinned|recent|unread)"/);
     assert.deepEqual([...html.matchAll(/data-view="([^"]+)"/g)].map(match => match[1]), ['all', 'priority', 'codex-pinned']);
-    assert.match(html, /<span>优先关注<\/span>/);
-    assert.match(html, /<span>Codex 置顶<\/span>/);
+    for (const [name, count] of [['全部', 1], ['关注', 0], ['置顶', 0]]) {
+      assert.ok(html.includes(`aria-label="${name}，${count} 个会话"`));
+      assert.ok(html.includes(`<span>${name}</span><small class="sidebar-nav-count" aria-hidden="true">${count}</small>`));
+    }
+    assert.doesNotMatch(html, />全部会话<|>优先关注<|>Codex 置顶</);
     assert.doesNotMatch(html, /machine-picker|格得 Mac|豌豆 Mac|切换电脑/);
     const archive = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]).find(button => button.includes('<span>已归档</span>'));
     assert.ok(archive);
-    assert.doesNotMatch(archive, /<small>/);
+    assert.doesNotMatch(archive, /<small\b|sidebar-nav-count|个会话/);
+  } finally { globalThis.matchMedia = previous; }
+});
+test('project menu counts preserve distinct names and suffixes and show zero for empty projects', () => {
+  const previous = globalThis.matchMedia;
+  globalThis.matchMedia = () => ({ matches: false });
+  try {
+    const name = 'A long project name that must remain accessible';
+    const projects = ['one', 'two', 'empty'].map((id, order) => ({ id, name, paths: [`/workspace/${id}/app`], order, separator: false }));
+    const html = renderToStaticMarkup(createElement(Sidebar, {
+      catalog: { threads: [{ ...thread, projectId: 'one' }, { ...thread, id: 'second', projectId: null }, { ...thread, id: 'archived', archived: true, projectId: 'two' }], projects, groups: [] },
+      view: 'running', project: '', onView: noop, onProject: noop, onClose: noop, onSettings: noop, mobileOpen: false,
+    }));
+    const buttons = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]);
+    for (const [id, count] of [['one', 1], ['two', 0], ['empty', 0], ['__unassigned__', 1]]) {
+      const button = buttons.find(value => value.includes(`data-project-id="${id}"`));
+      assert.ok(button, id);
+      assert.ok(button.includes(`<small class="sidebar-nav-count" aria-hidden="true">${count}</small>`), id);
+      assert.ok(button.includes(`，${count} 个会话"`), id);
+      if (id !== '__unassigned__') {
+        assert.ok(button.includes(`${name}，/workspace/${id}/app`));
+        assert.ok(button.includes(`<small class="sidebar-project-suffix">${id}/app</small>`));
+      }
+    }
   } finally { globalThis.matchMedia = previous; }
 });
 test('each independent shortcut is the only selected menu item even with a stale project scope', () => {

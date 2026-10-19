@@ -1,0 +1,14 @@
+import type { Thread } from "./types";
+import type { TaskStatus } from "./taskStatuses";
+
+// Attention and unread content are separate: an already-read question still
+// needs an answer, but must not regain an unread label or enter that filter.
+export function hasUnreadContent(thread: Thread, runtimeStatus?: TaskStatus): boolean {
+  if (thread.sourceExcluded || thread.archived || thread.missing || thread.separator
+    || runtimeStatus === "running" || thread.hasUnreadTurn === false) return false;
+  if (runtimeStatus === "waiting_input" || runtimeStatus === "waiting_approval")
+    return thread.hasUnreadTurn === true;
+  // Older snapshots may omit hasUnreadTurn but still confirm an ended unread
+  // turn through needsInput. An explicit read flag above always wins.
+  return thread.needsInput === true;
+}

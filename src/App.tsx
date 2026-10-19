@@ -41,7 +41,7 @@ import { preserveNewerThreadMetadata } from "./threadMetadata";
 import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
 import { focusInspectorEntry, inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
 import { machineStorageKey } from "./machineScope";
-import { normalizeNavigationPrefs } from "./navigationModel";
+import { changeNavigation, navigationActivityCounts, navigationTitle, normalizeNavigationPrefs, type NavigationChange } from "./navigationModel";
 import "./task-operations.css";
 function readPrefs() {
   try {
@@ -62,17 +62,6 @@ const empty: Catalog = {
   sourceInfo: null,
   sourceError: null,
 };
-const titles: Record<View, string> = {
-  all: "全部会话",
-  unread: "待我输入",
-  running: "运行中",
-  created: "最近创建",
-  pinned: "已标记",
-  priority: "优先关注",
-  "codex-pinned": "Codex 置顶",
-  recent: "最近打开",
-  archived: "已归档",
-};
 export default function App({
   appearanceActions,
   logoutAction,
@@ -80,7 +69,8 @@ export default function App({
   appearanceActions?: React.ReactNode;
   logoutAction?: React.ReactNode;
 }) {
-  const [prefs] = useState(readPrefs);
+  const [navigation, setNavigation] = useState(readPrefs);
+  const { scope, project, activity, sort } = navigation;
   const [pocketActivity, setPocketActivity] = useState(() => readPocketActivity());
   const taskStatuses = useTaskStatuses();
   const [draftIndicatorRevision, setDraftIndicatorRevision] = useState(0);
@@ -98,7 +88,6 @@ export default function App({
   }, []);
   const [catalog, setCatalogState] = useState<Catalog>(empty),
     [loading, setLoading] = useState(true),
-    [view, setView] = useState<View>(prefs.view),
     [selected, setSelectedState] = useState<string | null>(() => {
       let id = new URLSearchParams(location.search).get("task");
       try { id ||= sessionStorage.getItem(machineStorageKey("pocket.pending-task")); sessionStorage.removeItem(machineStorageKey("pocket.pending-task")); } catch {}
@@ -106,7 +95,6 @@ export default function App({
     }),
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
-    [project, setProject] = useState(prefs.project),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [readError, setReadError] = useState(""),
@@ -150,9 +138,6 @@ export default function App({
     ? "还有未完成的输入，请处理后再更新。" : busy ? "操作尚未完成，请稍后更新。" : null);
   const listPanel = useRef<HTMLElement>(null);
   const restoreScroll = useRef<number | null>(null);
-  const returnView = useRef<{ view: View; project: string; query: string; searchOpen: boolean; scrollTop: number; selected: string | null }>({
-    view: "all", project: "", query: "", searchOpen: false, scrollTop: 0, selected: null,
-  });
   const openSearch = useCallback(() => {
     // Focus during the tap so iOS opens the keyboard on the first interaction.
     flushSync(() => { setMobile(false); setSearchOpen(true); });
@@ -167,7 +152,7 @@ export default function App({
     if (restoreScroll.current === null || !listPanel.current) return;
     listPanel.current.scrollTop = restoreScroll.current;
     restoreScroll.current = null;
-  }, [view, project, query]);
+  }, [scope, project, activity, sort, query]);
   const notify = useCallback((s: string) => {
     toast.success(s, { id: "pocket-feedback" });
   }, []);
@@ -201,7 +186,7 @@ export default function App({
     void (syncing.current ?? Promise.resolve()).catch(() => {}).then(() => syncTasks(true)).catch(() => {});
   }, [syncTasks]);
   const openCreatedThread = (id: string) => {
-    setSelected(id, true); setView("all"); setProject(""); setQuery("");
+    setSelected(id, true); setNavigation(previous => ({ ...previous, scope: "all", project: "", activity: "all" })); setQuery("");
     setSearchOpen(false); setMobile(false);
   };
   const seedCreationMessage = (operation: TaskOperation) => {
@@ -303,10 +288,10 @@ export default function App({
     try {
       localStorage.setItem(
         machineStorageKey("navigator.view"),
-        JSON.stringify({ view, project, sort: "smart", sortVersion: 3 }),
+        JSON.stringify(navigation),
       );
     } catch {}
-  }, [view, project]);
+  }, [navigation]);
   const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
   const runtimeStates = runtimeKnown ? taskStatuses.runtimeStates : undefined;
   const draftIds = useMemo(() => draftThreadIds(conversationDrafts.current), [conversationDrafts, draftIndicatorRevision]);
@@ -314,20 +299,21 @@ export default function App({
   const rankingTime = useMemo(() => Date.now(), [catalog, pocketActivity]);
   useEffect(() => {
     if (!loading && catalog.sourceInfo && !catalog.sourceError && project && project !== UNASSIGNED_PROJECT &&
-      !catalog.projects.some(item => item.id === project && !item.separator)) setProject("");
+      !catalog.projects.some(item => item.id === project && !item.separator)) setNavigation(previous => ({ ...previous, project: "" }));
   }, [catalog.projects, catalog.sourceInfo, catalog.sourceError, loading, project]);
   const threads = useMemo(
     () =>
       filterThreads(
         catalog.threads,
-        view,
+        scope,
         query,
         project,
-        "smart",
+        sort,
         runtimeStates,
         { now: rankingTime, draftIds, pocketActivity },
+        activity,
       ),
-    [catalog, view, query, project, runtimeStates, rankingTime, draftIds, pocketActivity],
+    [catalog, scope, activity, sort, query, project, runtimeStates, rankingTime, draftIds, pocketActivity],
   );
   const current = catalog.threads.find((t) => t.id === selected);
   const protectedDraftIds = protectedDraftThreadIds(conversationDrafts.current, conversationHistory.current);
@@ -335,11 +321,9 @@ export default function App({
     (protectedDraftIds.has(thread.id) || visibleSubmittedQueries(submissions.getThread(thread.id), [], []).length > 0));
   const currentOperation = current ? taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create" && activeOperation(operation))
     || taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create") : undefined;
-  const title = view === "all" && project ? project === UNASSIGNED_PROJECT ? "未归属项目" : catalog.projects.find(item => item.id === project)?.name || "项目" : titles[view];
+  const title = navigationTitle(navigation, catalog.projects);
   const unreadKnown = catalog.sourceInfo?.unread?.available === true;
-  const unreadCount = filterThreads(catalog.threads, "unread", "", "", "updated", runtimeStates).length;
-  const runningCount = filterThreads(catalog.threads, "running", "", "", "updated",
-    runtimeKnown ? taskStatuses.runtimeStates : undefined).length;
+  const { unread: unreadCount, running: runningCount } = navigationActivityCounts(catalog.threads, navigation, query, runtimeStates);
   const guard = async (action: () => Promise<void>) => {
     setError("");
     try {
@@ -348,54 +332,22 @@ export default function App({
       setError((e as Error).message);
     }
   };
-  const openActivity = (target: "unread" | "running" | "created") => {
-    if (view === target) return;
-    void guard(async () => {
-      if (view !== "unread" && view !== "running" && view !== "created")
-        returnView.current = { view, project, query, searchOpen, selected, scrollTop: listPanel.current?.scrollTop ?? 0 };
-      restoreScroll.current = 0;
-      setView(target);
-      setProject("");
-      setQuery("");
-      setSearchOpen(false);
-      setSelected(null);
-      setMobile(false);
-      refreshAfterActivity();
-    });
-  };
-  const returnFromActivity = () => void guard(async () => {
-    const previous = returnView.current;
-    restoreScroll.current = previous.scrollTop;
-    setView(previous.view);
-    setProject(previous.project);
-    setQuery(previous.query);
-    setSearchOpen(previous.searchOpen);
-    setSelected(previous.selected);
-    refreshAfterActivity();
-  });
-  const switchView = (v: View) => {
-    if (v === "unread" || v === "running" || v === "created") return openActivity(v);
-    void guard(async () => {
-      restoreScroll.current = 0;
-      setView(v);
-      setProject("");
-      setQuery("");
-      setSearchOpen(false);
-      setSelected(null);
-      setMobile(false);
-      refreshAfterActivity();
-    });
-  };
-  const switchProject = (id: string) => void guard(async () => {
+  const updateNavigation = (change: NavigationChange, clearSearch = false) => void guard(async () => {
     restoreScroll.current = 0;
-    setView("all"); setProject(id); setQuery(""); setSearchOpen(false);
-    setSelected(null); setMobile(false);
+    setNavigation(previous => changeNavigation(previous, change));
+    if (clearSearch) { setQuery(""); setSearchOpen(false); }
+    setSelected(null);
+    setMobile(false);
     refreshAfterActivity();
   });
+  const switchView = (view: View) => {
+    if (view === "all" || view === "priority" || view === "codex-pinned" || view === "archived")
+      updateNavigation({ type: "scope", scope: view }, true);
+  };
+  const switchProject = (id: string) => updateNavigation({ type: "project", project: id }, true);
   const searchAllProjects = () => {
-    restoreScroll.current = 0;
-    setView("all"); setProject(""); setSelected(null); setMobile(false); setSearchOpen(true);
-    refreshAfterActivity();
+    updateNavigation({ type: "scope", scope: "all" });
+    setSearchOpen(true);
   };
   useEffect(() => {
     const fromNotification = (event: Event) => {
@@ -454,7 +406,7 @@ export default function App({
     <div className="app-shell">
       <Sidebar
         catalog={catalog}
-        view={view}
+        view={scope}
         mobileOpen={mobile}
         onClose={() => setMobile(false)}
         onView={switchView}
@@ -476,7 +428,7 @@ export default function App({
             <div className="heading">
               <h1 title={title}>
                 <span className="workspace-title">{title}</span>
-                <span className="workspace-count">{view === "unread" && !unreadKnown || view === "running" && !runtimeKnown ? "—" : threads.length}</span>
+                <span className="workspace-count">{activity === "unread" && !unreadKnown || activity === "running" && !runtimeKnown ? "—" : threads.length}</span>
               </h1>
             </div>
             <button
@@ -498,19 +450,24 @@ export default function App({
           </div>
           <div className="filter-row">
             <div className="activity-filters">
-              {([
-                { view: "unread", label: "待我输入", count: unreadKnown ? unreadCount : "—" },
-                { view: "running", label: "运行中", count: runtimeKnown ? runningCount : "—" },
-                { view: "created", label: "最近创建", count: null },
+              {scope !== "archived" && ([
+                { activity: "unread", label: "未读", count: unreadKnown ? unreadCount : "—" },
+                { activity: "running", label: "运行中", count: runtimeKnown ? runningCount : "—" },
               ] as const).map(filter => (
-                <button key={filter.view} className={`needs-input-toggle ${filter.view}-toggle`}
-                  data-inbox={view === filter.view} aria-pressed={view === filter.view}
-                  title={view === filter.view ? "返回列表" : filter.view === "created" ? "按创建时间从新到旧排列" : `查看${filter.label}的会话`}
-                  onClick={view === filter.view ? returnFromActivity : () => openActivity(filter.view)}>
-                  {filter.view === "created" ? <ArrowDownWideNarrow size={15} aria-hidden="true" /> : <span className={`${filter.view}-dot`} aria-hidden="true" />}
-                  <span>{filter.label}</span>{filter.count !== null && <small>{filter.count}</small>}
+                <button key={filter.activity} className={`needs-input-toggle ${filter.activity}-toggle`}
+                  data-inbox={activity === filter.activity} aria-pressed={activity === filter.activity}
+                  title={activity === filter.activity ? `取消${filter.label}筛选` : `查看${filter.label}的会话`}
+                  onClick={() => updateNavigation({ type: "activity", activity: filter.activity })}>
+                  <span className={`${filter.activity}-dot`} aria-hidden="true" />
+                  <span>{filter.label}</span><small>{filter.count}</small>
                 </button>
               ))}
+              <button className="needs-input-toggle created-toggle"
+                data-inbox={sort === "created"} aria-pressed={sort === "created"}
+                title={sort === "created" ? "恢复智能排序" : "按创建时间从新到旧排列"}
+                onClick={() => updateNavigation({ type: "sort" })}>
+                <ArrowDownWideNarrow size={15} aria-hidden="true" /><span>最近创建</span>
+              </button>
             </div>
             <div className="list-controls">
               <button
@@ -605,7 +562,11 @@ export default function App({
                 threads={threads}
                 projectScope={project}
                 selected={selected}
-                view={view}
+                view={scope}
+                activity={activity}
+                sort={sort}
+                hasFilters={activity !== "all"}
+                onClearFilters={() => updateNavigation({ type: "clearActivity" })}
                 unreadAvailable={unreadKnown}
                 unreadPending={catalog.sourceInfo?.unread?.pending ?? 0}
                 onSelect={(id, animate, origin) =>

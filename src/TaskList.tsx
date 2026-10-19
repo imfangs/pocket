@@ -6,7 +6,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Thread, View } from "./types";
+import type { ActivityFilter, Thread, ThreadSort, View } from "./types";
 import { ago } from "./model";
 import { lastMessageTime } from "./threadTime";
 import { codexPinned, pocketPriority } from "./priority";
@@ -22,6 +22,8 @@ interface Props {
   projectScope?: string;
   selected: string | null;
   view: View;
+  activity?: ActivityFilter;
+  sort?: ThreadSort;
   unreadAvailable?: boolean;
   unreadPending?: number;
   onSelect: (id: string, animate?: boolean, origin?: InspectorEntryOrigin) => void;
@@ -48,7 +50,7 @@ export default function TaskList(p: Props) {
   const [priorityErrors, setPriorityErrors] = useState<Record<string, string>>({});
   const prioritizing = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
   const motion = useRef<ReturnType<typeof bindTaskListMotion> | null>(null);
-  const scope = `${p.view}\0${p.projectScope || ""}\0${p.query}`;
+  const scope = `${p.view}\0${p.projectScope || ""}\0${p.activity || "all"}\0${p.sort || "smart"}\0${p.query}`;
   const limit = limits.get(scope) ?? 80;
   const [held, setHeld] = useState<{ scope: string; rows: Thread[] } | null>(null);
   const currentRows = new Map(p.threads.map(thread => [thread.id, thread]));
@@ -110,7 +112,7 @@ export default function TaskList(p: Props) {
     motion.current?.commit(scope);
   }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, prioritizingId, held, scope, limit, rememberAnchor]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => { setOpenRowId(null); }, [p.view, p.query, p.projectScope]);
+  useEffect(() => { setOpenRowId(null); }, [scope]);
   useEffect(() => {
     if (openRowId && !p.threads.some(thread => thread.id === openRowId)) setOpenRowId(null);
   }, [p.threads, openRowId]);
@@ -144,7 +146,7 @@ export default function TaskList(p: Props) {
       if (mounted.current) setPrioritizingId(null);
     }
   };
-  const empty = emptyListContent({ view: p.view, query: p.query, projectScope: p.projectScope, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
+  const empty = emptyListContent({ view: p.view, activity: p.activity, query: p.query, projectScope: p.projectScope, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
     runtimeAvailable: !p.runtimeLoading && !p.runtimeUnavailable, runtimeLoading: p.runtimeLoading });
   const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll : empty.action === "searchAll" ? p.onSearchAll
     : empty.action === "refresh" ? p.onRefresh : empty.action === "clearFilters" ? p.onClearFilters : p.onClearQuery;

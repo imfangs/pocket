@@ -1,14 +1,14 @@
 @media (max-width: 760px) and (hover: none) and (pointer: coarse) {
   .conversation-composer.is-compact {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) max-content;
     align-items: center;
     padding: 4px;
     border-radius: 12px;
   }
+  .conversation-composer.is-compact .composer-overview { grid-column:1 / -1; }
+  .conversation-composer.is-compact .composer-input { grid-column:1; min-width:0; }
   .inspector .conversation-composer.is-compact textarea {
-    grid-column: 1;
-    grid-row: 1;
     min-height: 44px;
     max-height: 44px;
     padding: 10px 12px;
@@ -16,10 +16,9 @@
   }
   .conversation-composer.is-compact .composer-actions {
     grid-column: 2;
-    grid-row: 1;
     margin: 0;
     padding: 0;
-    gap: 0;
+    gap: 2px;
   }
   .conversation-composer.is-compact .attachment-picker {
     width: 44px;

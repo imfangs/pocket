@@ -210,6 +210,28 @@ test('idle restores time in the same slot and primary activity adds no metadata 
   }
 });
 
+test('an unread question keeps both its actionable primary state and a separate unread label', () => {
+  for (const status of ['waiting_input', 'waiting_approval']) {
+    const render = hasUnreadTurn => renderToStaticMarkup(createElement(TaskList, { ...props,
+      projectScope: 'Project', threads: [{ ...thread, hasUnreadTurn }], runtimeStates: new Map([[thread.id, status]]) }));
+    const unread = render(true);
+    assert.match(unread, new RegExp(`class="row-status-slot"[^>]*><span class="task-state-badge" data-state="${status}"`));
+    assert.match(unread, /class="row-second">[\s\S]*data-state="unread">未读/);
+    assert.equal((unread.match(/data-state="unread"/g) || []).length, 1);
+    const read = render(false);
+    assert.match(read, new RegExp(`data-state="${status}"`));
+    assert.doesNotMatch(read, /data-state="unread"|class="row-second"/);
+  }
+});
+
+test('a filtered empty project offers cancelling its activity without replacing the project scope', () => {
+  const html = renderToStaticMarkup(createElement(TaskList, { ...props, threads: [], view: 'all', projectScope: 'Project',
+    activity: 'unread', sort: 'created', query: 'weekly', unreadAvailable: true, onClearFilters: noop }));
+  assert.match(html, /没有找到匹配的会话/);
+  assert.match(html, /<button[^>]*>取消未读筛选<\/button>/);
+  assert.doesNotMatch(html, /查看全部会话|在全部会话搜索/);
+});
+
 test('unknown, unavailable, archived and missing status preserve their existing meaning when activity moves', () => {
   const render = updates => renderToStaticMarkup(createElement(TaskList, { ...props, ...updates }));
   const unknown = render({ runtimeStates: new Map([['thread', 'unknown']]), draftIds: new Set(['thread']) });

@@ -27,6 +27,20 @@ function progressBodies(html) {
   return [...html.matchAll(/<div\b([^>]*class="progress-disclosure-body"[^>]*)>([\s\S]*?<\/article>)<\/div>/g)];
 }
 
+test('runtime, stopping and context controls belong to the composer without a separate toolbar', () => {
+  const html = renderConversation({ source: 'desktop', runtime: 'active', canSend: true, checkedAt: 1, hint: '',
+    canStop: true, activeTurnId: 'active-turn', messages: [],
+    contextUsage: { usedTokens: 370, contextWindow: 1000, remainingTokens: 630, percent: 37 } });
+  const composerStart = html.indexOf('<form class="conversation-composer');
+  assert.ok(composerStart > 0);
+  assert.doesNotMatch(html.slice(0, composerStart), /runtime-summary|context-status|stop-execution/);
+  const composer = html.slice(composerStart);
+  assert.match(composer, /class="composer-overview"/);
+  assert.match(composer, /aria-label="停止当前执行"/);
+  assert.match(composer, /aria-label="上下文用量 37%"/);
+  assert.doesNotMatch(html, /conversation-toolbar|刷新会话历史|可继续/);
+});
+
 test('a cached same-turn final folds process by default while its final reply and current question stay outside', () => {
   const question = { key: 'current-fold-question', sourceMessageId: 'question-source', turnId: 'completed-turn', title: 'Which follow-up should I use?', options: ['A', 'B'] };
   const history = { source: 'desktop', runtime: 'idle', canSend: true, checkedAt: 1, hint: '',

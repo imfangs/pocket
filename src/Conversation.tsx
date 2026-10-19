@@ -43,7 +43,6 @@ export type QueryDraft = {
 };
 const statuses: Record<string, string> = {
   active: "正在运行",
-  idle: "可继续",
   systemError: "上次运行出错",
   unavailable: "未连接",
 };
@@ -94,6 +93,8 @@ export default function Conversation({
     [sending, setSending] = useState(false),
     [restoring, setRestoring] = useState(false),
     [opening, setOpening] = useState(false),
+    [contextInteraction, setContextInteraction] = useState(false),
+    [stopInteraction, setStopInteraction] = useState(false),
     [connection, setConnection] = useState<ThreadConnection>(() => historyCache.get(thread.id)?.history?.connection ?? { status: "idle" }),
     [connectionError, setConnectionError] = useState(""),
     [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false),
@@ -274,6 +275,11 @@ export default function Conversation({
     : compatibilityCode ? connectionFailureHint(compatibilityCode)
     : connectionFailed ? connectionFailureHint(connectionFailureCode)
     : observedConnection.status === "connected" ? "同步中…" : "未连接";
+  const runtimeLabel = !targetAvailable ? "" : showConnectionState ? connectionLabel : !online ? "离线" : loading
+    ? shownMessages.length ? "正在同步状态…" : "正在读取历史…"
+    : historyError ? "读取失败" : history?.pendingRequests?.length ? "等待确认"
+    : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断"
+    : history?.compaction?.active ? "" : statuses[history?.runtime || ""] || "";
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = !!compatibilityCode || history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
@@ -281,7 +287,9 @@ export default function Conversation({
   const composer = useReadingComposer({ hasContent: shownMessages.length > 0, hasDraft: draft.text.length > 0,
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
     pending: sending || connecting || !!draft.requestId || shownOutbox.length > 0 || visibleSubmissions.length > 0 ||
-      !!history?.pendingRequests?.length || hasPendingQuestions,
+      !!history?.pendingRequests?.length || hasPendingQuestions || contextInteraction || stopInteraction || !!history?.compaction?.active ||
+      ["pending", "accepted", "unknown"].includes(history?.compactionRequest?.status ?? "") ||
+      ["pending", "accepted", "unknown"].includes(history?.stopRequest?.status ?? ""),
     // Archived history still has an actionable unarchive button with no draft.
     feedback: !!(thread.archived || error || historyError || connectionError || connectionFailed || compatibilityCode || notice || currentReadFeedback) });
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
@@ -592,29 +600,6 @@ export default function Conversation({
   };
   return (
     <section ref={conversationRoot} className="conversation" aria-label="会话历史与发送">
-      <div className="conversation-toolbar">
-        <div className="conversation-overview">
-        <div className="runtime-summary">
-        {(!showConnectionState || composer.compact) && <span className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>
-          {connecting ? "连接中…" : observedConnection.status === "failed" && history?.source !== "desktop" ? "未连接" : loading
-            ? shownMessages.length ? "正在同步状态…" : "正在读取历史…"
-            : historyError ? "未连接" : history?.pendingRequests?.length ? "等待确认" : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断" : statuses[history?.runtime || ""] || "会话状态"}
-        </span>}
-          <TurnDuration timing={toolbarTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
-        </div>
-          <ContextStatus threadId={thread.id} history={compatibilityCode && history ? { ...history, canCompact: false, canAttemptCompact: false } : history} disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} />
-        </div>
-        <div className="conversation-controls">
-          <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} notify={setNotice} />
-          <button
-            className="icon-button"
-            aria-label="刷新会话历史"
-            onClick={() => void load()}
-          >
-            <RefreshCw size={16} />
-          </button>
-        </div>
-      </div>
       <div className="conversation-feed">
       <div
         className="conversation-messages"
@@ -683,6 +668,8 @@ export default function Conversation({
             {error || historyError}
           </p>
         )}
+        {historyError && <button type="button" className="text-button" disabled={!online || loading}
+          onClick={() => void load()}>重新读取</button>}
         {notice && (
           <p className={`message-notice${/^已加入(?: Mac )?待发/.test(notice) ? " queue-receipt-notice" : ""}`} role="status">
             {notice}
@@ -704,6 +691,17 @@ export default function Conversation({
         data-composer-state={composer.compact ? "compact" : "expanded"}
         onCompositionStart={composer.onCompositionStart} onCompositionEnd={composer.onCompositionEnd}
         onSubmit={(e) => void submit(e)}>
+        <div className="composer-overview">
+          <div className="runtime-summary">
+            {runtimeLabel && <span role="status" className={showConnectionState ? "composer-connection-state"
+              : !loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}
+              data-failed={showConnectionState && (connectionFailed || !!compatibilityCode) || undefined}>{runtimeLabel}</span>}
+            <TurnDuration timing={toolbarTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
+          </div>
+          <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked}
+            refresh={load} notify={setNotice} onInteractionChange={setStopInteraction} />
+        </div>
+        <div className="composer-input">
         <DraftAttachmentList threadId={thread.id} items={attachments} controller={uploads} disabled={!online || !targetAvailable || !!draft.requestId} error={attachmentError}
           localRemovalAllowed={targetAvailable && !draft.requestId}
           onRecover={attachmentRecoveryNeeded ? () => void recoverAttachments() : undefined} />
@@ -724,11 +722,11 @@ export default function Conversation({
             if (files.length) { event.preventDefault(); if (targetAvailable && !draft.requestId) addFiles(files); }
           }}
         />
+        </div>
         <div className="composer-actions">
           <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} onPickingChange={composer.setPicking} preserveFocus />
-          {showConnectionState && <span className="composer-connection-state" data-failed={connectionFailed || !!compatibilityCode || undefined}>
-            <span role="status">{connectionLabel}</span>
-          </span>}
+          <ContextStatus threadId={thread.id} history={compatibilityCode && history ? { ...history, canCompact: false, canAttemptCompact: false } : history}
+            disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} onInteractionChange={setContextInteraction} />
           <button
             className="primary"
             type={restoreOnlyAction || connectionOnlyAction ? "button" : "submit"}

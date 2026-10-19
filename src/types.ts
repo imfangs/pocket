@@ -65,3 +65,6 @@ export interface Catalog {
   csrfToken?: string;
 }
 export type View = "all" | "unread" | "running" | "created" | "priority" | "codex-pinned" | "pinned" | "recent" | "archived";
+export type NavigationScope = "all" | "priority" | "codex-pinned" | "archived";
+export type ActivityFilter = "all" | "unread" | "running";
+export type ThreadSort = "smart" | "created";
