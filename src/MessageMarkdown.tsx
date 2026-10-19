@@ -6,8 +6,9 @@ import { changeMachine, currentMachineId } from "./machineScope";
 import { toast } from "sonner";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMermaid from "./mermaidMarkdown";
 
-const plugins = [remarkGfm];
+const plugins = [remarkGfm, remarkMermaid];
 const imageRoute = /^\/api\/tasks\/[a-f0-9-]{36}\/images\/[a-f0-9]{64}$/i;
 type Props = { text: string; images?: Record<string, string>; codex?: boolean };
 

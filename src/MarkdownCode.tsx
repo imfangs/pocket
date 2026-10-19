@@ -1,5 +1,6 @@
 import { Children, isValidElement, type ReactNode } from "react";
 import CopyButton from "./CopyButton";
+import MermaidBlock from "./MermaidBlock";
 
 function plainText(node: ReactNode): string {
   return Children.toArray(node)
@@ -19,6 +20,10 @@ export default function MarkdownCode({ children }: { children?: ReactNode }) {
   const language = isValidElement<{ className?: string }>(code)
     ? code.props.className?.match(/language-([^\s]+)/)?.[1]
     : undefined;
+  if (language?.toLowerCase() === "mermaid") {
+    const complete = isValidElement<{ "data-mermaid-closed"?: string }>(code) && code.props["data-mermaid-closed"] === "true";
+    return <MermaidBlock source={plainText(children).replace(/\n$/, "")} complete={complete} />;
+  }
   return (
     <div className="code-block">
       <div className="code-block-header">

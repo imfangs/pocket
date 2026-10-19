@@ -9,6 +9,15 @@ export function hasMessageSelection(root: HTMLElement | null) {
     selection.getRangeAt(0).intersectsNode(root);
 }
 
+export function isMessageReadingProtected(root: HTMLElement | null) {
+  if (!root) return false;
+  const document = root.ownerDocument, focused = document.activeElement;
+  // A viewer moves focus into a portal. Keep its underlying message in place
+  // until it closes, so returning focus cannot land in a newly folded group.
+  return !!document.querySelector("[data-reading-motion], [data-reading-overlay], dialog[open]") ||
+    hasMessageSelection(root) || !!focused && focused !== root && root.contains(focused);
+}
+
 function replacesSelectedText(root: HTMLElement | null, previous: Message[], incoming: Message[]) {
   if (!root || !hasMessageSelection(root)) return false;
   const range = root.ownerDocument.getSelection()?.getRangeAt(0);
@@ -46,12 +55,7 @@ export function useProgressMessages({ messages, protectedIds, root, nearBottom, 
   const canonicalVisible = useRef(false);
   const anchor = useRef<{ element: HTMLElement; top: number } | null>(null);
   const position = useRef(onPosition); position.current = onPosition;
-  const readingProtected = useCallback(() => {
-    const element = root.current;
-    const focused = element?.ownerDocument.activeElement;
-    return !!element?.ownerDocument.querySelector("[data-reading-motion]") || hasMessageSelection(element) ||
-      !!element && !!focused && focused !== element && element.contains(focused);
-  }, [root]);
+  const readingProtected = useCallback(() => isMessageReadingProtected(root.current), [root]);
   useEffect(() => {
     const element = root.current;
     if (!element) return;

@@ -14,6 +14,12 @@ export function clampImageTransform(value: ImageTransform, bounds: ImageBounds):
   return { scale, x: Math.max(-maxX, Math.min(maxX, Number.isFinite(value.x) ? value.x : 0)),
     y: Math.max(-maxY, Math.min(maxY, Number.isFinite(value.y) ? value.y : 0)) };
 }
+export function readableDiagramTransform(bounds: ImageBounds): ImageTransform {
+  if (!bounds.imageWidth || !bounds.imageHeight) return imageIdentity();
+  const scale = Math.max(1, Math.min(IMAGE_ZOOM_MAX, bounds.width / bounds.imageWidth));
+  // Start at the first node of a tall diagram, at the available reading width.
+  return clampImageTransform({ scale, x: 0, y: Math.max(0, (bounds.imageHeight * scale - bounds.height) / 2) }, bounds);
+}
 export function zoomImage(value: ImageTransform, scale: number, anchor: { x: number; y: number }, bounds: ImageBounds) {
   const nextScale = Math.max(1, Math.min(IMAGE_ZOOM_MAX, scale));
   const ratio = nextScale / value.scale;

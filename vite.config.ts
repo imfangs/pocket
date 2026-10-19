@@ -6,5 +6,6 @@ const version = frontendVersion(fileURLToPath(new URL(".", import.meta.url)));
 export default defineConfig({
   plugins: [react(), versionManifest(version)],
   define: { __POCKET_BUILD_ID__: JSON.stringify(version) },
+  worker: { format: "es" },
   server: { proxy: { "/api": "http://127.0.0.1:4397" } },
 });

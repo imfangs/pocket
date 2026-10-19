@@ -1,0 +1,61 @@
+{
+  "name": "pele",
+  "version": "1.6.0-pocket.44da152",
+  "upstreamRepository": "https://github.com/obsidianmd/pele",
+  "upstreamCommit": "44da152bbb79b91f03e68016f42499bb25bf6e82",
+  "sourceArchiveSha256": "b0ba553feb2575eb8e42ac831581451c82d4ded0fbae7a1c3b18597f0e6ed4ea",
+  "runtimeSourceModified": false,
+  "runtimeTypes": [
+    "flowchart",
+    "sequence",
+    "state"
+  ],
+  "buildTools": {
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  },
+  "typecheckLibraries": [
+    "ES2022",
+    "DOM",
+    "DOM.Iterable"
+  ],
+  "archive": "pele-1.6.0-pocket.44da152.tgz",
+  "sha256": "7ff5ebf787b1533119af42144582d90c67d99ad0c90d211c9ebcf03d322ccbaf",
+  "integrity": "sha512-DZkVXefURysXdY6wvL94s9OcOCyUjb1CmvfSL2qlwSe/R6UQzNw16cmDX1Znbm3kIzzHr3iFhSJLNfMTKrlevA==",
+  "packedBytes": 122498,
+  "unpackedBytes": 379208,
+  "runtimeFiles": [
+    {
+      "path": "dist/esm/chunks/EJ5KOXYD.js",
+      "bytes": 7664
+    },
+    {
+      "path": "dist/esm/chunks/FM4M6KEV.js",
+      "bytes": 20107
+    },
+    {
+      "path": "dist/esm/chunks/NOD3BUAD.js",
+      "bytes": 5504
+    },
+    {
+      "path": "dist/esm/chunks/XOCCVCGY.js",
+      "bytes": 38360
+    },
+    {
+      "path": "dist/esm/core.js",
+      "bytes": 17500
+    },
+    {
+      "path": "dist/esm/diagrams/flowchart.js",
+      "bytes": 39585
+    },
+    {
+      "path": "dist/esm/diagrams/sequence.js",
+      "bytes": 40606
+    },
+    {
+      "path": "dist/esm/diagrams/state.js",
+      "bytes": 28635
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+sequenceDiagram
+  autonumber
+  participant U as 手机上的使用者
+  participant P as Pocket会话阅读页面
+  participant M as Mac中的Codex会话
+  U->>P: 发送比较长的问题并保留输入内容，避免短暂离线时丢失
+  P->>M: 核对原会话连接状态以及同一条消息的请求编号
+  alt 电脑在线
+    M-->>P: 已接收，开始执行
+    P-->>U: 在消息内显示已发送
+  else 电脑暂时离线
+    P-->>U: 保存到待发送队列，恢复后核对
+  end
+  Note over U,P: 已接收不代表模型已经完成回答

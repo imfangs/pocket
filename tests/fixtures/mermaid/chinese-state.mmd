@@ -1,0 +1,15 @@
+stateDiagram-v2
+  [*] --> Draft
+  state "输入中的草稿，尚未离开手机" as Draft
+  state "待发送：保留原始内容和请求编号" as Queued
+  state "已经连接，正在确认发送结果" as Checking
+  state "电脑正在执行这一次请求" as Running
+  state "已经完成，但用户尚未读到新消息" as Unread
+  state "用户已经阅读，仍可继续发送消息" as Read
+  Draft --> Queued: 点击发送时暂时离线
+  Queued --> Checking: 网络恢复
+  Draft --> Checking: 点击发送且网络在线
+  Checking --> Running: 确认原始请求已接收
+  Running --> Unread: 本轮回复完成
+  Unread --> Read: 在前台阅读最新消息
+  Read --> [*]
