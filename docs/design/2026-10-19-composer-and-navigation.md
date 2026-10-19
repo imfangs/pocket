@@ -58,3 +58,5 @@ ContextStatus和StopExecution始终挂载，保留本地未知requestId及reload
 实现仅修改 `polish.css` 与 `reading-composer.css`，验证和发布回执位于 `.local/qa/composer-field-2026-10-19/`。本次纠正说明：界面收拢可以减少重复入口，但输入边界和聚焦归属本身仍是必要信息。
 
 1047项完整回归、构建及Chromium/WebKit各18项聚焦检查通过。覆盖390px亮暗、320px、420px短视口、桌面、空/多行输入、控件焦点、队列编辑与草稿连续性。受控视觉回读确认文字区域有独立浅底和细框，蓝色边框只围住文字区域，状态行与工具行在框外；暗色主题也能明确辨识。紧凑模式字段44px、整卡54px保持，未新增单元测试或执行真实会话操作。
+
+同日已发布：源码 `7d2dac60865354171e8eeaac07fce35b39bc790d`，Pages `9eccbc26-ef53-43eb-93e5-da56606080a0`，build `626e6af72930d7a3ebba99c0053f57570659c78285f21be203fa65040a900c63`。29个公开文件与项目功能检查通过，ready=true；只上传一次，两机服务与Codex未重启。上一版Mermaid发布身份保留在[图表记录](2026-10-19-mermaid.md#发布记录)。
