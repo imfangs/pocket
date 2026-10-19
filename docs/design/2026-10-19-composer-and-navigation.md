@@ -42,3 +42,9 @@ ContextStatus和StopExecution始终挂载，保留本地未知requestId及reload
 320/390px、缩短至420px高的视口、1280px桌面均通过；常见已完成会话紧凑输入区54px，顶部overview为0。缺final时长时保留兜底总用时可能产生额外行，这是避免丢状态的既有取舍。浅色阅读和暗色队列编辑已做一次受控视觉回读。缩短视口不等于iPhone真实键盘/PWA验收。
 
 证据 `.local/qa/composer-navigation-2026-10-19/`。全部使用合成API/原生回调，未真实发送、压缩、停止或修改会话；临时服务和浏览器已清理。发布身份以CURRENT为准。
+
+## 发布记录
+
+2026-10-19 已发布到 https://x.fangs.cc ，源码 `0ac427a3fb1379a3d8375d95c4641c06866654f9`，Pages `be61030f-6d99-4c9e-b6ca-9b8a0f086933`。前端 build ID `923edc78df00e1fa79e3006f0d35c0de65912b66e845a86d36e6109672c0a568` 与最终两浏览器验收一致；21个公开文件逐一匹配，域名/TLS及项目功能检查通过，回执ready=true。预检OAuth过期经同版本Wrangler whoami续期恢复，仅上传一次；未重启两机API、连接器或Codex。
+
+上一版前端源码 `531048dd5a81b087fd07e208abb70b7ec5092500`，Pages `65f8739a-d5a5-4225-b294-6697ac3dc6e5`，build `001a3f21a0bfa92c9829c9ba625f7ba9f93bc58c0a0ead44a26a0d1d9aa31b86`，保留为发布前基线。发布回执归档在本轮QA目录的 `deploy-result.json`；Mac API版本仍见CURRENT，浏览器与公网资源验证不替代iPhone主屏幕真实使用反馈。
