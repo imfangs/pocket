@@ -13,6 +13,16 @@ after(() => vite.close());
 const question = { key: 'a'.repeat(64), sourceMessageId: 'message', title: '先做一个可体验的原型，还是先整理资料后再决定？', options: ['先做原型', '先整理资料'] };
 const render = props => renderToStaticMarkup(createElement(QuestionPrompts, { threadId: 'thread', questions: [question], disabled: false, drafts: new Map(), refresh: async () => {}, ...props }));
 
+function assertPrimaryAction(html, { type, disabled, text }) {
+  const matches = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(match =>
+    (match[1].match(/(?:^|\s)class="([^"]*)"/)?.[1].split(/\s+/) || []).includes('primary'));
+  assert.equal(matches.length, 1, 'exactly one primary action is visible');
+  const [, attributes, content] = matches[0];
+  assert.match(attributes, new RegExp(`(?:^|\\s)type="${type}"`));
+  assert.equal(/(?:^|\s)disabled(?:=""|\s|$)/.test(attributes), disabled, 'primary action disabled state');
+  assert.equal(content.replace(/<[^>]*>/g, ''), text);
+}
+
 test('a new question with choices exposes one interactive set of options without preselecting or submitting', () => {
   const sourceText = [question.title, ...question.options.map(option => `- ${option}`)].join('\n');
   const html = render({ sourceText });
@@ -21,7 +31,7 @@ test('a new question with choices exposes one interactive set of options without
   assert.doesNotMatch(html, /checked=""|class="question-source-text"/);
   const labels = [...html.matchAll(/class="question-option"[\s\S]*?<span>([^<]*)<\/span>/g)].map(match => match[1]);
   assert.deepEqual(labels, question.options);
-  assert.match(html, /<button type="submit" class="primary" disabled="">提交回答<\/button>/);
+  assertPrimaryAction(html, { type: 'submit', disabled: true, text: '提交回答' });
   assert.match(html, />自己填写<\/button>/); assert.match(html, />忽略<\/button>/);
 });
 

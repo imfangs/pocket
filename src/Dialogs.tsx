@@ -1,8 +1,11 @@
+import { IconButton } from "./ui/IconButton";
+import { Button } from "./ui/Button";
 import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import NotificationSettings from "./NotificationSettings";
 import MachinePicker from "./MachinePicker";
 import { modalCloseDecision } from "./modalInteraction";
+import { bindInspectorViewport } from "./mobileInspector";
 import { MOTION_EASE, MOTION_MS, holdReadingMotion, prefersReducedMotion } from "./motion";
 export function Modal({
   title,
@@ -11,6 +14,7 @@ export function Modal({
   busy = false,
   dirty = false,
   closeRequested = false,
+  className,
 }: {
   title: string;
   onClose: () => void;
@@ -18,6 +22,7 @@ export function Modal({
   busy?: boolean;
   dirty?: boolean;
   closeRequested?: boolean;
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [opener] = useState(() => typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null);
@@ -59,6 +64,9 @@ export function Modal({
     if (dialog) { dialog.inert = false; dialog.removeAttribute("data-modal-closing"); }
     dialog?.showModal();
     dialog?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    // Reuse the same focus/blur and Safari recovery rules as the conversation.
+    // A bottom sheet must follow the visual viewport, not the covered layout viewport.
+    const releaseViewport = dialog ? bindInspectorViewport(dialog) : () => {};
     if (dialog && !prefersReducedMotion() && typeof dialog.animate === "function") {
       releaseReading.current = holdReadingMotion(dialog.ownerDocument);
       // The input gets focus immediately. Opacity never competes with the
@@ -69,7 +77,7 @@ export function Modal({
       effect.oncancel = () => { if (animation.current === effect) stopMotion(); };
     }
     return () => {
-      mounted.current = false; stopMotion(false);
+      mounted.current = false; stopMotion(false); releaseViewport();
       dialog?.close();
       stopMotion();
       queueMicrotask(() => {
@@ -99,6 +107,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      className={["pocket-dialog", className].filter(Boolean).join(" ")}
       onCancel={(e) => {
         e.preventDefault();
         requestClose(false, false);
@@ -111,22 +120,22 @@ export function Modal({
     >
       <header>
         <h2>{title}</h2>
-        <button
+        <IconButton
           className="icon-button"
           onClick={event => requestClose(false, event.detail !== 0)}
           disabled={busy}
           aria-label="关闭对话框"
         >
           <X size={19} />
-        </button>
+        </IconButton>
       </header>
       {confirmClose && <div className="modal-close-confirm" role="alert">
         <p>还有未提交的内容。</p>
-        <button ref={continueEditing} type="button" className="secondary" disabled={busy} onClick={() => {
+        <Button ref={continueEditing} type="button" className="secondary" variant="soft" color="gray" disabled={busy} onClick={() => {
           setConfirmClose(false);
           ref.current?.querySelector<HTMLElement>("[data-autofocus], input:not([type='hidden']), textarea, select")?.focus();
-        }}>继续编辑</button>
-        <button type="button" className="danger-button" disabled={busy} onClick={event => beginClose(event.detail !== 0)}>放弃并关闭</button>
+        }}>继续编辑</Button>
+        <Button type="button" className="danger-button" variant="soft" color="red" disabled={busy} onClick={event => beginClose(event.detail !== 0)}>放弃并关闭</Button>
       </div>}
       {children}
     </dialog>
@@ -139,7 +148,7 @@ export function SettingsDialog(p: {
   onClose: () => void;
 }) {
   return (
-    <Modal title="设置" onClose={p.onClose}>
+    <Modal title="设置" className="settings-dialog" onClose={p.onClose}>
       <div className="settings-content">
         <section className="settings-connection" aria-label="电脑">
           <h3>连接电脑</h3>

@@ -29,7 +29,11 @@ test('ordinary creation begins with an accessible message field before directory
 test('a nonempty initial Query stays visible while creation options load', () => {
   const html = render({ initialQuery: 'The clipboard query' });
   assert.match(html, />The clipboard query<\/textarea>/);
-  assert.match(html, /class="icon-button quick-create-clear"[^>]*aria-label="清空输入"/);
+  const clear = html.match(/<button\b[^>]*aria-label="清空输入"[^>]*>/)?.[0];
+  assert.ok(clear, 'the initial Query has a clear action');
+  assert.match(clear, /class="[^"]*\bicon-button\b[^"]*"/);
+  assert.match(clear, /class="[^"]*\bquick-create-clear\b[^"]*"/);
+  assert.match(clear, /\stype="button"/);
   assert.match(html, />正在准备…<\/button>/);
 });
 
@@ -45,13 +49,22 @@ test('restored pending creation displays its original Query with editing and cle
   const html = render({ initialQuery: 'Original pending query', operation: { requestId: 'pending-id', operation: 'create', status: 'pending' } });
   assert.match(html, />Original pending query<\/textarea>/);
   assert.match(html.match(/<textarea[^>]*>/)[0], /disabled/);
-  assert.match(html, /aria-label="清空输入" disabled/);
+  const clear = html.match(/<button\b[^>]*aria-label="清空输入"[^>]*>/)?.[0];
+  assert.ok(clear, 'the original Query retains its clear action');
+  assert.match(clear, /class="[^"]*\bquick-create-clear\b[^"]*"/);
+  assert.match(clear, /\sdisabled(?:=""|\s|>)/);
   assert.match(html, /正在创建/);
 });
 
 test('a completed creation cannot turn its original Query into an enabled second submit', () => {
   const html = render({ initialQuery: 'Already submitted query', operation: { requestId: 'done-id', operation: 'create', status: 'succeeded', threadId: 'created-thread' } });
   assert.match(html.match(/<textarea[^>]*>/)[0], /disabled/);
-  assert.match(html, /aria-label="清空输入" disabled/);
-  assert.match(html, /class="primary" disabled/);
+  const clear = html.match(/<button\b[^>]*aria-label="清空输入"[^>]*>/)?.[0];
+  assert.ok(clear, 'the original Query retains its clear action');
+  assert.match(clear, /class="[^"]*\bquick-create-clear\b[^"]*"/);
+  assert.match(clear, /\sdisabled(?:=""|\s|>)/);
+  const submit = html.match(/<button\b[^>]*type="submit"[^>]*>/)?.[0];
+  assert.ok(submit, 'the create action retains explicit form submission');
+  assert.match(submit, /class="[^"]*\bprimary\b[^"]*"/);
+  assert.match(submit, /\sdisabled(?:=""|\s|>)/);
 });

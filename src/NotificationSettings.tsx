@@ -1,3 +1,4 @@
+import { Button } from "./ui/Button";
 import { useEffect, useState } from 'react';
 import { Bell, BellOff } from 'lucide-react';
 import { api } from './api';
@@ -51,9 +52,9 @@ export default function NotificationSettings() {
   };
   return <section className="notification-setting" aria-label="任务通知">
     <div><strong>任务通知</strong><p className="field-help">{supported ? '在 Pocket 打开或发送过的任务：完成、失败或需要处理时通知。' : '从手机主屏幕打开 Pocket 后可开启。'}</p></div>
-    {supported && <button className="secondary" disabled={busy || !key} onClick={() => void toggle()}>
+    {supported && <Button className="secondary" variant="soft" color="gray" disabled={busy || !key} onClick={() => void toggle()}>
       {enabled ? <BellOff size={16}/> : <Bell size={16}/>}{busy ? '处理中…' : enabled ? '关闭通知' : '开启通知'}
-    </button>}
+    </Button>}
     {error && <p className="inline-error" role="alert">{error}</p>}
   </section>;
 }

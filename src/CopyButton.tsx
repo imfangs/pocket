@@ -1,3 +1,4 @@
+import { IconButton } from "./ui/IconButton";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -22,7 +23,7 @@ export default function CopyButton({
   }, [copied]);
   useEffect(() => () => clearTimeout(timer.current), []);
   return (
-    <button
+    <IconButton
       type="button"
       className="copy-button"
       data-copied={copied || undefined}
@@ -43,6 +44,6 @@ export default function CopyButton({
       <span className="sr-only" role="status">
         {copied ? "已复制" : ""}
       </span>
-    </button>
+    </IconButton>
   );
 }

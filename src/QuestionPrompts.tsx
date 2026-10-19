@@ -1,3 +1,4 @@
+import { Button } from "./ui/Button";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import type { Ref } from "react";
 import AutoTextarea from "./AutoTextarea";
@@ -132,9 +133,9 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
     </fieldset>
     <div className="question-submit"><button type="button" className="question-ignore" disabled={!presentation.canIgnore} onClick={ignore}>忽略</button>
     {presentation.hasDraft && presentation.canIgnore && <button type="button" className="question-ignore" onClick={discard}>丢弃草稿</button>}
-    <button type="submit" className="primary" disabled={disabled || busy || (!waiting && !draft.text.trim())}>
+    <Button type="submit" className="primary" disabled={disabled || busy || (!waiting && !draft.text.trim())}>
       {busy ? "提交中…" : waiting ? "核对回答状态" : "提交回答"}
-    </button></div>
+    </Button></div>
     </div>}
     {error && <p className="inline-error" role="alert">{error}</p>}
     {endMarker && <div ref={endMarker} aria-hidden="true" style={{ height: 1 }} />}

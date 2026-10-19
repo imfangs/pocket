@@ -1,3 +1,4 @@
+import { Button } from "./ui/Button";
 import { useEffect, useId, useRef, useState } from "react";
 import { Modal } from "./Dialogs";
 import { api } from "./api";
@@ -128,7 +129,7 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
     }
   };
 
-  return <Modal title="重命名会话" onClose={onClose} busy={submitting} dirty={dirty}>
+  return <Modal title="重命名会话" className="rename-thread-dialog" onClose={onClose} busy={submitting} dirty={dirty}>
     <form className="rename-thread-form" onSubmit={event => void submit(event)} noValidate>
       <label className="field-label" htmlFor={inputId}>会话名称</label>
       <input ref={nameInput} id={inputId} value={name} autoComplete="off" enterKeyHint="done"
@@ -143,11 +144,11 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
       {error && <p className="inline-error" role="alert">{error}</p>}
       <footer className="dialog-actions">
         {unresolved ? <>
-          <button type="button" className="text-button" disabled={submitting} onClick={onClose}>关闭</button>
-          <button type="button" className="secondary" disabled={busy || submitting} onClick={() => void check()}>{busy ? "正在核对…" : "核对结果"}</button>
+          <Button type="button" className="text-button" variant="ghost" color="gray" disabled={submitting} onClick={onClose}>关闭</Button>
+          <Button type="button" className="secondary" variant="soft" color="gray" disabled={busy || submitting} onClick={() => void check()}>{busy ? "正在核对…" : "核对结果"}</Button>
         </> : <>
-          {(!source || !source.canRename) && <button type="button" className="secondary" disabled={loading} onClick={() => void readSource(true)}>重新读取</button>}
-          <button type="submit" className="primary" disabled={loading || submitting || !source?.canRename || name.trim() === source.title}>保存名称</button>
+          {(!source || !source.canRename) && <Button type="button" className="secondary" variant="soft" color="gray" disabled={loading} onClick={() => void readSource(true)}>重新读取</Button>}
+          <Button type="submit" className="primary" disabled={loading || submitting || !source?.canRename || name.trim() === source.title}>保存名称</Button>
         </>}
       </footer>
     </form>

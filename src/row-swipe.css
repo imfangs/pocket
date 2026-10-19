@@ -1,9 +1,9 @@
-.task-row-swipe { position:relative; --row-priority-blue:#1769c2; }
+.task-row-swipe { position:relative; --row-priority-blue:var(--primary); }
 .row-swipe-track { position:relative; overflow:hidden; background:var(--surface); }
 .row-swipe-track > .task-row { z-index:1; background:var(--surface); transform:translateX(var(--row-swipe-x,0px)); transition:transform 180ms var(--ease,ease); }
 .row-swipe-track[data-swipe-enabled="true"] > .task-row { touch-action:pan-y pinch-zoom; }
 .row-swipe-track[data-swiping] > .task-row { transition:none; }
-.row-swipe-track > .task-row.is-selected { background:var(--surface-soft); }
+.row-swipe-track > .task-row.is-selected { background:var(--accent-soft); }
 .row-priority-action { position:absolute; inset:0 0 0 auto; width:84px; padding:8px; border:0; border-radius:0; background:var(--row-priority-blue); color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:550; }
 .row-priority-action:disabled { opacity:1; color:#fff; }
 .row-priority-action:focus-visible { outline:3px solid var(--ink); outline-offset:-4px; }

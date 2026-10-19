@@ -1,3 +1,5 @@
+import { IconButton } from "./ui/IconButton";
+import { Button } from "./ui/Button";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { Modal } from "./Dialogs";
@@ -89,7 +91,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       window.removeEventListener("online", online); window.removeEventListener("offline", offline);
     };
   }, []);
-  return <Modal title="新建会话" onClose={() => (closeRequested || !busy) && onClose()} busy={busy} dirty={dirty} closeRequested={closeRequested}>
+  return <Modal title="新建会话" className="new-conversation-dialog" onClose={() => (closeRequested || !busy) && onClose()} busy={busy} dirty={dirty} closeRequested={closeRequested}>
     <form className="new-conversation-form" noValidate onSubmit={async event => {
       event.preventDefault(); if (!available || loading || locked || submitting.current || queryTooLong) return;
       if (!selectedLocation) {
@@ -113,10 +115,10 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
           <AutoTextarea id="quick-create-query" data-autofocus value={query} disabled={locked} maxLength={16000}
             aria-invalid={queryTooLong || undefined} placeholder="写下想讨论或完成的事，也可以粘贴内容"
             onChange={event => { const text = event.target.value; setQueryDraft(draft => editCreationQuery(draft, text)); }} />
-          {query.length > 0 && <button type="button" className="icon-button quick-create-clear" title="清空输入" aria-label="清空输入" disabled={locked} onClick={() => {
+          {query.length > 0 && <IconButton type="button" size="2" className="icon-button quick-create-clear" title="清空输入" aria-label="清空输入" disabled={locked} onClick={() => {
             setQueryDraft(draft => editCreationQuery(draft, ""));
             queryBox.current?.querySelector("textarea")?.focus();
-          }}><X size={16} aria-hidden="true" /></button>}
+          }}><X size={16} aria-hidden="true" /></IconButton>}
         </div>
         {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
         {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}
@@ -126,10 +128,10 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       <div className="new-conversation-settings-body">
       <div className="new-directory-heading">
         <label className="field-label" htmlFor="new-conversation-location">工作目录</label>
-        <button type="button" className="text-button directory-search-toggle" aria-expanded={directorySearchOpen} aria-controls="new-directory-search"
+        <Button type="button" className="text-button directory-search-toggle" variant="ghost" color="gray" size="2" aria-expanded={directorySearchOpen} aria-controls="new-directory-search"
           disabled={locked} onClick={() => { setDirectorySearchOpen(value => !value); setDirectoryQuery(""); }}>
           <Search size={14} aria-hidden="true" />{directorySearchOpen ? "收起查找" : "查找目录"}
-        </button>
+        </Button>
       </div>
       {directorySearchOpen && <div className="directory-search" id="new-directory-search">
         <Search size={16} aria-hidden="true" />
@@ -178,9 +180,9 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       {operation && <TaskOperationStatus operation={operation} error={operationError} onCheck={onCheck} onCancel={onCancelOperation} />}
       {(error || optionsError) && <p className="inline-error" role="alert">{error || optionsError}</p>}
       <footer>
-        {optionsError && <button type="button" className="secondary" disabled={loading || locked} onClick={() => { setError(""); void optionsReader.current?.read(); }}>{loading ? "正在读取…" : "重新读取目录"}</button>}
-        {activeOperation(operation) && <button type="button" className="secondary" disabled={busy} onClick={onClose}>返回列表</button>}
-        <button className="primary" disabled={loading || !available || locked || queryTooLong}>{busy || operation?.status === "pending" ? "正在创建…" : loading ? "正在准备…" : query.trim() ? "创建并发送" : "创建会话"}</button>
+        {optionsError && <Button type="button" className="secondary" variant="soft" color="gray" disabled={loading || locked} onClick={() => { setError(""); void optionsReader.current?.read(); }}>{loading ? "正在读取…" : "重新读取目录"}</Button>}
+        {activeOperation(operation) && <Button type="button" className="secondary" variant="soft" color="gray" disabled={busy} onClick={onClose}>返回列表</Button>}
+        <Button type="submit" className="primary" disabled={loading || !available || locked || queryTooLong}>{busy || operation?.status === "pending" ? "正在创建…" : loading ? "正在准备…" : query.trim() ? "创建并发送" : "创建会话"}</Button>
       </footer>
     </form>
   </Modal>;

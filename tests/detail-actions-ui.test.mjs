@@ -17,9 +17,19 @@ const renderArchived = (extra = {}, draft = { text: '继续这个想法' }, mess
     historyCache: new Map([[id, { history, scrollTop: 0, nearBottom: true }]]), onConnect: async () => {}, onRestore: async () => {}, ...extra }));
   return { html, drafts };
 };
+function assertPrimaryAction(html, { type, disabled, text }) {
+  const matches = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(match =>
+    (match[1].match(/(?:^|\s)class="([^"]*)"/)?.[1].split(/\s+/) || []).includes('primary'));
+  assert.equal(matches.length, 1, 'exactly one primary action is visible');
+  const [, attributes, content] = matches[0];
+  assert.match(attributes, new RegExp(`(?:^|\\s)type="${type}"`));
+  assert.equal(/(?:^|\s)disabled(?:=""|\s|$)/.test(attributes), disabled, 'primary action disabled state');
+  assert.equal(content.replace(/<[^>]*>/g, ''), text);
+}
+
 test('an archived conversation offers explicit restore on its sole main action while retaining the query', () => {
   const { html, drafts } = renderArchived();
-  assert.match(html, /<button class="primary" type="button">.*取消归档<\/button>/);
+  assertPrimaryAction(html, { type: 'button', disabled: false, text: '取消归档' });
   assert.doesNotMatch(html, />加入队列<\/button>|>发送<\/button>/);
   assert.match(html, />继续这个想法<\/textarea>/);
   assert.equal(drafts.get(id).text, '继续这个想法');
@@ -31,11 +41,11 @@ test('mobile archived history keeps the unarchive action visible before the user
   const { html } = renderArchived({}, { text: '' }, [{ id: 'old-answer', role: 'assistant', text: '保存的历史', phase: 'final', createdAt: 10 }]);
   assert.match(html, /保存的历史/);
   assert.match(html, /data-composer-state="expanded"/);
-  assert.match(html, /<button class="primary" type="button">.*取消归档<\/button>/);
+  assertPrimaryAction(html, { type: 'button', disabled: false, text: '取消归档' });
 });
 test('archive management waits block a second restore without disabling draft editing', () => {
   const { html } = renderArchived({ managementBlocked: true, managementHint: '正在取消归档…' });
-  assert.match(html, /<button class="primary" type="button" disabled="">/);
+  assertPrimaryAction(html, { type: 'button', disabled: true, text: '取消归档' });
   assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /disabled/);
 });
 test('an archived unknown query retains receipt checking instead of offering restore', () => {

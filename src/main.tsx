@@ -2,16 +2,20 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import PocketToaster from "./PocketToaster";
 import AccessGate from "./AccessGate";
+import PocketTheme from "./ui/PocketTheme";
 import { currentMachineId, machineStorageKey } from "./machineScope";
+import "@radix-ui/themes/styles.css";
+import "./design-tokens.css";
 import "./styles.css";
 import "./pwa.css";
 import "./polish.css";
-import "./theme.css";
 import "./motion.css";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AccessGate />
-    <PocketToaster />
+    <PocketTheme>
+      <AccessGate />
+      <PocketToaster />
+    </PocketTheme>
   </React.StrictMode>,
 );
 if ("serviceWorker" in navigator) {

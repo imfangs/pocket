@@ -1,3 +1,4 @@
+import { IconButton } from "./ui/IconButton";
 import { useEffect, useState } from "react";
 import { Square, RefreshCw, LoaderCircle } from "lucide-react";
 import { api } from "./api";
@@ -55,7 +56,7 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
     } finally { release(); setBusy(false); }
   };
   if (!history?.canStop && !waiting && !busy) return null;
-  return <button type="button" className="stop-execution" disabled={disabled || busy}
+  return <IconButton type="button" className="stop-execution" disabled={disabled || busy}
     aria-label={busy ? "正在停止执行" : waiting ? "核对停止状态" : "停止当前执行"}
     aria-busy={busy} data-waiting={waiting || busy || undefined}
     onPointerDown={event => { if (event.button === 0) event.preventDefault(); }}
@@ -63,5 +64,5 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
     <span className="stop-execution-disc">
       {busy ? <LoaderCircle className="stop-spinner" size={16} aria-hidden="true" /> : waiting ? <RefreshCw size={15} aria-hidden="true" /> : <Square size={11} strokeWidth={0} fill="currentColor" aria-hidden="true" />}
     </span>
-  </button>;
+  </IconButton>;
 }

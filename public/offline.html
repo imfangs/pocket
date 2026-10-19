@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#f7f9fc">
   <meta name="color-scheme" content="light dark">
-  <meta name="pocket-offline-shell" content="navigator-public-shell-v10">
+  <meta name="pocket-offline-shell" content="navigator-public-shell-v11">
   <script src="/theme.js"></script>
   <title>Pocket · 等待连接</title>
   <style>
-    :root { --background:#ffffff; --ink:#292824; --muted:#6f6e67; --button-ink:#ffffff; }
-    html[data-theme="dark"] { --background:#191919; --ink:#e9e9e5; --muted:#bcbcb4; --button-ink:#191919; }
+    :root { --background:#f7f9fc; --panel:#ffffff; --line:#e7ebf0; --ink:#1c2024; --muted:#64717d; --button-ink:#ffffff; }
+    html[data-theme="dark"] { --background:#111318; --panel:#181c22; --line:#2a323d; --ink:#edeef0; --muted:#9ba7b4; --button-ink:#ffffff; }
     @media (prefers-color-scheme:dark) {
-      html:not([data-theme]) { --background:#191919; --ink:#e9e9e5; --muted:#bcbcb4; --button-ink:#191919; }
+      html:not([data-theme]) { --background:#111318; --panel:#181c22; --line:#2a323d; --ink:#edeef0; --muted:#9ba7b4; --button-ink:#ffffff; }
     }
     * { box-sizing:border-box; }
     html { min-height:100%; background:var(--background); -webkit-text-size-adjust:100%; }
@@ -26,16 +26,17 @@
       -webkit-font-smoothing:antialiased;
     }
     main {
-      width:100%; max-width:320px; margin-block:auto;
+      width:100%; max-width:360px; margin-block:auto; padding:32px 20px;
       display:flex; flex-direction:column; align-items:center; text-align:center;
+      background:var(--panel); border:1px solid var(--line); border-radius:24px;
     }
-    img { display:block; width:64px; height:64px; margin:0 0 24px; border-radius:22%; flex-shrink:0; }
-    h1 { width:100%; margin:0; font-size:25px; font-weight:650; line-height:1.35; letter-spacing:-.5px; text-wrap:balance; }
-    p { width:100%; margin:12px 0 0; color:var(--muted); font-size:15px; line-height:1.7; text-wrap:balance; }
+    img { display:block; width:48px; height:48px; margin:0 0 24px; border-radius:22%; flex-shrink:0; }
+    h1 { width:100%; margin:0; font-size:24px; font-weight:650; line-height:1.4; text-wrap:balance; }
+    p { width:100%; margin:12px 0 0; color:var(--muted); font-size:14px; line-height:1.8; text-wrap:balance; }
     .retry {
       display:inline-flex; align-items:center; justify-content:center;
       max-width:100%; min-width:144px; min-height:48px; margin-top:28px; padding:12px 24px;
-      background:var(--ink); color:var(--button-ink); border-radius:8px;
+      background:#3e63dd; color:var(--button-ink); border-radius:10px;
       font-size:15px; font-weight:550; line-height:1.5; text-decoration:none; text-align:center;
       overflow-wrap:anywhere; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
     }

@@ -1,3 +1,4 @@
+import { Button } from "./ui/Button";
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "./api";
 import type { Thread } from "./types";
@@ -227,8 +228,8 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
     <div className="thread-model-summary">
       <span className="thread-model-label">模型</span>
       <div className="thread-model-value"><span>{presentation.label}</span>{presentation.saved && <small>已保存</small>}</div>
-      {!editing && !unresolved && <button type="button" className="text-button thread-model-edit" aria-expanded={false} aria-controls={editorId}
-        disabled={disabled || loading || thread.archived || thread.missing} onClick={() => void beginEdit()}>修改</button>}
+      {!editing && !unresolved && <Button type="button" className="text-button thread-model-edit" variant="ghost" color="gray" size="2" aria-expanded={false} aria-controls={editorId}
+        disabled={disabled || loading || thread.archived || thread.missing} onClick={() => void beginEdit()}>修改</Button>}
     </div>
     {editing && <form id={editorId} className="thread-model-editor" onSubmit={event => void submit(event)}>
       {source?.canChangeModel !== false && source?.source === "desktop" && source.models.length > 1 ? <label htmlFor={modelId}>
@@ -246,18 +247,18 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
       <p className="field-help thread-model-status" id={statusId} role="status">{status}</p>
       {error && <p className="inline-error thread-model-error" role="alert">{error}</p>}
       <div className="thread-model-actions">
-        <button type="button" className="text-button" disabled={submitting} onClick={() => {
+        <Button type="button" className="text-button" variant="ghost" color="gray" disabled={submitting} onClick={() => {
           setEditing(false); setError("");
           if (!unresolved) { setModel(source?.current?.model || ""); setEffort(source?.current?.effort || ""); clearResult(); }
-        }}>{unresolved ? "收起" : "取消"}</button>
-        {unresolved ? <button type="button" className="secondary" disabled={waiting} onClick={() => void check()}>核对结果</button>
-          : !editable || operation?.status === "changed" || operation?.status === "rejected" ? <button type="button" className="secondary" disabled={waiting || disabled || thread.archived || thread.missing}
-            onClick={() => void beginEdit()}>重新读取</button>
-          : <button type="submit" className="primary" disabled={waiting || !request}>保存</button>}
+        }}>{unresolved ? "收起" : "取消"}</Button>
+        {unresolved ? <Button type="button" className="secondary" variant="soft" color="gray" disabled={waiting} onClick={() => void check()}>核对结果</Button>
+          : !editable || operation?.status === "changed" || operation?.status === "rejected" ? <Button type="button" className="secondary" variant="soft" color="gray" disabled={waiting || disabled || thread.archived || thread.missing}
+            onClick={() => void beginEdit()}>重新读取</Button>
+          : <Button type="submit" className="primary" disabled={waiting || !request}>保存</Button>}
       </div>
     </form>}
     {!editing && unresolved && <div className="thread-model-recovery"><span role="status">{modelOperationText(operation)}</span>
-      <button type="button" className="text-button" disabled={waiting} onClick={() => { setEditing(true); void check(); }}>核对结果</button></div>}
+      <Button type="button" className="text-button" variant="ghost" color="gray" disabled={waiting} onClick={() => { setEditing(true); void check(); }}>核对结果</Button></div>}
     {!editing && !unresolved && error && <p className="field-help thread-model-status" role="status">暂时无法读取设置。</p>}
   </section>;
 }

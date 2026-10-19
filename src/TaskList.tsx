@@ -1,3 +1,4 @@
+import { IconButton } from "./ui/IconButton";
 import {
   Search,
   Pin,
@@ -218,7 +219,7 @@ export default function TaskList(p: Props) {
                     {prioritizingId === t.id && <span className="row-priority-pending" role="status">正在保存…</span>}
                   </div>}
                 </button>
-                <button
+                <IconButton type="button"
                   className="row-open icon-button"
                   aria-label={`在 Codex 打开 ${t.title}`}
                   title="在 Codex 打开"
@@ -226,7 +227,7 @@ export default function TaskList(p: Props) {
                   disabled={inactive || t.missing}
                 >
                   <ArrowUpRight size={18} />
-                </button>
+                </IconButton>
               </SwipeTaskRow>
             );
           })}

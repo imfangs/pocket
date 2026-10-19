@@ -1,15 +1,14 @@
 /* Activity and time share one trailing slot without wrapping the title row. */
 .task-list-surface .row-first { flex-wrap:nowrap; align-items:baseline; }
 .task-list-surface .row-first > strong { flex:1; min-width:0; }
-.task-list-surface .row-status-slot { display:inline-flex; align-items:center; justify-content:flex-end; flex:0 0 5.5em; width:5.5em; min-height:1.5em; margin-left:auto; font-size:11px; line-height:1.5; white-space:nowrap; }
+.task-list-surface .row-status-slot { display:inline-flex; align-items:center; justify-content:flex-end; flex:0 0 5.5em; width:5.5em; min-height:1.5em; margin-left:auto; font-size:var(--font-size-caption); line-height:1.5; white-space:nowrap; }
 .task-list-surface .row-first .row-status-slot > time { width:auto; margin:0; order:0; font-size:inherit; }
 .task-list-surface .row-status-slot > .task-state-badge { padding:0; border-radius:0; background:none; line-height:inherit; }
 .task-list-surface .row-secondary-states { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .task-list-surface [data-list-moving] { will-change:transform; }
 
 /* Keep status accents in the gutter and icons, leaving the reading surface quiet. */
-.task-list-surface { --row-pin-codex:#7557a3; }
-[data-theme="dark"] .task-list-surface { --row-pin-codex:#b9a2e6; }
+.task-list-surface { --row-pin-codex:var(--codex-pin); }
 .task-list-surface .task-select { position:relative; }
 .task-list-surface .task-select[data-row-state="running"] { --row-state-color:var(--positive); }
 .task-list-surface .task-select[data-row-state="waiting_input"],

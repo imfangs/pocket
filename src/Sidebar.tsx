@@ -1,3 +1,4 @@
+import { IconButton } from "./ui/IconButton";
 import PocketLogo from "./PocketLogo";
 import { Archive, Folder, Layers3, Pin, Settings2, Star, X } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -92,13 +93,13 @@ export default function Sidebar(p: Props) {
           <div>
             <strong>Pocket</strong>
           </div>
-          <button
+          <IconButton type="button"
             className="icon-button mobile-only"
             onClick={p.onClose}
             aria-label="关闭导航"
           >
             <X size={18} />
-          </button>
+          </IconButton>
         </div>
         <div className="sidebar-scroll">
           <nav aria-label="会话视图">
@@ -169,14 +170,14 @@ export default function Sidebar(p: Props) {
               <Archive size={17} />
               <span>已归档</span>
             </button>
-            <button
+            <IconButton type="button"
               className="icon-button sidebar-settings"
               onClick={p.onSettings}
               aria-label="设置"
               title="设置"
             >
               <Settings2 size={17} aria-hidden="true" />
-            </button>
+            </IconButton>
           </div>
         </div>
       </aside>

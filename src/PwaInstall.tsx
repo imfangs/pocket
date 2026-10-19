@@ -1,3 +1,4 @@
+import { Button } from "./ui/Button";
 import { Download, Share2 } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Modal } from "./Dialogs";
@@ -22,12 +23,12 @@ export default function PwaInstall({ controller }: { controller: PwaInstallContr
   if (installed) return null;
   return (
     <>
-      <button type="button" className="pwa-install" disabled={busy} onClick={() => void install()}>
+      <Button type="button" className="pwa-install" variant="soft" color="gray" disabled={busy} onClick={() => void install()}>
         <Download size={16} />
         <span>添加到主屏幕</span>
-      </button>
+      </Button>
       {guide && (
-        <Modal title="添加到手机主屏幕" onClose={() => setGuide(false)}>
+        <Modal title="添加到手机主屏幕" className="install-dialog" onClose={() => setGuide(false)}>
           <div className="install-guide">
             <Share2 size={28} />
             <p>iPhone / iPad</p>

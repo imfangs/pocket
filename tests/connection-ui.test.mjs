@@ -17,6 +17,16 @@ function render(state, override = {}, seed = 'Keep this draft') {
   return { html, drafts };
 }
 
+function assertPrimaryAction(html, { type, disabled, text }) {
+  const matches = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(match =>
+    (match[1].match(/(?:^|\s)class="([^"]*)"/)?.[1].split(/\s+/) || []).includes('primary'));
+  assert.equal(matches.length, 1, 'exactly one primary action is visible');
+  const [, attributes, content] = matches[0];
+  assert.match(attributes, new RegExp(`(?:^|\\s)type="${type}"`));
+  assert.equal(/(?:^|\s)disabled(?:=""|\s|$)/.test(attributes), disabled, 'primary action disabled state');
+  assert.equal(content.replace(/<[^>]*>/g, ''), text);
+}
+
 test('an acknowledged handoff remains visibly connecting and keeps the composer draft editable', () => {
   const { html, drafts } = render('connecting');
   assert.match(html, /连接中…/);
@@ -49,20 +59,20 @@ test('a newer fallback read does not keep claiming an old verified connection is
 
 test('empty failed input reuses the primary button for connection retry', () => {
   const { html } = render('failed', { outbox: [] }, '');
-  assert.match(html, /<button class="primary" type="button">.*重试连接<\/button>/);
+  assertPrimaryAction(html, { type: 'button', disabled: false, text: '重试连接' });
   assert.doesNotMatch(html, /conversation-connect"/);
   assert.match(html, /<span role="status" class="composer-connection-state"[^>]*>[^<]*<\/span>/);
 });
 
 test('empty connecting input shows a disabled primary connection action', () => {
   const { html } = render('connecting', { outbox: [] }, '');
-  assert.match(html, /<button class="primary" type="button" disabled="">/);
+  assertPrimaryAction(html, { type: 'button', disabled: true, text: '连接中…' });
   assert.match(html, /composer-connection-spinner/);
 });
 
 test('even an empty legacy unknown draft keeps a receipt-check action instead of reconnecting', () => {
   const { html } = render('failed', { outbox: [] }, { text: '', requestId: 'previous-request' });
-  assert.match(html, /<button class="primary" type="submit">.*核对发送状态<\/button>/);
+  assertPrimaryAction(html, { type: 'submit', disabled: false, text: '核对发送状态' });
   assert.doesNotMatch(html, /重试连接/);
 });
 
@@ -80,7 +90,7 @@ test('incompatible history keeps text editable and queue storage available witho
     assert.match(html, /composer-connection-state/);
     assert.doesNotMatch(html, /版本已变化|提交消息后自动连接|发送并连接/);
     assert.match(html, /<button aria-label="直接发送第 1 条消息" disabled=""/);
-    assert.doesNotMatch(html.match(/<button class="primary"[^>]*>/)[0], /disabled/);
+    assertPrimaryAction(html, { type: 'submit', disabled: false, text: '加入队列' });
     assert.match(html, /加入队列/);
     assert.match(html, /Saved instruction/);
     assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /disabled/);

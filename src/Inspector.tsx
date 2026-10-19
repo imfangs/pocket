@@ -1,3 +1,5 @@
+import { IconButton } from "./ui/IconButton";
+import { Button } from "./ui/Button";
 import { Archive, ArchiveRestore, ArrowUpRight, ChevronDown, ChevronLeft, Clipboard, GitBranch, Pencil, X } from "lucide-react";
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import type { Thread } from "./types";
@@ -78,10 +80,10 @@ export default function Inspector(p: Props) {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </h2>
-        <button data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0)}>
+        <IconButton type="button" data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0)}>
           <ChevronLeft size={23} className="inspector-back-icon" />
           <X size={18} className="inspector-close-icon" />
-        </button>
+        </IconButton>
       </div>
       <div className="inspector-conversation">
         {!infoOpen && operationStatus}
@@ -96,14 +98,14 @@ export default function Inspector(p: Props) {
           <ThreadModelSettings thread={p.thread} disabled={actionBusy || managementBlocked}
             onConnect={() => p.onOpen(p.thread, { quiet: true })} onActivity={p.onActivity} onBusyChange={setModelBusy} />
           <div className="thread-management-actions">
-            <button type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || p.thread.archived || managementBlocked}
-              onClick={() => setRenaming(true)}><Pencil size={14} aria-hidden="true" />重命名</button>
-            <button type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || managementBlocked}
+            <Button variant="soft" color="gray" type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || p.thread.archived || managementBlocked}
+              onClick={() => setRenaming(true)}><Pencil size={14} aria-hidden="true" />重命名</Button>
+            <Button variant="soft" color="gray" type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || managementBlocked}
               onClick={() => void runAction(() => p.onArchive(p.thread, !p.thread.archived))}>
               {p.thread.archived ? <ArchiveRestore size={14} aria-hidden="true" /> : <Archive size={14} aria-hidden="true" />}{p.thread.archived ? "取消归档" : "归档会话"}
-            </button>
-            {showMacOpen && <button type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || managementBlocked}
-              onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>在 Mac 打开<ArrowUpRight size={14} aria-hidden="true" /></button>}
+            </Button>
+            {showMacOpen && <Button variant="soft" color="gray" type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || managementBlocked}
+              onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>在 Mac 打开<ArrowUpRight size={14} aria-hidden="true" /></Button>}
           </div>
           {p.thread.missing ? <p className="field-help">会话暂不可用，请刷新。</p>
             : p.thread.archived ? <p className="field-help">取消归档后可继续对话或重命名。</p> : null}

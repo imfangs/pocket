@@ -1,0 +1,72 @@
+/* Pocket's visual contract. Shared by native controls, Radix surfaces and portals. */
+:root, .radix-themes {
+  --pocket-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --default-font-family: var(--pocket-font);
+  --font-size-caption: 12px;
+  --font-size-label: 13px;
+  --font-size-body: 15px;
+  --font-size-title: 18px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+  --radius-small: 6px; --radius-control: 10px; --radius-card: 16px; --radius-sheet: 24px;
+  --control-height: 40px;
+  --page-gutter: 28px;
+  --ink: #1c2024;
+  --text-secondary: #515b66;
+  --muted: #64717d;
+  --canvas: #f7f9fc;
+  --surface: #ffffff;
+  --surface-soft: #f3f5f8;
+  --surface-raised: #ffffff;
+  --sidebar: #f7f9fc;
+  --line: #e7ebf0;
+  --line-strong: #cdd5df;
+  --soft: #edf0f4;
+  --accent: #3e63dd;
+  --accent-soft: #eef2ff;
+  --primary: #3e63dd;
+  --primary-hover: #3358d4;
+  --on-strong: #ffffff;
+  --positive: #23784f;
+  --positive-soft: #eaf7ee;
+  --warning: #91621a;
+  --warning-soft: #fff6e5;
+  --danger: #ce3452;
+  --danger-soft: #fff0f3;
+  --pin-highlight: #cd4263;
+  --codex-pin: #7d59b8;
+  --green: var(--accent);
+  --radius: var(--radius-control);
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --shadow: 0 16px 48px #142b4921, 0 2px 8px #142b490a;
+  --shadow-soft: 0 4px 20px #16325409, 0 1px 3px #16325406;
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+html[data-theme="dark"], .radix-themes.dark {
+  color-scheme: dark;
+  --ink: #edeef0;
+  --text-secondary: #b7c0ca;
+  --muted: #9ba7b4;
+  --canvas: #111318;
+  --surface: #181c22;
+  --surface-soft: #20262e;
+  --surface-raised: #252c35;
+  --sidebar: #15191f;
+  --line: #2a323d;
+  --line-strong: #424e5d;
+  --soft: #2b333f;
+  --accent: #a7b5ff;
+  --accent-soft: #263151;
+  --on-strong: #ffffff;
+  --positive: #8fd2ab;
+  --positive-soft: #18372a;
+  --warning: #e7c17d;
+  --warning-soft: #382e1e;
+  --danger: #ffa0b3;
+  --danger-soft: #3e232c;
+  --pin-highlight: #f187a0;
+  --codex-pin: #c1a5f0;
+  --shadow: 0 16px 48px #0007, 0 2px 8px #0004;
+  --shadow-soft: 0 4px 20px #0002;
+}
+@media (pointer:coarse) { :root, .radix-themes { --control-height:44px; } }
+@media (max-width:760px) { :root, .radix-themes { --page-gutter:20px; } }

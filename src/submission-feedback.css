@@ -1,22 +1,12 @@
 :is(.conversation, .outbox) {
-  --send-green: #187342;
-  --send-green-bg: rgb(37 155 89 / 12%);
-  --send-green-line: rgb(37 155 89 / 30%);
-  --send-green-glow: rgb(47 185 112 / 23%);
-  --send-blue: #275ba4;
-  --send-blue-bg: rgb(63 126 210 / 8%);
-  --send-blue-line: rgb(63 126 210 / 26%);
-  --send-blue-glow: rgb(75 146 236 / 16%);
-}
-[data-theme="dark"] :is(.conversation, .outbox) {
-  --send-green: #a3e7bc;
-  --send-green-bg: rgb(48 175 103 / 15%);
-  --send-green-line: rgb(97 213 149 / 35%);
-  --send-green-glow: rgb(63 190 122 / 20%);
-  --send-blue: #b2d2ff;
-  --send-blue-bg: rgb(73 135 222 / 14%);
-  --send-blue-line: rgb(116 170 241 / 34%);
-  --send-blue-glow: rgb(75 146 236 / 20%);
+  --send-green: var(--positive);
+  --send-green-bg: var(--positive-soft);
+  --send-green-line: color-mix(in srgb, var(--positive) 24%, transparent);
+  --send-green-glow: color-mix(in srgb, var(--positive) 12%, transparent);
+  --send-blue: var(--accent);
+  --send-blue-bg: var(--accent-soft);
+  --send-blue-line: color-mix(in srgb, var(--accent) 24%, transparent);
+  --send-blue-glow: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .conversation-status .queue-receipt-notice { color: var(--send-blue); }
 .conversation-message.message-user.is-recently-sent {

@@ -1,3 +1,4 @@
+import { Button } from "./ui/Button";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { PendingRequest } from "./conversationFeed";
@@ -108,8 +109,8 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
           {waiting ? <><small>{reply.status === "unknown" ? "结果待核对，不会重复响应" : "已提交，等待更新"}</small>
             <button disabled={disabled || !!busy} onClick={() => void act(request)}>核对状态</button></>
             : <>{request.choices.includes("cancel") && <button disabled={disabled || !!busy} onClick={() => void act(request, "cancel")}>拒绝本次</button>}
-              {request.choices.includes("accept") && <button className="primary" disabled={disabled || !!busy} onClick={() => void act(request, "accept")}>{request.kind === "permissions" ? "允许本轮" : "允许这一次"}</button>}
-              {!!request.questions?.length && <button className="primary" disabled={disabled || !!busy || request.questions.some(q => !requestAnswers[q.id]?.trim())} onClick={() => void act(request, "answer")}>提交回答</button>}</>}
+              {request.choices.includes("accept") && <Button type="button" className="primary" disabled={disabled || !!busy} onClick={() => void act(request, "accept")}>{request.kind === "permissions" ? "允许本轮" : "允许这一次"}</Button>}
+              {!!request.questions?.length && <Button type="button" className="primary" disabled={disabled || !!busy || request.questions.some(q => !requestAnswers[q.id]?.trim())} onClick={() => void act(request, "answer")}>提交回答</Button>}</>}
         </div>
       </article>;
     })}

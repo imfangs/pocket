@@ -1,3 +1,4 @@
+import { Button } from "./ui/Button";
 import AutoTextarea from "./AutoTextarea";
 import ContextStatus from "./ContextStatus";
 import RequestActions from "./RequestActions";
@@ -727,7 +728,7 @@ export default function Conversation({
           <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} onPickingChange={composer.setPicking} preserveFocus />
           <ContextStatus threadId={thread.id} history={compatibilityCode && history ? { ...history, canCompact: false, canAttemptCompact: false } : history}
             disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} onInteractionChange={setContextInteraction} />
-          <button
+          <Button
             className="primary"
             type={restoreOnlyAction || connectionOnlyAction ? "button" : "submit"}
             onClick={restoreOnlyAction ? () => { void restore(); } : retryConnection ? () => { void inputConnection.current?.request(true); } : undefined}
@@ -740,7 +741,7 @@ export default function Conversation({
           >
             {restoring || connectionOnlyAction && connecting ? <LoaderCircle size={15} className="composer-connection-spinner" aria-hidden="true" /> : restoreOnlyAction ? <ArchiveRestore size={15} aria-hidden="true" /> : connectionOnlyAction ? <RefreshCw size={15} aria-hidden="true" /> : <Send size={15} />}
             {restoreOnlyAction ? restoring ? "取消归档中…" : "取消归档" : connectionOnlyAction ? connecting ? "连接中…" : "重试连接" : sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送" : enqueue ? "加入队列" : "发送"}
-          </button>
+          </Button>
         </div>
       </form>
     </section>

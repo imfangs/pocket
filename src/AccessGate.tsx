@@ -1,3 +1,5 @@
+import { IconButton } from "./ui/IconButton";
+import { Button } from "./ui/Button";
 import PocketLogo from "./PocketLogo";
 import {
   LockKeyhole,
@@ -21,9 +23,9 @@ import { bindMachineUnloadGuard, changeMachine, currentMachineId, needsPublicMac
 function AccessSettings() {
   const [open, setOpen] = useState(false);
   return <div className="access-settings">
-    <button type="button" className="icon-button" aria-label="设置" title="设置" onClick={() => setOpen(true)}>
+    <IconButton type="button" className="icon-button" aria-label="设置" title="设置" onClick={() => setOpen(true)}>
       <Settings2 size={18} aria-hidden="true" />
-    </button>
+    </IconButton>
     {open && <SettingsDialog notificationsAvailable={false} onClose={() => setOpen(false)} />}
   </div>;
 }
@@ -35,7 +37,7 @@ function AppLoadFailure() {
       <div className="access-brand"><PocketLogo /><span>Pocket</span></div>
       <h1>暂时无法打开 Pocket</h1>
       <p className="access-intro">可能遇到了版本更新或网络中断。请确认网络后重新加载。</p>
-      <button type="button" className="primary access-submit" onClick={() => location.reload()}>重新加载 Pocket</button>
+      <Button type="button" className="primary access-submit" onClick={() => location.reload()}>重新加载 Pocket</Button>
     </section>
   </main>;
 }
@@ -186,9 +188,9 @@ export default function AccessGate() {
             <WifiOff size={24} />
             <p>暂时无法连接。</p>
             <small>确认 Mac 和网络可用后再试。</small>
-            <button className="primary" onClick={() => void check()}>
+            <Button type="button" className="primary" onClick={() => void check()}>
               重新连接
-            </button>
+            </Button>
           </div>
         ) : (
           <form onSubmit={login}>
@@ -224,13 +226,13 @@ export default function AccessGate() {
                 {error}
               </p>
             )}
-            <button
+            <Button type="submit"
               className="primary access-submit"
               disabled={busy || !passphrase}
             >
               {busy ? "正在验证…" : "进入 Pocket"}
               <ArrowRight size={17} />
-            </button>
+            </Button>
             <small className="access-session-note">
               在这台设备保持登录 7 天，可随时退出。
             </small>

@@ -1,3 +1,5 @@
+import { IconButton } from "./ui/IconButton";
+import { Button } from "./ui/Button";
 import {
   Menu,
   Search,
@@ -418,26 +420,26 @@ export default function App({
         <header className="workspace-header" inert={narrow && !!current}>
           <PocketUpdate taskId={selected} />
           <div className="heading-line">
-            <button
+            <IconButton type="button"
               className="icon-button mobile-only"
               onClick={() => setMobile(true)}
               aria-label="打开导航"
             >
               <Menu size={20} />
-            </button>
+            </IconButton>
             <div className="heading">
               <h1 title={title}>
                 <span className="workspace-title">{title}</span>
                 <span className="workspace-count">{activity === "unread" && !unreadKnown || activity === "running" && !runtimeKnown ? "—" : threads.length}</span>
               </h1>
             </div>
-            <button
+            <Button variant="soft" color="gray" type="button"
               className="new-conversation-button"
               aria-label="新建会话"
               onClick={() => void guard(showNewConversation)}
             >
               <Plus size={16} /><span>新建会话</span>
-            </button>
+            </Button>
             <button
               className={`sync-button ${busy ? "spinning" : ""}`}
               onClick={() => { void syncTasks().catch(() => {}); }}
@@ -470,7 +472,7 @@ export default function App({
               </button>
             </div>
             <div className="list-controls">
-              <button
+              <IconButton type="button"
                 ref={searchToggle}
                 className="icon-button search-toggle"
                 aria-label={searchOpen ? "收起搜索" : "展开搜索"}
@@ -480,7 +482,7 @@ export default function App({
                 onClick={searchOpen ? closeSearch : openSearch}
               >
                 <Search size={17} /><span>搜索</span><kbd aria-hidden="true">⌘ K</kbd>
-              </button>
+              </IconButton>
             </div>
           </div>
           {searchOpen && <div className="search-box expanded-search" id="task-search-box">
@@ -500,9 +502,9 @@ export default function App({
                 if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
               }}
             />
-            <button className="icon-button" onClick={closeSearch} aria-label="清除并收起搜索">
+            <IconButton type="button" className="icon-button" onClick={closeSearch} aria-label="清除并收起搜索">
               <X size={17} />
-            </button>
+            </IconButton>
           </div>}
           {searchOpen && <p id="task-search-help" className="sr-only">在当前视图内搜索标题、项目和目录。</p>}
         </header>
@@ -513,7 +515,7 @@ export default function App({
               {error || readError ||
                 "暂时无法更新，显示上次内容。"}
             </span>
-            <button
+            <IconButton type="button"
               className="icon-button"
               aria-label={error ? "关闭提示" : "重试刷新"}
               disabled={!error && busy}
@@ -523,7 +525,7 @@ export default function App({
               }}
             >
               {error ? <X size={15} /> : <RefreshCw size={15} />}
-            </button>
+            </IconButton>
           </div>
         )}
         {taskOperations.notices.length > 0 && <div className="task-operation-notices" aria-label="会话操作状态">

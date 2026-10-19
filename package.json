@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/themes": "3.3.0",
     "lucide-react": "^0.468.0",
     "mdast-util-from-markdown": "2.0.3",
     "pele": "file:vendor/pele/pele-1.6.0-pocket.44da152.tgz",

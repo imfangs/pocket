@@ -1,4 +1,6 @@
 import * as Popover from "@radix-ui/react-popover";
+import { Button } from "./ui/Button";
+import { PocketPortalTheme } from "./ui/PocketTheme";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -128,6 +130,7 @@ export default function ContextStatus({
           <ChevronDown size={12} aria-hidden="true" />
         </Popover.Trigger>
         <Popover.Portal>
+          <PocketPortalTheme>
           <Popover.Content
             className="context-popover"
             data-reading-overlay=""
@@ -148,14 +151,14 @@ export default function ContextStatus({
                 ? `${usage.usedTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
                 : "用量暂不可用"}
             </p>
-            <button
+            <Button variant="soft"
               type="button"
               className="context-compact"
               disabled={disabled || busy || (!pending && !(history?.canAttemptCompact ?? history?.canCompact))}
               onClick={() => void act()}
             >
               {busy ? "处理中…" : pending ? "核对状态" : history?.compaction?.active ? "正在压缩…" : history?.runtime === "active" ? "执行中，稍后压缩" : "压缩上下文"}
-            </button>
+            </Button>
             {(labels[status || ""] ||
               uncertainId ||
               error) && (
@@ -168,6 +171,7 @@ export default function ContextStatus({
               </p>
             )}
           </Popover.Content>
+          </PocketPortalTheme>
         </Popover.Portal>
       </Popover.Root>
     </div>

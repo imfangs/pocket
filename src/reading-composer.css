@@ -4,7 +4,7 @@
     grid-template-columns: minmax(0, 1fr) max-content;
     align-items: center;
     padding: 4px;
-    border-radius: 12px;
+    border-radius: 16px;
   }
   .conversation-composer.is-compact .composer-overview { grid-column:1 / -1; }
   .conversation-composer.is-compact .composer-input { grid-column:1; min-width:0; padding:0; }
