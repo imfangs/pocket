@@ -1,6 +1,6 @@
 # Pocket 当前状态
 
-2026-10-19 独立视觉与交互验收已完成，两项P2已修复、待发布：[验收会话](codex://threads/01a154c8-f313-7032-a1eb-e921ed788ead)独立确认主题分段错位/点击交叠，以及新建错误恢复次按钮被裁切。已统一主题几何并修复footer多按钮自适应；710项主题矩阵、两浏览器26项恢复流程、1047项完整回归和受控视觉回读通过。原报告与修复证据分别留在 `.local/qa/independent-ui-review-2026-10-19/`、`.local/qa/independent-ui-fixes-2026-10-19/`，见[修复跟进](docs/design/2026-10-19-independent-ui-followup.md)。
+2026-10-19 独立视觉与交互验收已完成，两项P2已修复上线：[验收会话](codex://threads/01a154c8-f313-7032-a1eb-e921ed788ead)独立确认主题分段错位/点击交叠，以及新建错误恢复次按钮被裁切。已统一主题几何并修复footer多按钮自适应；710项主题矩阵、两浏览器26项恢复流程、1047项完整回归和受控视觉回读通过，30个公开文件及功能核对通过。原报告与修复证据分别留在 `.local/qa/independent-ui-review-2026-10-19/`、`.local/qa/independent-ui-fixes-2026-10-19/`，见[修复跟进](docs/design/2026-10-19-independent-ui-followup.md)。
 
 2026-10-19 整体视觉重整已上线：方帅明确要求解决“越改越粗糙”。已引入Radix Themes3.3.0薄控件，保留旧Popover1.1.15与原业务生命周期；旧视觉覆盖从结构CSS撤出，统一tokens/视觉层，覆盖核心三屏及菜单/设置/访问页。1047项完整测试、同条件20图、70项双浏览器流程及字段/键盘专项通过，两轮独立视觉评审后的问题均已修正；30个公开文件与功能检查通过。底部新建随键盘可视区移动，秘密输入保留16px；公开壳v11仅缓存公开资源。基线、性能取舍与对照见[整体视觉重整](docs/design/2026-10-19-visual-system.md)及 `.local/qa/visual-renewal-2026-10-19/`。
 
@@ -45,11 +45,11 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `9b46621b0b940e3d94250b24dd8c1fcbb20a7b60`（Radix Themes整体视觉与控件收拢）；前版 `7d2dac6` 身份保留在[输入边界补记](docs/design/2026-10-19-composer-and-navigation.md#输入边界补记)，其他历史版本回对应设计记录 |
+| 已发布前端与网关源码 | `8ce934508b7d408804b1524244a298addbeddd38`（独立验收的主题分段与创建恢复修复）；前版 `9b46621` 身份保留在[整体视觉重整](docs/design/2026-10-19-visual-system.md#发布记录)，其他历史版本回对应设计记录 |
 | Mac API与桥接源码 | 两机API均为 `127985cd42f992704bf645d51cbe1f597c00d702`：格得PID `20455`，豌豆PID `17483`。豌豆连接器仍固定 `19d91ed`、PID `57163`，Codex仍为PID `56557`；两边Codex均未重启。豌豆旧release/配置备份保留 |
-| Pages 部署 | `fa477314-0ba9-4da6-b00c-0c806e66d6c1`；10-19 ready=true、30文件匹配、功能通过，上传一次。仅前端更新，两机服务未重启 |
-| 前端 build ID | `7f3c17b57603b60a1b471c02df7ddffa1238e17ffd6f0299c210b10594f98d74`；与最终release双浏览器验收一致，公开HTML、版本清单、Worker/图类型分块和许可均匹配 |
-| 验证快照 | 10-19本次：1047项完整回归，最终20张同条件截图/25项结构、70项双浏览器流程、15项字段与4项代表回读；另有VV-only/offsetTop/重开/秘密输入16px/v11缓存专项，准确构建分别记在回执。两轮独立视觉评审及根局部回读完成。证据 `.local/qa/visual-renewal-2026-10-19/`；无真实会话写入，不代替真机长期使用反馈 |
+| Pages 部署 | `20e6b0ce-399c-4b67-a8a7-805d4a3f3d37`；10-19 ready=true、30文件匹配、功能通过，上传一次。仅前端更新，两机服务未重启 |
+| 前端 build ID | `028905426d14721d622b71436c9848dceb2f9bc8f5d9b0b4883b75b9a922ab5e`；与本轮两项修复的浏览器验收一致，公开HTML、版本清单、Worker/图类型分块和许可均匹配 |
+| 验证快照 | 10-19本次：新独立会话检查固定旧版并确认2项P2，修复后1047项完整回归、710项主题几何/边缘点击/键盘等矩阵、26项创建恢复流程与局部视觉通过。证据 `.local/qa/independent-ui-fixes-2026-10-19/`；原整体验收对照另保留，无真实会话写入，不代替真机长期使用反馈 |
 | 最后健康复核 | 10-18两机API健康/匿名保护及公网认证模型读取通过，机器标识正确；当前本会话实时返回Astra Ultra，两机归档记录为saved且不可修改。格得threads.local的DNS/TLS与健康已恢复，系统解析约9ms。原用户消息/附件/操作记录与凭据保留，新增QA导航/生命周期/模型回执单独记账。实际iPhone主屏幕仍需使用反馈 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json` 或机器私有 `NAVIGATOR_BRIDGE_CONFIG`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
