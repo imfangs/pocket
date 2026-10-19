@@ -7,11 +7,11 @@
     border-radius: 12px;
   }
   .conversation-composer.is-compact .composer-overview { grid-column:1 / -1; }
-  .conversation-composer.is-compact .composer-input { grid-column:1; min-width:0; }
+  .conversation-composer.is-compact .composer-input { grid-column:1; min-width:0; padding:0; }
   .inspector .conversation-composer.is-compact textarea {
     min-height: 44px;
     max-height: 44px;
-    padding: 10px 12px;
+    padding: 9px 11px;
     white-space: nowrap;
   }
   .conversation-composer.is-compact .composer-actions {

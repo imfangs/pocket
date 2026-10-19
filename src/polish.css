@@ -130,7 +130,7 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .composer-overview { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; padding:0 4px 0 10px; color:var(--muted); font-size:11px; }
 .composer-overview .runtime-summary { min-width:0; padding:8px 0; flex-wrap:wrap; white-space:normal; overflow-wrap:anywhere; }
 .composer-overview:empty { display:none; }
-.composer-input { min-width:0; }
+.composer-input { min-width:0; padding:4px; }
 .conversation-feed { position:relative; flex:1; min-height:0; display:flex; flex-direction:column; }
 .conversation-messages { padding:16px 2px 24px; scrollbar-color:var(--line-strong) transparent; }
 .conversation-message { margin:26px 0; padding:0; border:0; }
@@ -165,9 +165,9 @@ button:active:not(:disabled) { filter:brightness(.96); }
 .conversation-latest { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); z-index:2; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; min-height:36px; padding:7px 13px; border:1px solid var(--line-strong); border-radius:20px; color:var(--ink); background:var(--surface-raised); box-shadow:0 3px 14px #0000000e; font-size:12px; }
 .conversation-status { color:var(--muted); font-size:12px; line-height:1.6; }
 .conversation-status:empty { display:none; }
-.conversation-composer { position:relative; flex-shrink:0; margin:6px 0 max(16px,env(safe-area-inset-bottom)); padding:5px; border:1px solid var(--line-strong); border-radius:12px; background:var(--surface); box-shadow:0 2px 8px #00000004; }
-.conversation-composer:focus-within { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
-.inspector .conversation-composer textarea { border:0; background:none; color:var(--ink); border-radius:8px; padding:10px 11px 5px; min-height:58px; max-height:240px; font-size:16px; }
+.conversation-composer { position:relative; flex-shrink:0; margin:6px 0 max(16px,env(safe-area-inset-bottom)); padding:5px; border:1px solid var(--line); border-radius:12px; background:var(--surface); box-shadow:0 2px 8px #00000004; }
+.inspector .conversation-composer textarea { border:1px solid var(--line-strong); background:var(--surface-soft); color:var(--ink); border-radius:8px; padding:10px 11px; min-height:58px; max-height:240px; font-size:16px; }
+.inspector .conversation-composer textarea:focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
 .inspector .conversation-composer textarea:focus-visible { outline:none; }
 .composer-actions { margin:0; padding:2px 4px 4px 10px; }
 .composer-actions .primary { min-height:34px; border-radius:7px; padding:7px 12px; font-size:12px; }
