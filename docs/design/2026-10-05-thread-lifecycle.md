@@ -100,3 +100,5 @@
 ## 2026-10-20：创建默认设置
 
 空会话物化后，通过官方thread/settings/update保存创建响应中的有效model/effort，独立回读一致才允许首条Query进入队列。未知仍只核对，恢复不重建、不重发设置；本机0turn/0tokens协议验收已通过，细节与发布事实见[新会话默认强度](2026-10-18-model-settings.md#2026-10-20新会话保留默认强度)。
+
+实际新建验收发现，原归档器将任何header后的记录都当成非空，使新增设置元数据触发active_or_unknown。现将“空”限定为完整rollout只有初始化与合法同ID的thread_settings_applied、0用户事件和0tokens；设置记录按完整行解析，总2MiB/单行1MiB有界，原全文件SHA、双读稳定检查、writer、子树和fingerprint保护保持。仅设置元数据的resumed空会话因此可以归档；包含turn_context、轮次开始、消息、坏记录或超限内容的未知会话仍不能凭零计数归档。这是对10-17旧resumed-empty保守取舍的具体收窄。

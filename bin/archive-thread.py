@@ -26,6 +26,32 @@ TAIL_BYTES = 2 * 1024 * 1024
 MAX_DESCENDANTS = 500
 
 
+def settings_metadata_only(text, thread_id):
+    """Settings can persist before a first turn; no other record proves empty."""
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        if len(line.encode("utf8")) > 1024 * 1024:
+            return False
+        try:
+            record = json.loads(line)
+        except (ValueError, UnicodeError):
+            return False
+        if not isinstance(record, dict) or record.get("type") != "event_msg":
+            return False
+        payload = record.get("payload")
+        if not isinstance(payload, dict) or payload.get("type") != "thread_settings_applied" or payload.get("thread_id") != thread_id:
+            return False
+        settings = payload.get("thread_settings")
+        if not isinstance(settings, dict):
+            return False
+        model, cwd = settings.get("model"), settings.get("cwd")
+        if (not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}", model)
+                or not isinstance(cwd, str) or not Path(cwd).is_absolute() or "\0" in cwd):
+            return False
+    return True
+
+
 def lifecycle(text):
     state, current, context = "unknown", None, None
     lines = text.splitlines()
@@ -79,11 +105,18 @@ class ArchiveStore(Store):
             if meta.get("type") != "session_meta" or meta.get("payload", {}).get("id") != thread_id:
                 raise ArchiveError("identity_mismatch", "Rollout header does not match requested thread")
             digest.update(first)
-            meta_only = True
+            metadata = bytearray() if row["tokens_used"] == 0 and row["has_user_event"] == 0 else None
             while chunk := stream.read(1024 * 1024):
                 digest.update(chunk)
-                if chunk.strip():
-                    meta_only = False
+                if metadata is not None:
+                    if len(metadata) + len(chunk) > TAIL_BYTES:
+                        metadata = None
+                    else:
+                        metadata.extend(chunk)
+            try:
+                meta_only = metadata is not None and settings_metadata_only(metadata.decode("utf8"), thread_id)
+            except UnicodeError:
+                meta_only = False
             offset = max(0, before.st_size - TAIL_BYTES)
             stream.seek(offset)
             if offset:
