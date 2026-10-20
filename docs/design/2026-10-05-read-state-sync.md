@@ -49,3 +49,20 @@ App `26.1007.30912 / 20156` 的标读广播仍为v3，字段、身份、host派�
 一条已有失败标读凭据且当前正文版本完全一致的实际会话，已通过官方标读工具补齐同步，原集合与Pocket目录的未读/待输入都回读为false。这是精确对象的恢复，不代表Pocket自动标读通道已恢复；未批量清除未知或新内容的未读。
 
 私有证据 `.local/qa/read-state-2026-10-14/`：`frontend/browser-verdict.json`、`native/current-protocol.json`、`native/socket-split.json`、`native/routing-event.json`、`native/canary-old-writer.json`、`native/already-read-recovered.json`、`native/recovery-assessment.json`。产品代码、部署和Pocket服务保持原版本。
+
+## 2026-10-20 再次复现与精确补齐
+
+用户再次确认，在 Pocket 读完返回后，Pocket 和 Codex 都保持未读。本轮重新核验当前代码、生产构建及真实原生通道，不能沿用 10-05 的成功记录宣称当前自动同步可用。
+
+- 当前 App `26.1013.40934:20770`，内置 CLI `0.163.0-alpha.10.2`。原生标读仍使用 v3 广播，活身份与 host key 的验证未变；没有新增独立 follower 标读 request。
+- Pocket 账本最近请求实际进入了原生写入，返回 `unknown/readback_unconfirmed`。独立前端检查的 26 项定向测试、16 项基础浏览器断言及 Chromium/WebKit 28 项扩展断言通过；可见阅读、长内容/过程折叠、旧滚动位置、新凭据、慢回执退出和草稿恢复未发现本次回归。注入原生未确认结果可以准确复现用户症状。
+- 用已存在、已归档且 0 消息/0 tokens 的专用 QA 空会话对照：官方 setter 能置未读；运行当前 `bin/read-state.py` 返回 `readback_unconfirmed`，原持久集合仍为未读。随后通过官方 setter 恢复原已读，文件版本、归档与 tokens 保持。旧受控回显对象的 rollout 已不存在，未为测试恢复或伪造该文件。
+- 对专用 QA 的官方未读→已读变化做 18 秒被动监听，新客户端没有收到任何标读广播，但收到其他 IPC 消息。主进程 PID `94780` 的 FD `142`、`144` 经只读 `SO_ACCEPTCONN` 检查都是同一路径的真实 listener。结合现版仍存在每实例 `canConnect → unlink → listen` 的启动过程，证据仍与内部 router 分裂一致；没有通过恢复后的对照确认全部因果。
+
+已对最近 24 小时的失败阅读回执逐条核对，只有 4 个会话的当前 thread/sourceVersion/identity/host 与用户实际阅读凭据完全一致且仍未读。写前再次核对后，经官方 setter 补齐；原持久集合和 Pocket `/api/sync` 均回读为 `hasUnreadTurn:false`、`needsInput:false`。其余已变化或已读的凭据跳过，没有批量清除未读、改写历史或重放未知发送。这只是精确恢复已有阅读，**自动标读通道仍未恢复**。
+
+当前未找到可由 Pocket 后台直接调用、无需重启的另一条已验证原生 setter 路线。App Tools 的宿主身份检查继续保留；原 Core 没有对应控制 socket；官方 CLI/通用 follower 没有此操作。`ipc-connection-reset` 只是断连后的本地通知，重启 Pocket API 或 renderer 也不能保证重建主进程标读客户端。不删 socket、不伪装签名客户端、不直接写原数据库或全局 JSON。
+
+下一步是用户确认安全时机后完整退出/重开 Codex，再执行同一专用对象的原生→Pocket→持久状态对照，并确认 listener 与事件互通。重启是待验证的恢复候选，不能保证不会再次出现启动竞态。检查时其他会话正在运行，本轮未擅自中断；产品源码、前端部署和 Pocket 服务均未改变。
+
+私有证据：`.local/qa/unread-sync-2026-10-20/`。前端见 `frontend/assessment.md` 和两份 verdict；原生对照见 `native/baseline.json`、`old-writer.json`、`restored.json`、`native-routing.json`；精确补齐见 `pending-visible-reads.json`、各对象的 repair intent、`repair-receipts.json`、`confirmed-visible-reads.json`、`pocket-readback.json`。下一次继续先回读这些外部操作结果，避免重复置未读或补齐。
