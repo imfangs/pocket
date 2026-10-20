@@ -133,3 +133,19 @@ test("scope clear cancels queued work and releases cached private diagrams", asy
   assert.deepEqual(await first, { ok: false, reason: "unavailable" }); assert.deepEqual(await second, { ok: false, reason: "unavailable" });
   const next = r.render("one", 320, new AbortController().signal); assert.equal(r.workers.length, 2); r.workers[1].reply(good); await next;
 });
+
+test("a failed diagram import releases its worker module cache before retry or queued work", async t => {
+  const r = setup(t);
+  assert.equal(r.workers.length, 0);
+  const first = r.render("flowchart LR\nA-->B", 320, new AbortController().signal);
+  const queued = r.render("sequenceDiagram\nA->>B: hi", 320, new AbortController().signal);
+  r.workers[0].reply({ ok: false, reason: "unavailable" });
+  assert.deepEqual(await first, { ok: false, reason: "unavailable" });
+  assert.equal(r.workers[0].stopped, true);
+  assert.equal(r.workers.length, 2);
+  r.workers[1].reply(good); assert.deepEqual(await queued, good);
+  const retry = r.render("flowchart LR\nA-->B", 320, new AbortController().signal, true);
+  r.workers[0].reply({ ok: false, reason: "unavailable" });
+  assert.equal(r.workers[1].stopped, false);
+  r.workers[1].reply(good); assert.deepEqual(await retry, good);
+});

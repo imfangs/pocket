@@ -15,12 +15,31 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, Reply>>({});
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [answers, setAnswers] = useState<Record<string, Record<string, string>>>(() => Object.fromEntries(
     requests.map(request => [request.key, requestAnswerValues(drafts, threadId, request)])));
   const viewGeneration = useRef(0), currentRequests = useRef(requests);
+  const container = useRef<HTMLElement>(null);
+  const errorElements = useRef(new Map<string, HTMLParagraphElement>());
+  const revealError = useRef<{ key: string; scrollTop: number } | null>(null);
   useEffect(() => () => { viewGeneration.current++; }, [threadId]);
   useLayoutEffect(() => { currentRequests.current = requests; }, [requests]);
+  useLayoutEffect(() => {
+    const reveal = revealError.current;
+    revealError.current = null;
+    if (!reveal || document.visibilityState === "hidden") return;
+    const scroller = container.current, error = errorElements.current.get(reveal.key);
+    if (!scroller || !error || Math.abs(scroller.scrollTop - reveal.scrollTop) > 2) return;
+    // Only reveal feedback for the action still being read. A late response
+    // must not pull the user away from another input or a new scroll position.
+    const active = document.activeElement;
+    if (active instanceof Element && active.matches("input,textarea,[contenteditable='true']") &&
+        !error.closest(".approval-card")?.contains(active)) return;
+    const bounds = scroller.getBoundingClientRect(), feedback = error.getBoundingClientRect();
+    const top = bounds.top + scroller.clientTop + 8, bottom = bounds.top + scroller.clientTop + scroller.clientHeight - 8;
+    if (feedback.top < top || feedback.height > bottom - top) scroller.scrollTop += feedback.top - top;
+    else if (feedback.bottom > bottom) scroller.scrollTop += feedback.bottom - bottom;
+  }, [errors]);
   const values = (request: PendingRequest) => answers[request.key] ?? requestAnswerValues(drafts, threadId, request);
   const answer = (request: PendingRequest, questionId: string, text: string) => {
     drafts.set(requestAnswerKey(threadId, request.key, questionId), { text });
@@ -47,7 +66,12 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
     const currentView = () => generation === viewGeneration.current && currentRequests.current.some(item => item.key === request.key);
     const submittedAnswers = { ...values(request) };
     const savedAnswers = (request.questions ?? []).map(question => captureDraft(drafts, requestAnswerKey(threadId, request.key, question.id)));
-    setBusy(request.key); setError("");
+    const scrollTop = container.current?.scrollTop ?? 0;
+    const reportError = (message: string) => {
+      revealError.current = { key: request.key, scrollTop };
+      setErrors(old => ({ ...old, [request.key]: message }));
+    };
+    setBusy(request.key); setErrors(old => ({ ...old, [request.key]: "" }));
     const saved = pending[request.key] || request.response;
     const responseId = saved && saved.status !== "rejected" ? saved.responseId : crypto.randomUUID();
     try {
@@ -67,19 +91,19 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
       }
       if (currentView()) {
         setPending(p => ({ ...p, [request.key]: result }));
-        if (result.status === "rejected") setError("请求已变化或无法响应，请刷新后查看。");
+        if (result.status === "rejected") reportError("请求已变化或无法响应，请刷新后查看。");
         await refresh();
       }
     } catch (e) {
       const status = (e as Error & {status?: number}).status;
       if (currentView()) {
         setPending(p => ({ ...p, [request.key]: { responseId, status: status && status < 500 ? "rejected" : "unknown" } }));
-        setError((e as Error).message);
+        reportError((e as Error).message);
       }
     } finally { release(); if (generation === viewGeneration.current) setBusy(null); }
   };
   if (!requests.length) return null;
-  return <section className="request-actions" aria-label="等待确认">
+  return <section ref={container} className="request-actions" aria-label="等待确认">
     <strong>等待确认</strong>
     {requests.map(request => {
       const reply = pending[request.key] || request.response;
@@ -112,8 +136,11 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
               {request.choices.includes("accept") && <Button type="button" className="primary" disabled={disabled || !!busy} onClick={() => void act(request, "accept")}>{request.kind === "permissions" ? "允许本轮" : "允许这一次"}</Button>}
               {!!request.questions?.length && <Button type="button" className="primary" disabled={disabled || !!busy || request.questions.some(q => !requestAnswers[q.id]?.trim())} onClick={() => void act(request, "answer")}>提交回答</Button>}</>}
         </div>
+        {errors[request.key] && <p className="inline-error approval-error" role="alert"
+          ref={element => { if (element) errorElements.current.set(request.key, element); else errorElements.current.delete(request.key); }}>
+          {errors[request.key]}
+        </p>}
       </article>;
     })}
-    {error && <p className="inline-error" role="alert">{error}</p>}
   </section>;
 }

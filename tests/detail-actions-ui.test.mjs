@@ -36,7 +36,10 @@ test('an archived conversation offers explicit restore on its sole main action w
 });
 test('mobile archived history keeps the unarchive action visible before the user focuses an empty composer', t => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  Object.defineProperty(globalThis, 'window', { configurable: true, value: { matchMedia: () => ({ matches: true }) } });
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+    location: { search: '?machine=ged' }, localStorage: { getItem: () => null },
+    matchMedia: () => ({ matches: true }),
+  } });
   t.after(() => previous ? Object.defineProperty(globalThis, 'window', previous) : Reflect.deleteProperty(globalThis, 'window'));
   const { html } = renderArchived({}, { text: '' }, [{ id: 'old-answer', role: 'assistant', text: '保存的历史', phase: 'final', createdAt: 10 }]);
   assert.match(html, /保存的历史/);

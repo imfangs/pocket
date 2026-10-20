@@ -35,7 +35,9 @@ query 会在原任务的工作目录和权限中执行，模型/推理设置由�
 
 ## 停止当前执行
 
-正在执行时会话顶部出现「停止」。POST /api/tasks/:id/stop 只接受 `{requestId, expectedTurnId}`；GET /api/tasks/:id/stop/:requestId 只核对回执。原 owner 的 thread-follower-interrupt-turn v4 使用 user-stop 模式和明确 turn ID，原任务已经换轮时拒绝旧请求。
+2026-10-20：停止与压缩的未决请求身份按电脑/会话/操作保留到sessionStorage，关闭详情或刷新后继续核对原编号；原POST尚未结束时共享提交锁。HTTP错误和不同编号回执不核销，明确同编号终态或非在途的查询not_found才解除；未知不自动重放。只存身份与必要目标轮次，不存正文，详见[细节验收](design/2026-10-19-independent-ui-followup.md#2026-10-20继续检查细节)。
+
+正在执行时输入区出现「停止」。POST /api/tasks/:id/stop 只接受 `{requestId, expectedTurnId}`；GET /api/tasks/:id/stop/:requestId 只核对回执。原 owner 的 thread-follower-interrupt-turn v4 使用 user-stop 模式和明确 turn ID，原任务已经换轮时拒绝旧请求。
 
 execution_stops 和 queue_pauses 存储停止回执与队列暂停状态。提交前先暂停 Pocket 自动队列，收到 accepted 后继续回读；只在目标 turn=interrupted 时显示中断，若其自行完成则标为 ended。结果不明或服务重启均不重放请求。该操作不撤销已完成的工作，不归档/删除会话，也不修改任务目标、自动化或权限设置。
 

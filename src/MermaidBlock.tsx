@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CopyButton from "./CopyButton";
 import { useDiagramPreview } from "./ImagePreviewProvider";
 import { diagramDataUrl, type DiagramResult } from "./mermaidPolicy";
+import { renderDiagram } from "./mermaidRenderer";
 import "./mermaid.css";
 
 export default function MermaidBlock({ source, complete }: { source: string; complete: boolean }) {
@@ -33,7 +34,7 @@ export default function MermaidBlock({ source, complete }: { source: string; com
   useEffect(() => {
     if (!complete || !visible) return;
     const controller = new AbortController();
-    import("./mermaidRenderer").then(module => module.renderDiagram(source, width, controller.signal, attempt > 0))
+    renderDiagram(source, width, controller.signal, attempt > 0)
       .then(value => { if (!controller.signal.aborted) setResult({ source, width, value }); })
       .catch(() => { if (!controller.signal.aborted) setResult({ source, width, value: { ok: false, reason: "unavailable" } }); });
     return () => controller.abort();

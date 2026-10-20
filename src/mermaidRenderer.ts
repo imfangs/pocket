@@ -43,6 +43,9 @@ export function createDiagramRenderer(factory: () => WorkerLike, limits = { load
           if (worker !== owner || !active || event.data?.id !== active.id) return;
           if (event.data.phase === "rendering") { timeout(limits.renderingMs); return; }
           const result = event.data.result;
+          // A failed diagram import stays rejected in this worker's module map.
+          // Release that realm so the next render can fetch it again.
+          if (result?.ok === false && result.reason === "unavailable") stopWorker();
           finish(validDiagramResult(result) ? result : result?.ok === false && ["unsupported", "limit", "invalid", "unavailable", "timeout"].includes(result.reason)
             ? result : { ok: false, reason: "invalid" });
         };

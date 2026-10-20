@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { History } from "./conversationFeed";
 import { api } from "./api";
 import { holdReload, useReloadGuard } from "./updateSafety";
+import { controlReceipt, controlUnresolved, useControlRequest, type ControlReceipt } from "./controlRequests";
 
 const labels: Record<string, string> = {
   pending: "正在提交…",
@@ -14,6 +15,7 @@ const labels: Record<string, string> = {
   unknown: "结果待核对",
   failed: "压缩未完成",
   rejected: "未启动，可重试",
+  not_found: "未收到压缩请求，可以重新点击压缩。",
 };
 export default function ContextStatus({
   threadId,
@@ -31,27 +33,30 @@ export default function ContextStatus({
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   useEffect(() => { window.dispatchEvent(new Event("pocket-reading-visibility-change")); }, [open]);
-  const [uncertainId, setUncertainId] = useState<string | null>(null);
+  const { owner, state } = useControlRequest(threadId, "compact");
   const [error, setError] = useState("");
   const watchedRequest = useRef<string | null>(null);
+  const acting = useRef(false);
   const pointerOpened = useRef(false);
   const usage = history?.contextUsage;
-  const status = history?.compactionRequest?.status;
-  const pending =
-    !!uncertainId || ["pending", "accepted", "unknown"].includes(status || "");
-  const interacting = open || busy || pending || !!history?.compaction?.active;
+  useEffect(() => { owner.observe(history?.compactionRequest); }, [owner, history?.compactionRequest]);
+  const receipt = controlReceipt(state, history?.compactionRequest);
+  const status = receipt?.status;
+  const pending = controlUnresolved(status);
+  const working = busy || !!state?.posting;
+  const interacting = open || working || pending || !!history?.compaction?.active;
   useEffect(() => {
     onInteractionChange?.(interacting);
     return () => onInteractionChange?.(false);
   }, [interacting, onInteractionChange]);
-  const requestId = history?.compactionRequest?.requestId;
+  const requestId = receipt?.requestId;
   const usageLabel = usage ? `上下文用量 ${Math.round(usage.percent)}%` : "上下文用量与压缩";
   const triggerLabel = `${usageLabel}${history?.compaction?.active ? "，压缩中" : pending ? "，压缩结果待核对" : ""}`;
-  useReloadGuard(() => busy ? "压缩操作尚未完成，请稍后更新。"
-    : uncertainId && !(requestId === uncertainId && status && !["pending", "unknown"].includes(status))
-      ? "压缩结果尚待核对，请处理后再更新。" : null);
+  useReloadGuard(() => working ? "压缩操作尚未完成，请稍后更新。"
+    : pending ? "压缩结果尚待核对，请处理后再更新。" : null);
   useEffect(() => {
     if (!requestId) return;
+    if (status && !controlUnresolved(status)) setError("");
     if (["pending", "accepted", "unknown"].includes(status || "")) watchedRequest.current = requestId;
     if (status === "completed" && watchedRequest.current === requestId) {
       watchedRequest.current = null;
@@ -59,36 +64,42 @@ export default function ContextStatus({
     }
   }, [requestId, status]);
   const act = async () => {
-    if (busy) return;
+    if (disabled || acting.current || owner.getSnapshot()?.posting) return;
+    owner.observe(history?.compactionRequest);
+    const current = controlReceipt(owner.getSnapshot(), history?.compactionRequest);
+    const checking = controlUnresolved(current?.status);
+    if (!checking && !(history?.canAttemptCompact ?? history?.canCompact)) return;
+    const id = checking && current ? current.requestId : crypto.randomUUID();
+    if (!checking && !owner.begin(id)) {
+      setError("暂时无法保留操作进度，请重新打开 Pocket 后再试。");
+      return;
+    }
+    acting.current = true;
     const release = holdReload();
     setBusy(true);
     setError("");
-    const id = uncertainId || crypto.randomUUID();
     try {
-      if (pending) {
+      if (checking) {
         await refresh();
-        if (uncertainId) {
-          const result = await api<{ status: string }>(
-            `/api/tasks/${threadId}/compact/${id}`,
-          );
-          if (result.status !== "unknown" && result.status !== "pending")
-            setUncertainId(null);
-        }
+        const result = await api<ControlReceipt>(`/api/tasks/${threadId}/compact/${id}`);
+        if (result.requestId !== id) throw new Error("压缩回执编号不匹配，请重新核对。");
+        owner.receive(result, "check");
       } else {
-        setUncertainId(id);
         watchedRequest.current = id;
-        await api(`/api/tasks/${threadId}/compact`, "POST", { requestId: id });
-        setUncertainId(null);
-        await refresh();
+        const result = await api<ControlReceipt>(`/api/tasks/${threadId}/compact`, "POST", { requestId: id });
+        if (result.requestId !== id) throw new Error("压缩回执编号不匹配，请重新核对。");
+        owner.receive(result, "post");
       }
+      await refresh();
     } catch (e) {
-      if (
-        (e as Error & { status?: number }).status &&
-        (e as Error & { status: number }).status < 500
-      )
-        setUncertainId(null);
-      setError((e as Error).message);
+      // An HTTP error is not a receipt for the original request. Keep its ID,
+      // including when the component that started it has already unmounted.
+      owner.receive({ requestId: id, status: "unknown" }, checking ? "check" : "post");
+      const current = owner.getSnapshot();
+      if (current?.identity.requestId === id && controlUnresolved(current.status)) setError((e as Error).message);
     } finally {
+      if (!checking) owner.finishPost(id);
+      acting.current = false;
       release();
       setBusy(false);
     }
@@ -154,20 +165,18 @@ export default function ContextStatus({
             <Button variant="soft"
               type="button"
               className="context-compact"
-              disabled={disabled || busy || (!pending && !(history?.canAttemptCompact ?? history?.canCompact))}
+              disabled={disabled || working || (!pending && !(history?.canAttemptCompact ?? history?.canCompact))}
               onClick={() => void act()}
             >
-              {busy ? "处理中…" : pending ? "核对状态" : history?.compaction?.active ? "正在压缩…" : history?.runtime === "active" ? "执行中，稍后压缩" : "压缩上下文"}
+              {working ? "处理中…" : pending ? "核对状态" : history?.compaction?.active ? "正在压缩…" : history?.runtime === "active" ? "执行中，稍后压缩" : "压缩上下文"}
             </Button>
             {(labels[status || ""] ||
-              uncertainId ||
               error) && (
               <p
                 className={error ? "inline-error" : "context-operation"}
                 role="status"
               >
-                {error ||
-                  (uncertainId ? "结果待核对" : labels[status || ""])}
+                {error || labels[status || ""]}
               </p>
             )}
           </Popover.Content>

@@ -214,6 +214,7 @@ dialog footer button { min-height:var(--control-height); }
 .rename-thread-form input { width:100%; min-width:0; }
 .rename-thread-status { margin:12px 0 0; }
 .rename-thread-form .dialog-actions { justify-content:flex-end; }
+.rename-thread-form .dialog-actions > button { box-sizing:border-box; height:var(--control-height); margin:0; }
 .conversation-info { padding:8px 24px 24px; }
 .conversation-info-title { margin:0 0 20px; color:var(--ink); font-size:16px; font-weight:600; line-height:1.6; overflow-wrap:anywhere; }
 .conversation-info .field-help { margin:12px 0 0; }
