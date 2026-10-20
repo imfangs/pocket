@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import select
 import sqlite3
 import subprocess
@@ -20,7 +21,7 @@ from bundled_cli import bundled_cli, verify_cli, BundledCLIError
 from bridge_config import load_bridge_config
 
 CONFIG = load_bridge_config()
-ALLOWED_METHODS = {"initialize", "project/read", "thread/start", "thread/name/set", "thread/read", "thread/metadata/update"}
+ALLOWED_METHODS = {"initialize", "project/read", "thread/start", "thread/name/set", "thread/read", "thread/metadata/update", "thread/settings/update"}
 
 
 class CreateError(Exception):
@@ -195,11 +196,20 @@ def binary_for(home):
     return binary
 
 
-def verify_persisted(data, thread_id, *, empty):
+def creation_settings(created):
+    model, effort = created.get("model"), created.get("reasoningEffort")
+    if (not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}", model)
+            or "reasoningEffort" not in created
+            or effort is not None and (not isinstance(effort, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", effort))):
+        raise CreateError("created_model_settings_unavailable")
+    return {"model": model, "effort": effort}
+
+
+def verify_persisted(data, thread_id, *, empty, expected_settings=None):
     home = data["codexHome"]
     with closing(sqlite3.connect((home / "state_5.sqlite").as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
         db.row_factory = sqlite3.Row
-        row = db.execute("SELECT id,cwd,project_id,rollout_path,name,tokens_used,has_user_event FROM threads WHERE id=?", (thread_id,)).fetchone()
+        row = db.execute("SELECT id,cwd,project_id,rollout_path,name,tokens_used,has_user_event,model,reasoning_effort FROM threads WHERE id=?", (thread_id,)).fetchone()
     if row is None or row["id"] != thread_id or Path(row["cwd"]).resolve() != data["cwd"] or row["project_id"] != data.get("projectId"):
         raise CreateError("created_thread_mismatch")
     path = Path(row["rollout_path"])
@@ -213,8 +223,24 @@ def verify_persisted(data, thread_id, *, empty):
             raise CreateError("created_history_mismatch")
         if empty:
             remaining = stream.read(1024 * 1024 + 1)
-            if len(remaining) > 1024 * 1024 or remaining.strip() or row["tokens_used"] != 0 or row["has_user_event"] != 0:
+            if len(remaining) > 1024 * 1024 or row["tokens_used"] != 0 or row["has_user_event"] != 0:
                 raise CreateError("created_thread_not_empty")
+            # Setting defaults is metadata, not a user turn. Admit only the
+            # official same-thread event, with the exact settings we chose.
+            for line in remaining.splitlines():
+                if not line.strip():
+                    continue
+                event = json.loads(line)
+                payload = event.get("payload", {})
+                settings = payload.get("thread_settings", {})
+                if (expected_settings is None or event.get("type") != "event_msg"
+                        or payload.get("type") != "thread_settings_applied" or payload.get("thread_id") != thread_id
+                        or not isinstance(settings, dict) or settings.get("cwd") != str(data["cwd"])
+                        or settings.get("model") != expected_settings["model"]
+                        or settings.get("reasoning_effort") != expected_settings["effort"]):
+                    raise CreateError("created_thread_not_empty")
+            if expected_settings is not None and {"model": row["model"], "effort": row["reasoning_effort"]} != expected_settings:
+                raise CreateError("created_model_settings_mismatch")
     if data.get("name") is not None and row["name"] != data["name"]:
         raise CreateError("created_name_mismatch")
     result = {"threadId": thread_id, "cwd": str(data["cwd"]), "projectId": row["project_id"], "name": row["name"]}
@@ -241,9 +267,12 @@ def execute(data, receipt):
         thread_id = identifier(receipt["threadId"])
         reader = StdioServer(binary, home, data["cwd"])
         try:
+            if receipt.get("schemaVersion", 1) >= 2 and not isinstance(receipt.get("expectedSettings"), dict):
+                raise CreateError("created_model_settings_unavailable")
             with reader:
                 reader.call("thread/read", {"threadId": thread_id, "includeTurns": False})
-            state = verify_persisted(data, thread_id, empty=receipt.get("status") != "created")
+            state = verify_persisted(data, thread_id, empty=receipt.get("status") != "created",
+                                     expected_settings=receipt.get("expectedSettings"))
             receipt.update(state, status="created", verified=True, processStopped=reader.stopped, phase="verified")
             receipt.pop("code", None)
         except Exception as error:
@@ -252,7 +281,7 @@ def execute(data, receipt):
         checkpoint(path, receipt)
         return public_receipt(receipt)
 
-    receipt = {"schemaVersion": 1, "requestId": data["requestId"], "intentHash": intent_hash(data),
+    receipt = {"schemaVersion": 2, "requestId": data["requestId"], "intentHash": intent_hash(data),
                "status": "unknown", "phase": "initializing", "verified": False, "processStopped": False}
     checkpoint(path, receipt)
     creator = StdioServer(binary, home, data["cwd"])
@@ -272,6 +301,10 @@ def execute(data, receipt):
             thread_id = identifier(created.get("thread", {}).get("id"))
             receipt.update(threadId=thread_id, phase="created_in_process")
             checkpoint(path, receipt)
+            # Use the effective config resolved by the target CLI (including
+            # its project/cwd rules), never a Pocket-wide model preference.
+            receipt["expectedSettings"] = creation_settings(created)
+            checkpoint(path, receipt)
             if data.get("name"):
                 creator.call("thread/name/set", {"threadId": thread_id, "name": data["name"]})
             try:
@@ -290,6 +323,11 @@ def execute(data, receipt):
                 # Persist the explicitly selected project after materialization,
                 # before another reader repairs the otherwise unassigned index.
                 creator.call("thread/metadata/update", {"threadId": thread_id, "projectId": data["projectId"]})
+            # Empty-thread materialization discards settings written earlier.
+            # Persist only after it, before releasing the creator or any query.
+            receipt["phase"] = "saving_settings"
+            checkpoint(path, receipt)
+            creator.call("thread/settings/update", {"threadId": thread_id, **receipt["expectedSettings"]})
             receipt["phase"] = "materialized"
             checkpoint(path, receipt)
         methods.extend(creator.methods)
@@ -300,7 +338,7 @@ def execute(data, receipt):
             if read.get("thread", {}).get("id") != thread_id:
                 raise CreateError("created_thread_mismatch")
         methods.extend(reader.methods)
-        receipt.update(verify_persisted(data, thread_id, empty=True), status="created", phase="verified",
+        receipt.update(verify_persisted(data, thread_id, empty=True, expected_settings=receipt["expectedSettings"]), status="created", phase="verified",
                        verified=True, processStopped=creator.stopped and reader.stopped, rpcMethods=methods)
         receipt.pop("code", None)
     except Exception as error:

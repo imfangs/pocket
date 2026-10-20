@@ -34,3 +34,13 @@
 发布源码 `127985cd42f992704bf645d51cbe1f597c00d702`，两机API均更新；Pages `71252841-7ec0-46a2-a623-7fc5d55d609c`，build `74774c4f79ee14e8ccd2ede64ed612ae655785395e5f6674a1f439691128bb4e`，21文件和功能检查通过。原用户/操作数据保留，来源缓存新增模型投影和同步时间，新QA导航记录与生命周期/设置回执单独核对。私有回执为 `live-settings.json`、`public-read.json`、`ged-data-preserved.json`、`remote-upgrade.json`。
 
 官方依据：[model/list](https://learn.chatgpt.com/docs/app-server#list-models-modellist)、[模型与思考强度](https://learn.chatgpt.com/docs/models)。可选强度取当前安装包返回值，不硬编码型号候选。
+
+## 2026-10-20：新会话保留默认强度
+
+用户发现Pocket新建后显示Astra中档，而格得默认是Ultra。实际检查全局配置为Astra/Ultra，最近Pocket新建会话的强度列为null；隔离官方CLI复现`thread/start`返回Ultra，但空会话物化和独立读取后model/effort未持久化。因此不能用创建响应或全局默认证明会话已经保存Ultra，也不能仅凭UI默认档位推断每次模型请求的实际强度。
+
+创建器现在把`thread/start`返回的有效model与reasoningEffort保存在本次私有回执`expectedSettings`中。完成原有空会话物化后，调用官方`thread/settings/update {threadId, model, effort}`，退出创建进程，再由独立读取与只读SQLite核验实际保存的值。这个顺序经过验证：在物化前写入仍会丢失。配置由目标CLI按所选cwd/project解析，不从另一台电脑或最近打开的会话抄值，不硬编码Ultra；当前格得默认Ultra，豌豆默认XHigh。
+
+设置更新只追加原生`thread_settings_applied`元数据；验空允许同会话/cwd/预期model/effort的这类事件，仍拒绝任何用户/模型消息、其他会话设置或错误值，要求0用户事件、0tokens。新回执schema2缺少默认设置检查点、写入未确认或结果不匹配都不能结案；恢复只读原ID，不重新创建或重发设置。已成功旧回执继续按旧语义读取，不覆盖用户后来设置。首条Query仍等到创建器返回created+verified+processStopped后才进入原队列。
+
+本机真实CLI16项聚焦协议回归、独立验空4例、1070项完整回归与构建通过。覆盖Ultra/high/none/null、命名/项目、配置改动后resume保留原值、已写入丢回复只读恢复、写入前失败和缺检查点不发送首条消息；原provider/cwd/权限保持，0模型执行。证据 `.local/qa/create-effort-2026-10-20/`；远端兼容和两机实际发布结果待后续回读补充。本轮没有前端变更，公开build保持`a5a6295f4507e7d5d5c93b20538995a6f635f90ffaf86fd88e0ff57b7670c288`，无需重传Pages。
