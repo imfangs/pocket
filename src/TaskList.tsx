@@ -9,7 +9,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ActivityFilter, Thread, ThreadSort, View } from "./types";
 import { ago } from "./model";
-import { lastMessageTime } from "./threadTime";
+import { lastMessageTime, recentCreationExpiry } from "./threadTime";
 import { codexPinned, pocketPriority } from "./priority";
 import { emptyListContent, threadListPresentation } from "./listPresentation";
 import type { TaskStatus } from "./taskStatuses";
@@ -56,6 +56,22 @@ export default function TaskList(p: Props) {
   const [held, setHeld] = useState<{ scope: string; rows: Thread[] } | null>(null);
   const currentRows = new Map(p.threads.map(thread => [thread.id, thread]));
   const rows = held?.scope === scope ? heldListRows(p.threads, held.rows) : p.threads.slice(0, limit);
+  const [, refreshCreationClock] = useState(0);
+  const now = Date.now();
+  const recentExpiries = rows.map(thread => recentCreationExpiry(thread, now)).filter((expiry): expiry is number => expiry !== null);
+  const nextCreationExpiry = recentExpiries.length ? Math.min(...recentExpiries) : null;
+  useEffect(() => {
+    const refresh = () => { if (!document.hidden) refreshCreationClock(value => value + 1); };
+    // One deadline for the displayed list, not a timer per row or a rank tick.
+    const timer = nextCreationExpiry === null ? undefined : window.setTimeout(refresh, Math.max(0, nextCreationExpiry - Date.now()));
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("pageshow", refresh);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("pageshow", refresh);
+    };
+  }, [nextCreationExpiry]);
   const latest = useRef({ scope, rows, currentRows });
   latest.current = { scope, rows, currentRows };
   const interaction = useRef<ReturnType<typeof bindListInteraction> | null>(null);
@@ -172,6 +188,7 @@ export default function TaskList(p: Props) {
         <div className="task-list" role="list" aria-label="会话列表">
           {rows.map((t) => {
             const inactive = !currentRows.has(t.id);
+            const recentlyCreated = !inactive && recentCreationExpiry(t, now) !== null;
             const messageAt = lastMessageTime(t);
             const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
             const presentation = threadListPresentation(t, p.draftIds?.has(t.id), runtime);
@@ -179,7 +196,7 @@ export default function TaskList(p: Props) {
             const rowState = presentation.primaryState?.key ?? states.find(state => state.key === "unread")?.key;
             return (
               <SwipeTaskRow
-                className={`task-row ${p.selected === t.id ? "is-selected" : ""}`}
+                className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${recentlyCreated ? "is-recently-created" : ""}`}
                 key={t.id}
                 threadId={t.id} title={t.title} prioritized={pocketPriority(t)} open={openRowId === t.id}
                 disabled={inactive || p.busy || !!prioritizingId} pending={prioritizingId === t.id} error={priorityErrors[t.id]}
@@ -196,6 +213,7 @@ export default function TaskList(p: Props) {
                   aria-pressed={p.selected === t.id}
                   title={t.title}
                 >
+                  {recentlyCreated && <span className="sr-only">5 分钟内新建，</span>}
                   <div className="row-first">
                     <strong>{t.separator ? "分隔符会话" : t.title}</strong>
                     {pocketPriority(t) && <Star size={13} className="priority-icon"

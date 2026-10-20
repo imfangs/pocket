@@ -34,6 +34,8 @@
   --danger-soft: #fff0f3;
   --pin-highlight: #cd4263;
   --codex-pin: #7d59b8;
+  --recent-creation: #1b7280;
+  --recent-creation-soft: #edf8f9;
   --green: var(--accent);
   --radius: var(--radius-control);
   --ease: cubic-bezier(.2,.8,.2,1);
@@ -65,6 +67,8 @@ html[data-theme="dark"], .radix-themes.dark {
   --danger-soft: #3e232c;
   --pin-highlight: #f187a0;
   --codex-pin: #c1a5f0;
+  --recent-creation: #8ccbd3;
+  --recent-creation-soft: #1a3038;
   --shadow: 0 16px 48px #0007, 0 2px 8px #0004;
   --shadow-soft: 0 4px 20px #0002;
 }

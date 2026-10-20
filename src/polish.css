@@ -79,6 +79,8 @@ textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 .task-row.is-selected::before { top:20px; bottom:20px; width:3px; background:var(--accent); border-radius:0 3px 3px 0; }
 .row-first { align-items:baseline; gap:7px; flex-wrap:nowrap; }
 .row-first strong { color:var(--ink); font-size:15px; font-weight:600; line-height:1.5; letter-spacing:0; }
+.task-list-surface .task-row.is-recently-created:not(.is-selected) { background:linear-gradient(100deg,var(--recent-creation-soft),var(--surface) 78%); }
+.task-row.is-recently-created .row-first strong { color:var(--recent-creation); }
 .row-first time, .with-inspector .row-first time { width:auto; margin-left:auto; order:0; color:var(--muted); font-size:12px; flex-shrink:0; }
 .row-second { margin-top:6px; gap:8px; color:var(--muted); font-size:12px; line-height:1.5; }
 .row-second:empty { display:none; }
