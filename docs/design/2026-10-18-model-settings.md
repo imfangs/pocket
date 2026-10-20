@@ -48,3 +48,9 @@
 实际验收同时覆盖新建→查看已保存设置→归档清理，发现并修复设置元数据造成的空会话归档误判。分类只允许同会话合法设置事件，真实轮次/未知内容与writer保护保持；详见[生命周期补记](2026-10-05-thread-lifecycle.md#2026-10-20创建默认设置)。
 
 最终联动验证：新增24项空会话归档协议检查，完整1094项回归通过，构建通过；豌豆CLI0.163的默认设置80项隔离检查通过。格得真实Pocket API新建空会话已保存Astra/Ultra，模型读取接口投影相同，0消息/0tokens，随后归档成功。原11条待发、其他已存在用户/操作表及凭据与验证前一致。创建/归档Python脚本按请求启动，格得无需重启Node或Codex；远端最终更新继续单独回读。
+
+### 两机最终回读
+
+2026-10-20最终源码 `638f32f51da2d837e3556c0d98de0ebbe45c2e0c` 已生效。格得按请求加载新Python脚本，Node仍PID20455；豌豆API版本化release切换到该提交、PID11617，复用与上版相同的依赖。两机Codex和隧道均未重启，前端build不变、没有Pages上传。
+
+两机分别通过真实Pocket API新建一个专用空会话，持久值与模型读取接口分别为Astra/Ultra、Astra/XHigh，均0消息、0tokens；随后两者均归档成功。豌豆0.163 CLI额外24项空会话归档专项通过。原会话、待发、操作记录和凭据保留；公网两机健康200、匿名目录401及公开build一致。证据 `local-live.json`、`local-verified.json`、`final-remote-upgrade.json`、`final-remote-live.json`、`public-readback.json`。这次验证未发送模型请求，也未替已有会话更改强度；修复从新建会话生效。
