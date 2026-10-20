@@ -1,5 +1,7 @@
 # Pocket 当前状态
 
+2026-10-20新会话颜色提示已上线：按原创建时间，在5分钟内显示淡青渐变底与青色标题，到期自动撤下，前台/页面恢复即时重算。无新增可见标签，不改变关注、状态、消息时间和Rank。1094项完整回归、构建、两浏览器浅深134项验收与受控视觉回读通过；29个公开文件及访问保护/manifest检查通过，只有前端更新。详见[短时颜色提示](docs/design/2026-10-14-smart-navigation.md#2026-10-20-新会话的短时颜色提示)，证据 `.local/qa/new-thread-highlight-2026-10-20/`。
+
 2026-10-20未读同步再次排查：当前App中仍复现“官方setter成功、Pocket广播未确认”，同路径双IPC listener已重新核实；前端26项定向及44项浏览器断言未发现阅读触发回归。4个阅读后内容未变的会话已精确补齐，两边回读已读；自动同步仍未恢复，完整重开Codex后的对照待安全时机确认。详见[最新排查与恢复边界](docs/design/2026-10-05-read-state-sync.md#2026-10-20-再次复现与精确补齐)。本轮不改变产品源码或部署。
 
 2026-10-20独立代码CR已完成、修复已上线：以视觉重整前到当前的66文件为固定范围，Standards无新增实证问题，Spec确认手机详情返回按钮右缘误开信息的4px重叠。局部规范header按钮几何后，1094项完整回归/构建和104项双浏览器复验通过。29个公开文件与访问保护/manifest检查通过；视觉反思已记为札记并同步日常。详见[代码CR记录](docs/reviews/2026-10-20-code-review.md)。
@@ -53,11 +55,11 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `ad512e9e192bef5e29f1c9853659e9f1722fc2e6`（独立CR发现的返回按钮与标题命中区分离）；此前视觉/细节版本保留在[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md) |
+| 已发布前端与网关源码 | `8d1a2d1df8707762cdb9f4889c0b45c349d92195`（新建5分钟内的会话颜色提示）；上一前端 `ad512e9` 的返回按钮修复见[代码CR](docs/reviews/2026-10-20-code-review.md)，此前视觉/细节版本见[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md) |
 | Mac API与桥接源码 | 默认设置与空会话归档修复 `638f32f51da2d837e3556c0d98de0ebbe45c2e0c`：格得Node仍PID `20455`（Node代码未变，创建/归档Python按请求加载新源码，无需重启）；豌豆API完整release为该commit、PID `11617`。豌豆连接器PID `57163`、Codex PID `56557`保持；本轮格得Codex PID `80907`也保持。旧release/配置保留 |
-| Pages 部署 | `5fb1b789-bcc5-4212-8ef5-404429c7b199`；10-20 ready=true、29文件匹配、访问保护及manifest检查通过，上传一次。本次仅前端更新，两机服务未重启 |
-| 前端 build ID | `b27db0e69030f3653ed2e2cb513443c5500bb8cf18b2fce59729fdd0c6f5967f`；与104项独立修复复验一致，公开HTML、版本清单、Worker/图类型分块和许可均匹配 |
-| 验证快照 | 10-20最新代码CR：固定66文件，Standards0项新增实证问题，Spec1项P2已修复；1094项完整回归/构建、104项双浏览器边缘点击/标题/键盘/草稿复验通过。证据 `.local/qa/code-review-2026-10-20/`。此前两机默认强度真实创建/读取/归档证据保留在create-effort目录 |
+| Pages 部署 | `e2f4ff1b-4c55-42c3-91c2-2b2014810c4a`；10-20 ready=true、29文件匹配、访问保护及manifest检查通过，上传一次。发布前401时尚未上传，恢复现有账号登录后完成；仅前端更新，两机服务未重启 |
+| 前端 build ID | `e70816b1239026e95efe079ca7424ba2edb0cb2c469140065253f5684e5618f8`；与134项独立颜色提示验收一致，公开HTML、版本清单、Worker/图类型分块和许可均匹配 |
+| 验证快照 | 10-20新建颜色提示：1094项完整回归/构建、两浏览器浅深134项到期/后台恢复/原地关注/长标题/状态共存/选中与对比度验收通过，0真实会话写入；证据 `.local/qa/new-thread-highlight-2026-10-20/`。同日此前固定66文件CR及返回命中区修复证据留在code-review目录；两机默认强度证据留在create-effort目录 |
 | 最后健康复核 | 10-20两机API公网健康200、匿名目录401、机器身份正确；默认强度检查时公开build为a5a6295f；后续CR前端发布身份见上行。格得FBT local回读域名TLS/监听/进程均ready；豌豆最终API与隧道均健康。空会话模型读取为已保存的Ultra/XHigh；不冒充原owner实时模型执行验证。实际iPhone主屏幕仍需使用反馈 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json` 或机器私有 `NAVIGATOR_BRIDGE_CONFIG`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
