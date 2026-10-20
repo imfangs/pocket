@@ -24,4 +24,7 @@
 
 札记已追加到[项目复盘第十节](../research/2026-10-11-pocket-interaction-retrospective.md#十产品的精致感来自整体秩序)，Life札记索引只链接权威原文；本机“日常”已verified写入并get核对全文一致，entry为`06932166-af2f-4252-9932-359e53f1949f`。Life内部结构检查通过，跨仓库检查只报告既有LEARNING.md的一条fashion-notes-lab失效链接，本轮未改该文件。
 
-发布待回读；本次只有前端变化，不触碰两机API、Codex或隧道。
+已发布并回读：源码 `ad512e9e192bef5e29f1c9853659e9f1722fc2e6`，Pages `5fb1b789-bcc5-4212-8ef5-404429c7b199`，build为上述b27db0e6。ready=true，29个公开文件逐一匹配，访问保护与PWA manifest检查通过；上传一次。本次只有前端变化，两机API、Codex与隧道均未重启。
+
+
+收尾：审查者清理了478个可重建源码/中间构建文件，约5.6MB；报告、固定构建哈希、原失败与修后DOM/坐标证据和复验脚本保留。札记原文和索引分别本地提交到Pocket与Life；Life原有未提交的LEARNING.md改动未吸收。没有PR/push或新增定时任务。

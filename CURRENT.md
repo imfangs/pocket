@@ -1,6 +1,6 @@
 # Pocket 当前状态
 
-2026-10-20独立代码CR已完成、修复待发布：以视觉重整前到当前的66文件为固定范围，Standards无新增实证问题，Spec确认手机详情返回按钮右缘误开信息的4px重叠。局部规范header按钮几何后，1094项完整回归/构建和104项双浏览器复验通过。视觉反思已记为札记并同步日常。详见[代码CR记录](docs/reviews/2026-10-20-code-review.md)。
+2026-10-20独立代码CR已完成、修复已上线：以视觉重整前到当前的66文件为固定范围，Standards无新增实证问题，Spec确认手机详情返回按钮右缘误开信息的4px重叠。局部规范header按钮几何后，1094项完整回归/构建和104项双浏览器复验通过。29个公开文件与访问保护/manifest检查通过；视觉反思已记为札记并同步日常。详见[代码CR记录](docs/reviews/2026-10-20-code-review.md)。
 
 2026-10-20新建默认强度修复已生效：修复空会话物化后丢失默认model/effort的问题，采用目标CLI的有效设置，在首条消息前保存并独立核验；未知不重新创建或写入。16项创建与24项归档协议回归、1094项完整回归及构建通过；两机真实空会话分别确认Ultra/XHigh并成功归档，均0消息/0tokens；豌豆80项设置与24项归档隔离兼容通过。详见[新会话默认设置](docs/design/2026-10-18-model-settings.md#2026-10-20新会话保留默认强度)。
 
@@ -51,12 +51,12 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `6eb7dca1ff805fcaa53b0d820d61e7a20bf766a5`（细节恢复与反馈修复）；前版 `8ce9345` 及原视觉重整记录保留在[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md) |
+| 已发布前端与网关源码 | `ad512e9e192bef5e29f1c9853659e9f1722fc2e6`（独立CR发现的返回按钮与标题命中区分离）；此前视觉/细节版本保留在[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md) |
 | Mac API与桥接源码 | 默认设置与空会话归档修复 `638f32f51da2d837e3556c0d98de0ebbe45c2e0c`：格得Node仍PID `20455`（Node代码未变，创建/归档Python按请求加载新源码，无需重启）；豌豆API完整release为该commit、PID `11617`。豌豆连接器PID `57163`、Codex PID `56557`保持；本轮格得Codex PID `80907`也保持。旧release/配置保留 |
-| Pages 部署 | `00b2bce7-0bf3-4862-bd38-f82be98c41ef`；10-20 ready=true、29文件匹配、访问保护及manifest检查通过，上传一次。仅前端更新，两机服务未重启 |
-| 前端 build ID | `a5a6295f4507e7d5d5c93b20538995a6f635f90ffaf86fd88e0ff57b7670c288`；公开HTML、版本清单、Worker/图类型分块和许可均匹配。小型Mermaid调度模块已合入App，因此公开文件从30个减少到29个 |
-| 验证快照 | 10-20默认强度修复：16项创建与24项归档协议、1094项完整回归/构建，豌豆80项设置和24项归档检查通过；两机真实空会话已确认默认值、0消息/0tokens并归档，原用户/待发/操作/凭据保持。证据 `.local/qa/create-effort-2026-10-20/`。此前448项UI分组验收仍留在detail-fixes目录 |
-| 最后健康复核 | 10-20两机API公网健康200、匿名目录401、机器身份正确；公开build仍a5a6295f，无Pages重传。格得FBT local回读域名TLS/监听/进程均ready；豌豆最终API与隧道均健康。空会话模型读取为已保存的Ultra/XHigh；不冒充原owner实时模型执行验证。实际iPhone主屏幕仍需使用反馈 |
+| Pages 部署 | `5fb1b789-bcc5-4212-8ef5-404429c7b199`；10-20 ready=true、29文件匹配、访问保护及manifest检查通过，上传一次。本次仅前端更新，两机服务未重启 |
+| 前端 build ID | `b27db0e69030f3653ed2e2cb513443c5500bb8cf18b2fce59729fdd0c6f5967f`；与104项独立修复复验一致，公开HTML、版本清单、Worker/图类型分块和许可均匹配 |
+| 验证快照 | 10-20最新代码CR：固定66文件，Standards0项新增实证问题，Spec1项P2已修复；1094项完整回归/构建、104项双浏览器边缘点击/标题/键盘/草稿复验通过。证据 `.local/qa/code-review-2026-10-20/`。此前两机默认强度真实创建/读取/归档证据保留在create-effort目录 |
+| 最后健康复核 | 10-20两机API公网健康200、匿名目录401、机器身份正确；默认强度检查时公开build为a5a6295f；后续CR前端发布身份见上行。格得FBT local回读域名TLS/监听/进程均ready；豌豆最终API与隧道均健康。空会话模型读取为已保存的Ultra/XHigh；不冒充原owner实时模型执行验证。实际iPhone主屏幕仍需使用反馈 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json` 或机器私有 `NAVIGATOR_BRIDGE_CONFIG`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
 需要确认最新在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。
