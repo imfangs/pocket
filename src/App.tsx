@@ -75,7 +75,6 @@ export default function App({
   const [navigation, setNavigation] = useState(readPrefs);
   const { scope, project, activity, sort } = navigation;
   const [pocketActivity, setPocketActivity] = useState(() => readPocketActivity());
-  const taskStatuses = useTaskStatuses();
   const [draftIndicatorRevision, setDraftIndicatorRevision] = useState(0);
   const [conversationDrafts] = useState(() => ({ current: createDraftMap(() => setDraftIndicatorRevision(value => value + 1)) }));
   const [submissions] = useState(createSubmittedQueryStore);
@@ -106,6 +105,8 @@ export default function App({
     [newConversationOpen, setNewConversationOpen] = useState(false),
     [newConversationDraft, setNewConversationDraft] = useState<{ text: string; clipboardRead?: Promise<CreationClipboard> } | null>(null),
     [createRequestId, setCreateRequestId] = useState<string | null>(null);
+  const taskStatuses = useTaskStatuses({ threads: catalog.threads, activity: pocketActivity,
+    selectedId: selected, excludedThreadIds: catalog.excludedThreadIds });
   const selectedRef = useRef(selected);
   const [animateSelection, setAnimateSelection] = useState(false);
   const [entryOrigin, setEntryOrigin] = useState<InspectorEntryOrigin>("programmatic");

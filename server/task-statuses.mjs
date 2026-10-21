@@ -4,6 +4,16 @@ import { fileURLToPath } from 'node:url';
 
 const kinds = new Set(['running', 'waiting_input', 'waiting_approval', 'idle', 'unknown']);
 const unavailable = checkedAt => ({ available: false, checkedAt, states: [] });
+const MAX_PRIORITY_IDS = 32;
+const PRIORITY_TTL_MS = 30000;
+const threadIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+function priorityIds(value) {
+  // Hints are optional and cannot expand the eligible catalog or the read budget.
+  const values = typeof value === 'string' && value.length <= 4096 ? value.split(',', MAX_PRIORITY_IDS)
+    : Array.isArray(value) ? value.slice(0, MAX_PRIORITY_IDS) : [];
+  return [...new Set(values.filter(id => typeof id === 'string' && threadIdPattern.test(id)).map(id => id.toLowerCase()))];
+}
 
 // Read the existing owner only; never open a task or start a turn.
 export function readNativeTaskStatuses(payload, { signal } = {}) {
@@ -25,6 +35,7 @@ export class TaskStatusService {
   constructor({ codexHome, threads, excluded = () => [], read = readNativeTaskStatuses, now = Date.now, cacheMs = 8000 }) {
     Object.assign(this, { codexHome, threads, excluded, read, now, cacheMs });
     this.generation = 0; this.pending = null; this.cached = null; this.stopped = false;
+    this.priorities = new Map(); this.rotation = 0;
   }
   targets() {
     const excluded = new Set(this.excluded());
@@ -44,15 +55,34 @@ export class TaskStatusService {
     }
     return { available: true, checkedAt: result.checkedAt, states };
   }
-  snapshot() {
+  rememberPriorities(value, threadIds, now) {
+    const allowed = new Set(threadIds);
+    for (const [id, at] of this.priorities) {
+      if (!allowed.has(id) || now - at >= PRIORITY_TTL_MS || now < at) this.priorities.delete(id);
+    }
+    // Keep the client's most relevant ID first, and merge other open clients'
+    // hints briefly. New hints never force a fresh read or split the shared cache.
+    for (const id of priorityIds(value).reverse()) {
+      if (!allowed.has(id)) continue;
+      this.priorities.delete(id);
+      this.priorities.set(id, now);
+    }
+    while (this.priorities.size > MAX_PRIORITY_IDS) this.priorities.delete(this.priorities.keys().next().value);
+    return [...this.priorities.keys()].reverse();
+  }
+  snapshot({ priorityThreadIds } = {}) {
     if (this.stopped) return Promise.resolve(unavailable(this.now()));
-    if (this.cached && this.now() - this.cached.receivedAt < this.cacheMs)
+    const requestedAt = this.now(), targets = this.targets();
+    const priorities = this.rememberPriorities(priorityThreadIds, targets.threadIds, requestedAt);
+    if (this.cached && requestedAt - this.cached.receivedAt < this.cacheMs)
       return Promise.resolve(this.publicResult(this.cached.result, this.cached.startedAt));
     if (this.pending) return this.pending;
-    const startedAt = this.now(), generation = this.generation, controller = new AbortController();
+    const startedAt = requestedAt, generation = this.generation, controller = new AbortController();
     this.controller = controller;
-    const targets = this.targets();
-    const pending = Promise.resolve().then(() => this.read({ codexHome: this.codexHome, ...targets }, { signal: controller.signal }))
+    const rotation = this.rotation;
+    this.rotation = (rotation + 1) % 2147483648;
+    const pending = Promise.resolve().then(() => this.read({ codexHome: this.codexHome, ...targets,
+      priorityThreadIds: priorities, rotation }, { signal: controller.signal }))
       .then(result => {
         if (generation !== this.generation || this.stopped) return unavailable(this.now());
         const normalized = this.publicResult(result, startedAt);
@@ -70,5 +100,5 @@ export class TaskStatusService {
     return pending;
   }
   invalidate() { this.generation++; this.cached = null; this.controller?.abort(); }
-  stop() { this.stopped = true; this.invalidate(); }
+  stop() { this.stopped = true; this.priorities.clear(); this.invalidate(); }
 }

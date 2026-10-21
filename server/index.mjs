@@ -231,7 +231,7 @@ export function makeApp(options = {}) {
       if (method === "GET" && path === "/api/catalog")
         return sendCatalog(res, { ...catalog(), csrfToken: csrf }, req.headers["accept-encoding"]);
       if (method === "GET" && path === "/api/task-statuses")
-        return json(res, 200, await taskStatuses.snapshot());
+        return json(res, 200, await taskStatuses.snapshot({ priorityThreadIds: url.searchParams.get("priorityThreadIds") }));
       if (method === "GET" && path === "/api/tasks/create-options")
         return json(res, 200, lifecycle.options());
       if (method === "POST" && path === "/api/tasks") {

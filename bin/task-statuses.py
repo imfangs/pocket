@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import sqlite3
 import stat
@@ -21,6 +22,9 @@ CONFIG = _bridge.CONFIG
 MAX_INPUT_BYTES = 256 * 1024
 MAX_IDS = 10000
 MAX_CANDIDATES = 32
+MAX_PRIORITY_IDS = 32
+RESERVED_ORDINARY_CANDIDATES = 16
+THREAD_ID_PATTERN = re.compile(r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", re.IGNORECASE)
 TAIL_BYTES = 256 * 1024
 TOTAL_SECONDS = 4.7
 PROBE_SECONDS = 1.15
@@ -205,6 +209,45 @@ def native_status(state):
     return "running"
 
 
+def select_candidates(discovered, allowed, priority_ids, rotation):
+    candidates = {}
+    for candidate in discovered:
+        thread_id = candidate["threadId"]
+        if thread_id in allowed and thread_id not in candidates:
+            candidates[thread_id] = candidate
+    priority = [candidates[thread_id] for thread_id in priority_ids if thread_id in candidates]
+    priority_set = set(priority_ids)
+    ordinary = [candidate for thread_id, candidate in candidates.items() if thread_id not in priority_set]
+    # Alternating the first probe tier must advance each tier once per pair.
+    # Advancing on every round would visit only even/odd entries under a budget
+    # that allows just one probe. With a single tier, every round advances it.
+    offset = rotation // 2 if priority and ordinary else rotation
+
+    def rotate(values):
+        start = offset % len(values) if values else 0
+        return values[start:] + values[:start]
+
+    # Reserve ordinary coverage without dropping known hot states when there
+    # are too few ordinary owners to fill that reservation.
+    priority_limit = MAX_CANDIDATES - min(RESERVED_ORDINARY_CANDIDATES, len(ordinary))
+    priority = rotate(priority)[:priority_limit]
+    ordinary = rotate(ordinary)[:MAX_CANDIDATES - len(priority)]
+    return priority + ordinary
+
+
+def probe_order(pending, priority_ids, rotation):
+    priority_set = set(priority_ids)
+    priority = [item for item in pending if item[0]["threadId"] in priority_set]
+    ordinary = [item for item in pending if item[0]["threadId"] not in priority_set]
+    groups = (priority, ordinary) if rotation % 2 == 0 else (ordinary, priority)
+    # Preserve ordinary probes even when several hot owners consume their full
+    # per-owner timeout. The entire batch still has the same total deadline.
+    for index in range(max(len(priority), len(ordinary))):
+        for group in groups:
+            if index < len(group):
+                yield group[index]
+
+
 class TaskStatusIPC(_bridge.NavigatorIPC):
     def __init__(self, path, deadline):
         self.deadline = deadline
@@ -280,13 +323,19 @@ def execute(data, *, discover=discover_candidates, verify=verify_app, client_fac
               "scannedCandidates": 0, "checkedCandidates": 0}
     deadline = time.monotonic() + budget_seconds
     try:
-        if not isinstance(data, dict) or set(data) - {"codexHome", "threadIds", "excludedThreadIds"}:
+        if not isinstance(data, dict) or set(data) - {"codexHome", "threadIds", "excludedThreadIds", "priorityThreadIds", "rotation"}:
             return result
         ids, excluded = data.get("threadIds"), data.get("excludedThreadIds", [])
         valid_ids = lambda values: isinstance(values, list) and len(values) <= MAX_IDS and all(
             isinstance(value, str) and 0 < len(value) <= 128 for value in values)
         if not valid_ids(ids) or not valid_ids(excluded) or not isinstance(data.get("codexHome"), str):
             return result
+        priority_ids, rotation = data.get("priorityThreadIds", []), data.get("rotation", 0)
+        if (not isinstance(priority_ids, list) or len(priority_ids) > MAX_PRIORITY_IDS or
+                any(not isinstance(value, str) or not THREAD_ID_PATTERN.fullmatch(value) for value in priority_ids) or
+                type(rotation) is not int or not 0 <= rotation < 2147483648):
+            return result
+        priority_ids = list(dict.fromkeys(value.lower() for value in priority_ids))
         home = Path(data["codexHome"])
         if not home.is_absolute():
             return result
@@ -300,14 +349,7 @@ def execute(data, *, discover=discover_candidates, verify=verify_app, client_fac
         if not discovery["available"]:
             return result
         result["available"] = True
-        seen, candidates = set(), []
-        for candidate in discovery["candidates"]:
-            thread_id = candidate["threadId"]
-            if thread_id in allowed and thread_id not in seen:
-                seen.add(thread_id)
-                candidates.append(candidate)
-                if len(candidates) == MAX_CANDIDATES:
-                    break
+        candidates = select_candidates(discovery["candidates"], allowed, priority_ids, rotation)
         result["scannedCandidates"] = len(candidates)
         result["states"] = [{"threadId": row["threadId"], "status": "unknown", "checkedAt": now_ms()} for row in candidates]
         pending = []
@@ -319,7 +361,7 @@ def execute(data, *, discover=discover_candidates, verify=verify_app, client_fac
             else:
                 pending.append((candidate, observation))
         # Cheap terminal evidence must not wait behind a slow owner lookup.
-        for candidate, observation in pending:
+        for candidate, observation in probe_order(pending, priority_ids, rotation):
             if deadline - time.monotonic() <= 0.08:
                 break
             result["checkedCandidates"] += 1

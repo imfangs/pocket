@@ -110,8 +110,12 @@ result=m.execute(data['request'],
     verify=lambda: {},budget_seconds=data['budget'])
 print(json.dumps(result))
 `, { request: { codexHome: home, threadIds: options.threadIds ?? candidates.map(c => c.threadId),
-    excludedThreadIds: options.excluded ?? [] }, candidates, budget: options.budget ?? 4.7 }, { onChild: options.onChild });
+    excludedThreadIds: options.excluded ?? [],
+    ...(options.priorityThreadIds === undefined ? {} : { priorityThreadIds: options.priorityThreadIds }),
+    ...(options.rotation === undefined ? {} : { rotation: options.rotation }) }, candidates, budget: options.budget ?? 4.7 }, { onChild: options.onChild });
 }
+
+const hotId = index => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`;
 
 test('status discovery accepts only the original App descendants and write-open rollout descriptors', async () => {
   const value = await python(`
@@ -259,6 +263,117 @@ test('scope exclusions and the 32-candidate cap are enforced before any native s
   assert.equal(result.checkedCandidates, 0);
   assert.deepEqual(result.states.map(s => s.threadId), candidates.slice(2, 34).map(c => c.threadId));
   assert.ok(result.states.every(s => s.status === 'idle'));
+});
+
+test('hot hints include older discovered owners while retaining ordinary candidate slots', async t => {
+  const home = fixtureHome(t), candidates = Array.from({ length: 60 }, (_, i) => rollout(home, hotId(i), [event('task_complete')]));
+  const priorityThreadIds = candidates.slice(30).map(row => row.threadId);
+  const result = await observe(home, candidates, { priorityThreadIds: [hotId(99), ...priorityThreadIds], excluded: [hotId(30)] });
+  assert.equal(result.scannedCandidates, 32);
+  assert.equal(result.checkedCandidates, 0);
+  assert.deepEqual(result.states.map(row => row.threadId), [
+    ...candidates.slice(31, 47).map(row => row.threadId),
+    ...candidates.slice(0, 16).map(row => row.threadId),
+  ]);
+  assert.ok(result.states.every(row => row.status === 'idle'));
+  assert.equal(result.states.some(row => row.threadId === hotId(30) || row.threadId === hotId(99)), false);
+});
+
+test('probe rotation gives both hot and ordinary owners a turn under a one-probe budget', async t => {
+  const home = fixtureHome(t), candidates = Array.from({ length: 8 }, (_, i) => rollout(home, hotId(i)));
+  const priorityThreadIds = candidates.slice(0, 4).map(row => row.threadId);
+  const value = await python(`
+attempts=[]
+clock=[0.0]
+m.time.monotonic=lambda: clock[0]
+class Client:
+    def __init__(self,path,deadline): self.deadline=deadline
+    def __enter__(self): return self
+    def __exit__(self,*args): pass
+    def status(self,thread_id):
+        attempts.append(thread_id)
+        clock[0]=self.deadline
+        raise TimeoutError('slow owner')
+results=[]
+for rotation in range(8):
+    results.append(m.execute({**data['request'],'rotation':rotation},
+        discover=lambda *args: {'available':True,'candidates':data['candidates']},
+        verify=lambda: {},client_factory=Client,budget_seconds=0.3))
+print(json.dumps({'attempts':attempts,'results':results}))
+`, { request: { codexHome: home, threadIds: candidates.map(row => row.threadId), priorityThreadIds }, candidates });
+  assert.deepEqual(value.attempts, [0, 4, 1, 5, 2, 6, 3, 7].map(hotId));
+  assert.ok(value.results.every(result => result.available && result.checkedCandidates === 1));
+  assert.ok(value.results.every(result => result.states.every(row => row.status === 'unknown')));
+});
+
+test('rotation reaches hot candidates beyond the quota and keeps native probes interleaved', async () => {
+  const candidates = Array.from({ length: 64 }, (_, index) => ({ threadId: hotId(index), path: '/fixture' }));
+  const priorityThreadIds = candidates.slice(32).map(row => row.threadId);
+  const value = await python(`
+allowed={row['threadId'] for row in data['candidates']}
+results=[]
+for rotation in [0,1,2,32]:
+    selected=m.select_candidates(data['candidates'],allowed,data['priorityThreadIds'],rotation)
+    pending=[(candidate,{}) for candidate in selected]
+    results.append({'selected':[row['threadId'] for row in selected],
+                    'probes':[row[0]['threadId'] for row in m.probe_order(pending,data['priorityThreadIds'],rotation)]})
+print(json.dumps(results))
+`, { candidates, priorityThreadIds });
+  assert.equal(value[0].selected.length, 32);
+  assert.deepEqual(value[0].probes.slice(0, 6), [32, 0, 33, 1, 34, 2].map(hotId));
+  assert.deepEqual(value[1].probes.slice(0, 6), [0, 32, 1, 33, 2, 34].map(hotId));
+  assert.deepEqual(value[2].probes.slice(0, 2), [33, 1].map(hotId));
+  assert.deepEqual(value[3].selected, [...Array.from({ length: 16 }, (_, i) => hotId(48 + i)),
+    ...Array.from({ length: 16 }, (_, i) => hotId(16 + i))]);
+});
+
+test('an all-hot 32-owner set retains every running state on successive collections', async t => {
+  const home = fixtureHome(t), candidates = Array.from({ length: 32 }, (_, i) => rollout(home, hotId(i)));
+  const priorityThreadIds = candidates.map(row => row.threadId);
+  const calls = await desktop(t, home, Object.fromEntries(priorityThreadIds.map(id => [id, state(id)])));
+  for (const rotation of [0, 1]) {
+    const result = await observe(home, candidates, { priorityThreadIds, rotation });
+    assert.equal(result.scannedCandidates, 32);
+    assert.equal(result.checkedCandidates, 32);
+    assert.deepEqual(result.states.map(row => row.threadId).sort(), [...priorityThreadIds].sort());
+    assert.ok(result.states.every(row => row.status === 'running'));
+  }
+  assert.ok(calls.filter(call => call.type === 'request').every(call => ['initialize', 'thread-owner-discovery'].includes(call.method)));
+  assert.equal(calls.filter(call => call.method === 'thread-stream-following-changed' && call.params.following === false).length, 64);
+});
+
+test('hot owners fill unused ordinary slots while mixed batches preserve ordinary coverage', async () => {
+  const candidates = Array.from({ length: 64 }, (_, index) => ({ threadId: hotId(index), path: '/fixture' }));
+  const priorityThreadIds = candidates.slice(0, 32).map(row => row.threadId);
+  const value = await python(`
+results=[]
+for ordinary_count in [0,1,5,15,16,32]:
+    candidates=data['candidates'][:32+ordinary_count]
+    selected=m.select_candidates(candidates,{row['threadId'] for row in candidates},data['priorityThreadIds'],0)
+    results.append([row['threadId'] for row in selected])
+print(json.dumps(results))
+`, { candidates, priorityThreadIds });
+  for (const [index, ordinaryCount] of [0, 1, 5, 15, 16, 32].entries()) {
+    const reserved = Math.min(ordinaryCount, 16);
+    assert.deepEqual(value[index], [
+      ...candidates.slice(0, 32 - reserved).map(row => row.threadId),
+      ...candidates.slice(32, 32 + reserved).map(row => row.threadId),
+    ]);
+  }
+});
+
+test('invalid internal priority and rotation inputs fail before owner discovery', async t => {
+  const home = fixtureHome(t);
+  const results = await python(`
+def unexpected(*args): raise AssertionError('discovery must not run')
+results=[m.execute({**data['base'],**invalid},verify=lambda: {},discover=unexpected) for invalid in data['invalid']]
+print(json.dumps(results))
+`, { base: { codexHome: home, threadIds: [hotId(1)] }, invalid: [
+    { priorityThreadIds: 'invalid' }, { priorityThreadIds: ['not-uuid'] },
+    { priorityThreadIds: Array.from({ length: 33 }, (_, i) => hotId(i)) },
+    { rotation: true }, { rotation: -1 }, { rotation: 2147483648 }, { rotation: 1.5 },
+  ] });
+  assert.ok(results.every(result => !result.available && result.scannedCandidates === 0 && result.checkedCandidates === 0));
 });
 
 test('unsupported app identity fails before process discovery or owner access', async t => {

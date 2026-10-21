@@ -146,6 +146,32 @@ test('unmount cancels the request and prevents late state updates', async () => 
   assert.equal(f.views.length, count); assert.equal(f.timers.size, 0);
 });
 
+test('activity observers receive only accepted foreground collections, never failed or late reads', async () => {
+  for (const mode of ['unavailable', 'malformed', 'hidden', 'offline', 'deadline', 'stopped']) {
+    let finish;
+    const observations = [];
+    const f = fixture(() => new Promise(resolve => { finish = resolve; }), {
+      onObservation: value => observations.push(value),
+    });
+    await f.advance(0);
+    if (mode === 'hidden') { f.visibility.visibilityState = 'hidden'; f.visibility.dispatchEvent(new Event('visibilitychange')); }
+    if (mode === 'offline') { f.browser.navigator.onLine = false; f.browser.dispatchEvent(new Event('offline')); }
+    if (mode === 'deadline') f.jump(19000);
+    if (mode === 'stopped') f.polling.stop();
+    finish(mode === 'unavailable' ? { ...response(), available: false }
+      : mode === 'malformed' ? response('not-a-status') : response());
+    await f.advance(0);
+    assert.deepEqual(observations, [], mode);
+    f.polling.stop();
+  }
+  const observations = [];
+  const f = fixture(async () => response(), { onObservation: value => observations.push(value) });
+  await f.advance(0);
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0].states[0].status, 'running');
+  f.polling.stop();
+});
+
 const thread = Object.freeze({ id: 'thread', title: 'Conversation', archived: false, separator: false, missing: false,
   pinned: false, intent: 'active', groupIds: [], updatedAt: 1, lastMessageAt: 1, createdAt: 1, revision: 0, note: 'Keep the note',
   reviewAt: null, projectName: 'Project', cwd: '/synthetic', needsInput: true });

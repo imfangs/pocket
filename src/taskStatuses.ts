@@ -32,6 +32,7 @@ export function initialTaskStatuses(): TaskStatusesView {
 type Options = {
   request: (signal: AbortSignal) => Promise<unknown>;
   onChange: (view: TaskStatusesView) => void;
+  onObservation?: (response: TaskStatusResponse) => void;
   browser?: Window;
   visibility?: Document;
   now?: () => number;
@@ -91,6 +92,7 @@ export function startTaskStatusPolling(options: Options) {
         receivedAt = now();
         clearExpiry();
         expiryTimer = browser.setTimeout(expire, ttlMs);
+        options.onObservation?.(response as TaskStatusResponse);
         options.onChange({ runtimeStates: states, runtimeUnavailable: false, runtimeLoading: false });
       } catch {
         if (!stopped && pending === operation && !operation.controller.signal.aborted) unavailable();
