@@ -1,0 +1,108 @@
+{
+  "research_date": "2026-10-22",
+  "timezone": "Asia/Shanghai",
+  "scope": "Documentation, fixed source snapshots, and local read-only CLI probes. No model prompts, product implementation, external messages, competitor installation, or deployment.",
+  "pocket_baseline": {
+    "commit": "94b1f21bdbac1a6f10830676cef7b0147c0d578f",
+    "availability": "local; GitHub commit lookup returned 422",
+    "pre_existing_uncommitted_changes": "excluded from research changes"
+  },
+  "upstreams": [
+    {
+      "repository": "https://github.com/deepcoldy/botmux",
+      "commit": "dbefd6bf244fefe4cbefaa984e0587a6f2b60b25",
+      "commit_date": "2026-10-22T03:43:23+08:00",
+      "root_license": "MIT",
+      "runtime_tested": false
+    },
+    {
+      "repository": "https://github.com/tiann/hapi",
+      "commit": "5d8deb201189dc1f183c4f5bf38c87ec4d34dd70",
+      "commit_date": "2026-10-20T07:22:14+08:00",
+      "root_license": "AGPL-3.0",
+      "runtime_tested": false
+    },
+    {
+      "repository": "https://github.com/slopus/happy",
+      "commit": "40bad529101f7064c9e9d47013b2f77ff1d6a309",
+      "commit_date": "2026-10-21T13:22:45Z",
+      "root_license": "MIT",
+      "runtime_tested": false
+    }
+  ],
+  "official_documents": [
+    {
+      "url": "https://code.claude.com/docs/en/remote-control.md",
+      "sha256": "23a46c95af733f2bd7f08adf3a5c86a0e06992657b132e62e4df76b95c99a51c",
+      "bytes": 60272,
+      "collection_status": "HTTP success; Markdown/text read",
+      "versioning": "live documentation; hash identifies fetched text, not a permalink"
+    },
+    {
+      "url": "https://code.claude.com/docs/en/agent-view.md",
+      "sha256": "5612b3d10f751cc79084213a4b20d4e3d42998bf145734b9da95b3104b9082f8",
+      "bytes": 142857,
+      "collection_status": "HTTP success; Markdown/text read",
+      "versioning": "live documentation; hash identifies fetched text, not a permalink"
+    },
+    {
+      "url": "https://code.claude.com/docs/en/sessions.md",
+      "sha256": "6939e201a8768acd00e326210f3a35a4f61c0d23eaaabf7546458aff92abae1b",
+      "bytes": 31381,
+      "collection_status": "HTTP success; Markdown/text read",
+      "versioning": "live documentation; hash identifies fetched text, not a permalink"
+    },
+    {
+      "url": "https://code.claude.com/docs/en/headless.md",
+      "sha256": "c607c7dac616fd2c55ad0e6d80ddbb4b3452f7ebe312e32f8befa348c8e0a681",
+      "bytes": 34831,
+      "collection_status": "HTTP success; Markdown/text read",
+      "versioning": "live documentation; hash identifies fetched text, not a permalink"
+    },
+    {
+      "url": "https://code.claude.com/docs/en/agent-sdk/overview.md",
+      "sha256": "ed21edfcdfb42034063f98d86b60084cd306b1e36c9c8ad851bb9c73d15e61a7",
+      "bytes": 6836,
+      "collection_status": "HTTP success; Markdown/text read",
+      "versioning": "live documentation; hash identifies fetched text, not a permalink"
+    },
+    {
+      "url": "https://code.claude.com/docs/en/agent-sdk/sessions.md",
+      "sha256": "82d02eea65bfbef89b6d7b44703b054de13d4a25f710c37ce551396f6726b881",
+      "bytes": 21888,
+      "collection_status": "HTTP success; Markdown/text read",
+      "versioning": "live documentation; hash identifies fetched text, not a permalink"
+    },
+    {
+      "url": "https://code.claude.com/docs/en/agent-sdk/user-input.md",
+      "sha256": "58f197065e8438a15479717f68a3fa007d0dc1ce31fe040de78ed1bdfb12f710",
+      "bytes": 34571,
+      "collection_status": "HTTP success; Markdown/text read",
+      "versioning": "live documentation; hash identifies fetched text, not a permalink"
+    },
+    {
+      "url": "https://code.claude.com/docs/llms.txt",
+      "sha256": "b7064ac53215f39ad3b8cb20f1a63dba5334f6fcb7efd8e789c55fa634e3d4c0",
+      "bytes": 63682,
+      "collection_status": "HTTP success; Markdown/text read",
+      "versioning": "live documentation; hash identifies fetched text, not a permalink"
+    }
+  ],
+  "local_claude_probe": {
+    "version": "2.1.296",
+    "help_confirmed": [
+      "claude --bg",
+      "claude attach <id|name>",
+      "claude agents --json"
+    ],
+    "agents_json": {
+      "exit_code": 0,
+      "result": []
+    },
+    "limitations": [
+      "No active target returned at probe time; attach was not exercised.",
+      "Account eligibility for Remote Control was not inspected.",
+      "Current web documentation includes versions newer than local CLI."
+    ]
+  }
+}

@@ -14,6 +14,8 @@
 
 面向多人独立使用的候选方案见 [手机 App、电脑连接器与加密中继（2026-10-13）](docs/research/2026-10-13-pocket-multiuser-architecture.md)：对照 Happy 与官方 app-server，区分通用连接和原任务执行归属，尚未实施。
 
+Claude Code 接入可行性见 [官方接口与 BotMux / Happy / HAPI 源码调研（2026-10-22）](docs/research/2026-10-22-claude-code-connectivity.md)：区分官方后台 attach、原终端桥接与 SDK 会话交接，包含本机只读接口核验及最小验证方案；尚未接入产品。
+
 ## 使用
 
 - 在菜单选择「格得 Mac」或「豌豆 Mac」，记住上次选择；各自的会话、登录、目录偏好与通知独立。切机前保护未完成输入，详见[多机连接](docs/design/2026-10-17-multi-machine.md)。
