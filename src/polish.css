@@ -163,6 +163,20 @@ textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 .inspector .conversation-composer textarea { border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface-soft); color:var(--ink); padding:10px 12px; min-height:60px; max-height:240px; font-size:16px; line-height:1.5; }
 .inspector .conversation-composer textarea:focus { border-color:var(--accent); box-shadow:none; }
 .inspector .conversation-composer textarea:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.composer-text-field { display:flex; align-items:center; min-width:0; border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface-soft); }
+.composer-text-field:focus-within { border-color:var(--accent); }
+.composer-editable { position:relative; flex:1; min-width:0; }
+.inspector .conversation-composer .composer-text-field textarea { display:block; width:100%; border:0; background:transparent; box-shadow:none; outline:none; }
+.composer-text-field:has(textarea:focus-visible) { outline:2px solid var(--accent); outline-offset:-2px; }
+.composer-inline-state { display:inline-flex; align-items:center; flex:none; gap:4px; margin-right:12px; font-size:11px; line-height:1.5; color:var(--muted); white-space:nowrap; }
+.composer-inline-state[data-state="warning"] { color:var(--warning); }
+.composer-inline-state[data-state="running"] { color:var(--positive); }
+.composer-inline-runtime, .composer-collapse { display:none; }
+.composer-draft-preview { position:absolute; inset:0; padding:9px 11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink); font-size:16px; line-height:24px; pointer-events:none; }
+.composer-editable[data-draft-preview] textarea { color:transparent; caret-color:transparent; }
+.inspector-sync-pending { width:5px; height:5px; flex:none; border-radius:50%; background:var(--warning); }
+.conversation-info-read-sync { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--radius-control); color:var(--muted); font-size:13px; }
+.conversation-info-read-sync p { margin:0; }
 .composer-actions { display:flex; align-items:center; gap:8px; margin:0; padding:4px 4px 2px; }
 .composer-actions > .primary { flex:none; min-height:var(--control-height); font-size:14px; }
 .composer-actions small { color:var(--muted); }

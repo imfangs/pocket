@@ -6,7 +6,7 @@ import StopExecution from "./StopExecution";
 import TurnDuration from "./TurnDuration";
 import QuestionPrompts from "./QuestionPrompts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArchiveRestore, ArrowDown, RefreshCw, Send, LoaderCircle } from "lucide-react";
+import { ArchiveRestore, ArrowDown, ChevronDown, RefreshCw, Send, LoaderCircle } from "lucide-react";
 import { api } from "./api";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
@@ -24,7 +24,7 @@ import type { ConnectOptions, OpenThreadResult, ThreadConnection } from "./threa
 import { bindComposerConnectionIntent, createComposerConnectionIntent } from "./composerConnection";
 import "./composer-connection.css";
 import { displayedReadObservation, observeVisibleRead } from "./readObservation";
-import type { ReadAttempts, ReadObservation, ReadReceipt } from "./readObservation";
+import type { ReadAttempts, ReadObservation, ReadReceipt, ReadSyncControl } from "./readObservation";
 import { createSubmissionFeedbackTracker } from "./submissionFeedback";
 import type { AcceptedFeedback } from "./submissionFeedback";
 import SubmittedQueryCards from "./SubmittedQueryCards";
@@ -36,7 +36,7 @@ import { useReadingComposer } from "./useReadingComposer";
 import "./reading-composer.css";
 import { receiptHandoffs } from "./receiptMotion";
 import { useReceiptEntrances } from "./useReceiptHandoff";
-import { questionComposerPending, questionPresentationStore } from "./questionPresentation";
+import { questionPresentationStore } from "./questionPresentation";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   attachments?: readonly DraftAttachment[];
@@ -60,6 +60,7 @@ export default function Conversation({
   onConnect,
   onRestore,
   onActivity,
+  onReadSyncChange,
   managementBlocked = false,
   managementHint,
 }: {
@@ -70,6 +71,7 @@ export default function Conversation({
   onConnect: (options?: ConnectOptions) => Promise<OpenThreadResult>;
   onRestore?: () => Promise<void>;
   onActivity?: () => void;
+  onReadSyncChange?: (control: ReadSyncControl | null) => void;
   managementBlocked?: boolean;
   managementHint?: string;
 }) {
@@ -149,8 +151,6 @@ export default function Conversation({
   useEffect(() => { submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted]);
   const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
   const [questionStore] = useState(questionPresentationStore);
-  const readQuestionPending = useCallback(() => questionComposerPending(questionStore, thread.id, questions, drafts), [questionStore, thread.id, questions, drafts]);
-  const hasPendingQuestions = useSyncExternalStore(questionStore.subscribe, readQuestionPending, readQuestionPending);
   const questionsByMessage = useMemo(() => {
     const groups = new Map<string, typeof questions>();
     for (const question of questions) groups.set(question.sourceMessageId, [...(groups.get(question.sourceMessageId) ?? []), question]);
@@ -287,12 +287,11 @@ export default function Conversation({
   const sendAndConnect = !compatibilityCode && enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
   const composer = useReadingComposer({ hasContent: shownMessages.length > 0, hasDraft: draft.text.length > 0,
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
-    pending: sending || connecting || !!draft.requestId || shownOutbox.length > 0 || visibleSubmissions.length > 0 ||
-      !!history?.pendingRequests?.length || hasPendingQuestions || contextInteraction || stopInteraction || !!history?.compaction?.active ||
+    pending: sending || !!draft.requestId || contextInteraction || stopInteraction || !!history?.compaction?.active ||
       ["pending", "accepted", "unknown"].includes(history?.compactionRequest?.status ?? "") ||
       ["pending", "accepted", "unknown"].includes(history?.stopRequest?.status ?? ""),
     // Archived history still has an actionable unarchive button with no draft.
-    feedback: !!(thread.archived || error || historyError || connectionError || connectionFailed || compatibilityCode || notice || currentReadFeedback) });
+    feedback: !!(thread.archived || error || historyError || connectionError || connectionFailed || compatibilityCode) });
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
@@ -582,7 +581,7 @@ export default function Conversation({
     const unbind = bindComposerConnectionIntent(form, () => { void controller.request(); });
     return () => { unbind(); controller.dispose(); if (inputConnection.current === controller) inputConnection.current = null; };
   }, [thread.id]);
-  const retryRead = async () => {
+  const retryRead = useCallback(async () => {
     if (retryingRead) return;
     const generation = readViewGeneration.current;
     manualReadRetry.current = readObservation?.visibleVersion ?? currentReadFeedback?.version ?? null;
@@ -598,7 +597,13 @@ export default function Conversation({
         onActivity?.();
       }
     }
-  };
+  }, [retryingRead, readObservation?.visibleVersion, currentReadFeedback?.version, onActivity]);
+  useEffect(() => {
+    onReadSyncChange?.(currentReadFeedback ? { threadId: thread.id, status: currentReadFeedback.status,
+      retrying: retryingRead, canRetry: online && !retryingRead, retry: retryRead } : null);
+  }, [thread.id, currentReadFeedback?.status, currentReadFeedback?.version, retryingRead, online, retryRead, onReadSyncChange]);
+  const inlineConnectionLabel = !online ? "离线" : connecting ? "连接中" : compatibilityCode ? "暂不可连接"
+    : connectionFailed ? "连接失败" : observedConnection.status === "connected" ? "同步中" : "未连接";
   return (
     <section ref={conversationRoot} className="conversation" aria-label="会话历史与发送">
       <div className="conversation-feed">
@@ -663,7 +668,7 @@ export default function Conversation({
         {connectionHint && <div className="conversation-connection">
         {connectionHint && <p role="status">{connectionHint}</p>}
         </div>}
-        {(error || historyError || notice || currentReadFeedback) && <div className="conversation-feedback">
+        {(error || historyError || notice) && <div className="conversation-feedback">
         {(error || historyError) && (
           <p className="inline-error" role="alert">
             {error || historyError}
@@ -676,10 +681,6 @@ export default function Conversation({
             {notice}
           </p>
         )}
-        {currentReadFeedback && <p className="inline-hint" role="status">
-          {currentReadFeedback.status === "stale" ? "进展已有更新，读取最新内容后再同步。" : currentReadFeedback.status === "unavailable" ? "暂时无法同步已读状态。" : "已读状态尚未确认。"}
-          {" "}<button type="button" className="text-button" disabled={!online || retryingRead} onClick={() => void retryRead()}>{retryingRead ? "正在核对…" : "同步已读"}</button>
-        </p>}
         </div>}
       </div>
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
@@ -694,9 +695,7 @@ export default function Conversation({
         onSubmit={(e) => void submit(e)}>
         <div className="composer-overview">
           <div className="runtime-summary">
-            {runtimeLabel && <span role="status" className={showConnectionState ? "composer-connection-state"
-              : !loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}
-              data-failed={showConnectionState && (connectionFailed || !!compatibilityCode) || undefined}>{runtimeLabel}</span>}
+            {!showConnectionState && runtimeLabel && <span role="status" className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>{runtimeLabel}</span>}
             <TurnDuration timing={toolbarTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
           </div>
           <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked}
@@ -709,6 +708,15 @@ export default function Conversation({
         <label className="sr-only" htmlFor="user-query">
           发送消息
         </label>
+        <div className="composer-text-field" onClick={event => {
+          const input = event.currentTarget.querySelector("textarea");
+          if (input && event.target !== input && event.isTrusted && event.button === 0) {
+            composer.expand();
+            input.focus({ preventScroll: true });
+            void inputConnection.current?.request();
+          }
+        }}>
+        <div className="composer-editable" data-draft-preview={composer.compact && draft.text.length > 0 || undefined}>
         <AutoTextarea
           id="user-query"
           aria-label="发送消息"
@@ -723,9 +731,24 @@ export default function Conversation({
             if (files.length) { event.preventDefault(); if (targetAvailable && !draft.requestId) addFiles(files); }
           }}
         />
+        {composer.compact && draft.text.length > 0 && <span className="composer-draft-preview" aria-hidden="true">
+          {draft.text.replace(/\s+/g, " ").trim() || "未发送的草稿"}
+        </span>}
+        </div>
+        {(showConnectionState || !online) && <span className="composer-inline-state" role="status" title={connectionLabel} aria-label={connectionLabel}
+          data-state={!online || connectionFailed || compatibilityCode ? "warning" : connecting ? "connecting" : "idle"}>
+          {connecting && <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" />}
+          <span>{inlineConnectionLabel}</span>
+        </span>}
+        {!showConnectionState && online && history?.runtime === "active" && <span className="composer-inline-state composer-inline-runtime" role="status" data-state="running">运行中</span>}
+        </div>
         </div>
         <div className="composer-actions">
           <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} onPickingChange={composer.setPicking} preserveFocus />
+          <button type="button" className="composer-collapse icon-button" aria-label="收起输入" title="收起输入"
+            disabled={!composer.canCollapse} onPointerDown={event => { if (event.button === 0 && event.pointerType !== "touch") event.preventDefault(); }} onClick={composer.collapse}>
+            <ChevronDown size={18} aria-hidden="true" />
+          </button>
           <ContextStatus threadId={thread.id} history={compatibilityCode && history ? { ...history, canCompact: false, canAttemptCompact: false } : history}
             disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} onInteractionChange={setContextInteraction} />
           <Button

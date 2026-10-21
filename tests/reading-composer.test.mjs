@@ -11,8 +11,9 @@ test('mobile reading can use a compact composer, but a new empty conversation an
   assert.equal(compactComposer({ ...reading, mobile: false }), false);
   assert.equal(compactComposer({ ...reading, hasContent: false }), false);
 });
-test('drafts, attachments and unfinished actions always retain the full composer', () => {
-  for (const field of ['hasDraft', 'hasAttachments', 'pending', 'feedback']) assert.equal(compactComposer({ ...reading, [field]: true }), false, field);
+test('a retained text draft can be previewed while attachments and unfinished controls stay expanded', () => {
+  assert.equal(compactComposer({ ...reading, hasDraft: true }), true);
+  for (const field of ['hasAttachments', 'pending', 'feedback']) assert.equal(compactComposer({ ...reading, [field]: true }), false, field);
 });
 test('focus, composition, a native picker or a closing keyboard prevents a collapse', () => {
   for (const field of ['focused', 'composing', 'picking', 'keyboardOpen']) assert.equal(compactComposer({ ...reading, [field]: true }), false, field);

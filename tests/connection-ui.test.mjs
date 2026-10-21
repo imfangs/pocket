@@ -61,7 +61,8 @@ test('empty failed input reuses the primary button for connection retry', () => 
   const { html } = render('failed', { outbox: [] }, '');
   assertPrimaryAction(html, { type: 'button', disabled: false, text: '重试连接' });
   assert.doesNotMatch(html, /conversation-connect"/);
-  assert.match(html, /<span role="status" class="composer-connection-state"[^>]*>[^<]*<\/span>/);
+  assert.match(html, /class="composer-text-field"[\s\S]*class="composer-inline-state" role="status"[^>]*aria-label="[^"]+"/);
+  assert.match(html, /<span>连接失败<\/span>/);
 });
 
 test('empty connecting input shows a disabled primary connection action', () => {
@@ -87,7 +88,8 @@ test('a fresh resumed desktop clears an old failed connection without overriding
 test('incompatible history keeps text editable and queue storage available without promising automatic connection', () => {
   for (const readOnlyReason of ['desktop_protocol_incompatible', 'unsupported_app_identity', 'app_version_changed']) {
     const { html, drafts } = render('idle', { connection: { status: 'idle' }, readOnlyReason, canAttemptSend: false, canAttemptCompact: false });
-    assert.match(html, /composer-connection-state/);
+    assert.match(html, /class="composer-text-field"[\s\S]*class="composer-inline-state" role="status"/);
+    assert.match(html, /<span>暂不可连接<\/span>/);
     assert.doesNotMatch(html, /版本已变化|提交消息后自动连接|发送并连接/);
     assert.match(html, /<button aria-label="直接发送第 1 条消息" disabled=""/);
     assertPrimaryAction(html, { type: 'submit', disabled: false, text: '加入队列' });

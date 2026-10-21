@@ -111,7 +111,10 @@ export default function ContextStatus({
           onPointerDown={event => {
             // Keep the composer layout stable until click opens the popover.
             // Keyboard focus and activation retain their normal behavior.
-            if (event.button === 0) { pointerOpened.current = true; event.preventDefault(); }
+            if (event.button === 0) {
+              pointerOpened.current = true;
+              if (event.pointerType !== "touch") event.preventDefault();
+            }
           }}>
           {usage && (
             <svg

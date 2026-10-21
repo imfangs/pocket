@@ -4,6 +4,13 @@ import type { Thread } from "./types";
 export type ReadObservation = { token: string; lastVisibleItemId: string; visibleVersion: string };
 export type ReadReceipt = { requestId: string; status: "read" | "stale" | "unavailable" | "unknown"; code?: string; thread?: Thread };
 export type ReadAttempts = Map<string, { token: string; status: ReadReceipt["status"] | "pending" }>;
+export type ReadSyncControl = {
+  threadId: string;
+  status: ReadReceipt["status"];
+  retrying: boolean;
+  canRetry: boolean;
+  retry: () => Promise<void>;
+};
 
 // Only a fresh transcript supplies an observation. The desktop/display merge
 // may contain newer text or a different turn, so compare the actual last item.

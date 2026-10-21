@@ -3,29 +3,29 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) max-content;
     align-items: center;
-    padding: 4px;
-    border-radius: 16px;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
-  .conversation-composer.is-compact .composer-overview { grid-column:1 / -1; }
-  .conversation-composer.is-compact .composer-input { grid-column:1; min-width:0; padding:0; }
+  .conversation-composer.is-compact .composer-overview { display:contents; }
+  .conversation-composer.is-compact .composer-overview .runtime-summary { display:none; }
+  .conversation-composer.is-compact .composer-overview .stop-execution { grid-column:2; grid-row:1; box-sizing:border-box; width:44px; height:44px; padding:0; }
+  .conversation-composer.is-compact .composer-input { grid-column:1; grid-row:1; min-width:0; padding:0; }
   .inspector .conversation-composer.is-compact textarea {
     min-height: 44px;
     max-height: 44px;
     padding: 9px 11px;
     white-space: nowrap;
   }
-  .conversation-composer.is-compact .composer-actions {
-    grid-column: 2;
-    margin: 0;
-    padding: 0;
-    gap: 2px;
-  }
-  .conversation-composer.is-compact .attachment-picker {
-    width: 44px;
-    height: 44px;
-    margin: 0;
-  }
-  /* Compact means no text, files or pending submission: this button is already
-     disabled. The same input and picker stay mounted and immediately usable. */
-  .conversation-composer.is-compact .composer-actions > .primary { display: none; }
+  .conversation-composer.is-compact .composer-actions { display:none; }
+  .conversation-composer.is-compact .composer-inline-runtime { display:inline-flex; }
+  .conversation-composer.is-compact .composer-text-field { border-color:var(--line); outline:none; }
+  .conversation-composer:not(.is-compact) .composer-collapse { display:inline-flex; flex:none; align-items:center; justify-content:center; width:44px; height:44px; }
+  /* A queue editor owns its own text area; its related controls stay reachable. */
+  .conversation:has(.outbox textarea) .conversation-composer.is-compact { display:flex; }
+  .conversation:has(.outbox textarea) .conversation-composer.is-compact .composer-overview { display:flex; }
+  .conversation:has(.outbox textarea) .conversation-composer.is-compact .runtime-summary { display:flex; }
+  .conversation:has(.outbox textarea) .conversation-composer.is-compact .composer-actions { display:flex; }
 }

@@ -78,7 +78,9 @@ export function AttachmentPicker({ disabled, onFiles, onPickingChange, preserveF
       onPointerDown={event => {
         // Keep the pressed target stationary until click opens the native picker.
         // Keyboard focus still works, and an existing editor selection survives.
-        if (preserveFocus) event.preventDefault();
+        // Cancelling a touch pointerdown suppresses the subsequent click in
+        // WebKit. Touch keeps its native click; deferred focusout preserves layout.
+        if (preserveFocus && event.pointerType !== "touch") event.preventDefault();
       }} onClick={() => {
       picking.current = true; onPickingChange?.(true);
       try { input.current?.click(); } catch (error) { finish(); throw error; }
