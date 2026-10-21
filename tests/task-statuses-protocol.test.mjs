@@ -8,9 +8,10 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { readBridgeConfig } from '../server/bridge-config.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const config = JSON.parse(readFileSync(join(root, 'config/desktop-bridge.json'), 'utf8'));
+const config = readBridgeConfig();
 const load = `import importlib.util,json,sys,time\n` +
   `spec=importlib.util.spec_from_file_location('task_statuses',${JSON.stringify(join(root, 'bin/task-statuses.py'))})\n` +
   `m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\n` +
