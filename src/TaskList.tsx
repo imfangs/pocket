@@ -5,6 +5,8 @@ import {
   Star,
   ArrowUpRight,
   Inbox,
+  Clock,
+  AlarmClockOff,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ActivityFilter, Thread, ThreadSort, View } from "./types";
@@ -18,6 +20,7 @@ import { bindTaskListMotion } from "./taskListMotion";
 import { bindListInteraction, heldListRows } from "./listInteraction";
 import { inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
 import "./task-list-status.css";
+import "./thread-automations.css";
 interface Props {
   threads: Thread[];
   projectScope?: string;
@@ -194,6 +197,15 @@ export default function TaskList(p: Props) {
             const presentation = threadListPresentation(t, p.draftIds?.has(t.id), runtime);
             const states = presentation.secondaryStates.filter(state => state.key !== "archived" || p.view !== "archived");
             const rowState = presentation.primaryState?.key ?? states.find(state => state.key === "unread")?.key;
+            const automations = t.automationSummary;
+            const hasAutomations = !!automations && Number.isInteger(automations.count) && automations.count > 0;
+            const allAutomationsPaused = hasAutomations && automations.activeCount === 0 && automations.pausedCount === automations.count;
+            const automationState = allAutomationsPaused ? "paused" : automations && automations.activeCount > 0 ? "active" : "unknown";
+            const automationLabel = hasAutomations ? `定时任务：${automations.count} 个，${[
+              automations.activeCount > 0 ? `${automations.activeCount} 个已启用` : "",
+              automations.pausedCount > 0 ? `${automations.pausedCount} 个已暂停` : "",
+              automations.count > automations.activeCount + automations.pausedCount ? "部分状态待确认" : "",
+            ].filter(Boolean).join("，")}${automations.stale ? "；缓存可能已过期" : ""}` : "";
             return (
               <SwipeTaskRow
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${recentlyCreated ? "is-recently-created" : ""}`}
@@ -220,6 +232,11 @@ export default function TaskList(p: Props) {
                       data-list-status="priority" data-list-status-key="pocket" role="img" aria-label="Pocket 优先关注" />}
                     {codexPinned(t) && <Pin size={13} className="pin-icon"
                       data-list-status="codex-pin" data-list-status-key="codex" data-pin-source="codex" role="img" aria-label="Codex 置顶" />}
+                    {hasAutomations && <span className="thread-automation-icon" data-automation-state={automationState}
+                      data-automation-stale={automations.stale || undefined} data-list-status="automation"
+                      role="img" aria-label={automationLabel} title={automationLabel}>
+                      {allAutomationsPaused ? <AlarmClockOff size={13} aria-hidden="true" /> : <Clock size={13} aria-hidden="true" />}
+                    </span>}
                     <span className="row-status-slot" data-list-status="primary" data-list-status-key={presentation.primaryState?.key ?? "time"}>
                       {presentation.primaryState ? <span className="task-state-badge" data-state={presentation.primaryState.key}>
                         {presentation.primaryState.label}

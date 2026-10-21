@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import NotificationSettings from "./NotificationSettings";
 import MachinePicker from "./MachinePicker";
+import SendingSettings from "./SendingSettings";
 import { modalCloseDecision } from "./modalInteraction";
 import { bindInspectorViewport } from "./mobileInspector";
 import { MOTION_EASE, MOTION_MS, holdReadingMotion, prefersReducedMotion } from "./motion";
@@ -155,6 +156,7 @@ export function SettingsDialog(p: {
           <MachinePicker />
         </section>
         {p.appearanceActions && <section className="settings-appearance" aria-label="外观与安装">{p.appearanceActions}</section>}
+        <SendingSettings />
         {p.notificationsAvailable !== false && <NotificationSettings />}
         {p.logoutAction && <div className="settings-logout">{p.logoutAction}</div>}
       </div>

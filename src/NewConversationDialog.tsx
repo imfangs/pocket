@@ -13,12 +13,13 @@ import AutoTextarea from "./AutoTextarea";
 import AnimatedDetails from "./AnimatedDetails";
 import { applyCreationClipboard, creationQueryPayload, editCreationQuery, type CreationClipboard, type CreationQueryDraft } from "./creationQuery";
 import { createCreationOptionsReader, type CreationOptions } from "./creationOptions";
+import { readAutoDirectPreference } from "./sendingPreference";
 
 export default function NewConversationDialog({ preferredCwd, initialQuery, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose, closeRequested = false }: {
   preferredCwd?: string; operation?: TaskOperation; operationError?: string;
   initialQuery?: string;
   clipboardRead?: Promise<CreationClipboard>;
-  onCreate: (input: { locationId: string; name?: string; initialQuery?: string }) => Promise<unknown>;
+  onCreate: (input: { locationId: string; name?: string; initialQuery?: string; autoDirect?: boolean }) => Promise<unknown>;
   onCheck: () => void; onCancelOperation: () => void; onClose: () => void;
   closeRequested?: boolean;
 }) {
@@ -104,7 +105,9 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       submitting.current = true; setBusy(true); setError("");
       try {
         saveCreationPreference({ cwd: selectedLocation.cwd, locationId: selectedLocation.id });
-        await onCreate({ locationId: selectedLocation.id, ...(name.trim() ? { name: name.trim() } : {}), ...creationQueryPayload(query) });
+        const message = creationQueryPayload(query);
+        await onCreate({ locationId: selectedLocation.id, ...(name.trim() ? { name: name.trim() } : {}), ...message,
+          ...(message.initialQuery ? { autoDirect: readAutoDirectPreference() } : {}) });
       }
       catch (failure) { setError((failure as Error).message); }
       finally { submitting.current = false; setBusy(false); }

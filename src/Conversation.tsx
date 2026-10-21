@@ -37,6 +37,7 @@ import "./reading-composer.css";
 import { receiptHandoffs } from "./receiptMotion";
 import { useReceiptEntrances } from "./useReceiptHandoff";
 import { questionPresentationStore } from "./questionPresentation";
+import { readAutoDirectPreference, shouldEnqueueNewMessage, subscribeSendingPreference } from "./sendingPreference";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   attachments?: readonly DraftAttachment[];
@@ -77,6 +78,7 @@ export default function Conversation({
 }) {
   const [localSubmissions] = useState(createSubmittedQueryStore);
   const submissions = providedSubmissions ?? localSubmissions;
+  const autoDirect = useSyncExternalStore(subscribeSendingPreference, readAutoDirectPreference, readAutoDirectPreference);
   const submitted = useSyncExternalStore(submissions.subscribe, () => submissions.getThread(thread.id), () => submissions.getThread(thread.id));
   const [uploads] = useState(() => attachmentDraftController(drafts));
   const subscribeAttachments = useCallback((listener: () => void) => uploads.subscribe(thread.id, listener), [uploads, thread.id]);
@@ -283,7 +285,7 @@ export default function Conversation({
     : history?.compaction?.active ? "" : statuses[history?.runtime || ""] || "";
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
-  const enqueue = !!compatibilityCode || history?.runtime === "active" || !!history?.outbox?.length || !history?.canSend || !!historyError;
+  const enqueue = shouldEnqueueNewMessage(autoDirect, history, !!compatibilityCode || !!historyError);
   const sendAndConnect = !compatibilityCode && enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
   const composer = useReadingComposer({ hasContent: shownMessages.length > 0, hasDraft: draft.text.length > 0,
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
@@ -455,7 +457,7 @@ export default function Conversation({
       if (receipt.status === "accepted") { onActivity?.(); confirmAccepted(receipt); }
       else feedbackTracker.trackQueued(receipt.requestId);
       setNotice(receipt.status === "queued" && !feedbackTracker.hasAccepted(receipt.requestId)
-        ? history?.source === "desktop" ? "已加入待发列表，当前轮完成后发送。" : "已加入待发列表，连接后发送。" : "");
+        ? "已加入待发列表。" : "");
       nearBottom.current = true;
     } else if (
       receipt.status === "rejected" ||
@@ -499,6 +501,7 @@ export default function Conversation({
         receipt = await withSubmittedQueryPost(submissions, thread.id, requestId, () => api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
             text: submittedText,
             requestId,
+            autoDirect,
             ...(submittedAttachments.length ? { attachments: submittedAttachments.map(item => item.id) } : {}),
             ...(enqueue ? { enqueue: true } : {}),
           }));

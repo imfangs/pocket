@@ -25,7 +25,7 @@ test('Node and Python use the same explicit machine config and never silently fa
 test('each API reports its own machine identity for health and denied private requests', async t => {
   for (const machineId of ['ged', 'wandou']) {
     const dir = mkdtempSync(join(tmpdir(), 'pocket-machine-api-'));
-    const app = makeApp({ machineId, dataDir: dir, readSource: () => ({ threads: [], projects: [], sourceInfo: {} }) });
+    const app = makeApp({ machineId, dataDir: dir, codexHome: dir, readSource: () => ({ threads: [], projects: [], sourceInfo: {} }) });
     await new Promise(done => app.server.listen(0, '127.0.0.1', done));
     t.after(async () => { app.server.closeAllConnections(); await new Promise(done => app.server.close(done)); rmSync(dir, { recursive: true, force: true }); });
     const url = `http://127.0.0.1:${app.server.address().port}`;

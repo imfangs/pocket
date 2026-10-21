@@ -643,7 +643,13 @@ def main():
             allowed, _ = writable(state)
             if not allowed:
                 return {"ok": False, "code": "thread_not_ready", "sent": False}
-            if data.get("delivery") != "now" and state.get("threadRuntimeStatus", {}).get("type") == "active":
+            if data.get("delivery") == "auto-now":
+                runtime = state.get("threadRuntimeStatus", {}).get("type")
+                initial_turns = ordered_turns(state)
+                if runtime != "active" and (runtime != "idle" or
+                        initial_turns and initial_turns[-1].get("status") != "completed"):
+                    return {"ok": False, "code": "thread_not_ready", "sent": False}
+            if data.get("delivery") not in ("now", "auto-now") and state.get("threadRuntimeStatus", {}).get("type") == "active":
                 return {"ok": False, "code": "thread_active", "sent": False}
             # A second owner/state read narrows the race with another desktop client.
             fresh_owner, fresh = client.snapshot(thread_id)
@@ -657,7 +663,7 @@ def main():
                 data["text"] = "<send_user_message_question_reply>\n" + json.dumps([{
                     "questionItemId": question["id"], "question": question["title"], "answer": data["text"]
                 }], ensure_ascii=False, separators=(",", ":")) + "\n</send_user_message_question_reply>"
-            if active and data.get("delivery") != "now":
+            if active and data.get("delivery") not in ("now", "auto-now"):
                 return {"ok": False, "code": "thread_active", "sent": False}
             turns = ordered_turns(fresh)
             if data.get("delivery") == "resume" and (
@@ -666,6 +672,14 @@ def main():
             ):
                 return {"ok": False, "code": "thread_changed", "sent": False}
             if data.get("delivery") == "auto" and (
+                fresh.get("threadRuntimeStatus", {}).get("type") != "idle" or
+                (turns and turns[-1].get("status") != "completed")
+            ):
+                return {"ok": False, "code": "thread_not_ready", "sent": False}
+            # Automatic direct delivery may append to an active turn. If it
+            # ended during preflight, retain the queue's completed/empty gate;
+            # unlike a manual send it must not restart a failed or interrupted turn.
+            if data.get("delivery") == "auto-now" and not active and (
                 fresh.get("threadRuntimeStatus", {}).get("type") != "idle" or
                 (turns and turns[-1].get("status") != "completed")
             ):

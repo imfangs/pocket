@@ -149,7 +149,8 @@ export class LifecycleService {
     this.running.set(id,promise);return promise;
   }
   startCreate(input) {
-    if(!input||Object.keys(input).some(k=>!['requestId','locationId','name','initialQuery'].includes(k))||typeof input.locationId!=='string'||
+    if(!input||Object.keys(input).some(k=>!['requestId','locationId','name','initialQuery','autoDirect'].includes(k))||typeof input.locationId!=='string'||
+      (input.autoDirect!==undefined&&(typeof input.autoDirect!=='boolean'||input.initialQuery===undefined))||
       (input.name!==undefined&&(typeof input.name!=='string'||!input.name.trim()||input.name.length>220||input.name.includes('\0'))))
       throw new AppError('请选择工作目录；名称最多220字',400);
     if(input.initialQuery!==undefined&&(typeof input.initialQuery!=='string'||!input.initialQuery.trim()||input.initialQuery.length>16000))
@@ -159,7 +160,8 @@ export class LifecycleService {
     const selected=this.locations().find(location=>location.id===input.locationId);
     if(!selected&&!existing)throw new AppError('工作目录已变化，请刷新后重新选择',409);
     const payload={locationId:input.locationId,...(input.name===undefined?{}:{name:input.name.trim()}),
-      ...(input.initialQuery===undefined?{}:{initialQuery:input.initialQuery.trim()})};
+      ...(input.initialQuery===undefined?{}:{initialQuery:input.initialQuery.trim()}),
+      ...(input.autoDirect===undefined?{}:{autoDirect:input.autoDirect})};
     const oldPayload=existing?JSON.parse(existing.payload):null;
     const full={...payload,cwd:selected?.cwd??oldPayload?.cwd,...((selected?.projectId??oldPayload?.projectId)?{projectId:selected?.projectId??oldPayload?.projectId}:{})};
     const reserved=this.reserve(input.requestId,'create',null,full);
@@ -191,7 +193,8 @@ export class LifecycleService {
     if(message.status==='not_queued'){
       attempted=true;
       try {
-        await this.desktop.send(row.thread_id,{requestId:message.requestId,text:payload.initialQuery,enqueue:true});
+        await this.desktop.send(row.thread_id,{requestId:message.requestId,text:payload.initialQuery,enqueue:true,
+          ...(payload.autoDirect===undefined?{}:{autoDirect:payload.autoDirect})});
       } catch { /* Read the durable queue before deciding whether handoff failed. */ }
       if(this.stopped)return;
       message=this.initialMessage(row);

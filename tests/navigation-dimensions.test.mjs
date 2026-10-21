@@ -86,6 +86,60 @@ test('v4 preferences round trip all independent dimensions and reject unknown va
     { ...prefs, scope: 'priority', activity: 'running', sort: 'created' });
 });
 
+test('priority shortcut lists only Pocket attention and restores the previous project without reverting other dimensions', () => {
+  const rows = [
+    { ...base, id: 'report-priority', pocketPriority: true, createdAt: now - 20000 },
+    { ...base, id: 'other-priority', pocketPriority: true, projectId: 'other', createdAt: now - 1 },
+    { ...base, id: 'codex-only', codexPinned: true },
+    { ...base, id: 'neither' },
+    { ...base, id: 'archived-priority', archived: true, pocketPriority: true },
+    { ...base, id: 'excluded-priority', sourceExcluded: true, pocketPriority: true },
+  ];
+  const before = structuredClone(rows);
+  const statuses = new Map(rows.map(row => [row.id, 'running']));
+  let state = { ...prefs, project: 'reports' };
+  state = changeNavigation(state, { type: 'togglePriority' });
+  assert.deepEqual(state, { ...prefs, scope: 'priority', priorityReturn: { scope: 'all', project: 'reports' } });
+  state = changeNavigation(state, { type: 'activity', activity: 'running' });
+  state = changeNavigation(state, { type: 'sort' });
+  assert.deepEqual(ids(select(rows, state, 'weekly', statuses)), ['other-priority', 'report-priority']);
+  assert.equal(navigationTitle(state, []), '关注');
+  state = normalizeNavigationPrefs(JSON.parse(JSON.stringify(state)));
+  state = changeNavigation(state, { type: 'togglePriority' });
+  assert.deepEqual(state, { ...prefs, project: 'reports', activity: 'running', sort: 'created' });
+  assert.deepEqual(ids(select(rows, state, 'weekly', statuses)), ['codex-only', 'neither', 'report-priority']);
+  assert.deepEqual(rows, before);
+});
+
+test('priority shortcut returns to Codex pins and menu navigation discards the previous return destination', () => {
+  const original = { ...prefs, scope: 'codex-pinned', activity: 'unread', sort: 'created' };
+  const attention = changeNavigation(original, { type: 'togglePriority' });
+  assert.deepEqual(changeNavigation(normalizeNavigationPrefs(attention), { type: 'togglePriority' }), original);
+  for (const change of [{ type: 'scope', scope: 'all' }, { type: 'scope', scope: 'priority' }, { type: 'project', project: 'reports' }]) {
+    const next = changeNavigation(attention, change);
+    assert.equal(next.priorityReturn, undefined);
+    assert.equal(next.activity, 'unread'); assert.equal(next.sort, 'created');
+  }
+  const menuAttention = changeNavigation(attention, { type: 'scope', scope: 'priority' });
+  assert.deepEqual(changeNavigation(menuAttention, { type: 'togglePriority' }), { ...prefs, activity: 'unread', sort: 'created' });
+  const archived = { ...prefs, scope: 'archived' };
+  assert.equal(changeNavigation(archived, { type: 'togglePriority' }), archived);
+});
+
+test('priority return preferences accept only bounded active destinations and cannot alter other scopes', () => {
+  const attention = { ...prefs, scope: 'priority' };
+  for (const back of [null, true, 'reports', {}, { scope: 'priority', project: '' }, { scope: 'archived', project: '' },
+    { scope: 'all', project: {} }, { scope: 'all', project: 'x'.repeat(257) }])
+    assert.deepEqual(normalizeNavigationPrefs({ ...attention, priorityReturn: back }), attention);
+  assert.deepEqual(normalizeNavigationPrefs({ ...attention, priorityReturn: { scope: 'all', project: 'reports' } }),
+    { ...attention, priorityReturn: { scope: 'all', project: 'reports' } });
+  assert.deepEqual(normalizeNavigationPrefs({ ...attention, priorityReturn: { scope: 'codex-pinned', project: 'stale', activity: 'running' } }),
+    { ...attention, priorityReturn: { scope: 'codex-pinned', project: '' } });
+  for (const scope of ['all', 'codex-pinned', 'archived'])
+    assert.deepEqual(normalizeNavigationPrefs({ ...prefs, scope, priorityReturn: { scope: 'all', project: 'reports' } }), { ...prefs, scope });
+  assert.deepEqual(normalizeNavigationPrefs({ view: 'priority', sortVersion: 3, priorityReturn: { scope: 'all', project: 'reports' } }), attention);
+});
+
 test('read flags, waiting states and list labels share one precise unread predicate', () => {
   for (const hasUnreadTurn of [undefined, null, false, true]) for (const needsInput of [false, true])
     for (const status of [undefined, 'idle', 'unknown', 'running', 'waiting_input', 'waiting_approval']) {

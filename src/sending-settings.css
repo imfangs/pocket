@@ -1,0 +1,27 @@
+.sending-setting {
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.sending-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+}
+.sending-setting-row > label {
+  flex: 1;
+  padding-block: 12px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sending-setting-control {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+.sending-setting-control .rt-SwitchRoot { min-width: 44px; min-height: 44px; }
+.sending-setting .field-help { margin-bottom: 0; }

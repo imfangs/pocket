@@ -29,6 +29,9 @@ export interface NavigationPrefs {
   activity: ActivityFilter;
   sort: ThreadSort;
   sortVersion: 4;
+  // The shortcut owns no second selection state: scope remains authoritative.
+  // Keep only its return destination so toggling off also survives a reload.
+  priorityReturn?: { scope: "all" | "codex-pinned"; project: string };
 }
 const isScope = (value: unknown): value is NavigationScope => value === "all" || value === "priority"
   || value === "codex-pinned" || value === "archived";
@@ -46,19 +49,34 @@ export function normalizeNavigationPrefs(value: unknown): NavigationPrefs {
     ? prefs.activity === "unread" || prefs.activity === "running" ? prefs.activity : "all"
     : prefs.view === "unread" || prefs.view === "running" ? prefs.view : "all";
   const sort = (current ? prefs.sort === "created" : prefs.view === "created") ? "created" : "smart";
-  return { scope, project, activity, sort, sortVersion: 4 };
+  const result: NavigationPrefs = { scope, project, activity, sort, sortVersion: 4 };
+  const back = prefs.priorityReturn;
+  if (current && scope === "priority" && back && typeof back === "object") {
+    const target = back as Record<string, unknown>;
+    if ((target.scope === "all" || target.scope === "codex-pinned") && typeof target.project === "string" && target.project.length <= 256)
+      result.priorityReturn = { scope: target.scope, project: target.scope === "all" ? target.project : "" };
+  }
+  return result;
 }
 
 export type NavigationChange = { type: "scope"; scope: NavigationScope }
   | { type: "project"; project: string }
   | { type: "activity"; activity: Exclude<ActivityFilter, "all"> }
   | { type: "sort" }
+  | { type: "togglePriority" }
   | { type: "clearActivity" };
 
 export function changeNavigation(current: NavigationPrefs, change: NavigationChange): NavigationPrefs {
-  if (change.type === "scope") return { ...current, scope: change.scope, project: "",
+  const { priorityReturn, ...base } = current;
+  // Explicit menu navigation replaces any earlier shortcut return target.
+  if (change.type === "scope") return { ...base, scope: change.scope, project: "",
     activity: change.scope === "archived" ? "all" : current.activity };
-  if (change.type === "project") return { ...current, scope: "all", project: change.project };
+  if (change.type === "project") return { ...base, scope: "all", project: change.project };
+  if (change.type === "togglePriority") {
+    if (current.scope === "archived") return current;
+    if (current.scope === "priority") return { ...base, ...(priorityReturn || { scope: "all", project: "" }) };
+    return { ...base, scope: "priority", project: "", priorityReturn: { scope: current.scope, project: current.project } };
+  }
   if (change.type === "sort") return { ...current, sort: current.sort === "created" ? "smart" : "created" };
   if (change.type === "clearActivity") return { ...current, activity: "all" };
   if (current.scope === "archived") return current;

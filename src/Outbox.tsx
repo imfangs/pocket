@@ -178,7 +178,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const remainingCount = items.filter(item => item.status !== "accepted" && !acceptedItems.has(item.id)).length;
   return (
     <section ref={section} className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? "首条结果待核对，队列已暂停" : paused ? "队列已暂停" : headEditing ? editing?.id === items[0]?.id ? "首条编辑中，队列已暂停" : "首条已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理" : connectionPending ? "连接恢复后依次发送" : "本轮结束后依次发送"}</span>}
+      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? "首条结果待核对，队列已暂停" : paused ? "队列已暂停" : headEditing ? editing?.id === items[0]?.id ? "首条编辑中，队列已暂停" : "首条已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理" : connectionPending ? "连接恢复后依次发送" : items[0]?.autoDirect === true ? "可接收时依次发送" : "本轮结束后依次发送"}</span>}
         {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
       </div>
       {presence.rows.map(({ item, leaving }, index) => {

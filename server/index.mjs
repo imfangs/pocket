@@ -11,6 +11,7 @@ import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
 import { ReadStateService } from "./read-state.mjs";
+import { ThreadAutomations } from "./thread-automations.mjs";
 import { LifecycleService } from "./lifecycle.mjs";
 import { RenameService } from "./rename.mjs";
 import { TaskStatusService } from "./task-statuses.mjs";
@@ -60,6 +61,8 @@ export function makeApp(options = {}) {
     { openThread, connectionTimeoutMs: options.connectionTimeoutMs, connectionPollMs: options.connectionPollMs, attachmentOptions: options.attachments },
   );
   const readState = new ReadStateService(store, codexHome, options.readState);
+  const automations = new ThreadAutomations(codexHome, options.automations);
+  const catalog = () => automations.enrich(store.catalog());
   const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
   const images = new MessageImages();
   desktop.onAccepted = (id, turnId) => {
@@ -226,7 +229,7 @@ export function makeApp(options = {}) {
       if (method === "GET" && path === "/api/connection")
         return json(res, 200, connection);
       if (method === "GET" && path === "/api/catalog")
-        return sendCatalog(res, { ...store.catalog(), csrfToken: csrf }, req.headers["accept-encoding"]);
+        return sendCatalog(res, { ...catalog(), csrfToken: csrf }, req.headers["accept-encoding"]);
       if (method === "GET" && path === "/api/task-statuses")
         return json(res, 200, await taskStatuses.snapshot());
       if (method === "GET" && path === "/api/tasks/create-options")
@@ -275,7 +278,7 @@ export function makeApp(options = {}) {
         return json(res, 200, notifications.subscriptionState((await body(req, 4096)).endpoint));
       if (method === "POST" && path === "/api/sync") {
         sync();
-        return sendCatalog(res, store.catalog(), req.headers["accept-encoding"]);
+        return sendCatalog(res, catalog(), req.headers["accept-encoding"]);
       }
       if (method === "GET" && path === "/api/export") {
         res.setHeader(
@@ -286,7 +289,7 @@ export function makeApp(options = {}) {
       }
       if (method === "POST" && path === "/api/import") {
         store.restore(await body(req));
-        return json(res, 200, store.catalog());
+        return json(res, 200, catalog());
       }
       if (method === "POST" && path === "/api/batch") {
         const b = await body(req);
@@ -327,6 +330,11 @@ export function makeApp(options = {}) {
       const taskConnection = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/connection$/i);
       if (taskConnection && method === "GET")
         return json(res, 200, desktop.connection(taskConnection[1]));
+      const threadAutomations = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/automations$/i);
+      if (threadAutomations && method === "GET") {
+        store.thread(threadAutomations[1]);
+        return json(res, 200, automations.details(threadAutomations[1]));
+      }
       const history = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/history$/i);
       if (history && method === "GET") {
         const start = performance.now();

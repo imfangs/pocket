@@ -158,7 +158,7 @@ test("edits during readiness checks stop stale text from being submitted", async
 
 test("authenticated queue HTTP routes enforce edit revisions and expose only this task's items", async t => {
   const dir = mkdtempSync(join(tmpdir(), "pocket-outbox-http-"));
-  const app = makeApp({ dataDir: dir, readSource: () => ({ threads: [{ id, title: "Fixture", archived: false }], projects: [], sourceInfo: {} }),
+  const app = makeApp({ dataDir: dir, codexHome: dir, readSource: () => ({ threads: [{ id, title: "Fixture", archived: false }], projects: [], sourceInfo: {} }),
     desktopRequest: async p => p.operation === "history" ? { ok: true, runtime: "active", queueReady: false, canSend: true, messages: [] }
       : p.delivery === "now" ? { ok: true } : { ok: false, code: "thread_active", sent: false } });
   app.server.listen(0, "127.0.0.1"); await once(app.server, "listening");

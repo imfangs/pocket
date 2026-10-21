@@ -14,7 +14,7 @@ const digest = value => createHash('sha256').update(JSON.stringify(value)).diges
 async function fixture(t, options = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pocket-read-state-'));
   const state = { sourceVersion: 'saved-v1', identityKey: 'identity', executionHostKey: 'host', unread: true, calls: [], now: 1000, turnStatus: 'completed' };
-  const app = makeApp({ dataDir: dir,
+  const app = makeApp({ dataDir: dir, codexHome: dir,
     readSource: () => ({ threads: [{ id, title: 'Read fixture', archived: false, hasUnreadTurn: state.unread, needsInput: state.unread }], projects: [], sourceInfo: {} }),
     readHistory: () => {
       options.onTranscript?.(state);

@@ -11,7 +11,7 @@ import { DesktopService } from '../server/desktop.mjs';
 const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
 test('slow sends acknowledge promptly and receipt polling never dispatches again', async t => {
   const dataDir=mkdtempSync(join(tmpdir(),'pocket-slow-send-'));let sends=0,finish;
-  const app=makeApp({dataDir,dispatchReplyWaitMs:10,readSource:()=>({threads:[{id,title:'Test',cwd:'/fixture',archived:false}],projects:[],sourceInfo:{}}),
+  const app=makeApp({dataDir,codexHome:dataDir,dispatchReplyWaitMs:10,readSource:()=>({threads:[{id,title:'Test',cwd:'/fixture',archived:false}],projects:[],sourceInfo:{}}),
     desktopRequest:async payload=>{if(payload.operation==='send'){sends++;return new Promise(resolve=>{finish=resolve;setTimeout(()=>resolve({ok:true,turnId:'turn'}),250);});}return {ok:true,source:'desktop',runtime:'idle',canSend:true,messages:[]};}});
   await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
   t.after(async()=>{finish?.({ok:true});await new Promise(resolve=>app.server.close(resolve));rmSync(dataDir,{recursive:true,force:true});});

@@ -59,6 +59,7 @@ export type QueuedMessage = {
   code?: string;
   createdAt: number;
   attachments?: PublicAttachment[];
+  autoDirect?: boolean;
 };
 export type ProgressViewState = { expanded: string[]; deferred: string[]; seen: string[] };
 export type HistoryCache = Map<string, {

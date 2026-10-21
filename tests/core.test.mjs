@@ -325,6 +325,7 @@ test("HTTP requires same origin and token, opens the exact known original id, ne
   const opens = [];
   const { server, store, auth } = makeApp({
     dataDir: join(p, "data"),
+    codexHome: p,
     dist: join(p, "dist"),
     readSource: source,
     openThread: async (id) => opens.push(id),

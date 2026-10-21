@@ -1,0 +1,25 @@
+.task-list-surface .thread-automation-icon { display:inline-flex; align-items:center; flex:none; width:13px; height:13px; color:var(--accent); }
+.task-list-surface .thread-automation-icon[data-automation-state="paused"],
+.task-list-surface .thread-automation-icon[data-automation-stale] { color:var(--muted); }
+.task-list-surface .thread-automation-icon[data-automation-state="unknown"] { color:var(--warning); }
+.thread-automations { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); min-width:0; }
+.thread-automations-heading, .thread-automation-heading { display:flex; align-items:baseline; justify-content:space-between; gap:12px; min-width:0; }
+.thread-automations-heading h3 { display:flex; align-items:center; gap:6px; margin:0; color:var(--ink); font-size:13px; font-weight:600; line-height:1.6; }
+.thread-automations-heading h3 > span { color:var(--muted); font-size:12px; font-weight:400; }
+.thread-automations-heading > button { flex:none; padding:6px 0 6px 8px; font-size:12px; }
+.thread-automations .thread-automations-notice { margin:8px 0 0; color:var(--muted); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.thread-automations-list { display:grid; gap:14px; margin:12px 0 0; padding:0; list-style:none; }
+.thread-automation + .thread-automation { padding-top:14px; border-top:1px solid var(--line); }
+.thread-automation-heading h4 { min-width:0; margin:0; color:var(--ink); font-size:13px; font-weight:500; line-height:1.6; overflow-wrap:anywhere; }
+.thread-automation-status { flex:none; color:var(--muted); font-size:11px; line-height:1.6; white-space:nowrap; }
+.thread-automation-status[data-status="ACTIVE"] { color:var(--accent); }
+.thread-automation-status[data-status="UNKNOWN"] { color:var(--warning); }
+.thread-automations-list[data-stale] .thread-automation-status { color:var(--muted); }
+.thread-automation-schedule { margin:4px 0 0; color:var(--text-secondary); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.thread-automation-content { margin-top:4px; min-width:0; }
+.thread-automation-content > summary { padding:6px 0; color:var(--muted); font-size:12px; line-height:1.5; cursor:pointer; }
+.thread-automation-content > summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
+.thread-automation-content > p { margin:4px 0 0; padding:10px 12px; border-radius:var(--radius-small); background:var(--surface-soft); color:var(--text-secondary); font-size:13px; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; }
+@media (pointer:coarse) {
+  .thread-automation-content > summary { box-sizing:border-box; min-height:44px; padding-block:13px; }
+}

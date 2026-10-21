@@ -3,6 +3,7 @@ import { Button } from "./ui/Button";
 import {
   Menu,
   Search,
+  Star,
   RefreshCw,
   X,
   AlertCircle,
@@ -188,7 +189,7 @@ export default function App({
     void (syncing.current ?? Promise.resolve()).catch(() => {}).then(() => syncTasks(true)).catch(() => {});
   }, [syncTasks]);
   const openCreatedThread = (id: string) => {
-    setSelected(id, true); setNavigation(previous => ({ ...previous, scope: "all", project: "", activity: "all" })); setQuery("");
+    setSelected(id, true); setNavigation(previous => ({ ...changeNavigation(previous, { type: "scope", scope: "all" }), activity: "all" })); setQuery("");
     setSearchOpen(false); setMobile(false);
   };
   const seedCreationMessage = (operation: TaskOperation) => {
@@ -239,7 +240,7 @@ export default function App({
     setNewConversationClosing(false);
     newDialogOpen.current = true; setNewConversationOpen(true);
   };
-  const startCreation = async (input: { locationId: string; name?: string; initialQuery?: string }) => {
+  const startCreation = async (input: { locationId: string; name?: string; initialQuery?: string; autoDirect?: boolean }) => {
     if (createRequest.current && activeOperation(taskOperations.operations.find(operation => operation.requestId === createRequest.current))) return;
     const requestId = crypto.randomUUID(); createRequest.current = requestId; setCreateRequestId(requestId);
     if (input.initialQuery) creationQueries.current.set(requestId, input.initialQuery);
@@ -464,6 +465,12 @@ export default function App({
                   <span>{filter.label}</span><small>{filter.count}</small>
                 </button>
               ))}
+              {scope !== "archived" && <button className="needs-input-toggle priority-toggle"
+                data-inbox={scope === "priority"} aria-pressed={scope === "priority"}
+                title={scope === "priority" ? `返回${navigationTitle(navigation.priorityReturn || { scope: "all", project: "" }, catalog.projects)}` : "查看 Pocket 关注的会话"}
+                onClick={() => updateNavigation({ type: "togglePriority" })}>
+                <Star size={15} aria-hidden="true" /><span>关注</span>
+              </button>}
               <button className="needs-input-toggle created-toggle"
                 data-inbox={sort === "created"} aria-pressed={sort === "created"}
                 title={sort === "created" ? "恢复智能排序" : "按创建时间从新到旧排列"}

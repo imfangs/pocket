@@ -26,7 +26,7 @@ async function fixture(t) {
   writeFileSync(join(cwd, names[2]), png);truncateSync(join(cwd, names[2]), 8 * 1024 * 1024 + 1);
   writeFileSync(join(baseDir, 'outside.png'), png);symlinkSync(join(baseDir, 'outside.png'), join(cwd, names[4]));
   const text = names.map(n => `![${n}](<${join(cwd, n)}>)`).join('\n\n') + `\n\n![outside](${join(baseDir, 'outside.png')})`;
-  const app = makeApp({ dataDir: join(baseDir, 'data'), readSource: () => ({ threads: [a,b].map(id => ({ id, cwd, title: '图片测试', archived: false, updatedAt: 1000 })), projects: [], sourceInfo: {} }),
+  const app = makeApp({ dataDir: join(baseDir, 'data'), codexHome: baseDir, readSource: () => ({ threads: [a,b].map(id => ({ id, cwd, title: '图片测试', archived: false, updatedAt: 1000 })), projects: [], sourceInfo: {} }),
     desktopRequest: async () => ({ ok: true, source: 'desktop', runtime: 'idle', canSend: true, messages: [{ id: 'message', role: 'assistant', text }] }) });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { await new Promise(resolve => app.server.close(resolve));rmSync(baseDir, { recursive: true, force: true }); });

@@ -152,7 +152,7 @@ test("scope changes preserve queued bodies, dispatch receipts and pending lifecy
   const desktop = new DesktopService(store, directory, () => { throw new Error("unexpected native action"); });
   const lifecycle = new LifecycleService(store, desktop, directory, () => {});
   t.after(() => { lifecycle.stop(); desktop.stopQueue(); });
-  store.db.prepare("INSERT INTO dispatches VALUES(?,?,?,'queued',NULL,NULL,?)")
+  store.db.prepare("INSERT INTO dispatches(id,thread_id,text_hash,status,turn_id,code,created_at) VALUES(?,?,?,'queued',NULL,NULL,?)")
     .run(requestId, id, "fixture-fingerprint", 1000);
   desktop.queue(id, requestId, "保留已提交的待发正文");
   lifecycle.reserve(requestId, "archive", id, { archived: true });

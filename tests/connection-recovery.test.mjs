@@ -69,7 +69,7 @@ test('saving an explicit queue item can load its owner once while read-only poll
 
 test('the compatible open endpoint returns a pollable connection rather than claiming it is ready', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'pocket-connect-http-'));
-  const app = makeApp({ dataDir: dir, readSource: source, readHistory: saved,
+  const app = makeApp({ dataDir: dir, codexHome: dir, readSource: source, readHistory: saved,
     desktopRequest: async () => ({ ok: false, code: 'desktop_unavailable' }),
     openThread: async () => {}, connectionTimeoutMs: 50, connectionPollMs: 5 });
   app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
@@ -300,7 +300,7 @@ test('explicit queue additions preserve paused and unknown heads without loading
 test('HTTP open returns while desktop loading is still pending and exposes its eventual status', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'pocket-connect-pending-http-'));
   let finishOpen, opened = 0;
-  const app = makeApp({ dataDir: dir, readSource: source, readHistory: saved,
+  const app = makeApp({ dataDir: dir, codexHome: dir, readSource: source, readHistory: saved,
     desktopRequest: async () => live(), connectionTimeoutMs: 500,
     openThread: () => { opened++; return new Promise(resolve => { finishOpen = resolve; }); } });
   app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
@@ -329,7 +329,7 @@ test('HTTP open returns while desktop loading is still pending and exposes its e
 test('the original open route still opens archived history without resuming or sending', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'pocket-open-archived-http-'));
   let opened = 0, desktopReads = 0;
-  const app = makeApp({ dataDir: dir, readSource: () => ({ ...source(), threads: [{ ...source().threads[0], archived: true }] }),
+  const app = makeApp({ dataDir: dir, codexHome: dir, readSource: () => ({ ...source(), threads: [{ ...source().threads[0], archived: true }] }),
     desktopRequest: async () => { desktopReads++; return live(); }, openThread: async target => { assert.equal(target, id); opened++; } });
   app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
   t.after(async () => { await new Promise(resolve => app.server.close(resolve)); rmSync(dir, { recursive: true, force: true }); });

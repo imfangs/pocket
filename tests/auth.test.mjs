@@ -77,6 +77,7 @@ test("login limits repeated guesses and validates session expiry", (t) => {
 test("anonymous cannot read private endpoints; remote cookie login works and local bearer cannot cross tunnel", async (t) => {
   const app = makeApp({
     dataDir: temp(t),
+    automations: { read: () => ({ ok: true, automations: [] }) },
     readSource: source,
     connection: { publicOrigin: "https://fixture.trycloudflare.com" },
   });

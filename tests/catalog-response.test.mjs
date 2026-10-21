@@ -9,7 +9,7 @@ import { makeApp } from '../server/index.mjs';
 async function fixture(t) {
  const dataDir=mkdtempSync(join(tmpdir(),'pocket-catalog-wire-'));
  const threads=Array.from({length:160},(_,i)=>({id:`aaaaaaaa-aaaa-7aaa-8aaa-${String(i).padStart(12,'0')}`,title:`项目任务 ${i}：继续处理消息和任务状态`,cwd:'/fixture/workspace',archived:false,updatedAt:1000}));
- const app=makeApp({dataDir,readSource:()=>({threads,projects:[],sourceInfo:{syncedAt:1000}})});
+ const app=makeApp({dataDir,codexHome:dataDir,readSource:()=>({threads,projects:[],sourceInfo:{syncedAt:1000}})});
  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
  t.after(async()=>{await new Promise(resolve=>app.server.close(resolve));rmSync(dataDir,{recursive:true,force:true});});
  const base=`http://127.0.0.1:${app.server.address().port}`;

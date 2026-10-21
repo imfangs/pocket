@@ -14,6 +14,28 @@ export interface Project {
   order: number;
   separator: boolean;
 }
+export interface ThreadAutomationSummary {
+  count: number;
+  activeCount: number;
+  pausedCount: number;
+  stale?: boolean;
+}
+export interface ThreadAutomation {
+  id: string;
+  name: string;
+  prompt: string;
+  status: "ACTIVE" | "PAUSED" | "UNKNOWN";
+  scheduleLabel: string;
+  scheduleSupported: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+}
+export interface ThreadAutomationsSource {
+  available: boolean;
+  stale: boolean;
+  timeZone: string;
+  automations: ThreadAutomation[];
+}
 export interface Thread {
   id: string;
   hostId: string;
@@ -46,6 +68,7 @@ export interface Thread {
   revision: number;
   hasUnreadTurn?: boolean | null;
   needsInput?: boolean;
+  automationSummary?: ThreadAutomationSummary;
 }
 export interface Catalog {
   threads: Thread[];
