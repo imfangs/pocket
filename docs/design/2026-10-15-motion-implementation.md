@@ -38,3 +38,14 @@
 - 披露：`useDisclosureMotion.ts`、`UserQueryBody.tsx`、`ProgressDisclosure.tsx`、`AnimatedDetails.tsx`、`useProgressMessages.ts`。
 - 交接：`receiptMotion.ts`、`useReceiptHandoff.ts`、`Conversation.tsx`、`Outbox.tsx`、`SubmittedQueryCards.tsx`、`TaskOperationStatus.tsx`；新建由`App.tsx`与`Dialogs.tsx`衔接。
 - 列表与轻反馈：`taskListMotion.ts`、`TaskList.tsx`、`SwipeTaskRow.tsx`、`CopyButton.tsx`、`motion.ts`、`motion.css`。
+
+
+## 2026-10-22 主消息横滚与返回冲突
+
+欧吉安反馈详情消息列表能左右拖动并出现横向滚动条，导致右滑返回失效。修复前的当前构建在 Chromium/WebKit、320/390/430px 下，普通回复、长URL、代码、表格等均有2px整区横滚：390px时主消息区clientWidth358、scrollWidth360。来源是消息footer复制按钮继承Radix ghost横向负margin，footer溢出8px；根仅设置overflow-y:auto，横轴随之计算成auto。返回手势的祖先横滚保护因此把整条阅读区判为横滚控件。
+
+修复仅两处CSS：消息footer复制按钮margin-inline归零，保留竖向尺寸和占位；主消息区显式overflow-x:hidden。代码、表格和图表自身的局部横滚保持，未给阅读祖先设touch-action限制，手势方向/阈值、输入/选区/多指/浮层/草稿与原onClose路径不变。
+
+浏览器基线除几何外，使用Chromium CDP真实触摸输入复现普通正文边缘右滑失效；临时只限制根横轴即可完成同一路径返回，证明冲突链路。最终复验与发布记录见CURRENT，证据 `.local/qa/detail-overflow-2026-10-22/`。WebKit几何/合成事件与Chromium CDP均不代替iPhone主屏幕真机手感。
+
+本轮冻结构建 `b794a7805c6b09868fc1691cf5b645adb3cffc5a617519f5eb9f3681e95951d4` 验收：1326项完整测试与27项手势/视口/footer定向通过，独立CSS/导航CR无剩余问题；Chromium88项、WebKit78项共166项通过。36个内容/宽度/引擎场景的主消息区宽度相等，临时恢复overflow-x:auto仍无溢出；44px复制按钮可点，长Query展开保持。Chromium CDP验证正文返回、代码/表格内真触摸横滚、旁侧空白返回、短拖/纵滚/选区/多指；WebKit验证几何与DOM横滚。触点附近的浏览器命中修正会把靠近代码边缘的触摸交给pre，旁侧返回验收核对真实touchstart目标。浏览器、fixture和重复基线构建已清理，JSON证据与旧构建manifest保留。

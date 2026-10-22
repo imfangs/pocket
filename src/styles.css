@@ -698,6 +698,8 @@ hr {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The feed owns vertical scrolling; code and tables own their horizontal axes. */
+  overflow-x: hidden;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   padding: 8px 0 16px;

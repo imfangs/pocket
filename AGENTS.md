@@ -23,7 +23,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 离线整页视觉、对齐、主题和公开壳更新 | [离线布局收敛](docs/design/2026-10-15-offline-layout.md)：独立公开页面、中轴与安全区、深链保留 |
 | 列表触摸稳定、草稿退出、新建/离线恢复、搜索扩围与归档主动作 | [交互稳定与原地恢复](docs/design/2026-10-15-interaction-recovery.md)：完整路径修复与原回执边界 |
 | 优先关注与Codex置顶、输入意图预连接、精简文案、消息相对时间 | [独立优先与输入意图](docs/design/2026-10-15-priority-and-composer.md)：双标记/加分、旧接口兼容、单主按钮和共享时钟 |
-| 动效、详情转场、手势跟随与内容过渡 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：跟手、披露、创建/消息衔接、主动pin换位和轻反馈；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
+| 动效、详情转场、右滑与横滚冲突、内容过渡 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：跟手、披露、创建/消息衔接、主动pin换位和轻反馈；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
 | 项目导航、最近创建、关注/Codex置顶快捷分类、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：独立范围、创建时间倒序、单分数公式、消息来源、行为加分、有效状态与滚动锚 |
 | 手机阅读态输入区收放、列表时间/状态位置 | [阅读与列表收敛](docs/design/2026-10-13-reading-composer-and-row-state.md)：同一输入节点、焦点/IME/附件/待处理保护与固定状态槽 |
 | 全局toast、消息身份标签、底部时间/复制与发送确认 | [轻量反馈与消息footer](docs/design/2026-10-12-light-feedback-and-message-footer.md)：统一Sonner样式、消息语义与待处理状态边界 |
