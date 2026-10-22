@@ -55,13 +55,14 @@ textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 .filter-row { min-height:44px; margin-top:16px; gap:8px; flex-wrap:nowrap; }
 .activity-filters { display:flex; align-items:center; gap:2px; min-width:0; max-width:100%; padding:2px; flex-wrap:wrap; background:var(--surface-soft); border-radius:12px; }
 .needs-input-toggle { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:var(--control-height); padding:0 10px; border:0; border-radius:var(--radius-control); background:transparent; color:var(--text-secondary); font-size:13px; font-weight:500; white-space:nowrap; }
-.created-toggle { border-left:1px solid var(--line); border-top-left-radius:0; border-bottom-left-radius:0; }
+.thread-sort-controls { display:flex; flex:0 0 auto; align-items:center; gap:2px; padding-left:2px; border-left:1px solid var(--line); }
+.thread-sort-controls .needs-input-toggle { min-width:44px; min-height:44px; }
 .needs-input-toggle small { font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; opacity:.9; }
 .needs-input-toggle[data-inbox='true'] { color:var(--accent); background:var(--accent-soft); }
 .running-toggle[data-inbox='true'] { color:var(--positive); background:var(--positive-soft); }
 .unread-dot, .running-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0; }
 .running-dot { background:var(--positive); }
-.list-controls { margin-left:auto; display:flex; gap:4px; align-items:center; }
+.list-controls { margin-left:auto; display:flex; flex:0 0 auto; gap:4px; align-items:center; }
 .search-toggle { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 8px; min-height:var(--control-height); border-radius:var(--radius-control); color:var(--muted); font-size:13px; }
 .search-toggle[aria-expanded='true'] { background:var(--accent-soft); color:var(--accent); }
 .search-toggle kbd { margin-left:4px; padding:1px 4px; border:1px solid var(--line); border-radius:4px; font-size:11px; font-family:inherit; }

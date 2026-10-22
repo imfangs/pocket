@@ -75,7 +75,7 @@ test('menu changes keep activity and sort while archive safely clears inapplicab
 });
 
 test('v4 preferences round trip all independent dimensions and reject unknown values', () => {
-  for (const scope of ['all', 'priority', 'codex-pinned']) for (const activity of ['all', 'unread', 'running']) for (const sort of ['smart', 'created']) {
+  for (const scope of ['all', 'priority', 'codex-pinned']) for (const activity of ['all', 'unread', 'running']) for (const sort of ['smart', 'created', 'activity']) {
     const state = { ...prefs, scope, project: scope === 'all' ? 'reports' : '', activity, sort };
     assert.deepEqual(normalizeNavigationPrefs(JSON.parse(JSON.stringify(state))), state);
   }
@@ -84,6 +84,36 @@ test('v4 preferences round trip all independent dimensions and reject unknown va
   assert.deepEqual(normalizeNavigationPrefs({ sortVersion: 4, scope: 'broken', project: 'x'.repeat(257), activity: 'idle', sort: 'title' }), prefs);
   assert.deepEqual(normalizeNavigationPrefs({ sortVersion: 4, scope: 'priority', view: 'unread', activity: 'running', sort: 'created' }),
     { ...prefs, scope: 'priority', activity: 'running', sort: 'created' });
+  assert.deepEqual(normalizeNavigationPrefs({ sortVersion: 4, scope: 'archived', activity: 'running', sort: 'activity' }),
+    { ...prefs, scope: 'archived', sort: 'activity' });
+});
+
+test('creation and activity sorting replace only each other and toggle back to smart', () => {
+  const initial = { ...prefs, scope: 'priority', activity: 'running',
+    priorityReturn: { scope: 'all', project: 'reports' } };
+  let state = changeNavigation(initial, { type: 'sort', sort: 'activity' });
+  assert.deepEqual(state, { ...initial, sort: 'activity' });
+  state = normalizeNavigationPrefs(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(state, { ...initial, sort: 'activity' });
+  state = changeNavigation(state, { type: 'sort', sort: 'created' });
+  assert.deepEqual(state, { ...initial, sort: 'created' });
+  state = changeNavigation(state, { type: 'sort', sort: 'activity' });
+  state = changeNavigation(state, { type: 'sort', sort: 'activity' });
+  assert.deepEqual(state, initial);
+  // Existing callers that omit a target still toggle creation order.
+  state = changeNavigation({ ...initial, sort: 'activity' }, { type: 'sort' });
+  assert.deepEqual(state, { ...initial, sort: 'created' });
+  assert.deepEqual(changeNavigation(state, { type: 'sort' }), initial);
+});
+
+test('activity sort persists across projects, priority returns and archive navigation', () => {
+  const initial = { ...prefs, project: 'reports', activity: 'running', sort: 'activity' };
+  const priority = changeNavigation(initial, { type: 'togglePriority' });
+  assert.deepEqual(changeNavigation(normalizeNavigationPrefs(priority), { type: 'togglePriority' }), initial);
+  const nextProject = changeNavigation(initial, { type: 'project', project: 'other' });
+  assert.deepEqual(nextProject, { ...initial, project: 'other' });
+  assert.deepEqual(changeNavigation(nextProject, { type: 'scope', scope: 'archived' }),
+    { ...prefs, scope: 'archived', sort: 'activity' });
 });
 
 test('priority shortcut lists only Pocket attention and restores the previous project without reverting other dimensions', () => {

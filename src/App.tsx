@@ -7,7 +7,6 @@ import {
   RefreshCw,
   X,
   AlertCircle,
-  ArrowDownWideNarrow,
   Plus,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -472,12 +471,19 @@ export default function App({
                 onClick={() => updateNavigation({ type: "togglePriority" })}>
                 <Star size={15} aria-hidden="true" /><span>关注</span>
               </button>}
-              <button className="needs-input-toggle created-toggle"
-                data-inbox={sort === "created"} aria-pressed={sort === "created"}
-                title={sort === "created" ? "恢复智能排序" : "按创建时间从新到旧排列"}
-                onClick={() => updateNavigation({ type: "sort" })}>
-                <ArrowDownWideNarrow size={15} aria-hidden="true" /><span>最近创建</span>
-              </button>
+              <div className="thread-sort-controls" role="group" aria-label="会话排序">
+                {([
+                  { sort: "created", label: "创建", title: "按创建时间从新到旧排列" },
+                  { sort: "activity", label: "活动", title: "按最后消息时间从新到旧排列" },
+                ] as const).map(option => (
+                  <button key={option.sort} className={`needs-input-toggle ${option.sort}-toggle`}
+                    data-inbox={sort === option.sort} aria-pressed={sort === option.sort}
+                    title={sort === option.sort ? "恢复智能排序" : option.title}
+                    onClick={() => updateNavigation({ type: "sort", sort: option.sort })}>
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="list-controls">
               <IconButton type="button"

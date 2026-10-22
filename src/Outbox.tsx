@@ -12,11 +12,15 @@ import { withSubmittedQueryPost } from "./submittedQueries";
 import AttachmentList from "./AttachmentList";
 import { attachmentDraftController } from "./attachments";
 import "./submission-feedback.css";
+import "./submitted-queries.css";
 import { NO_HANDOFF_IDS, useHandoffRows } from "./useReceiptHandoff";
+import { isNetworkError, readableRequestError } from "./requestError";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
+type OutboxError = { status: QueuedMessage["status"]; revision: number; failure: unknown };
+const matchesError = (error: OutboxError, item: QueuedMessage) => error.status === item.status && error.revision === item.revision;
 const outboxKey = (item: QueuedMessage) => item.id;
-export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, onActivity, onAccepted, onAttachmentRecovery, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, onActivity, onAccepted, onAttachmentRecovery, suppressNetworkErrors = false, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS }: {
   threadId: string;
   items: QueuedMessage[];
   paused?: { stopId: string } | null;
@@ -29,6 +33,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   refresh: () => Promise<void> | undefined;
   drafts: Map<string, QueryDraft>;
   submissions?: SubmittedQueryStore;
+  suppressNetworkErrors?: boolean;
   exitIds?: ReadonlySet<string>;
   explicitExitIds?: ReadonlySet<string>;
 }) {
@@ -36,8 +41,33 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const [editing, setEditing] = useState<{ id: string; revision: number } | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState(new Map<string, OutboxError>());
+  const [queueError, setQueueError] = useState<{ stopId: string; failure: unknown } | null>(null);
   const [acceptedItems, setAcceptedItems] = useState(new Set<string>());
+  const currentItems = useRef(items);
+  currentItems.current = items;
+  const clearError = (id: string) => setErrors(previous => {
+    if (!previous.has(id)) return previous;
+    const next = new Map(previous); next.delete(id); return next;
+  });
+  const recordError = (item: QueuedMessage, failure: unknown) => {
+    const current = currentItems.current.find(value => value.id === item.id && value.revision === item.revision);
+    if (!current) return;
+    const receipt = submissions?.getThread(threadId).find(value => value.requestId === item.id);
+    const status = receipt?.queueRevision === item.revision ? receipt.status : current.status;
+    if (!["queued", "editing", "pending", "unknown", "rejected"].includes(status)) return;
+    // Sending may have just advanced the shared receipt to unknown before the
+    // parent render. Bind the error to that current receipt, not its old button.
+    if (item.status !== current.status && status !== "unknown") return;
+    setErrors(previous => new Map(previous).set(item.id, { status: status as QueuedMessage["status"], revision: item.revision, failure }));
+  };
+  useEffect(() => {
+    setErrors(previous => {
+      const next = new Map([...previous].filter(([id, error]) => items.some(item => item.id === id && !acceptedItems.has(id) && matchesError(error, item))));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [items, acceptedItems]);
+  useEffect(() => { setQueueError(previous => previous && previous.stopId !== paused?.stopId ? null : previous); }, [paused?.stopId]);
   const key = (id: string) => `${threadId}/outbox/${id}`;
   const receiptRead = useRef<AbortController | null>(null);
   const viewGeneration = useRef(0);
@@ -81,7 +111,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
     submissions?.observeQueue(threadId, [item]);
     if (action === "send") submissions?.receipt(threadId, { requestId: item.id, status: "pending" });
     if (controller) receiptRead.current = controller;
-    setBusy(item.id); setError("");
+    setBusy(item.id); clearError(item.id);
     try {
       const base = `/api/tasks/${threadId}/outbox/${item.id}`;
       const expectedRevision = editing?.id === item.id ? editing.revision : item.revision;
@@ -147,7 +177,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
       }
     } catch (e) {
       if (action === "send") submissions?.receipt(threadId, { requestId: item.id, status: "unknown" });
-      if (currentView()) setError((e as Error).message);
+      if (currentView()) recordError(item, e);
     }
     finally {
       release();
@@ -158,12 +188,13 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   const resumeQueue = async () => {
     if (!paused || busy) return;
     const release = holdReload();
-    setBusy("queue"); setError("");
+    const generation = viewGeneration.current;
+    setBusy("queue"); setQueueError(null);
     try {
       await api(`/api/tasks/${threadId}/queue/resume`, "POST", { expectedStopId: paused.stopId });
       await refresh();
-    } catch (e) { setError((e as Error).message); }
-    finally { release(); setBusy(null); }
+    } catch (failure) { if (viewGeneration.current === generation) setQueueError({ stopId: paused.stopId, failure }); }
+    finally { release(); if (viewGeneration.current === generation) setBusy(null); }
   };
   const discardEdit = (item: QueuedMessage) => {
     if (busy || editing?.id !== item.id) return;
@@ -171,7 +202,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
     // discards only local changes; restoring delivery remains a separate action.
     drafts.delete(key(item.id));
     focusNext.current = { id: item.id, target: "action" };
-    setEditing(null); setText(""); setError("");
+    setEditing(null); setText(""); clearError(item.id);
   };
   if (!presence.rows.length) return null;
   const { editing: headEditing, blocked: headBlocked } = queueHeadState(items[0] ?? presence.rows[0].item, editing?.id);
@@ -184,6 +215,9 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
       {presence.rows.map(({ item, leaving }, index) => {
         const accepted = item.status === "accepted" || acceptedItems.has(item.id);
         const mutable = !accepted && ["queued", "rejected", "editing"].includes(item.status);
+        const error = errors.get(item.id);
+        const showError = !accepted && error && matchesError(error, item) && items.some(current => current.id === item.id) &&
+          !(suppressNetworkErrors && isNetworkError(error.failure));
         const feedback = queueFeedbackState(item, { accepted, paused: !!paused, editing: editing?.id === item.id, busy: busy === item.id, disabled, headBlocked });
         return <div className={`outbox-item queue-feedback${feedback.breathing && !leaving ? " is-queue-breathing" : ""}`} key={item.id} ref={node => presence.bind(item.id, node)} data-feedback-state={feedback.state} data-outbox-id={item.id} role="group" aria-label={`待发消息 ${index + 1}`} aria-busy={busy === item.id}
           onClickCapture={event => { if (leaving) { event.preventDefault(); event.stopPropagation(); } }}>
@@ -205,9 +239,11 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
               <button aria-label={`${item.status === "editing" ? "恢复排队" : "直接发送"}第 ${index + 1} 条消息`} disabled={!!busy || disabled || (!allowSend && item.status !== "editing")} onClick={() => void act(item, item.status === "editing" ? "resume" : "send")}>{item.status === "editing" ? "恢复排队" : "直接发送"}</button>
             </> : <button disabled={!!busy || disabled} onClick={() => void act(item, "check")}>核对状态</button>}
           </div>
+          {showError && <p className="receipt-action-error" role="alert">{readableRequestError(error.failure)}</p>}
         </div>;
       })}
-      {error && <p className="inline-error" role="alert">{error}</p>}
+      {queueError && queueError.stopId === paused?.stopId && !(suppressNetworkErrors && isNetworkError(queueError.failure)) &&
+        <p className="receipt-action-error" role="alert">{readableRequestError(queueError.failure)}</p>}
     </section>
   );
 }

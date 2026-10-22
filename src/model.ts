@@ -53,8 +53,8 @@ export function filterThreads(
     });
   if (sort === "created" || view === "created") return filtered.sort((a, b) => creationTime(b) - creationTime(a) || a.id.localeCompare(b.id));
   if (sort === "smart" && view !== "archived") return smartThreadOrder(filtered, { now: ranking?.now ?? Date.now(), draftIds: ranking?.draftIds, pocketActivity: ranking?.pocketActivity, runtimeStates });
-  if (sort === "smart") return filtered.sort((a, b) => (lastMessageTime(b) ?? 0) - (lastMessageTime(a) ?? 0)
-    || b.createdAt - a.createdAt || a.id.localeCompare(b.id));
+  if (sort === "activity" || sort === "smart") return filtered.sort((a, b) => (lastMessageTime(b) ?? 0) - (lastMessageTime(a) ?? 0)
+    || creationTime(b) - creationTime(a) || a.id.localeCompare(b.id));
   return filtered.sort((a, b) => {
       if (sort === "pinned" && a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       if (sort === "pinned" && a.pinned && b.pinned)

@@ -48,7 +48,8 @@ export function normalizeNavigationPrefs(value: unknown): NavigationPrefs {
   const activity = scope === "archived" ? "all" : current
     ? prefs.activity === "unread" || prefs.activity === "running" ? prefs.activity : "all"
     : prefs.view === "unread" || prefs.view === "running" ? prefs.view : "all";
-  const sort = (current ? prefs.sort === "created" : prefs.view === "created") ? "created" : "smart";
+  const sort = current ? prefs.sort === "created" || prefs.sort === "activity" ? prefs.sort : "smart"
+    : prefs.view === "created" ? "created" : "smart";
   const result: NavigationPrefs = { scope, project, activity, sort, sortVersion: 4 };
   const back = prefs.priorityReturn;
   if (current && scope === "priority" && back && typeof back === "object") {
@@ -62,7 +63,7 @@ export function normalizeNavigationPrefs(value: unknown): NavigationPrefs {
 export type NavigationChange = { type: "scope"; scope: NavigationScope }
   | { type: "project"; project: string }
   | { type: "activity"; activity: Exclude<ActivityFilter, "all"> }
-  | { type: "sort" }
+  | { type: "sort"; sort?: Exclude<ThreadSort, "smart"> }
   | { type: "togglePriority" }
   | { type: "clearActivity" };
 
@@ -77,7 +78,10 @@ export function changeNavigation(current: NavigationPrefs, change: NavigationCha
     if (current.scope === "priority") return { ...base, ...(priorityReturn || { scope: "all", project: "" }) };
     return { ...base, scope: "priority", project: "", priorityReturn: { scope: current.scope, project: current.project } };
   }
-  if (change.type === "sort") return { ...current, sort: current.sort === "created" ? "smart" : "created" };
+  if (change.type === "sort") {
+    const sort = change.sort ?? "created";
+    return { ...current, sort: current.sort === sort ? "smart" : sort };
+  }
   if (change.type === "clearActivity") return { ...current, activity: "all" };
   if (current.scope === "archived") return current;
   return { ...current, activity: current.activity === change.activity ? "all" : change.activity };

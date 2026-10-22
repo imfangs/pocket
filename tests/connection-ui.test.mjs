@@ -54,7 +54,7 @@ test('verified connection does not grant sending permission before a fresh deskt
 test('a newer fallback read does not keep claiming an old verified connection is live', () => {
   const { html } = render('connected', { checkedAt: 30 });
   assert.doesNotMatch(html, /同步中…/);
-  assert.match(html, /连接失败/);
+  assert.match(html, /连接中断/);
 });
 
 test('empty failed input reuses the primary button for connection retry', () => {

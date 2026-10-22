@@ -1,0 +1,6 @@
+.composer-recovery { flex:none; display:inline-flex; align-items:center; justify-content:center; gap:5px; align-self:stretch; max-width:52%; min-height:44px; margin:0; padding:0 10px; border:0; border-left:1px solid var(--line); border-radius:0 var(--radius-control) var(--radius-control) 0; background:transparent; color:var(--warning); font:inherit; font-size:11px; line-height:1.4; white-space:nowrap; cursor:pointer; }
+.composer-recovery svg { flex:none; }
+.composer-recovery:disabled { opacity:.65; cursor:default; }
+.composer-recovery-action { color:var(--accent); }
+.conversation-feedback .conversation-action-error { margin:0; padding:2px 0; color:var(--danger); background:none; border:0; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.conversation-feedback .message-notice { margin:0; padding:2px 0; }
