@@ -66,3 +66,13 @@ App `26.1007.30912 / 20156` 的标读广播仍为v3，字段、身份、host派�
 下一步是用户确认安全时机后完整退出/重开 Codex，再执行同一专用对象的原生→Pocket→持久状态对照，并确认 listener 与事件互通。重启是待验证的恢复候选，不能保证不会再次出现启动竞态。检查时其他会话正在运行，本轮未擅自中断；产品源码、前端部署和 Pocket 服务均未改变。
 
 私有证据：`.local/qa/unread-sync-2026-10-20/`。前端见 `frontend/assessment.md` 和两份 verdict；原生对照见 `native/baseline.json`、`old-writer.json`、`restored.json`、`native-routing.json`；精确补齐见 `pending-visible-reads.json`、各对象的 repair intent、`repair-receipts.json`、`confirmed-visible-reads.json`、`pocket-readback.json`。下一次继续先回读这些外部操作结果，避免重复置未读或补齐。
+
+## 2026-10-22 上游已读方案与当前只读复核
+
+方帅明确 Claude 接入先缓，继续聚焦当前 Codex 接入和原生未读/已读同步。Happy/HAPI 的已读源码主要维护客户端自己的 Set、localStorage 或本机 SQLite/JSON；未发现把阅读写回 Codex Desktop 原生蓝点的链路。完整对照见[未读专项研究](../research/2026-10-22-unread-comparison.md)。
+
+本轮没有重复标读实验，只读核实当前 App 仍为 `26.1013.40934:20770`；主进程已于 10-22 04:10（Asia/Shanghai）启动，PID 为 `79026`。既有 socket 探针确认 FD `134`、`141` 仍是同一路径的真实 listener。新进程启动后的 Pocket 回执截至检查有25条 `readback_unconfirmed`；另有1条read，不能据此认定广播通道恢复。
+
+因此旧记录中“尚待首次完整重启”的接续条件已过时：新进程里重复监听与失败回执再次出现。下一次修复应围绕当前标读订阅/路由归属和受控原生写回对照展开，重启只能作为需要前后验证的实验，不能单独当修复。完整因果仍待定向确认，本轮不把双listener直接等同每条失败的根因。
+
+没有改动产品、App/服务、socket、Codex存储或真实已读状态。证据在 `.local/qa/unread-research-2026-10-22/`：`current-listeners.json`、`read-only-receipt-summary.json`；含精确命令、时间与汇总，无会话正文。
