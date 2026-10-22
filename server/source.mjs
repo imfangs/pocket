@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { readLocalUnreadState, readRecordedTurnState } from "./unread.mjs";
 import { readMessageActivity } from "./message-time.mjs";
 import { readSourceScope } from "./source-scope.mjs";
+import { POCKET_CONTENT, DESKTOP_READ } from "./pocket-content.mjs";
 
 const separator = (s) => /^[-—–_\s]{3,}$/.test(s);
 const reasoningEfforts = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
@@ -113,6 +114,18 @@ export function readCodexSource(codexHome) {
           ...(recordedTurnState ? { recordedTurnState } : {}),
         };
       });
+    // Native unread and rollout content are separate files. Recheck the
+    // selected namespace after the scan instead of pairing an old false with
+    // content that arrived during it. Private evidence is never serialized.
+    let after;
+    try { after = readLocalUnreadState(JSON.parse(readFileSync(globalFile, "utf8")), codexHome); }
+    catch { /* An unavailable namespace cannot acknowledge any content. */ }
+    if (unread.explicit && after?.explicit && unread.source === "desktop-v1" && after.source === "desktop-v1") {
+      for (const thread of threads) {
+        if (!unread.ids.has(thread.id) && !after.ids.has(thread.id) && thread[POCKET_CONTENT]?.turnState === "ended")
+          thread[DESKTOP_READ] = true;
+      }
+    }
     const result = {
       threads,
       projects,

@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 // Private, in-process evidence. Symbols survive object spread but never enter
 // JSON responses, the catalog's stored source JSON, or the browser cache.
 export const POCKET_CONTENT = Symbol('pocket-content-evidence');
+export const DESKTOP_READ = Symbol('pocket-desktop-read-evidence');
+export const DESKTOP_READ_SETTLE_MS = 2000;
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const EMPTY_CONTENT_VERSION = hash(['pocket-assistant-content-v1', null]);
 export const assistantContentVersion = (id, text, phase) =>
@@ -35,6 +37,8 @@ export class PocketContentService {
   constructor(store, codexHome, options = {}) {
     this.store = store;
     this.isCurrent = options.isCurrent || contentSourceIsCurrent;
+    this.now = options.now || Date.now;
+    this.desktopReadCandidates = new Map();
     this.observedOrder = new Map();
     const identity = sourceIdentity(codexHome);
     const saved = store.setting('pocketContentSource');
@@ -80,9 +84,54 @@ export class PocketContentService {
   source(data) {
     // Keep reading and registration synchronous: a queued/slow old snapshot
     // must be rejected by its file evidence, never assigned a newer revision.
-    return { ...data, threads: data.threads.map(thread => ({ ...thread,
-      pocketContent: this.observe(thread.id, thread[POCKET_CONTENT]),
-    })), sourceInfo: { ...data.sourceInfo, pocketRead: { available: true, scope: this.scope } } };
+    const present = new Set(data.threads.map(thread => thread.id));
+    for (const id of this.desktopReadCandidates.keys()) if (!present.has(id)) this.desktopReadCandidates.delete(id);
+    const threads = data.threads.map(thread => {
+      const candidate = thread[POCKET_CONTENT];
+      const pocketContent = this.observe(thread.id, candidate);
+      // A serialized/previous source object cannot carry read authority into
+      // this scan. Only this fresh, private observation may create a hint.
+      const { desktopReadContent: ignored, ...rest } = thread;
+      const hint = this.desktopReadHint(thread, candidate, pocketContent);
+      return { ...rest, pocketContent, ...(hint ? { desktopReadContent: hint } : {}) };
+    });
+    // Candidates contain no body text and have the same bound as tail caches.
+    while (this.desktopReadCandidates.size > 4096) this.desktopReadCandidates.delete(this.desktopReadCandidates.keys().next().value);
+    return { ...data, threads, sourceInfo: { ...data.sourceInfo, pocketRead: { available: true, scope: this.scope } } };
+  }
+  desktopReadHint(thread, candidate, content) {
+    const prior = this.desktopReadCandidates.get(thread.id);
+    const source = candidate?.source;
+    if (!content.known || content.messageId === null || thread[DESKTOP_READ] !== true ||
+      thread.hasUnreadTurn !== false || candidate.turnState !== 'ended' || !Number.isSafeInteger(source?.order)) {
+      this.desktopReadCandidates.delete(thread.id);
+      return null;
+    }
+    // A final reply may land before the desktop's unread notification. Two
+    // independent settled observations reduce that persistence race; the
+    // native boolean is still a hint, not a per-message reading receipt.
+    const same = prior && prior.revision === content.revision && prior.version === content.version &&
+      prior.messageId === content.messageId && prior.file === source.file && prior.fileVersion === source.version;
+    if (!same) {
+      this.desktopReadCandidates.set(thread.id, { ...content, file: source.file, fileVersion: source.version,
+        order: source.order, since: this.now(), confirmed: false });
+      return null;
+    }
+    if (source.order <= prior.order) return null;
+    prior.order = source.order;
+    if (this.now() - prior.since < DESKTOP_READ_SETTLE_MS) return null;
+    prior.confirmed = true;
+    return content;
+  }
+  readConfirmationDelay() {
+    const pending = [...this.desktopReadCandidates.values()].filter(candidate => !candidate.confirmed);
+    return pending.length ? Math.max(0, Math.min(DESKTOP_READ_SETTLE_MS,
+      Math.max(...pending.map(candidate => candidate.since + DESKTOP_READ_SETTLE_MS - this.now())))) : null;
+  }
+  sourceUnavailable() {
+    // Recovery must establish two fresh observations; an outage does not
+    // count as time spent observing a stable desktop read state.
+    this.desktopReadCandidates.clear();
   }
   catalog(data) {
     const rows = this.store.db.prepare('SELECT * FROM pocket_content WHERE scope=?').all(this.scope);

@@ -1,10 +1,11 @@
-# Pocket 独立阅读状态
+# Pocket 阅读状态与桌面已读合并
 
-2026-10-22。方帅在[未读对照研究](../research/2026-10-22-unread-comparison.md)之后确认：由 Pocket 维护自己的会话阅读状态，不再强求与 Codex Desktop 蓝点一致。本文件取代旧[原生已读同步](2026-10-05-read-state-sync.md)作为当前产品契约；旧文保留历史实验与未解决的上游故障。
+2026-10-22。方帅在[未读对照研究](../research/2026-10-22-unread-comparison.md)之后确认：由 Pocket 维护自己的会话阅读状态，不再强求与 Codex Desktop 蓝点一致。随后欧吉安反馈双端重复未读，并授权默认合并桌面已读；当前规则如下。本文件取代旧[原生已读同步](2026-10-05-read-state-sync.md)作为当前产品契约；旧文保留历史实验与未解决的上游故障。
 
 ## 用户行为
 
 - 进入会话，最新完整回复末尾真正出现在前台、无遮挡的阅读区域后，立即清除 Pocket 未读。返回列表和刷新后保持。
+- 新鲜桌面状态确认对应内容不再未读后，Pocket 合入其已读水位，无需逐条重新打开。不增加开关；Pocket 读过的版本不会被桌面旧未读反向覆盖。
 - 新回复或同一条回复新增内容时重新变为未读；在旧滚动位置、后台或浮层下收到内容不视为已读。
 - 列表标记、未读筛选、数量与智能排序使用同一判定。运行状态独立，运行中也可能存在尚未读到的回复；已读的等待回答/审批继续显示待处理。
 - 不再提供“同步已读”重试或同步失败提示。新界面不调用原生标读接口，也不为阅读重启或连接 Codex。
@@ -19,9 +20,24 @@ API 提供 `pocketContent = { scope, revision, version, messageId, known: true }
 
 浏览器按 **电脑 + 来源 scope + thread ID** 保存最新已知版本与已读版本。scope 存在 Pocket 设置中，普通服务重启保持；换新数据目录/来源建立新 scope。恢复旧 Pocket 数据库需要同时更新 scope，不能承诺回滚数据库后仍自动保持 revision 单调。
 
-首次看到某会话时按原生未读建立一次基线，原生明确 false 优先；没有原生状态的旧内容以当前版本为基线，避免全部历史突然变蓝。之后 native true/false 都不能覆盖 Pocket 的阅读判断。更高 revision 的新内容产生未读，迟到目录/操作/阅读结果不能回退水位；同一 revision 的不同摘要视为冲突，不能悄悄标读。
+首次看到某会话时按原生未读建立一次基线，原生明确 false 优先；没有原生状态的旧内容以当前版本为基线，避免全部历史突然变蓝。之后原始 native true/false 都不能直接覆盖 Pocket 的阅读判断；只有下节的精确版本 `desktopReadContent` 能单向推进已读。更高 revision 的新内容产生未读，迟到目录/操作/阅读结果不能回退水位；同一 revision 的不同摘要视为冲突，不能悄悄标读。
 
 同源多个标签按会话单独合并 localStorage 更新，避免整表互相覆盖。每机最多保留 4096 条阅读记录，按实际阅读/内容变化保留近期项；普通目录轮询不制造访问。达到上限后移除旧水位，再次出现的缺失旧记录按当前内容建立基线，不重复导入 Codex 蓝点。存储不可用时退回当前页面内存，不阻断阅读和发送。
+
+## 桌面已读合并（2026-10-22 后续修正）
+
+首版完全独立的水位使“已在 Codex 看过的回复”仍在 Pocket 未读。本轮保留客户端水位，把服务端提供的 `desktopReadContent` 合入 seen；有效已读为本地阅读与桌面提示的较高版本。相同 revision 的摘要/消息身份冲突仍不可确认；提示不得超出携带它的目录内容版本，也不能跨电脑或来源 scope。
+
+桌面目前只有会话级未读集合，没有逐消息阅读时间或水位。因此 `desktopReadContent` 表示“Codex 在这一内容版本的稳定采集中没有未读标记”，不是严格的跨端逐消息阅读证明。
+
+- 来源扫描前后都验证当前 API-key/local identity/host 的 v1 数组确实存在、有效，且不包含该会话。缺字段、legacy、未知或读取失败不生成提示；旧首次基线兼容保持。
+- 当前轮已结束从同一次有界历史尾部采集得到；读取中变化、正在运行或未知不能开始确认。内容仍通过文件指纹与观察序号核验。
+- 对相同内容与源文件版本取得至少两次新鲜观察，间隔至少 2 秒，才生成提示。新版本、重新运行、原生未读或未知会撤销候选；重启后重新建立。它降低 rollout 先落盘、原生蓝点后更新的竞态，但不承诺任意延迟下零误差。
+- 客户端同步有新候选时最多等待一次 2 秒的复核，同一批并发同步共用请求；没有候选则保持立即返回。既有 45 秒后台采集保持，不新增桌面连接或高频全量轮询。
+- 提示只在新鲜 source 采集中生成，保存时带固定 scope/revision/version/messageId。普通 catalog 可以返回旧提示，但绝不用较新的内容账本给旧提示重打版本；正文先更新时，旧提示无法清掉新内容。
+- 浏览器渲染、计数、筛选与排序共用同一合并函数，收到提示便持久化推进水位；未知/离线保留已读，原生旧 true 不能反弹。已有 v1 阅读记录原地兼容，不清本地存储。
+
+原生写回仍未恢复，本轮不调用 setter，不重启 Codex。等待回答/审批、运行、发送及待发回执继续保持独立。只读真实源、合成竞态和双浏览器验收结果回 CURRENT；iPhone 长期跨端体验仍需真实使用反馈。
 
 ## 阅读观察
 
@@ -38,8 +54,10 @@ API 提供 `pocketContent = { scope, revision, version, messageId, known: true }
 
 ## 验证入口
 
-核心回归：`tests/pocket-content.test.mjs`、`tests/pocket-read-state.test.mjs`、`tests/pocket-read-observation.test.mjs`、`tests/pocket-read-navigation.test.mjs`。浏览器覆盖实际阅读、返回、刷新、新内容、遮挡、旧位置、同源标签和原生零写入；发布状态与证据路径见 [CURRENT](../../CURRENT.md)。
+核心回归：`tests/pocket-desktop-read.test.mjs`、`tests/pocket-content.test.mjs`、`tests/pocket-read-state.test.mjs`、`tests/pocket-read-observation.test.mjs`、`tests/pocket-read-navigation.test.mjs`。浏览器覆盖实际阅读、返回、刷新、新内容、遮挡、旧位置、同源标签和原生零写入；发布状态与证据路径见 [CURRENT](../../CURRENT.md)。
 
-本轮冻结版1305项全测、Pages构建、Chromium/WebKit各25项完整路径通过。独立CR修正了历史缺少turnId、消息转为问题卡后观察节点变化、跨标签容量清理删除被旧内存复活三项边界；最终两轴无剩余P1/P2。真实只读81/82个active来源已知，唯一未知对象缺rollout且owner超时；46份成功历史与目录摘要一致。1500条热目录在Node内存Storage fixture中不再写入或枚举存储，不能视为iPhone性能实测。证据 `.local/qa/pocket-read-2026-10-22/`。
+首版冻结版1305项全测、Pages构建、Chromium/WebKit各25项完整路径通过。独立CR修正了历史缺少turnId、消息转为问题卡后观察节点变化、跨标签容量清理删除被旧内存复活三项边界；最终两轴无剩余P1/P2。真实只读81/82个active来源已知，唯一未知对象缺rollout且owner超时；46份成功历史与目录摘要一致。1500条热目录在Node内存Storage fixture中不再写入或枚举存储，不能视为iPhone性能实测。证据 `.local/qa/pocket-read-2026-10-22/`。
 
-发布已验证：源码 `db45ad31344e4e2a3d107ebd008aba568a0ee2ce`，Pages `c7a5b556-5fc2-4437-9a94-ad544c001c8a`，29/29公开文件和功能检查通过；两机公网各3个完整正文样本与目录版本一致。两机API更新，Codex/隧道未重启，旧队列、凭据与逐条发送策略保持。Cloudflare首次预检401在上传前退出，按既有whoami续期后仅上传一次。构建副本与传输tar已清理，运行release与必要回退依赖保留。
+首版发布已验证：源码 `db45ad31344e4e2a3d107ebd008aba568a0ee2ce`，Pages `c7a5b556-5fc2-4437-9a94-ad544c001c8a`，29/29公开文件和功能检查通过；两机公网各3个完整正文样本与目录版本一致。两机API更新，Codex/隧道未重启，旧队列、凭据与逐条发送策略保持。Cloudflare首次预检401在上传前退出，按既有whoami续期后仅上传一次。构建副本与传输tar已清理，运行release与必要回退依赖保留。
+
+后续合并版本地验收：1326项完整回归、Pages构建及Chromium/WebKit各32项通过。独立CR发现来源整体失败未清候选，补充红/绿回归并修正；恢复后重新等待两次观察，已持久水位保留，两轴最终无剩余P1/P2。只读真实源50个提示均绑定对应版本，不写Codex；证据 `.local/qa/merged-read-2026-10-22/`，发布状态回CURRENT。

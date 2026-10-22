@@ -45,6 +45,8 @@ export interface PocketContent {
 }
 export interface Thread {
   pocketContent?: PocketContent | null;
+  // A desktop read hint bound to the content version actually observed there.
+  desktopReadContent?: PocketContent | null;
   // Derived by this Pocket client; never replaces the original native flag.
   pocketUnread?: boolean;
   id: string;

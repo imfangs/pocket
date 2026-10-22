@@ -10,7 +10,7 @@
 
 源 SQLite 用 `readOnly:true`、query_only 与一致读取事务，global state 仅 readFile。列表纳入本机 `vscode/cli/app` 用户会话，按已核验的桌面来源规则排除后台 `exec`、隐藏内部任务和子代理（含 `thread_spawn_edges` 子节点）；不用标题或 `has_user_event` 推断有效任务。桌面 `local_thread_catalog` 用于比对，不能当强制白名单：新建会话同步可能滞后，归档历史也不在其中。范围与升级边界见[来源范围](design/2026-10-14-desktop-list-scope.md)。最近可见历史按需读取而不持久导入；不提取模型总结，不读取云端或其他 remote host 的任务。手机访问通过口令保护的 HTTPS 转发，见 `docs/MOBILE.md`。历史与 query 桥接、状态限制及防重语义见 `docs/CONVERSATION.md`。
 
-`pocket_content`在 Pocket SQLite 中保存来源 scope、会话内容摘要与递增版本，不保存正文或用户已读；浏览器阅读水位独立持久化，见[独立阅读状态](design/2026-10-22-pocket-read-state.md)。
+`pocket_content`在 Pocket SQLite 中保存来源 scope、会话内容摘要与递增版本，不保存正文或用户已读；浏览器阅读水位独立持久化，并吸收新鲜扫描生成、绑定精确内容版本的桌面已读提示；旧 catalog 提示不重打新版本。见[阅读状态与已读合并](design/2026-10-22-pocket-read-state.md)。
 
 `source_threads`缓存来源元数据；`annotations`保存旧整理字段与revision，`groups`保存兼容分组。`pin_overrides`复用为Pocket优先关注存储：true为关注，false/缺省为未关注；原生置顶从来源独立读取。目录和单会话同时返回`codexPinned`与`pocketPriority`，Rank分别加60/90，可叠加。默认继承来源分组只在 sourceProjectId 非空时成立，手动分组不会捕获全部无项目任务。用户明确的空组数组表示取消归组，以后同步不重新附加。
 

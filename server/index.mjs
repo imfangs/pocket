@@ -22,6 +22,7 @@ import { MessageImages } from "./message-images.mjs";
 import { MessageFiles } from "./message-files.mjs";
 import { dispatchResponse } from "./dispatch-response.mjs";
 import { isIP } from "node:net";
+import { setTimeout as delay } from "node:timers/promises";
 
 const exec = promisify(execFile);
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -63,7 +64,7 @@ export function makeApp(options = {}) {
     { openThread, connectionTimeoutMs: options.connectionTimeoutMs, connectionPollMs: options.connectionPollMs, attachmentOptions: options.attachments },
   );
   const readState = new ReadStateService(store, codexHome, options.readState);
-  const pocketContent = new PocketContentService(store, codexHome);
+  const pocketContent = new PocketContentService(store, codexHome, options.pocketContent);
   const automations = new ThreadAutomations(codexHome, options.automations);
   const catalog = () => automations.enrich(pocketContent.catalog(store.catalog()));
   const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
@@ -96,9 +97,21 @@ export function makeApp(options = {}) {
       store.sync(data);
       return data.sourceInfo;
     } catch (e) {
+      pocketContent.sourceUnavailable();
       store.failSync(e);
       throw e;
     }
+  }
+  let readingSync;
+  function syncForClient() {
+    if (!readingSync) {
+      readingSync = (async () => {
+        sync();
+        const wait = pocketContent.readConfirmationDelay();
+        if (wait !== null) { await delay(wait); sync(); }
+      })().finally(() => { readingSync = null; });
+    }
+    return readingSync;
   }
   try {
     sync();
@@ -281,7 +294,7 @@ export function makeApp(options = {}) {
       if (path === "/api/notifications/state" && method === "POST")
         return json(res, 200, notifications.subscriptionState((await body(req, 4096)).endpoint));
       if (method === "POST" && path === "/api/sync") {
-        sync();
+        await syncForClient();
         return sendCatalog(res, catalog(), req.headers["accept-encoding"]);
       }
       if (method === "GET" && path === "/api/export") {

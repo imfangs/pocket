@@ -30,6 +30,135 @@ test('one initial native baseline is retained but never consulted again', () => 
   }
 });
 
+test('a versioned desktop read clears existing unread immediately and persists through reload', () => {
+  const { store, values } = setup();
+  const unread = thread();
+  store.observeCatalog([unread]);
+  assert.equal(store.unread(unread), true);
+  const desktopRead = thread(content(), { desktopReadContent: content() });
+  assert.equal(store.unread(desktopRead), false, 'the render projection includes the hint before the catalog effect');
+  store.observeCatalog([desktopRead]);
+  assert.equal(store.unread(unread), false, 'old native unread cannot undo an absorbed desktop read');
+  const reloaded = setup({ values }).store;
+  reloaded.observeCatalog([unread]);
+  assert.equal(reloaded.unread(unread), false);
+  assert.equal(reloaded.unread({ id: unread.id, pocketContent: { known: false } }), false, 'temporary unknown content preserves the watermark');
+});
+
+test('desktop read hints suppress the initial unread baseline without changing native flags', () => {
+  const { store } = setup();
+  const desktopRead = thread(content(), { desktopReadContent: content() });
+  assert.equal(store.unread(desktopRead), false);
+  store.observeCatalog([desktopRead]);
+  assert.equal(store.unread(desktopRead), false);
+  assert.equal(desktopRead.hasUnreadTurn, true);
+});
+
+test('old desktop hints advance only their version and never clear newer content', () => {
+  const { store, values } = setup();
+  store.observeCatalog([thread()]);
+  const newer = thread(content(3), { desktopReadContent: content(2) });
+  store.observeCatalog([newer]);
+  assert.equal(store.unread(newer), true);
+  assert.equal(JSON.parse([...values.values()][0]).seen.revision, 2);
+  store.observeCatalog([thread(content(), { desktopReadContent: content() })]);
+  assert.equal(store.unread(thread(content(3))), true);
+  assert.equal(JSON.parse([...values.values()][0]).seen.revision, 2);
+  const latestRead = thread(content(3), { desktopReadContent: content(3) });
+  store.observeCatalog([latestRead]);
+  assert.equal(store.unread(latestRead), false);
+  const next = thread(content(4), { desktopReadContent: content(3), hasUnreadTurn: false });
+  assert.equal(store.unread(next), true);
+  store.observeCatalog([next]);
+  assert.equal(store.unread(next), true);
+});
+
+test('future, conflicting, malformed and cross-scope desktop hints cannot clear unread', () => {
+  const badHints = [content(2), content(1, { version: 'b'.repeat(64) }), content(1, { messageId: 'other' }),
+    content(1, { scope: 'source-two' }), content(1, { known: false }), content(0), null];
+  for (const hint of badHints) {
+    const { store, values } = setup();
+    store.observeCatalog([thread()]);
+    const invalid = thread(content(), { desktopReadContent: hint });
+    assert.equal(store.unread(invalid), true);
+    store.observeCatalog([invalid]);
+    assert.equal(store.unread(invalid), true);
+    assert.equal(JSON.parse([...values.values()][0]).seen, null);
+    store.observeCatalog([thread(content(), { desktopReadContent: content() })]);
+    assert.equal(store.unread(thread()), false, 'a rejected hint does not poison a later valid read');
+  }
+});
+
+test('a hint newer than its catalog content is rejected even when that version is already known', () => {
+  const { store } = setup();
+  store.observeCatalog([thread(content(2))]);
+  const mixed = thread(content(), { desktopReadContent: content(2) });
+  assert.equal(store.unread(mixed), true);
+  store.observeCatalog([mixed]);
+  assert.equal(store.unread(thread(content(2))), true);
+});
+
+test('a conflicting current revision cannot be cleared by a desktop hint', () => {
+  const { store } = setup();
+  store.observeCatalog([thread()]);
+  const other = content(1, { version: 'b'.repeat(64) });
+  store.observeCatalog([thread(other)]);
+  const hint = thread(other, { desktopReadContent: other });
+  assert.equal(store.unread(hint), true);
+  store.observeCatalog([hint]);
+  assert.equal(store.unread(hint), true);
+  store.observeCatalog([thread(content(2), { desktopReadContent: content(2) })]);
+  assert.equal(store.unread(thread(content(2))), false);
+});
+
+test('desktop hints preserve newer Pocket reading and do not cross machine or active source boundaries', () => {
+  let selected = 'ged';
+  const { store } = setup({ machine: () => selected });
+  store.markSeen('one', content(3));
+  store.observeCatalog([thread(content(2), { desktopReadContent: content(2) })], 'source-one');
+  assert.equal(store.unread(thread(content(3))), false);
+  selected = 'wandou';
+  store.observeCatalog([thread(content(3))], 'source-one');
+  assert.equal(store.unread(thread(content(3))), true);
+  selected = 'ged';
+  store.observeCatalog([], 'source-two');
+  assert.equal(store.unread(thread(content(3), { desktopReadContent: content(3) })), undefined);
+});
+
+test('unknown content does not accept a fresh desktop hint', () => {
+  const { store } = setup();
+  store.observeCatalog([thread()], 'source-one');
+  const unknown = thread({ known: false }, { desktopReadContent: content() });
+  assert.equal(store.unread(unknown), true);
+  store.observeCatalog([unknown], 'source-one');
+  assert.equal(store.unread(thread()), true);
+});
+
+test('a hint conflicting with a previously known older version cannot advance reading', () => {
+  const { store, values } = setup();
+  store.observeCatalog([thread()]);
+  store.observeCatalog([thread(content(2), { desktopReadContent: content(1, { version: 'b'.repeat(64) }) })]);
+  assert.equal(JSON.parse([...values.values()][0]).seen, null);
+  assert.equal(store.unread(thread(content(2))), true);
+});
+
+test('absorbed desktop reading propagates across tabs and unchanged hints do not notify again', () => {
+  const values = new Map(), a = setup({ values }), b = setup({ values });
+  const releaseA = a.store.subscribe(() => {}), releaseB = b.store.subscribe(() => {});
+  a.store.observeCatalog([thread()]); b.store.observeCatalog([thread()]);
+  const key = [...values.keys()][0], old = values.get(key);
+  const read = thread(content(), { desktopReadContent: content() });
+  a.store.observeCatalog([read]); b.change(key);
+  assert.equal(b.store.unread(thread()), false);
+  const before = a.store.getSnapshot();
+  a.store.observeCatalog([read]); a.store.observeCatalog([read]);
+  assert.equal(a.store.getSnapshot(), before);
+  values.set(key, old); a.change(key); b.change(key);
+  assert.equal(a.store.unread(thread()), false);
+  assert.equal(b.store.unread(thread()), false);
+  releaseA(); releaseB();
+});
+
 test('visible reading clears immediately and persists through refresh despite native unread', () => {
   const { store, values } = setup();
   const source = thread();

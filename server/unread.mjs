@@ -19,7 +19,9 @@ export function readUnreadState(global, authMode) {
     const current = identity?.['local:' + hash(['local', 'local', null])];
     const value = current === undefined ? [] : current;
     if (!ids(value)) return unknown();
-    return { available: true, source: 'desktop-v1', ids: new Set(value) };
+    // An absent namespace can mean an empty initial baseline, but is not
+    // positive evidence for importing desktop reading into Pocket.
+    return { available: true, source: 'desktop-v1', ids: new Set(value), explicit: ids(current) };
   }
   const value = global['electron-persisted-atom-state']?.['unread-thread-ids-by-host-v1']?.local;
   return ids(value) ? { available: true, source: 'legacy', ids: new Set(value) } : unknown();

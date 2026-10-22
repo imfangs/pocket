@@ -41,6 +41,34 @@ test('visible reading survives reload and drives count, filter, badge and rank d
   assert.equal(after.lastMessageAt, row.lastMessageAt);
 });
 
+test('a desktop read updates count, filter, badge and rank together without answering pending requests', () => {
+  const storage = storageFixture();
+  const options = { storage, machine: () => 'ged', browser: () => undefined };
+  let store = createPocketReadStateStore(options);
+  store.observeCatalog([row], 'source-a');
+  const before = projection(store, row), beforeScore = smartThreadScore(before, { now });
+  const desktopRead = { ...row, desktopReadContent: content(1) };
+  const projectedBeforeEffect = projection(store, desktopRead);
+  assert.equal(navigationActivityCounts([projectedBeforeEffect], prefs, '').unread, 0);
+  store.observeCatalog([desktopRead], 'source-a');
+  store = createPocketReadStateStore(options);
+  store.observeCatalog([row], 'source-a');
+  const after = projection(store, row);
+  assert.equal(navigationActivityCounts([after], prefs, '').unread, 0);
+  assert.deepEqual(filterThreads([after], prefs.scope, '', prefs.project, prefs.sort, undefined, { now }, prefs.activity), []);
+  assert.equal(threadListStates(after).some(state => state.key === 'unread'), false);
+  assert.ok(smartThreadScore(after, { now }) < beforeScore);
+  for (const status of ['waiting_input', 'waiting_approval']) {
+    assert.equal(needsUserInput(after, status), true);
+    assert.equal(threadListStates(after, false, status).some(state => state.key === status), true);
+  }
+  const incoming = { ...row, pocketContent: content(2), desktopReadContent: content(1), hasUnreadTurn: false };
+  store.observeCatalog([incoming]);
+  const newReply = projection(store, incoming);
+  assert.equal(navigationActivityCounts([newReply], prefs, '').unread, 1);
+  assert.equal(threadListStates(newReply).some(state => state.key === 'unread'), true);
+});
+
 test('a new assistant revision remains unread with native false, including while running', () => {
   const store = createPocketReadStateStore({ storage: storageFixture(), machine: () => 'ged', browser: () => undefined });
   store.observeCatalog([row], 'source-a'); store.markSeen(row.id, content(1));

@@ -4,7 +4,7 @@ import type { PocketContent } from "./types";
 export type { PocketContent } from "./types";
 type ContentVersion = Pick<PocketContent, "revision" | "version" | "messageId">;
 type ReadEntry = { schema: 1; latest: ContentVersion; seen: ContentVersion | null; conflict: boolean; touchedAt: number };
-type ReadThread = { id: string; pocketContent?: PocketContent | null; hasUnreadTurn?: boolean | null; needsInput?: boolean };
+type ReadThread = { id: string; pocketContent?: PocketContent | null; desktopReadContent?: PocketContent | null; hasUnreadTurn?: boolean | null; needsInput?: boolean };
 type StorageLike = Pick<Storage, "getItem" | "setItem"> & Partial<Pick<Storage, "key" | "removeItem" | "length">>;
 type BrowserLike = Pick<Window, "addEventListener" | "removeEventListener">;
 const prefix = "pocket.read.v1.";
@@ -149,6 +149,22 @@ export function createPocketReadStateStore({
       if (!listeners.size && listening) { listening.removeEventListener("storage", stored); listening = undefined; }
     };
   };
+  const catalogEntry = (thread: ReadThread, content: PocketContent, current: ReadEntry | null) => {
+    const latest = reference(content);
+    // Native booleans establish the first baseline only. Later desktop reads
+    // must name the content version observed by the server, not its latest row.
+    const initiallyUnread = !overflowed() && thread.hasUnreadTurn !== false && (thread.hasUnreadTurn === true || thread.needsInput === true);
+    const next = merge(current, { schema: 1, latest, seen: current || initiallyUnread ? null : latest, conflict: false, touchedAt: 0 });
+    const hint = thread.desktopReadContent;
+    if (!isPocketContent(hint) || hint.scope !== content.scope || hint.revision > content.revision ||
+      next.conflict && hint.revision === next.latest.revision) return next;
+    // Reject inconsistent hints without poisoning an otherwise usable record.
+    // An old catalog may carry its old hint, but cannot relabel it as new content.
+    for (const known of [content, current?.latest, current?.seen, next.latest, next.seen])
+      if (known?.revision === hint.revision && !sameVersion(known, hint)) return next;
+    if (!next.seen || hint.revision > next.seen.revision) return { ...next, seen: reference(hint) };
+    return next;
+  };
   const observeCatalog = (threads: readonly ReadThread[], scope?: string) => {
     const selected = machine();
     const scopes = new Set(threads.map(thread => thread.pocketContent).filter(isPocketContent).map(content => content.scope));
@@ -162,14 +178,7 @@ export function createPocketReadStateStore({
       const key = keyFor(thread.id, content.scope);
       if (!key) continue;
       const current = read(key);
-      const latest = reference(content);
-      // One baseline per conversation/source. Later native booleans never enter
-      // the merge. Unknown old history starts at a baseline, without a blue flood.
-      const initiallyUnread = !overflowed() && thread.hasUnreadTurn !== false && (thread.hasUnreadTurn === true || thread.needsInput === true);
-      const baseline: ReadEntry = current
-        ? { schema: 1, latest, seen: null, conflict: false, touchedAt: 0 }
-        : { schema: 1, latest, seen: initiallyUnread ? null : latest, conflict: false, touchedAt: 0 };
-      changed = put(key, baseline) || changed;
+      changed = put(key, catalogEntry(thread, content, current)) || changed;
     }
     if (changed) { prune(); notify(); }
   };
@@ -194,8 +203,8 @@ export function createPocketReadStateStore({
     const key = keyFor(thread.id, source);
     if (!key) return undefined;
     const current = read(key);
-    if (!current) return content ? !overflowed() && content.messageId !== null && thread.hasUnreadTurn !== false && (thread.hasUnreadTurn === true || thread.needsInput === true) : undefined;
-    const value = content ? merge(current, { schema: 1, latest: reference(content), seen: null, conflict: false, touchedAt: 0 }) : current;
+    const value = content ? catalogEntry(thread, content, current) : current;
+    if (!value) return undefined;
     if (value.latest.messageId === null) return false;
     return value.conflict || !value.seen || value.seen.revision < value.latest.revision ||
       value.seen.revision === value.latest.revision && !sameVersion(value.seen, value.latest);

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { isAbsolute, join, sep } from 'node:path';
 import { parseHistory } from './history.mjs';
 import { POCKET_CONTENT, contentFileVersion, contentEvidence } from './pocket-content.mjs';
+import { parseRecordedTurnState } from './unread.mjs';
 
 // A catalog scan visits every thread, so a small LRU would evict all entries
 // before the next scan. Only file identity/version, timestamp and content
@@ -50,9 +51,10 @@ export function readMessageActivity(codexHome, threadId, rolloutPath) {
       // than assigning a timestamp from an internal event or file metadata.
       const firstLineEnd = start ? buffer.indexOf(10) : -1;
       const skip = start ? (firstLineEnd < 0 ? buffer.length : firstLineEnd + 1) : 0;
-      const parsed = parseHistory(buffer.subarray(skip).toString('utf8'), readStart + skip);
+      const text = buffer.subarray(skip).toString('utf8');
+      const parsed = parseHistory(text, readStart + skip);
       lastMessageAt = parsed.lastMessageAt;
-      content = parsed[POCKET_CONTENT];
+      content = { ...parsed[POCKET_CONTENT], turnState: parseRecordedTurnState(text) };
       // A recent user query provides message activity, but cannot prove that
       // no earlier assistant exists. Keep expanding until an answer or head.
       if ((lastMessageAt !== null && content.known) || start === 0) break;
