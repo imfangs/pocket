@@ -1,6 +1,6 @@
 # Pocket 当前状态
 
-2026-10-22 详情横滚与返回修复已完成验收、待发布：复制按钮的横向负margin导致消息列表撑宽2px，使边缘返回误让出手势。已局部修正占位并限制主消息区横轴，保留代码/表格局部横滚与既有导航保护。1326项完整回归、27项定向与166项浏览器检查通过，独立CR无剩余问题；当前线上版本仍见下表，随后只更新网页。契约见[横滚与返回冲突](docs/design/2026-10-15-motion-implementation.md#2026-10-22-主消息横滚与返回冲突)。
+2026-10-22 详情横滚与返回修复已上线：复制按钮横向负margin使消息列表撑宽2px，边缘返回因此误让出手势。已局部修正横向占位并限制主消息区横轴；保留消息高度、44px复制目标、代码/表格局部横滚及原导航保护。1326项完整回归、27项定向、166项浏览器检查与独立CR通过；29个公开文件和功能回读通过。仅网页更新，两机API/Codex/隧道、11条待发与阅读记录保持。证据 `.local/qa/detail-overflow-2026-10-22/`，契约见[横滚与返回冲突](docs/design/2026-10-15-motion-implementation.md#2026-10-22-主消息横滚与返回冲突)。
 
 2026-10-22 已读合并已上线：保留 Pocket 阅读水位，同时吸收 Codex 对应内容的已读提示，重复未读无需逐条重新打开；原生旧未读不反向覆盖，新回复仍未读。新鲜来源和内容版本绑定，至少两次相隔2秒复核，整体读取失败撤销候选；运行中/未知不新确认。1326项全测、64项双浏览器、两轴CR与豌豆127项回归通过，两机公网提示/正文及29个公开文件验证通过。仅更新Pocket API和网页，Codex/隧道、11条待发记录与逐条策略保持。契约见[阅读状态与已读合并](docs/design/2026-10-22-pocket-read-state.md)，证据 `.local/qa/merged-read-2026-10-22/`。
 
@@ -68,12 +68,12 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `0dbdf39c904877de152fc29a9a1d4f8910a43f2e`（桌面已读提示合并）；之前视觉、输入与发送行为保持 |
+| 已发布前端与网关源码 | `7640ba1b887b2ca9b32932616b6e07e1311288a5`（详情横滚与右滑返回修复）；已读合并和发送行为保持 |
 | Mac API与桥接源码 | 两机均为 `0dbdf39c904877de152fc29a9a1d4f8910a43f2e`；格得API PID `8828`、豌豆独立release/API PID `91737`。连接器格得 `1949`、豌豆 `12016` 未变；Codex进程、凭据、11条待发记录与逐条投递策略保持，旧release/共享依赖保留 |
-| Pages 部署 | `18a58ea7-d358-4d02-bb23-46140fd5b9e7`；10-22 ready=true、29/29文件匹配、访问保护及manifest检查通过，上传一次 |
-| 前端 build ID | `c48ec4c8bc93d0265a2f8530706919b0046757cf54f25924820c5cc4bdfeeabf`；Chromium/WebKit各32项合并与阅读路径通过，冻结源码与发布构建匹配 |
-| 验证快照 | `.local/qa/merged-read-2026-10-22/final-verdict.json`、`all-tests-final.log`、`browser-verdict.json`、两轴review、`pages-deploy.json`、`public-read.json`、两机upgrade回执；传输包元信息在 `package.json` / `release-metadata.json` |
-| 最后健康复核 | 10-22两机公网认证同步/提示/历史回读通过：格得62个active、61个内容已知、49个已读提示，豌豆11/11已知、10个提示；各3个完整正文样本与目录版本一致。原生写入0，匿名401及manifest正常。运行中/未知不授予提示，真机长期体验不以合成验证代替 |
+| Pages 部署 | `ee918004-7835-44f8-8be9-c922b047fb41`；10-22 ready=true、29/29文件匹配与功能检查通过。首次预检401在上传前退出，既有OAuth续期后上传一次 |
+| 前端 build ID | `b794a7805c6b09868fc1691cf5b645adb3cffc5a617519f5eb9f3681e95951d4`；Chromium88项、WebKit78项共166项通过，冻结源码与发布构建匹配 |
+| 验证快照 | `.local/qa/detail-overflow-2026-10-22/release-verdict.json`、`all-tests.log`、`final-verdict.json`、`report.md`、`pages-deploy-after-auth.json`、两机unchanged回执；已读合并的API与内容验证留在 `.local/qa/merged-read-2026-10-22/` |
+| 最后健康复核 | 10-22本次公网29文件、访问保护和manifest通过，两机服务/凭据/投递策略与待发记录比对保持。上一轮两机公网精确已读提示与每机3个完整正文已验证。Chromium使用CDP真实触摸输入，WebKit使用几何/DOM滚动；iPhone/PWA真机手感仍待实际使用反馈 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json` 或机器私有 `NAVIGATOR_BRIDGE_CONFIG`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
 需要确认最新在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。

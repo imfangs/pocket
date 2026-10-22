@@ -49,3 +49,5 @@
 浏览器基线除几何外，使用Chromium CDP真实触摸输入复现普通正文边缘右滑失效；临时只限制根横轴即可完成同一路径返回，证明冲突链路。最终复验与发布记录见CURRENT，证据 `.local/qa/detail-overflow-2026-10-22/`。WebKit几何/合成事件与Chromium CDP均不代替iPhone主屏幕真机手感。
 
 本轮冻结构建 `b794a7805c6b09868fc1691cf5b645adb3cffc5a617519f5eb9f3681e95951d4` 验收：1326项完整测试与27项手势/视口/footer定向通过，独立CSS/导航CR无剩余问题；Chromium88项、WebKit78项共166项通过。36个内容/宽度/引擎场景的主消息区宽度相等，临时恢复overflow-x:auto仍无溢出；44px复制按钮可点，长Query展开保持。Chromium CDP验证正文返回、代码/表格内真触摸横滚、旁侧空白返回、短拖/纵滚/选区/多指；WebKit验证几何与DOM横滚。触点附近的浏览器命中修正会把靠近代码边缘的触摸交给pre，旁侧返回验收核对真实touchstart目标。浏览器、fixture和重复基线构建已清理，JSON证据与旧构建manifest保留。
+
+本轮已发布：源码 `7640ba1b887b2ca9b32932616b6e07e1311288a5`，Pages `ee918004-7835-44f8-8be9-c922b047fb41`，29/29公开文件与功能检查通过；首个预检因OAuth401在上传前退出，使用既有Wrangler登录续期后上传一次。两机API、连接器、Codex、待发记录和逐条策略核对保持，只有网页更新。发布回执与cleanup见本轮QA目录。
