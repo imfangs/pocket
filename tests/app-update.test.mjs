@@ -57,5 +57,6 @@ test('build metadata contains only build IDs and emitted frontend asset paths',(
  const root=mkdtempSync('/tmp/pocket-version-test-');
  try{for(const dir of ['src','public','bin','.local'])mkdirSync(join(root,dir));for(const file of ['src/a.ts','public/icon.svg','index.html','package.json','package-lock.json','vite.config.ts','bin/build-version.mjs'])writeFileSync(join(root,file),'original');
  const a=frontendVersion(root);writeFileSync(join(root,'.local/private.txt'),'must not enter metadata');assert.equal(frontendVersion(root),a);writeFileSync(join(root,'src/a.ts'),'changed');assert.notEqual(frontendVersion(root),a);
+ const b=frontendVersion(root);mkdirSync(join(root,'shared'));writeFileSync(join(root,'shared/directives.mjs'),'public parser');assert.notEqual(frontendVersion(root),b);const c=frontendVersion(root);writeFileSync(join(root,'shared/directives.mjs'),'updated parser');assert.notEqual(frontendVersion(root),c);
  }finally{rmSync(root,{recursive:true,force:true});}
 });

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Hash only explicitly public frontend inputs. No environment, credentials,
@@ -16,6 +16,7 @@ export function frontendVersion(root) {
     }
   };
   walk('src');walk('public');
+  if (existsSync(join(root, 'shared'))) walk('shared');
   for (const path of ['index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'bin/build-version.mjs']) add(path);
   return hash.digest('hex');
 }

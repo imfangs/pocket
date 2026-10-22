@@ -18,6 +18,7 @@ import { TaskStatusService } from "./task-statuses.mjs";
 import { Notifications } from "./notifications.mjs";
 import { sendCatalog } from "./catalog-response.mjs";
 import { MessageImages } from "./message-images.mjs";
+import { MessageFiles } from "./message-files.mjs";
 import { dispatchResponse } from "./dispatch-response.mjs";
 import { isIP } from "node:net";
 
@@ -65,6 +66,7 @@ export function makeApp(options = {}) {
   const catalog = () => automations.enrich(store.catalog());
   const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
   const images = new MessageImages();
+  const files = new MessageFiles();
   desktop.onAccepted = (id, turnId) => {
     try { notifications.followSubmission(id, turnId); }
     catch { /* Notification bookkeeping must not change an accepted send receipt. */ }
@@ -341,12 +343,15 @@ export function makeApp(options = {}) {
         const data = await desktop.history(history[1]);
         notifications.watch(history[1], data);
         res.setHeader("Server-Timing", `desktop_history;dur=${(performance.now() - start).toFixed(1)}`);
-        return json(res, 200, images.attach(store.thread(history[1]), data));
+        const thread = store.thread(history[1]);
+        return json(res, 200, files.attach(thread, images.attach(thread, data)));
       }
       const transcript = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/transcript$/i);
       if (transcript && method === "GET") {
         const start = performance.now();
-        const data = images.attach(store.thread(transcript[1]), readState.observeTranscript(transcript[1], () => desktop.transcript(transcript[1])));
+        const thread = store.thread(transcript[1]);
+        const data = files.attach(thread, images.attach(thread,
+          readState.observeTranscript(transcript[1], () => desktop.transcript(transcript[1]))));
         res.setHeader("Server-Timing", `transcript;dur=${(performance.now() - start).toFixed(1)}`);
         return sendCatalog(res, data, req.headers["accept-encoding"]);
       }
@@ -366,6 +371,18 @@ export function makeApp(options = {}) {
           "Content-Type": data.type,
           "Content-Length": data.bytes.length,
           "Content-Disposition": "inline",
+          "Cross-Origin-Resource-Policy": "same-origin",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+        });
+        return res.end(data.bytes);
+      }
+      const messageFile = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/files\/([a-f0-9]{64})$/i);
+      if (messageFile && method === "GET") {
+        const data = await files.read(store.thread(messageFile[1]), messageFile[2]);
+        res.writeHead(200, {
+          "Content-Type": data.type,
+          "Content-Length": data.bytes.length,
+          "Content-Disposition": data.disposition,
           "Cross-Origin-Resource-Policy": "same-origin",
           "Content-Security-Policy": "default-src 'none'; sandbox",
         });

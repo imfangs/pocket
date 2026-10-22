@@ -2,6 +2,9 @@ import type { ThreadConnection } from "./threadConnection";
 import type { ReadObservation } from "./readObservation";
 import type { PublicAttachment } from "./attachments";
 
+export type MessageFileReference = { url: string; name: string };
+export type MessageFiles = Record<string, MessageFileReference>;
+
 export type Message = {
   id: string;
   turnId?: string | null;
@@ -14,6 +17,7 @@ export type Message = {
   clientMessageId?: string;
   turnDurationMs?: number;
   images?: Record<string, string>;
+  files?: MessageFiles;
   attachments?: PublicAttachment[];
 };
 export type TurnTiming = {

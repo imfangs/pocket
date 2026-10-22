@@ -12,7 +12,7 @@ import MessageMarkdown from "./MessageMarkdown";
 import { checkQuestionAnswer, discardQuestionDraft, ignoreQuestion, questionPresentation, questionPresentationStore, questionSourceText, withQuestionAnswerPost, type QuestionPresentationStore } from "./questionPresentation";
 
 type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; drafts: Map<string, QueryDraft>; refresh: () => Promise<void> | undefined;
-  sourceText?: string; sourceImages?: Message["images"]; sourceTruncated?: boolean; presentationStore?: QuestionPresentationStore;
+  sourceText?: string; sourceImages?: Message["images"]; sourceFiles?: Message["files"]; sourceTruncated?: boolean; presentationStore?: QuestionPresentationStore;
   readMarker?: { sourceMessageId: string; rootRef?: Ref<HTMLElement>; markerRef: Ref<HTMLDivElement> } };
 function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker, presentationStore: providedStore }: Omit<Props, "questions" | "readMarker" | "sourceText"> & { question: AsyncQuestion; endMarker?: Ref<HTMLDivElement> }) {
   const key = `${threadId}/question/${question.key}`;
@@ -145,9 +145,10 @@ export default function QuestionPrompts(props: Props) {
   if (!props.questions.length) return null;
   const lastObserved = props.questions.reduce((last, question, index) => question.sourceMessageId === props.readMarker?.sourceMessageId ? index : last, -1);
   const sourceText = questionSourceText(props.sourceText, props.questions.map(question => question.title),
-    !!props.sourceImages && Object.keys(props.sourceImages).length > 0, props.questions.map(question => question.options));
+    !!props.sourceImages && Object.keys(props.sourceImages).length > 0 ||
+      !!props.sourceFiles && Object.keys(props.sourceFiles).length > 0, props.questions.map(question => question.options));
   return <section ref={props.readMarker?.rootRef} className="question-prompts" aria-label="Codex 想确认的问题">
-    {sourceText && <div className="question-source-text"><MessageMarkdown text={sourceText} images={props.sourceImages} /></div>}
+    {sourceText && <div className="question-source-text"><MessageMarkdown text={sourceText} images={props.sourceImages} files={props.sourceTruncated ? undefined : props.sourceFiles} threadId={props.threadId} /></div>}
     {props.sourceTruncated && <small className="question-source-truncated">内容较长，此处已截取。</small>}
     <strong>Codex 想确认</strong>
     {props.questions.map((question, index) => <QuestionCard key={`${props.threadId}/${question.key}`} threadId={props.threadId} question={question} disabled={props.disabled} drafts={props.drafts} refresh={props.refresh}

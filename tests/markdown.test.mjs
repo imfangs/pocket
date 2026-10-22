@@ -141,3 +141,36 @@ test("turn elapsed rendering handles hours, frozen completion and missing times"
   assert.match(live, /<time aria-label="本轮用时 0:08">0:08<\/time>/);
   assert.equal(renderToStaticMarkup(createElement(TurnDuration, { timing: { ...timing, status: "completed" }, live: false })), "");
 });
+
+test('file components and future Codex components become readable without exposing control syntax', async () => {
+ const {readableCodexMarkdown}=await vite.ssrLoadModule('/src/codexMarkup.ts');
+ const path='/workspace/简历 文件.docx';
+ const directive=`:codex-file-citation{path="${path}" purpose="output"}`;
+ const text=readableCodexMarkdown(directive);
+ assert.doesNotMatch(text,/codex-file-citation|purpose=/);
+ assert.match(text,/简历 文件/);
+ assert.match(render(directive),/简历 文件/);
+ assert.doesNotMatch(render(directive),/href="\/workspace|codex-file-citation|purpose=/);
+ assert.equal(readableCodexMarkdown('`'+directive+'`'),'`'+directive+'`');
+ assert.equal(readableCodexMarkdown('```text\n'+directive+'\n```'),'```text\n'+directive+'\n```');
+ assert.equal(readableCodexMarkdown(':codex-file-citation{path="/workspace/unfinished'), '文件信息正在载入…');
+ const future=render(':codex-future-panel{title="结果说明" body="请在电脑中查看" path="/workspace/private"}');
+ assert.match(future,/结果说明/);assert.match(future,/此内容请在 Codex 查看/);
+ assert.doesNotMatch(future,/codex-future-panel|path=|href=/);
+ assert.doesNotMatch(render(':codex-file-citation{path="javascript:alert(1)"}'),/javascript:|href=/);
+ const comment=render('::code-comment{title="检查 `value`" body="不要执行代码" file="/workspace/file.ts"}');
+ assert.match(comment,/不要执行代码/);assert.doesNotMatch(comment,/::code-comment/);
+});
+
+
+test('escaped and hidden components remain literal while multiline streaming tails get a readable placeholder', async () => {
+ const {readableCodexMarkdown}=await vite.ssrLoadModule('/src/codexMarkup.ts');
+ for(const prefix of ['\\:', '\\::', ':\\:', ':::']) {
+  const source=prefix+'codex-file-citation{path="/workspace/example.docx"}';
+  assert.equal(readableCodexMarkdown(source),source);
+ }
+ const hidden='<div>\n:codex-future-view{title="Hidden title" body="Hidden body"}\n</div>';
+ assert.equal(readableCodexMarkdown(hidden),hidden);assert.doesNotMatch(render(hidden),/Hidden title|Hidden body/);
+ for(const source of [':codex-file-citation {path="/workspace/file.docx"', ':codex-file-citation{\npath="/workspace/file.docx"', ':codex-file-citation{path="/workspace/brace}file.docx'])
+  assert.equal(readableCodexMarkdown(source),'文件信息正在载入…');
+});

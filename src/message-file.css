@@ -1,0 +1,9 @@
+.message-file { display:inline-grid; gap:4px; width:min(100%,28rem); max-width:100%; vertical-align:middle; margin:3px 0; }
+.message-file-button { display:inline-flex; align-items:center; gap:8px; min-width:0; min-height:44px; max-width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); color:var(--text); font:inherit; text-align:left; cursor:pointer; }
+.message-file-button > svg { flex:none; color:var(--muted); }
+.message-file-name { min-width:0; flex:1; overflow-wrap:anywhere; line-height:1.4; }
+.message-file-action { flex:none; color:var(--muted); font-size:11px; }
+.message-file-button:disabled { cursor:progress; opacity:.7; }
+.message-file-error { color:var(--danger); font-size:12px; line-height:1.4; overflow-wrap:anywhere; }
+.message-file-fallback { display:inline; }
+.message-file-fallback small { margin-left:6px; color:var(--muted); font-size:11px; }

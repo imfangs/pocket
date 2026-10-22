@@ -12,8 +12,8 @@ import MessageTimestamp from "./MessageTimestamp";
 import { validMessageTimestamp } from "./messageTime";
 import "./message-footer.css";
 
-export default function ConversationMessage({ message, recentlySent = false, queryDisclosure }: {
-  message: Message; recentlySent?: boolean; queryDisclosure?: QueryDisclosure;
+export default function ConversationMessage({ message, threadId, recentlySent = false, queryDisclosure }: {
+  message: Message; threadId?: string; recentlySent?: boolean; queryDisclosure?: QueryDisclosure;
 }) {
   const displayText = useMemo(() => message.role === "user"
     ? readableUserMessage(message.text) : readableCodexMarkdown(message.text), [message.role, message.text]);
@@ -45,6 +45,8 @@ export default function ConversationMessage({ message, recentlySent = false, que
     >
       {kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
         images={message.images}
+        files={message.role === "assistant" && !message.truncated ? message.files : undefined}
+        threadId={threadId}
         text={displayText}
         codex={false}
       />}

@@ -14,7 +14,7 @@ import ProgressDisclosure from "./ProgressDisclosure";
 import { useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript, Message } from "./conversationFeed";
-import { displayMessages } from "./transcript";
+import { displayConversation } from "./transcript";
 import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
@@ -92,6 +92,7 @@ export default function Conversation({
     [readRetry, setReadRetry] = useState(0),
     [retryingRead, setRetryingRead] = useState(false),
     [loading, setLoading] = useState(true),
+    [transcriptLoading, setTranscriptLoading] = useState(true),
     [draft, setDraft] = useState<QueryDraft>(
       () => drafts.get(thread.id) || { text: "" },
     ),
@@ -136,7 +137,7 @@ export default function Conversation({
     previousLatest = useRef<{ id: string; text: string } | null>(null),
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
-  const shownMessages = useMemo(() => displayMessages(
+  const { messages: shownMessages, hasMore: hasEarlierMessages } = useMemo(() => displayConversation(
     history ? { ...history, messages: withSubmittedAttachments(history.messages, submitted) } : null,
     transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
   ), [history, transcript, submitted]);
@@ -343,6 +344,7 @@ export default function Conversation({
       onData(data) {
         rememberTranscript(historyCache, thread.id, data);
         setTranscript(data);
+        setTranscriptLoading(false);
         const observation = data.readObservation;
         if (observation) {
           const previous = attemptedReads.current.get(observation.visibleVersion);
@@ -358,7 +360,10 @@ export default function Conversation({
         }
         setFreshTranscript(data);
       },
-      onError() { /* Keep readable content and let the native feed report connection state. */ },
+      onError() {
+        setTranscriptLoading(false);
+        // Keep readable content and let the native feed report connection state.
+      },
     });
     textFeed.current = subscription;
     return () => { subscription.stop(); if (textFeed.current === subscription) textFeed.current = null; };
@@ -631,9 +636,11 @@ export default function Conversation({
           }
         }}
       >
-        {(history?.hasMore || transcript?.hasMore) && (
+        {hasEarlierMessages && (
           <p className="history-boundary">
-            仅显示最近的对话
+            {online && (loading || transcriptLoading)
+              ? "正在读取更早的消息…"
+              : "还有更早的消息未显示"}
           </p>
         )}
         {!loading && !historyError && !shownMessages.length && !visibleSubmissions.length && !shownOutbox.length && (
@@ -645,13 +652,13 @@ export default function Conversation({
         {progress.entries.map(entry => {
           if (entry.type === "progress") return <ProgressDisclosure key={entry.id} id={entry.id} count={entry.messages.length}
             open={progress.expanded.has(entry.id)} onOpenChange={open => progress.toggle(entry.id, open)}>
-            {entry.messages.map(message => <ConversationMessage key={message.id} message={message} />)}
+            {entry.messages.map(message => <ConversationMessage key={message.id} threadId={thread.id} message={message} />)}
           </ProgressDisclosure>;
           const message = entry.message;
           const messageQuestions = questionsByMessage.get(message.id);
-          return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceTruncated={message.truncated}
+          return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceFiles={message.files} sourceTruncated={message.truncated}
             disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />
-            : <ConversationMessage key={message.id} message={message}
+            : <ConversationMessage key={message.id} threadId={thread.id} message={message}
               queryDisclosure={message.role === "user" ? { expanded: expandedQueries.has(message.clientMessageId || message.id),
                 toggle: (open, anchor) => toggleQuery(message, open, anchor) } : undefined}
               recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />;
