@@ -16,6 +16,8 @@
 
 Claude Code 接入可行性见 [官方接口与 BotMux / Happy / HAPI 源码调研（2026-10-22）](docs/research/2026-10-22-claude-code-connectivity.md)：区分官方后台 attach、原终端桥接与 SDK 会话交接，包含本机只读接口核验及最小验证方案；尚未接入产品。
 
+进一步的 [Happy / HAPI 源码借鉴（2026-10-22）](docs/research/2026-10-22-happy-hapi-code-lessons.md) 对照能力契约、重连补齐、长历史、审批与密钥分工，包含独立测试和不宜照搬的反例；采用顺序仍为研究建议。
+
 ## 使用
 
 - 在菜单选择「格得 Mac」或「豌豆 Mac」，记住上次选择；各自的会话、登录、目录偏好与通知独立。切机前保护未完成输入，详见[多机连接](docs/design/2026-10-17-multi-machine.md)。
