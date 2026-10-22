@@ -4,3 +4,4 @@ export function protectedMarkdownRanges(source: string, includeHtml?: boolean): 
 export function localFileReference(value: unknown, decode?: boolean): string | null;
 export function referencedMessageFiles(source: string): string[];
 export function directiveIsEscaped(source: string, start: number): boolean;
+export const incompleteDirectivePattern: RegExp;

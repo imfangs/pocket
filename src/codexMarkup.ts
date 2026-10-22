@@ -1,4 +1,4 @@
-import { directiveAttributes, directivePattern, directiveIsEscaped, localFileReference, protectedMarkdownRanges } from "../shared/codex-directives.mjs";
+import { directiveAttributes, directivePattern, directiveIsEscaped, incompleteDirectivePattern, localFileReference, protectedMarkdownRanges } from "../shared/codex-directives.mjs";
 import { currentMachineId, isMachineId, machineTaskUrl, type MachineId } from "./machineScope.ts";
 
 const taskId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -81,7 +81,7 @@ export function readableCodexMarkdown(source: string): string {
   });
   // A streaming component is not a complete directive yet. Keep its raw
   // attributes off the page until the closing brace arrives; code is protected.
-  replace(/:{1,2}codex-[a-z][a-z0-9-]*\s*(?:\[((?:\\.|[^\]\\])*)\]\s*)?\{(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^{}"'])*(?:"(?:\\.|[^"\\])*\\?|'(?:\\.|[^'\\])*\\?)?$/g, match =>
+  replace(incompleteDirectivePattern, match =>
     /^:{1,2}codex-file-citation\s*\{/.test(match[0]) ? "文件信息正在载入…" : "内容正在载入…");
   replace(/(cite|filecite|filenavlist|entity|image_group|i)([\s\S]*?)/g, match => {
     if (match[1] === "entity") {

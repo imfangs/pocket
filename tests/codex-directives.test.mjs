@@ -36,3 +36,14 @@ test('escaped directive examples grant no files, including escaped double colons
  }
  assert.deepEqual(referencedMessageFiles('\\\\'+citation('/workspace/even.docx')),['/workspace/even.docx']);
 });
+
+test('links inside component attributes remain literal and cannot grant extra files',()=>{
+ for(const source of [':codex-future-panel{body="[secret](/workspace/hidden.md)"}',
+  '::code-comment{title="Example" body="[secret](/workspace/hidden.md)"}',
+  ':codex-file-citation{path="/workspace/visible.pdf" label="[secret](/workspace/hidden.md)"}',
+  ':codex-future-panel{body="[secret](/workspace/hidden.md)"',
+  '\\:codex-future-panel{body="[secret](/workspace/hidden.md)"}']) {
+   const paths=referencedMessageFiles(source);assert.equal(paths.includes('/workspace/hidden.md'),false,source);
+   if(source.startsWith(':codex-file-citation{'))assert.deepEqual(paths,['/workspace/visible.pdf']);
+ }
+});

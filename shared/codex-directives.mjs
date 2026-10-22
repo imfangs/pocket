@@ -2,6 +2,8 @@ import { fromMarkdown } from 'mdast-util-from-markdown';
 
 export const directivePattern = /:{1,2}(created-thread|code-comment|codex-[a-z][a-z0-9-]*|inbox-item|archive-thread|automation-update|automation)\s*(?:\[((?:\\.|[^\]\\])*)\])?\{((?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^{}"'])*)\}/g;
 
+export const incompleteDirectivePattern = /:{1,2}(created-thread|code-comment|codex-[a-z][a-z0-9-]*|inbox-item|archive-thread|automation-update|automation)\s*(?:\[((?:\\.|[^\]\\])*)\]\s*)?\{(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^{}"'])*(?:"(?:\\.|[^"\\])*\\?|'(?:\\.|[^'\\])*\\?)?$/g;
+
 export function directiveIsEscaped(source, start) {
   if (source[start - 1] === ':') return true;
   let slashes = 0;
@@ -54,15 +56,20 @@ export function referencedMessageFiles(source) {
   if (typeof source !== 'string') return [];
   const paths = [], add = path => { if (path && !paths.includes(path)) paths.push(path); };
   const protectedRanges = protectedMarkdownRanges(source, true);
-  for (const match of source.matchAll(directivePattern)) {
+  const directives = [...source.matchAll(directivePattern)];
+  const componentRanges = [...directives, ...source.matchAll(incompleteDirectivePattern)]
+    .map(match => [match.index, match.index + match[0].length]);
+  const insideComponent = node => node.position && componentRanges.some(([a,b]) => node.position.start.offset >= a && node.position.start.offset < b);
+  for (const match of directives) {
     if (match[1] !== 'codex-file-citation' || directiveIsEscaped(source, match.index) || protectedRanges.some(([a,b]) => match.index >= a && match.index < b)) continue;
     const attrs = directiveAttributes(match[3]);
     if (attrs) add(localFileReference(attrs.path));
   }
   const tree = fromMarkdown(source), definitions = new Map();
   const walk = (node, visit) => { visit(node); for (const child of node.children ?? []) walk(child, visit); };
-  walk(tree, node => { if (node.type === 'definition') definitions.set(node.identifier, node.url); });
+  walk(tree, node => { if (node.type === 'definition' && !insideComponent(node)) definitions.set(node.identifier, node.url); });
   walk(tree, node => {
+    if (insideComponent(node)) return;
     if (node.type === 'link') add(localFileReference(node.url, true));
     else if (node.type === 'linkReference') add(localFileReference(definitions.get(node.identifier), true));
   });
