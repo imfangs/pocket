@@ -9,6 +9,7 @@ import {
 import { join, isAbsolute, sep } from "node:path";
 import { createHash } from "node:crypto";
 import { AppError } from "./store.mjs";
+import { POCKET_CONTENT, EMPTY_CONTENT_VERSION, assistantContentVersion, contentFileVersion, contentEvidence } from './pocket-content.mjs';
 
 const injectedKinds = new Set([
   "agents_md.instructions", "environments.environment_context", "hooks.additional_context",
@@ -52,6 +53,7 @@ export function parseHistoryLines(text, startOffset = 0) {
 
 export function parseHistory(text, startOffset = 0) {
   const messages = [];
+  const contentVersions = new Map();
   const turns = new Map();
   const responseMessages = new Map(), summaryIds = new Set(), nativeMessageIds = new Set();
   let lastAssistant = null;
@@ -103,7 +105,7 @@ export function parseHistory(text, startOffset = 0) {
         const { text: value, hasMedia } = visibleContent(item);
         if (value || hasMedia) {
           const id = item.id || `rollout:${offset}`;
-          messages.push({
+          const message = {
             id,
             role: item.role,
             turnId: item.internal_chat_message_metadata_passthrough?.turn_id || currentTurnId,
@@ -111,7 +113,10 @@ export function parseHistory(text, startOffset = 0) {
             phase: item.phase,
             timestamp: Number.isFinite(timestamp) ? timestamp : null,
             truncated: value.length > 24000,
-          });
+          };
+          messages.push(message);
+          if (item.role === "assistant" && value)
+            contentVersions.set(message, assistantContentVersion(id, value, item.phase));
           if (item.role === "assistant") lastAssistant = { id, fullText: value };
         }
       }
@@ -123,6 +128,7 @@ export function parseHistory(text, startOffset = 0) {
   const visibleMessages = messages.filter(m => !summaryIds.has(m.id) || nativeMessageIds.has(m.id));
   const lastMessageAt = visibleMessages.at(-1)?.timestamp ?? null;
   const textMessages = visibleMessages.filter(m => m.text);
+  const lastReadableAssistant = textMessages.findLast(message => message.role === "assistant");
   const hiddenTurns = new Set(messages.filter(m => summaryIds.has(m.id) && !nativeMessageIds.has(m.id)).map(m => m.turnId));
   const visibleTurns = new Set(visibleMessages.map(m => m.turnId));
   if (hiddenTurns.has(latestTurnId) && !visibleTurns.has(latestTurnId))
@@ -150,7 +156,13 @@ export function parseHistory(text, startOffset = 0) {
     })
     .filter((m) => m.text)
     .reverse();
-  return { messages: visible, lastMessageAt, turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
+  const target = visible.findLast(message => message.role === "assistant");
+  const content = lastReadableAssistant ? { known: true, version: contentVersions.get(lastReadableAssistant),
+    messageId: lastReadableAssistant.id, readable: target?.id === lastReadableAssistant.id && !target.truncated }
+    : startOffset === 0 ? { known: true, version: EMPTY_CONTENT_VERSION, messageId: null, readable: false }
+      : { known: false };
+  return { messages: visible, lastMessageAt, [POCKET_CONTENT]: content,
+    turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
 }
 
 function openHistorySource(codexHome, threadId) {
@@ -184,11 +196,12 @@ function openHistorySource(codexHome, threadId) {
     if (!stat.isFile()) throw new AppError("会话历史不是普通文件", 403);
     const size = Number(stat.size);
     const header = Buffer.alloc(Math.min(size, 65536));
-    readSync(fd, header, 0, header.length, 0);
+    if (readSync(fd, header, 0, header.length, 0) !== header.length)
+      throw new AppError("会话历史正在变化，请稍后重试", 409);
     const meta = JSON.parse(header.toString("utf8").split("\n")[0]);
     if (meta.type !== "session_meta" || meta.payload?.id !== threadId)
       throw new AppError("会话历史身份不匹配", 409);
-    return { fd, stat };
+    return { fd, stat, file };
   } catch (error) {
     closeSync(fd);
     throw error;
@@ -198,26 +211,35 @@ function openHistorySource(codexHome, threadId) {
 export function readHistorySourceVersion(codexHome, threadId) {
   const { fd, stat } = openHistorySource(codexHome, threadId);
   try {
+    if (contentFileVersion(stat) !== contentFileVersion(fstatSync(fd, { bigint: true })))
+      throw new AppError("会话历史正在变化，请稍后重试", 409);
     return createHash("sha256").update(JSON.stringify([stat.dev, stat.ino, stat.size, stat.mtimeNs].map(String))).digest("hex");
   } finally { closeSync(fd); }
 }
 
 export function readPersistedHistory(codexHome, threadId) {
-  const { fd, stat } = openHistorySource(codexHome, threadId);
+  const { fd, stat, file } = openHistorySource(codexHome, threadId);
   try {
     const size = Number(stat.size);
     const start = Math.max(0, size - 4 * 1024 * 1024);
-    const buffer = Buffer.alloc(size - start);
-    readSync(fd, buffer, 0, buffer.length, start);
+    const readStart = Math.max(0, start - 1);
+    const buffer = Buffer.alloc(size - readStart);
+    if (readSync(fd, buffer, 0, buffer.length, readStart) !== buffer.length)
+      throw new AppError("会话历史正在变化，请稍后重试", 409);
     // Skip a clipped line as raw bytes before decoding: a UTF-8 character
     // split at the tail boundary would otherwise change fallback message IDs.
     const end = start ? buffer.indexOf(10) : -1;
     const skip = start ? (end < 0 ? buffer.length : end + 1) : 0;
-    const offset = start + skip;
+    const offset = readStart + skip;
     const text = buffer.subarray(skip).toString("utf8");
+    const parsed = parseHistory(text, offset);
+    const stable = contentFileVersion(stat) === contentFileVersion(fstatSync(fd, { bigint: true }));
+    const content = stable ? contentEvidence(parsed[POCKET_CONTENT], file, contentFileVersion(stat))
+      : contentEvidence({ known: false }, file, contentFileVersion(stat));
     return {
       source: "rollout",
-      ...parseHistory(text, offset),
+      ...parsed,
+      [POCKET_CONTENT]: content,
       hasMore: start > 0,
       runtime: "unavailable",
       canSend: false,

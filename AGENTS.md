@@ -33,7 +33,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 列表运行中/等待状态、状态过期 | [列表运行状态](docs/design/2026-10-08-running-status.md)：原owner候选读取、共享轮询与归档取消边界 |
 | 最近访问/运行/新建会话的后台状态跟踪 | [近期活跃预取](docs/design/2026-10-22-active-thread-prefetch.md)：有界内存集合、批量优先提示、公平轮转；不读取正文或制造访问/已读 |
 | 列表、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[桌面列表范围](docs/design/2026-10-14-desktop-list-scope.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
-| 阅读后清除未读、同步 Codex 蓝点 | [已读同步](docs/design/2026-10-05-read-state-sync.md)：前台可见阅读、观察凭据与原生回读 |
+| 阅读后清除未读、内容版本与缓存 | [Pocket 独立阅读状态](docs/design/2026-10-22-pocket-read-state.md)：浏览器阅读水位、内容版本与真实可见观察；旧原生同步仅兼容 |
 | 新提问选项、回答/忽略与重复显示 | [可选提问](docs/design/2026-10-10-optional-question-prompts.md)：新题选项直接展示、精确投影去重、草稿与未知回答保护 |
 | 最终回复后的过程折叠、展开状态与选区保护 | [过程折叠](docs/design/2026-10-11-completed-progress.md)：明确轮次、当前问题、缓存和布局后标读 |
 | 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |
@@ -54,7 +54,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 范围 | 主要文件 |
 | --- | --- |
 | 来源/元数据/列表 | `server/source.mjs`、`server/source-scope.mjs`、`server/unread.mjs`、`server/store.mjs`、`src/App.tsx`、`src/catalogReader.ts` |
-| 已读同步 | `server/read-state.mjs`、`bin/read-state.py`、`src/readObservation.ts` |
+| 阅读状态 | `server/pocket-content.mjs`、`src/pocketReadState.ts`、`src/readObservation.ts`；原生兼容保留在 `server/read-state.mjs`、`bin/read-state.py` |
 | 重命名 | `server/rename.mjs`、`bin/rename-thread.py`、`src/RenameThreadDialog.tsx`、`src/threadMetadata.ts` |
 | 型号展示/思考强度 | `server/thread-models.mjs`、`bin/model_settings.py`、`src/ThreadModelSettings.tsx`、`src/threadModels.ts` |
 | 新建/归档/恢复 | `server/lifecycle.mjs`、`bin/create-thread.py`、`bin/archive-thread.py`、`src/useTaskOperations.ts` |
@@ -72,7 +72,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 - **展示与执行分离**：按 provenance 显示真实用户消息和可见回复，排除注入上下文/内部压缩摘要。transcript、缓存和文字合并只能用于展示，不能授予执行权限或核销发送回执。问题卡只属于最新原轮次；该轮已完成但仍有问题时可保留，旧轮题目留在历史。
 - **派发与恢复**：保留 `requestId`、指纹、revision 和原 turn 约束；`accepted` 不等于模型完成。未知发送/中断/审批结果先核对，不自动重放。`canQueue`、`canSend`、`canAttemptSend` 含义独立，读侧失败不应误禁安全入队。
 - **输入与队列**：Pocket 待发队列与桌面队列仍独立；用户暂停或编辑的条目保持暂停。迟到响应不覆盖新草稿、已保存说明或较新列表；更新只由明确点击触发，检查期间产生的新输入也需保护。
-- **私人数据**：Pocket 元数据与已提交待发正文留在本机私有数据目录；草稿/历史沿用现有内存边界。口令、真实数据、截图、回执和备份放 `.local/` 或本机私有目录，不进入 Git、公开构建或第三方模型。Service Worker 只缓存公开壳。
+- **私人数据**：Pocket 元数据与已提交待发正文留在本机私有数据目录；浏览器只持久保存按机器/来源隔离的阅读摘要与水位，草稿/历史正文沿用现有内存边界。口令、真实数据、截图、回执和备份放 `.local/` 或本机私有目录，不进入 Git、公开构建或第三方模型。Service Worker 只缓存公开壳。
 - **网络与渲染**：本机服务监听 loopback，私人 API 保持认证、Host/Origin/CSRF 校验。消息标记仅作展示/受控导航，不执行指令或 raw HTML；图片只开放正文已引用、任务目录内且通过现有校验的文件。
 - **能力取舍**：用户已要求通知、更多审批、共享待发队列及原任务新建/改名/归档；已交付与真实接口阻塞看 CURRENT。改名/归档须同步 Codex 原任务，不用 Pocket 别名或隐藏替代。外部调研候选仍先讨论，再实施选定事项。
 

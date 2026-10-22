@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readLocalUnreadState, readRecordedTurnState } from "./unread.mjs";
-import { readLastMessageAt } from "./message-time.mjs";
+import { readMessageActivity } from "./message-time.mjs";
 import { readSourceScope } from "./source-scope.mjs";
 
 const separator = (s) => /^[-—–_\s]{3,}$/.test(s);
@@ -89,6 +89,7 @@ export function readCodexSource(codexHome) {
         const recordedTurnState = hasUnreadTurn && !r.archived && !separator(title)
           ? readRecordedTurnState(codexHome, r.id, r.rollout_path) : undefined;
         const savedSettings = savedModelSettings(r);
+        const activity = readMessageActivity(codexHome, r.id, r.rollout_path);
         return {
           id: r.id,
           hostId: "local",
@@ -104,7 +105,7 @@ export function readCodexSource(codexHome) {
           createdAt: r.created_at * 1000,
           // Keep native metadata time for compatibility; it is not message activity.
           updatedAt: r.updated_at_ms || r.updated_at * 1000,
-          lastMessageAt: readLastMessageAt(codexHome, r.id, r.rollout_path),
+          ...activity,
           branch: r.git_branch || null,
           ...(savedSettings ? { savedModelSettings: savedSettings } : {}),
           hasUnreadTurn,

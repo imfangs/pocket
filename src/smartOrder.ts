@@ -1,6 +1,7 @@
 import type { Thread } from "./types";
 import type { TaskStatus } from "./taskStatuses";
 import { lastMessageTime } from "./threadTime.ts";
+import { hasUnreadContent } from "./unread.ts";
 import { codexPinned, pocketPriority } from "./priority.ts";
 
 export type PocketActivity = { createdAt?: number; visitedAt?: number };
@@ -24,7 +25,8 @@ function waitingForUser(status?: TaskStatus) {
 export function needsUserInput(thread: Thread, runtimeStatus?: TaskStatus) {
   if (thread.sourceExcluded || thread.archived || thread.missing || thread.separator) return false;
   if (waitingForUser(runtimeStatus)) return true;
-  return runtimeStatus !== "running" && thread.needsInput === true;
+  return runtimeStatus !== "running" && (typeof thread.pocketUnread === "boolean"
+    ? hasUnreadContent(thread, runtimeStatus) : thread.needsInput === true);
 }
 
 function clockTime(now: number) {

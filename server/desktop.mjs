@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
 import { AppError } from "./store.mjs";
 import { readPersistedHistory } from "./history.mjs";
+import { POCKET_CONTENT } from "./pocket-content.mjs";
 import { ExecutionStops } from "./execution-stops.mjs";
 import { runBridge } from "./bridge-process.mjs";
 import { ThreadModels } from "./thread-models.mjs";
@@ -194,6 +195,7 @@ export class DesktopService {
     // Display data only. Never promote saved text into live permissions or
     // reconcile pending sends/approvals from this fast path.
     return this.attachments.enrich(id, { source: "rollout", messages: saved.messages || [], hasMore: !!saved.hasMore,
+      [POCKET_CONTENT]: saved[POCKET_CONTENT],
       turnTiming: saved.turnTiming || null, checkedAt: Date.now() });
   }
   async loadHistory(id) {

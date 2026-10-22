@@ -25,8 +25,8 @@ import { connectionFailureHint, connectionFromHistory, isConnectionCompatibility
 import type { ConnectOptions, OpenThreadResult, ThreadConnection } from "./threadConnection";
 import { bindComposerConnectionIntent, createComposerConnectionIntent } from "./composerConnection";
 import "./composer-connection.css";
-import { displayedReadObservation, observeVisibleRead } from "./readObservation";
-import type { ReadAttempts, ReadObservation, ReadReceipt, ReadSyncControl } from "./readObservation";
+import { displayedPocketContent, observeVisiblePocketRead } from "./readObservation";
+import { pocketReadState, type PocketContent } from "./pocketReadState";
 import { createSubmissionFeedbackTracker } from "./submissionFeedback";
 import type { AcceptedFeedback } from "./submissionFeedback";
 import SubmittedQueryCards from "./SubmittedQueryCards";
@@ -63,7 +63,6 @@ export default function Conversation({
   onConnect,
   onRestore,
   onActivity,
-  onReadSyncChange,
   managementBlocked = false,
   managementHint,
 }: {
@@ -74,7 +73,6 @@ export default function Conversation({
   onConnect: (options?: ConnectOptions) => Promise<OpenThreadResult>;
   onRestore?: () => Promise<void>;
   onActivity?: () => void;
-  onReadSyncChange?: (control: ReadSyncControl | null) => void;
   managementBlocked?: boolean;
   managementHint?: string;
 }) {
@@ -89,10 +87,6 @@ export default function Conversation({
   const [attachmentRecoveryNeeded, setAttachmentRecoveryNeeded] = useState(false);
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
     [transcript, setTranscript] = useState<SavedTranscript | null>(() => historyCache.get(thread.id)?.transcript ?? null),
-    [freshTranscript, setFreshTranscript] = useState<SavedTranscript | null>(null),
-    [readFeedback, setReadFeedback] = useState<{ version: string; status: ReadReceipt["status"] } | null>(null),
-    [readRetry, setReadRetry] = useState(0),
-    [retryingRead, setRetryingRead] = useState(false),
     [retryingHistory, setRetryingHistory] = useState(false),
     [loading, setLoading] = useState(true),
     [transcriptLoading, setTranscriptLoading] = useState(true),
@@ -128,12 +122,11 @@ export default function Conversation({
       Math.max(0, Math.min(...recentAccepted.values()) - Date.now()) + 1);
     return () => clearTimeout(timer);
   }, [recentAccepted]);
+  const [readTarget, setReadTarget] = useState<HTMLDivElement | null>(null);
   const messages = useRef<HTMLDivElement>(null),
     conversationRoot = useRef<HTMLElement>(null),
-    readSentinel = useRef<HTMLDivElement>(null),
-    attemptedReads = useRef<ReadAttempts>(new Map()),
-    latestReadObservation = useRef<ReadObservation | null>(null),
-    manualReadRetry = useRef<string | null>(null),
+    readSentinel = setReadTarget,
+    latestPocketContent = useRef<PocketContent | null>(null),
     readViewGeneration = useRef(0),
     nearBottom = useRef(historyCache.get(thread.id)?.nearBottom ?? true),
     restoreScroll = useRef<number | null>(historyCache.get(thread.id)?.scrollTop ?? null),
@@ -162,7 +155,9 @@ export default function Conversation({
     for (const question of questions) groups.set(question.sourceMessageId, [...(groups.get(question.sourceMessageId) ?? []), question]);
     return groups;
   }, [questions]);
-  const protectedProgressIds = useMemo(() => new Set(questionsByMessage.keys()), [questionsByMessage]);
+  const unplacedQuestions = useMemo(() => questions.filter(question => !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages]);
+  const pocketContent = useMemo(() => unplacedQuestions.length ? null : displayedPocketContent(transcript, shownMessages), [transcript, shownMessages, unplacedQuestions]);
+  const protectedProgressIds = useMemo(() => new Set([...questionsByMessage.keys(), ...(pocketContent?.messageId ? [pocketContent.messageId] : [])]), [questionsByMessage, pocketContent?.messageId]);
   const progress = useProgressMessages({ messages: shownMessages, protectedIds: protectedProgressIds,
     root: messages, nearBottom, away: awayFromLatest, cache: historyCache, threadId: thread.id,
     onPosition: atBottom => { setAwayFromLatest(!atBottom); if (atBottom) setHasNewContent(false); } });
@@ -180,14 +175,11 @@ export default function Conversation({
     const saved = historyCache.get(thread.id);
     if (saved) saved.expandedQueries = [...expandedQueries];
   }, [historyCache, thread.id, expandedQueries]);
-  const unplacedQuestions = useMemo(() => questions.filter(question => !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages]);
-  // If the native question arrives before its source message, still offer it
-  // inline but wait for matching visible text before marking the task as read.
-  const readObservation = useMemo(() => unplacedQuestions.length ? null : displayedReadObservation(freshTranscript, shownMessages), [freshTranscript, shownMessages, unplacedQuestions]);
-  const readVersion = readObservation?.visibleVersion, readItemId = readObservation?.lastVisibleItemId;
-  useLayoutEffect(() => { latestReadObservation.current = readObservation; }, [readObservation]);
-  const currentReadFeedback = thread.hasUnreadTurn !== false && readFeedback &&
-    (!readObservation || readFeedback.version === readObservation.visibleVersion) ? readFeedback : null;
+  useLayoutEffect(() => { latestPocketContent.current = pocketContent; }, [pocketContent]);
+  useLayoutEffect(() => {
+    if (transcript?.pocketContent) pocketReadState.observeCatalog([{ id: thread.id, pocketContent: transcript.pocketContent,
+      hasUnreadTurn: thread.hasUnreadTurn, needsInput: thread.needsInput }]);
+  }, [thread.id, transcript?.pocketContent]);
   const observedConnection = connectionFromHistory(connection, history);
   const connecting = opening || observedConnection.status === "connecting";
   useReloadGuard(() => sending || connecting || restoring ? "操作尚未完成，请稍后更新。"
@@ -232,24 +224,15 @@ export default function Conversation({
   useEffect(() => () => connectionOpen.current?.abort(), [thread.id]);
   useEffect(() => () => { readViewGeneration.current++; }, [thread.id]);
   useEffect(() => {
-    const observation = latestReadObservation.current;
-    const root = messages.current;
-    const target = readSentinel.current;
-    if (!observation || !root || !target) return;
-    return observeVisibleRead({
-      root, target, observation, getObservation: () => progress.canObserve() ? latestReadObservation.current : null, attempted: attemptedReads.current,
-      submit: (input, signal) => api<ReadReceipt>(`/api/tasks/${thread.id}/read`, "POST", input,
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]) }),
-      onRead: onActivity,
-      onResult(result) {
-        if (result.status === "read") setReadFeedback(null);
-        else {
-          setReadFeedback({ version: observation.visibleVersion, status: result.status });
-          if (result.status === "stale") void textFeed.current?.refresh();
-        }
-      },
+    const content = latestPocketContent.current;
+    const root = messages.current, target = readTarget;
+    if (!content || !root || !target) return;
+    return observeVisiblePocketRead({
+      root, target, content,
+      getContent: () => progress.canObserve() ? latestPocketContent.current : null,
+      onVisible: observed => pocketReadState.markSeen(thread.id, observed),
     });
-  }, [thread.id, readVersion, readItemId, readRetry, onActivity, progress.canObserve]);
+  }, [thread.id, pocketContent?.scope, pocketContent?.revision, pocketContent?.version, pocketContent?.messageId, readTarget, progress.canObserve]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine !== false);
     window.addEventListener("online", update);
@@ -348,20 +331,6 @@ export default function Conversation({
         rememberTranscript(historyCache, thread.id, data);
         setTranscript(data);
         setTranscriptLoading(false);
-        const observation = data.readObservation;
-        if (observation) {
-          const previous = attemptedReads.current.get(observation.visibleVersion);
-          if (manualReadRetry.current === observation.visibleVersion) {
-            manualReadRetry.current = null;
-            attemptedReads.current.delete(observation.visibleVersion);
-            setReadRetry(value => value + 1);
-          } else if (previous?.status === "stale" && previous.token !== observation.token) {
-            // Stale means definitely not written. A fresh token can be used even
-            // when only a completion event changed, leaving visible text intact.
-            setReadRetry(value => value + 1);
-          }
-        }
-        setFreshTranscript(data);
       },
       onError() {
         setTranscriptLoading(false);
@@ -591,27 +560,6 @@ export default function Conversation({
     const unbind = bindComposerConnectionIntent(form, () => { void controller.request(); });
     return () => { unbind(); controller.dispose(); if (inputConnection.current === controller) inputConnection.current = null; };
   }, [thread.id]);
-  const retryRead = useCallback(async () => {
-    if (retryingRead) return;
-    const generation = readViewGeneration.current;
-    manualReadRetry.current = readObservation?.visibleVersion ?? currentReadFeedback?.version ?? null;
-    setRetryingRead(true);
-    try {
-      await textFeed.current?.refresh();
-    } finally {
-      if (generation === readViewGeneration.current) {
-        manualReadRetry.current = null;
-        setRetryingRead(false);
-        // A lost HTTP reply may follow a successful native write. A fresh
-        // transcript then has no token, so refresh the authoritative catalog too.
-        onActivity?.();
-      }
-    }
-  }, [retryingRead, readObservation?.visibleVersion, currentReadFeedback?.version, onActivity]);
-  useEffect(() => {
-    onReadSyncChange?.(currentReadFeedback ? { threadId: thread.id, status: currentReadFeedback.status,
-      retrying: retryingRead, canRetry: online && !retryingRead, retry: retryRead } : null);
-  }, [thread.id, currentReadFeedback?.status, currentReadFeedback?.version, retryingRead, online, retryRead, onReadSyncChange]);
   const recoveryVisible = online && !compatibilityCode && !thread.archived && !managementBlocked
     && !!(historyError || connectionError || connectionFailed);
   const recoveryMessage = readableRequestError(historyError || connectionError || connectionLabel);
@@ -668,20 +616,22 @@ export default function Conversation({
         {progress.entries.map(entry => {
           if (entry.type === "progress") return <ProgressDisclosure key={entry.id} id={entry.id} count={entry.messages.length}
             open={progress.expanded.has(entry.id)} onOpenChange={open => progress.toggle(entry.id, open)}>
-            {entry.messages.map(message => <ConversationMessage key={message.id} threadId={thread.id} message={message} />)}
+            {entry.messages.map(message => <ConversationMessage key={message.id} threadId={thread.id} message={message}
+              readMarker={message.id === pocketContent?.messageId ? readSentinel : undefined} />)}
           </ProgressDisclosure>;
           const message = entry.message;
           const messageQuestions = questionsByMessage.get(message.id);
           return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceFiles={message.files} sourceTruncated={message.truncated}
+            readMarker={message.id === pocketContent?.messageId ? { sourceMessageId: message.id, markerRef: readSentinel } : undefined}
             disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />
             : <ConversationMessage key={message.id} threadId={thread.id} message={message}
+              readMarker={message.id === pocketContent?.messageId ? readSentinel : undefined}
               queryDisclosure={message.role === "user" ? { expanded: expandedQueries.has(message.clientMessageId || message.id),
                 toggle: (open, anchor) => toggleQuery(message, open, anchor) } : undefined}
               recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />;
         })}
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
-        <div ref={readSentinel} aria-hidden="true" style={{ height: 1 }} />
         <SubmittedQueryCards items={visibleSubmissions} exitIds={handoffs.submissions} explicitExitIds={handoffs.explicit} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
           disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} />
       </div>

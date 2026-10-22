@@ -1,5 +1,6 @@
 import type { Message, SavedTranscript } from "./conversationFeed";
 import type { Thread } from "./types";
+import { isPocketContent, type PocketContent } from "./pocketReadState.ts";
 
 export type ReadObservation = { token: string; lastVisibleItemId: string; visibleVersion: string };
 export type ReadReceipt = { requestId: string; status: "read" | "stale" | "unavailable" | "unknown"; code?: string; thread?: Thread };
@@ -121,6 +122,91 @@ export function observeVisibleRead(options: Options) {
     visibility.removeEventListener("visibilitychange", schedule);
     browser.removeEventListener("online", schedule);
     browser.removeEventListener("offline", schedule);
+    browser.removeEventListener("pocket-reading-visibility-change", schedule);
+  };
+}
+
+
+// A cached version may be read locally, but only when the exact complete target
+// is rendered. A later user message does not move the assistant reading target.
+export function displayedPocketContent(saved: SavedTranscript | null, displayed: Message[]): PocketContent | null {
+  const content = saved?.pocketContent;
+  if (!isPocketContent(content) || !content.messageId) return null;
+  const latestAssistant = (messages: Message[]) => [...messages].reverse().find(message => message.role === "assistant" && message.text.trim());
+  const source = latestAssistant(saved!.messages), shown = latestAssistant(displayed);
+  if (!source || !shown || source.id !== content.messageId || source.id !== shown.id || source.truncated || shown.truncated ||
+    source.text !== shown.text || (source.phase ?? "") !== (shown.phase ?? "") ||
+    !!source.turnId && !!shown.turnId && source.turnId !== shown.turnId) return null;
+  return content;
+}
+
+type PocketReadOptions = {
+  root: HTMLElement;
+  target: HTMLElement;
+  content: PocketContent;
+  getContent?: () => PocketContent | null;
+  onVisible: (content: PocketContent) => void;
+  browser?: Window;
+  visibility?: Document;
+  Observer?: typeof IntersectionObserver;
+};
+
+// Pocket reading is synchronous local state. It has no native bool, execution
+// state, online requirement, HTTP request or server receipt to wait for.
+export function observeVisiblePocketRead(options: PocketReadOptions) {
+  const browser = options.browser ?? window, visibility = options.visibility ?? document;
+  const Observer = options.Observer ?? globalThis.IntersectionObserver;
+  if (!Observer) return () => {};
+  let stopped = false, visible = false, observed = false;
+  let firstFrame: number | undefined, secondFrame: number | undefined;
+  const clearFrames = () => {
+    if (firstFrame !== undefined) browser.cancelAnimationFrame(firstFrame);
+    if (secondFrame !== undefined) browser.cancelAnimationFrame(secondFrame);
+    firstFrame = secondFrame = undefined;
+  };
+  const matching = () => {
+    const value = options.getContent ? options.getContent() : options.content;
+    return value && value.scope === options.content.scope && value.revision === options.content.revision &&
+      value.version === options.content.version && value.messageId === options.content.messageId ? value : null;
+  };
+  const ready = () => {
+    if (stopped || observed || !visible || visibility.visibilityState !== "visible" || !matching()) return false;
+    if (visibility.querySelector?.("dialog[open], [data-reading-overlay], [data-reading-motion]")) return false;
+    if (options.target.closest?.('[hidden], [inert], [aria-hidden="true"]:not([data-pocket-read-marker])')) return false;
+    const backdrop = visibility.querySelector?.(".sidebar-backdrop.shown")?.getBoundingClientRect();
+    return !backdrop || backdrop.width === 0 || backdrop.height === 0;
+  };
+  const shown = () => {
+    const root = options.root.getBoundingClientRect(), target = options.target.getBoundingClientRect();
+    return root.width > 0 && root.height > 0 && target.width > 0 && target.height > 0 &&
+      target.top >= root.top - 1 && target.bottom <= root.bottom + 1;
+  };
+  const schedule = () => {
+    if (!ready()) { clearFrames(); return; }
+    if (firstFrame !== undefined || secondFrame !== undefined) return;
+    firstFrame = browser.requestAnimationFrame(() => {
+      firstFrame = undefined;
+      if (!ready()) return;
+      secondFrame = browser.requestAnimationFrame(() => {
+        secondFrame = undefined;
+        if (!ready() || !shown()) return;
+        const content = matching();
+        if (!content) return;
+        observed = true;
+        options.onVisible(content);
+      });
+    });
+  };
+  const observer = new Observer(entries => {
+    for (const entry of entries) if (entry.target === options.target) visible = entry.isIntersecting && entry.intersectionRatio > 0;
+    schedule();
+  }, { root: options.root, threshold: 1 });
+  observer.observe(options.target);
+  visibility.addEventListener("visibilitychange", schedule);
+  browser.addEventListener("pocket-reading-visibility-change", schedule);
+  return () => {
+    stopped = true; clearFrames(); observer.disconnect();
+    visibility.removeEventListener("visibilitychange", schedule);
     browser.removeEventListener("pocket-reading-visibility-change", schedule);
   };
 }

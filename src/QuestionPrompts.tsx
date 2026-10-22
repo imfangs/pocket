@@ -138,7 +138,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
     </Button></div>
     </div>}
     {error && <p className="inline-error" role="alert">{error}</p>}
-    {endMarker && <div ref={endMarker} aria-hidden="true" style={{ height: 1 }} />}
+    {endMarker && <div ref={endMarker} data-pocket-read-marker="" aria-hidden="true" style={{ height: 1 }} />}
   </form>;
 }
 export default function QuestionPrompts(props: Props) {

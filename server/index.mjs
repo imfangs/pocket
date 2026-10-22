@@ -11,6 +11,7 @@ import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
 import { ReadStateService } from "./read-state.mjs";
+import { PocketContentService } from "./pocket-content.mjs";
 import { ThreadAutomations } from "./thread-automations.mjs";
 import { LifecycleService } from "./lifecycle.mjs";
 import { RenameService } from "./rename.mjs";
@@ -62,8 +63,9 @@ export function makeApp(options = {}) {
     { openThread, connectionTimeoutMs: options.connectionTimeoutMs, connectionPollMs: options.connectionPollMs, attachmentOptions: options.attachments },
   );
   const readState = new ReadStateService(store, codexHome, options.readState);
+  const pocketContent = new PocketContentService(store, codexHome);
   const automations = new ThreadAutomations(codexHome, options.automations);
-  const catalog = () => automations.enrich(store.catalog());
+  const catalog = () => automations.enrich(pocketContent.catalog(store.catalog()));
   const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
   const images = new MessageImages();
   const files = new MessageFiles();
@@ -90,7 +92,7 @@ export function makeApp(options = {}) {
   const dist = options.dist || join(root, "dist");
   function sync() {
     try {
-      const data = readSource();
+      const data = pocketContent.source(readSource());
       store.sync(data);
       return data.sourceInfo;
     } catch (e) {
@@ -351,7 +353,7 @@ export function makeApp(options = {}) {
         const start = performance.now();
         const thread = store.thread(transcript[1]);
         const data = files.attach(thread, images.attach(thread,
-          readState.observeTranscript(transcript[1], () => desktop.transcript(transcript[1]))));
+          readState.observeTranscript(transcript[1], () => pocketContent.transcript(transcript[1], desktop.transcript(transcript[1])))));
         res.setHeader("Server-Timing", `transcript;dur=${(performance.now() - start).toFixed(1)}`);
         return sendCatalog(res, data, req.headers["accept-encoding"]);
       }

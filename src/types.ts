@@ -36,7 +36,17 @@ export interface ThreadAutomationsSource {
   timeZone: string;
   automations: ThreadAutomation[];
 }
+export interface PocketContent {
+  scope: string;
+  revision: number;
+  version: string;
+  messageId: string | null;
+  known: true;
+}
 export interface Thread {
+  pocketContent?: PocketContent | null;
+  // Derived by this Pocket client; never replaces the original native flag.
+  pocketUnread?: boolean;
   id: string;
   hostId: string;
   title: string;
@@ -83,6 +93,7 @@ export interface Catalog {
     total: number;
     scope: string;
     unread?: { available: boolean; source: string; pending: number };
+    pocketRead?: { available: boolean; scope: string };
   } | null;
   sourceError: string | null;
   csrfToken?: string;

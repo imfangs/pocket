@@ -9,7 +9,7 @@ import {
   AlertCircle,
   Plus,
 } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { SetStateAction } from "react";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ import type { TaskOperation } from "./taskOperations";
 import TaskOperationStatus from "./TaskOperationStatus";
 import useTaskOperations from "./useTaskOperations";
 import useTaskStatuses from "./useTaskStatuses";
+import { pocketReadState } from "./pocketReadState";
 import { activeOperation } from "./taskOperations";
 import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
@@ -295,6 +296,18 @@ export default function App({
       );
     } catch {}
   }, [navigation]);
+  const readRevision = useSyncExternalStore(pocketReadState.subscribe, pocketReadState.getSnapshot, pocketReadState.getSnapshot);
+  const pocketReadScope = catalog.sourceInfo?.pocketRead?.scope;
+  useLayoutEffect(() => { pocketReadState.observeCatalog(catalog.threads, pocketReadScope); }, [catalog.threads, pocketReadScope]);
+  const displayCatalog = useMemo(() => ({ ...catalog, threads: catalog.threads.map(thread => {
+    const unread = pocketReadState.unread(thread);
+    if (typeof unread === "boolean") return { ...thread, pocketUnread: unread };
+    if (Object.hasOwn(thread, "pocketUnread")) {
+      const { pocketUnread: _ignored, ...original } = thread;
+      return original;
+    }
+    return thread;
+  }) }), [catalog, readRevision]);
   const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
   const runtimeStates = runtimeKnown ? taskStatuses.runtimeStates : undefined;
   const draftIds = useMemo(() => draftThreadIds(conversationDrafts.current), [conversationDrafts, draftIndicatorRevision]);
@@ -307,7 +320,7 @@ export default function App({
   const threads = useMemo(
     () =>
       filterThreads(
-        catalog.threads,
+        displayCatalog.threads,
         scope,
         query,
         project,
@@ -316,17 +329,17 @@ export default function App({
         { now: rankingTime, draftIds, pocketActivity },
         activity,
       ),
-    [catalog, scope, activity, sort, query, project, runtimeStates, rankingTime, draftIds, pocketActivity],
+    [displayCatalog, scope, activity, sort, query, project, runtimeStates, rankingTime, draftIds, pocketActivity],
   );
-  const current = catalog.threads.find((t) => t.id === selected);
+  const current = displayCatalog.threads.find((t) => t.id === selected);
   const protectedDraftIds = protectedDraftThreadIds(conversationDrafts.current, conversationHistory.current);
   const retainedInputThreads = catalog.threads.filter(thread => thread.sourceExcluded &&
     (protectedDraftIds.has(thread.id) || visibleSubmittedQueries(submissions.getThread(thread.id), [], []).length > 0));
   const currentOperation = current ? taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create" && activeOperation(operation))
     || taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create") : undefined;
   const title = navigationTitle(navigation, catalog.projects);
-  const unreadKnown = catalog.sourceInfo?.unread?.available === true;
-  const { unread: unreadCount, running: runningCount } = navigationActivityCounts(catalog.threads, navigation, query, runtimeStates);
+  const unreadKnown = catalog.sourceInfo?.pocketRead?.available === true || catalog.sourceInfo?.unread?.available === true;
+  const { unread: unreadCount, running: runningCount } = navigationActivityCounts(displayCatalog.threads, navigation, query, runtimeStates);
   const guard = async (action: () => Promise<void>) => {
     setError("");
     try {
@@ -408,7 +421,7 @@ export default function App({
   return (
     <div className="app-shell">
       <Sidebar
-        catalog={catalog}
+        catalog={displayCatalog}
         view={scope}
         mobileOpen={mobile}
         onClose={() => setMobile(false)}
@@ -584,7 +597,7 @@ export default function App({
                 hasFilters={activity !== "all"}
                 onClearFilters={() => updateNavigation({ type: "clearActivity" })}
                 unreadAvailable={unreadKnown}
-                unreadPending={catalog.sourceInfo?.unread?.pending ?? 0}
+                unreadPending={catalog.sourceInfo?.pocketRead?.available ? 0 : catalog.sourceInfo?.unread?.pending ?? 0}
                 onSelect={(id, animate, origin) =>
                   void guard(async () => {
                     setPocketActivity(previous => recordPocketVisit(previous, id));

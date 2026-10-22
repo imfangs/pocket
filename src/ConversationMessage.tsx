@@ -5,15 +5,15 @@ import { readableUserMessage } from "./userMessage";
 import type { Message } from "./conversationFeed";
 import { formatDuration } from "./TurnDuration";
 import { readableCodexMarkdown } from "./codexMarkup";
-import { useMemo } from "react";
+import { useMemo, type Ref } from "react";
 import AttachmentList from "./AttachmentList";
 import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
 import MessageTimestamp from "./MessageTimestamp";
 import { validMessageTimestamp } from "./messageTime";
 import "./message-footer.css";
 
-export default function ConversationMessage({ message, threadId, recentlySent = false, queryDisclosure }: {
-  message: Message; threadId?: string; recentlySent?: boolean; queryDisclosure?: QueryDisclosure;
+export default function ConversationMessage({ message, threadId, recentlySent = false, queryDisclosure, readMarker }: {
+  message: Message; threadId?: string; recentlySent?: boolean; queryDisclosure?: QueryDisclosure; readMarker?: Ref<HTMLDivElement>;
 }) {
   const displayText = useMemo(() => message.role === "user"
     ? readableUserMessage(message.text) : readableCodexMarkdown(message.text), [message.role, message.text]);
@@ -58,6 +58,7 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
         {hasTimestamp && <MessageTimestamp timestamp={timestamp} />}
         {copyable && <CopyButton text={displayText} label={kind === "user" ? "复制这条消息" : progress ? "复制过程" : "复制回复"} />}
       </footer>}
+      {readMarker && <div ref={readMarker} data-pocket-read-marker="" aria-hidden="true" style={{ height: 1 }} />}
     </article>
   );
 }

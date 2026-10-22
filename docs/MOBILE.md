@@ -34,7 +34,7 @@ node bin/navigator.mjs connection --json
 
 manifest、192/512px 图标、maskable 图标、Apple touch icon、standalone、安全区及触控输入适配已加入。iPhone 使用 Safari 的共享菜单添加到主屏幕；Android 使用浏览器安装菜单。首次主屏幕登录可能与浏览器分开。
 
-Service Worker 只预缓存公开离线提示、manifest 和图标；私人 API 永远走网络。网页不缓存会话目录或说明。浏览器中的安装条件、离线代码测试和真机安装体验必须分别记录，不能用桌面模拟代替用户手机。
+Service Worker 只预缓存公开离线提示、manifest 和图标；私人 API 永远走网络。网页不持久缓存会话目录或说明；仅按电脑/来源/会话保存有界阅读摘要与水位，不包含正文，见[独立阅读状态](design/2026-10-22-pocket-read-state.md)。浏览器中的安装条件、离线代码测试和真机安装体验必须分别记录，不能用桌面模拟代替用户手机。
 
 ## 发布与恢复
 

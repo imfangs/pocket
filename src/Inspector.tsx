@@ -21,7 +21,6 @@ import { focusInspectorEntry, type InspectorEntryOrigin } from "./inspectorFocus
 import { machineTaskUrl } from "./machineScope";
 import ThreadModelSettings from "./ThreadModelSettings";
 import ThreadAutomations from "./ThreadAutomations";
-import type { ReadSyncControl } from "./readObservation";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
@@ -48,8 +47,6 @@ export default function Inspector(p: Props) {
   const [actionBusy, setActionBusy] = useState(false), [error, setError] = useState("");
   const [modelBusy, setModelBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [readSync, setReadSync] = useState<ReadSyncControl | null>(null);
-  const currentReadSync = p.thread.hasUnreadTurn !== false && readSync?.threadId === p.thread.id ? readSync : null;
   const showMacOpen = isMacBrowser(typeof navigator === "undefined" ? undefined : navigator);
   const managementBlocked = activeOperation(p.operation);
   overlayOpen.current = infoOpen || renaming;
@@ -81,7 +78,6 @@ export default function Inspector(p: Props) {
           <button type="button" className="inspector-title-trigger" aria-label={`会话信息：${p.thread.title}`}
             aria-haspopup="dialog" aria-expanded={infoOpen} onClick={() => { setError(""); setCopied(false); setInfoOpen(true); }}>
             <span>{p.thread.separator ? "分隔符会话" : p.thread.title}</span>
-            {currentReadSync && <span className="inspector-sync-pending" aria-label="已读同步待确认" title="已读同步待确认" />}
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </h2>
@@ -93,20 +89,13 @@ export default function Inspector(p: Props) {
       <div className="inspector-conversation">
         {!infoOpen && operationStatus}
         <Conversation key={p.thread.id} thread={p.thread} drafts={p.queryDrafts} submissions={p.submissions}
-          historyCache={p.historyCache} onActivity={p.onActivity} onReadSyncChange={setReadSync} managementBlocked={managementBlocked}
+          historyCache={p.historyCache} onActivity={p.onActivity} managementBlocked={managementBlocked}
           managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
           onConnect={options => p.onOpen(p.thread, options)} onRestore={() => p.onArchive(p.thread, false)} />
       </div>
       {infoOpen && <Modal title="会话信息" onClose={() => setInfoOpen(false)} busy={actionBusy || modelBusy}>
         <div className="conversation-info">
           <p className="conversation-info-title">{p.thread.title}</p>
-          {currentReadSync && <div className="conversation-info-read-sync" role="status">
-            <p>{currentReadSync.status === "stale" ? "有新内容，阅读后再同步已读。" : currentReadSync.status === "unavailable" ? "暂时无法同步已读状态。" : "已读状态尚未确认。"}</p>
-            <button type="button" className="text-button" disabled={!currentReadSync.canRetry || actionBusy || modelBusy}
-              onClick={() => { setInfoOpen(false); void currentReadSync.retry(); }}>
-              {currentReadSync.retrying ? "正在核对…" : "同步已读"}
-            </button>
-          </div>}
           <ThreadModelSettings thread={p.thread} disabled={actionBusy || managementBlocked}
             onConnect={() => p.onOpen(p.thread, { quiet: true })} onActivity={p.onActivity} onBusyChange={setModelBusy} />
           <div className="thread-management-actions">

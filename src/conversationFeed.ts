@@ -1,5 +1,6 @@
 import type { ThreadConnection } from "./threadConnection";
 import type { ReadObservation } from "./readObservation";
+import type { PocketContent } from "./pocketReadState";
 import type { PublicAttachment } from "./attachments";
 
 export type MessageFileReference = { url: string; name: string };
@@ -81,6 +82,7 @@ export type SavedTranscript = {
   turnTiming?: TurnTiming | null;
   checkedAt: number;
   readObservation?: ReadObservation | null;
+  pocketContent?: PocketContent | null;
 };
 
 export function rememberHistory(cache: HistoryCache, id: string, history: History) {
