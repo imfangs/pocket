@@ -61,3 +61,5 @@ API 提供 `pocketContent = { scope, revision, version, messageId, known: true }
 首版发布已验证：源码 `db45ad31344e4e2a3d107ebd008aba568a0ee2ce`，Pages `c7a5b556-5fc2-4437-9a94-ad544c001c8a`，29/29公开文件和功能检查通过；两机公网各3个完整正文样本与目录版本一致。两机API更新，Codex/隧道未重启，旧队列、凭据与逐条发送策略保持。Cloudflare首次预检401在上传前退出，按既有whoami续期后仅上传一次。构建副本与传输tar已清理，运行release与必要回退依赖保留。
 
 后续合并版本地验收：1326项完整回归、Pages构建及Chromium/WebKit各32项通过。独立CR发现来源整体失败未清候选，补充红/绿回归并修正；恢复后重新等待两次观察，已持久水位保留，两轴最终无剩余P1/P2。只读真实源50个提示均绑定对应版本，不写Codex；证据 `.local/qa/merged-read-2026-10-22/`，发布状态回CURRENT。
+
+后续合并版已发布：源码 `0dbdf39c904877de152fc29a9a1d4f8910a43f2e`，Pages `18a58ea7-d358-4d02-bb23-46140fd5b9e7`，build `c48ec4c8bc93d0265a2f8530706919b0046757cf54f25924820c5cc4bdfeeabf`；29/29公开文件和功能检查、两机公网精确版本提示/每机3份完整正文回读通过。豌豆127项隔离回归通过。两机API切换，Codex与隧道保持原进程，11条待发记录与策略保持。远端准备首次误用系统旧Python，在解包前失败，仅清理确认空目录后改用既有Python3.13继续；未重传发布或重复切换。临时传输包清理情况见本轮cleanup回执。

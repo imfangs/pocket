@@ -1,8 +1,6 @@
 # Pocket 当前状态
 
-2026-10-22 已读合并完成本地验收、待发布：欧吉安反馈 Codex 已读但 Pocket 仍有重复未读，已授权在保留 Pocket 水位的基础上单向吸收桌面已读。新提示绑定内容版本，源状态缺失/变化及新内容不直接清除；客户端保存合并结果。1326项完整回归、64项双浏览器与两轴CR通过，真实只读50个提示均匹配内容版本；当前线上仍为下表首版，发布后更新。契约见[阅读状态与已读合并](docs/design/2026-10-22-pocket-read-state.md)。
-
-2026-10-22 Pocket独立阅读状态已上线：实际读到最新完整回复后立即清除未读，刷新保留，新内容再次未读；目录标记、数量、筛选与Rank使用同一本地水位。按电脑/来源隔离，最多4096条，不保存正文；首版原生蓝点只用于首次基线（本轮正在补已读合并），新界面取消原生标读/同步重试，执行和回执保持原owner权威。1305项全测、50项双浏览器及独立CR通过，豌豆102项后端/状态回归通过；两机公网内容版本与29个公开文件/功能回读通过。只更新Pocket API/网页，Codex和隧道未重启，原11条待发记录、凭据与逐条投递策略保持。契约见[独立阅读状态](docs/design/2026-10-22-pocket-read-state.md)，证据 `.local/qa/pocket-read-2026-10-22/`。
+2026-10-22 已读合并已上线：保留 Pocket 阅读水位，同时吸收 Codex 对应内容的已读提示，重复未读无需逐条重新打开；原生旧未读不反向覆盖，新回复仍未读。新鲜来源和内容版本绑定，至少两次相隔2秒复核，整体读取失败撤销候选；运行中/未知不新确认。1326项全测、64项双浏览器、两轴CR与豌豆127项回归通过，两机公网提示/正文及29个公开文件验证通过。仅更新Pocket API和网页，Codex/隧道、11条待发记录与逐条策略保持。契约见[阅读状态与已读合并](docs/design/2026-10-22-pocket-read-state.md)，证据 `.local/qa/merged-read-2026-10-22/`。
 
 2026-10-22错误反馈与排序收敛已上线：顶部为“创建 / 活动”，活动按最后消息时间倒序，范围/状态/搜索与按机偏好保持。读取/连接故障只保留输入条内的轻量重试，unknown/pending/queued由原卡呈现；错误按消息编号/状态/revision归属，确认后不残留。提交卡两行预览、全文可展开复制，空输入在网络故障时保持单条。同390px场景正文481.5→722px、输入168→46px。1263项全测、后续18/15项定向及最终58项双浏览器通过；29个公开文件和功能回读通过。仅前端更新，两机API/连接器/Codex未重启；原回执及发送约束不变。见[本轮契约](docs/design/2026-10-22-reading-errors-and-sort.md)，证据 `.local/qa/reading-errors-2026-10-22/`。
 
@@ -68,12 +66,12 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `db45ad31344e4e2a3d107ebd008aba568a0ee2ce`（Pocket独立阅读水位与内容版本）；此前紧凑反馈和活动排序保持 |
-| Mac API与桥接源码 | 两机均为 `db45ad31344e4e2a3d107ebd008aba568a0ee2ce`；格得API PID `71082`、豌豆独立release/API PID `74937`。连接器格得 `12488`、豌豆 `12016` 未变，豌豆仍固定 `19d91ed`；Codex进程、凭据、队列与逐条投递策略保持，旧release/共享依赖保留 |
-| Pages 部署 | `c7a5b556-5fc2-4437-9a94-ad544c001c8a`；10-22 ready=true、29/29文件匹配、访问保护及manifest检查通过，认证续期后上传一次 |
-| 前端 build ID | `b18a49d13836b1dfb54b676d6fe60bbc848eb84e66e3b200062f3efebef66ef4`；Chromium/WebKit各25项阅读路径通过，冻结源码与发布构建匹配 |
-| 验证快照 | `.local/qa/pocket-read-2026-10-22/final-verdict.json`、`all-tests-final.log`、`client-browser-verdict.json`、`backend-manifest.json`、`pages-deploy-after-auth.json`、`public-read.json`、两机upgrade回执；release tar已清理，元信息留在 `release-metadata.json`，运行release和共享依赖保留 |
-| 最后健康复核 | 10-22两机公网认证目录/历史版本回读通过，各3个完整样本与目录版本一致；有效会话格得82/83已知、豌豆11/11已知。匿名目录保持401，PWA manifest正常。未执行真实标读/发送/管理操作；真机长期体验和跨设备同步不以合成验证代替 |
+| 已发布前端与网关源码 | `0dbdf39c904877de152fc29a9a1d4f8910a43f2e`（桌面已读提示合并）；之前视觉、输入与发送行为保持 |
+| Mac API与桥接源码 | 两机均为 `0dbdf39c904877de152fc29a9a1d4f8910a43f2e`；格得API PID `8828`、豌豆独立release/API PID `91737`。连接器格得 `1949`、豌豆 `12016` 未变；Codex进程、凭据、11条待发记录与逐条投递策略保持，旧release/共享依赖保留 |
+| Pages 部署 | `18a58ea7-d358-4d02-bb23-46140fd5b9e7`；10-22 ready=true、29/29文件匹配、访问保护及manifest检查通过，上传一次 |
+| 前端 build ID | `c48ec4c8bc93d0265a2f8530706919b0046757cf54f25924820c5cc4bdfeeabf`；Chromium/WebKit各32项合并与阅读路径通过，冻结源码与发布构建匹配 |
+| 验证快照 | `.local/qa/merged-read-2026-10-22/final-verdict.json`、`all-tests-final.log`、`browser-verdict.json`、两轴review、`pages-deploy.json`、`public-read.json`、两机upgrade回执；传输包元信息在 `package.json` / `release-metadata.json` |
+| 最后健康复核 | 10-22两机公网认证同步/提示/历史回读通过：格得62个active、61个内容已知、49个已读提示，豌豆11/11已知、10个提示；各3个完整正文样本与目录版本一致。原生写入0，匿名401及manifest正常。运行中/未知不授予提示，真机长期体验不以合成验证代替 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json` 或机器私有 `NAVIGATOR_BRIDGE_CONFIG`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
 需要确认最新在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。
@@ -117,7 +115,7 @@
 
 - **旧本机域名观察已恢复**：10-17的threads.local DNS失败保留在多机QA记录；10-18本轮FBT local重启Pocket API后，系统DNS、TLS与域名健康均通过，未修改系统DNS/Caddy。证据 `ged-restart.json` 位于本轮模型设置QA目录。
 
-0. **原生未读同步保留为上游限制**：10-22只读确认Codex重启后仍存在双listener及readback_unconfirmed，尚无已验证的稳定原生写回路线。方帅随后授权Pocket独立阅读状态，当前产品主线不再依赖原生同步，也不继续批量补齐或重启实验。旧4个精确补齐仅证明局部恢复，历史事实见[原生同步记录](docs/design/2026-10-05-read-state-sync.md)；新契约见[独立阅读状态](docs/design/2026-10-22-pocket-read-state.md)。清站点数据/重装PWA、跨手机阅读同步，以及完整旧Pocket数据库回滚不在首版保证范围。
+0. **原生未读同步保留为上游限制**：10-22只读确认Codex重启后仍存在双listener及readback_unconfirmed，尚无已验证的稳定原生写回路线。欧吉安随后授权Pocket独立阅读水位，再因跨端重复未读补充单向合并桌面已读；当前产品仍不依赖原生写回，也不继续批量补齐或重启实验。旧4个精确补齐仅证明局部恢复，历史事实见[原生同步记录](docs/design/2026-10-05-read-state-sync.md)；新契约见[独立阅读状态](docs/design/2026-10-22-pocket-read-state.md)。清站点数据/重装PWA、跨手机阅读同步，以及完整旧Pocket数据库回滚不在首版保证范围。
 1. **原owner归档接口缺口（10-16新增候选）**：线上仍是无占用时归档/恢复；已结束但root或spawn子树被桌面持writer时，独立CLI和短RPC都不能完成。当前原Core为stdio，无对应control socket；follower无归档请求，AppTools仍要求宿主上下文/签名身份。闲置owner保留期为3小时，视图/follower等还可能延长，不能把模型空闲当成归档就绪。10-16下一次启动时的stdio薄适配器在隔离测试中已突破同Core的writer限制，26项通过；真实GUI及完整桌面副作用未验证，未安装或激活。当前长期等待不能算完整可用的手机归档；候选、取舍和继续验证入口见[归档owner研究](docs/research/2026-10-16-archive-owner-route.md)，原限制见[生命周期复核](docs/design/2026-10-05-thread-lifecycle.md#2026-10-15-持锁子会话导致长期等待)。用户要求本次对象先保留，已取消请求不恢复。共享桌面队列、分叉与工作树创建仍未交付。
 2. **旧未知回执**：09-30曾留下本任务两条 unknown 和一条待发正文，当时未重发/删除；相关编号和原始证据在 `.local/qa/connectivity-2026-09-30/dispatches.json`。下次涉及队列时重新核对当前账本与原历史，不凭历史中暂未找到文本推断未发送。
 3. **真实设备**：iPhone 添加主屏幕后首键盘、边缘手势、后台/锁屏通知、长时间切网与版本升级仍需实用反馈。10-09新增豆包语音跳出后不能自动回到主屏幕Pocket的报告：方帅已确认手动切回能够填入识别文字，问题收窄到自动唤回前台；代码未发现后台主动blur/禁用/导航，具体责任方尚未确定，待Safari同机对照。豆包官方提供麦克风保持以避免跳转的方式，但未在报告手机验证。见[排查记录](docs/research/2026-10-09-ios-doubao-pwa-return.md)。浏览器尺寸、模拟器和注入旧测试构建的公网升级对照，不能替代真机安装升级验收。
