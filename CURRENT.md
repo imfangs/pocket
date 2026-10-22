@@ -1,6 +1,6 @@
 # Pocket 当前状态
 
-2026-10-22 Pocket独立阅读状态正在验收：方帅在未读对照后授权改由Pocket维护阅读水位，不再要求原生蓝点同步。服务端提供按内容递增的版本，浏览器保存按电脑/来源隔离的水位；新界面取消原生标读调用和同步重试，执行、审批、队列保持原owner权威。1305项完整测试、构建、Chromium/WebKit共50项流程与独立CR通过；真实active来源81/82可读、46份成功历史摘要均与目录一致。当前尚未发布，上线结果将在本页补齐。契约见[独立阅读状态](docs/design/2026-10-22-pocket-read-state.md)，证据 `.local/qa/pocket-read-2026-10-22/`。
+2026-10-22 Pocket独立阅读状态已上线：实际读到最新完整回复后立即清除未读，刷新保留，新内容再次未读；目录标记、数量、筛选与Rank使用同一本地水位。按电脑/来源隔离，最多4096条，不保存正文；原生蓝点只用于首次基线，新界面取消原生标读/同步重试，执行和回执保持原owner权威。1305项全测、50项双浏览器及独立CR通过，豌豆102项后端/状态回归通过；两机公网内容版本与29个公开文件/功能回读通过。只更新Pocket API/网页，Codex和隧道未重启，原11条待发记录、凭据与逐条投递策略保持。契约见[独立阅读状态](docs/design/2026-10-22-pocket-read-state.md)，证据 `.local/qa/pocket-read-2026-10-22/`。
 
 2026-10-22错误反馈与排序收敛已上线：顶部为“创建 / 活动”，活动按最后消息时间倒序，范围/状态/搜索与按机偏好保持。读取/连接故障只保留输入条内的轻量重试，unknown/pending/queued由原卡呈现；错误按消息编号/状态/revision归属，确认后不残留。提交卡两行预览、全文可展开复制，空输入在网络故障时保持单条。同390px场景正文481.5→722px、输入168→46px。1263项全测、后续18/15项定向及最终58项双浏览器通过；29个公开文件和功能回读通过。仅前端更新，两机API/连接器/Codex未重启；原回执及发送约束不变。见[本轮契约](docs/design/2026-10-22-reading-errors-and-sort.md)，证据 `.local/qa/reading-errors-2026-10-22/`。
 
@@ -66,12 +66,12 @@
 | 项目 | 记录与事实源 |
 | --- | --- |
 | 公网 / 本机入口 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；Mac API 监听 `127.0.0.1:4397`，连接器健康端口 `4399`，配置在 `config/` |
-| 已发布前端与网关源码 | `6f3ac51d346dcf355b116318d5b7517a6ac663af`（紧凑网络恢复与创建/活动排序）；此前文件组件、状态跟踪等能力保持 |
-| Mac API与桥接源码 | 两机均为 `5b33cfbf0071d3f90367d1c0a5e2df27a12f6ebd`；格得API PID `91209`，豌豆独立release/API PID `7355`。连接器格得 `12488`、豌豆 `12016` 保持，豌豆仍固定 `19d91ed`；Codex进程、凭据、队列与逐条投递策略保全通过，旧release/依赖来源保留 |
-| Pages 部署 | `388c6c68-f45f-4035-b8c6-783d856799ba`；10-22 ready=true、29/29文件匹配、访问保护及manifest检查通过，上传一次 |
-| 前端 build ID | `65c7f4b5f5f154d6d54452588e40f306a9a011a75105efff31d407a390c97700`；最终错误恢复34项、排序24项双浏览器通过 |
-| 验证快照 | `.local/qa/reading-errors-2026-10-22/pages-deploy.json`、`all-tests-final.log`、`browser-verdict.json`、`sort-browser-verdict.json`、`comparison.json`、`public-health.json`；卡片独立证据 `.local/qa/receipt-cards-2026-10-22/` |
-| 最后健康复核 | 10-22两机公网health200且机器身份正确，公开目录仍401、PWA manifest正常。此次只更新前端，没有执行原生发送/已读/管理操作；手机真机长期网络与键盘体验仍按用户反馈验证 |
+| 已发布前端与网关源码 | `db45ad31344e4e2a3d107ebd008aba568a0ee2ce`（Pocket独立阅读水位与内容版本）；此前紧凑反馈和活动排序保持 |
+| Mac API与桥接源码 | 两机均为 `db45ad31344e4e2a3d107ebd008aba568a0ee2ce`；格得API PID `71082`、豌豆独立release/API PID `74937`。连接器格得 `12488`、豌豆 `12016` 未变，豌豆仍固定 `19d91ed`；Codex进程、凭据、队列与逐条投递策略保持，旧release/共享依赖保留 |
+| Pages 部署 | `c7a5b556-5fc2-4437-9a94-ad544c001c8a`；10-22 ready=true、29/29文件匹配、访问保护及manifest检查通过，认证续期后上传一次 |
+| 前端 build ID | `b18a49d13836b1dfb54b676d6fe60bbc848eb84e66e3b200062f3efebef66ef4`；Chromium/WebKit各25项阅读路径通过，冻结源码与发布构建匹配 |
+| 验证快照 | `.local/qa/pocket-read-2026-10-22/final-verdict.json`、`all-tests-final.log`、`client-browser-verdict.json`、`backend-manifest.json`、`pages-deploy-after-auth.json`、`public-read.json`、两机upgrade回执；release tar已清理，元信息留在 `release-metadata.json`，运行release和共享依赖保留 |
+| 最后健康复核 | 10-22两机公网认证目录/历史版本回读通过，各3个完整样本与目录版本一致；有效会话格得82/83已知、豌豆11/11已知。匿名目录保持401，PWA manifest正常。未执行真实标读/发送/管理操作；真机长期体验和跨设备同步不以合成验证代替 |
 | 本地数据与兼容性 | 用户数据在 `~/Library/Application Support/CodexNavigator/`；依赖路径见 `config/desktop-bridge.json` 或机器私有 `NAVIGATOR_BRIDGE_CONFIG`。App发布号不参与准入，IPC状态与CLI管理契约独立判断；内置CLI布局/行为版本由 `bin/bundled_cli.py` 检查 |
 
 需要确认最新在线状态或发布身份时再回读服务/公网及 `.local/pages-site.json`，不把以上日期快照当实时保证。

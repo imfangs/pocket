@@ -41,3 +41,5 @@ API 提供 `pocketContent = { scope, revision, version, messageId, known: true }
 核心回归：`tests/pocket-content.test.mjs`、`tests/pocket-read-state.test.mjs`、`tests/pocket-read-observation.test.mjs`、`tests/pocket-read-navigation.test.mjs`。浏览器覆盖实际阅读、返回、刷新、新内容、遮挡、旧位置、同源标签和原生零写入；发布状态与证据路径见 [CURRENT](../../CURRENT.md)。
 
 本轮冻结版1305项全测、Pages构建、Chromium/WebKit各25项完整路径通过。独立CR修正了历史缺少turnId、消息转为问题卡后观察节点变化、跨标签容量清理删除被旧内存复活三项边界；最终两轴无剩余P1/P2。真实只读81/82个active来源已知，唯一未知对象缺rollout且owner超时；46份成功历史与目录摘要一致。1500条热目录在Node内存Storage fixture中不再写入或枚举存储，不能视为iPhone性能实测。证据 `.local/qa/pocket-read-2026-10-22/`。
+
+发布已验证：源码 `db45ad31344e4e2a3d107ebd008aba568a0ee2ce`，Pages `c7a5b556-5fc2-4437-9a94-ad544c001c8a`，29/29公开文件和功能检查通过；两机公网各3个完整正文样本与目录版本一致。两机API更新，Codex/隧道未重启，旧队列、凭据与逐条发送策略保持。Cloudflare首次预检401在上传前退出，按既有whoami续期后仅上传一次。构建副本与传输tar已清理，运行release与必要回退依赖保留。
