@@ -31,3 +31,41 @@ test('successful local edits invalidate older snapshots, and unmount ignores pen
   f.reader.resume();const next=f.reader.read();f.pending[2].resolve({version:'new session'});await next;
   assert.deepEqual(f.shown,[{version:'new session'}]);
 });
+
+test('retry enters pending before its request and clears pending after either result', async () => {
+  const events = [], pending = [];
+  const reader = createCatalogReader({
+    request: () => { events.push('request'); return new Promise((resolve, reject) => pending.push({ resolve, reject })); },
+    onPendingChange: value => events.push(value ? 'reading' : 'idle'),
+    onData: () => events.push('data'), onSettled: error => events.push(error ? 'failure' : 'success'),
+  });
+  const first = reader.read();
+  assert.deepEqual(events, ['reading', 'request']);
+  pending[0].reject(new Error('timeout')); await assert.rejects(first, /timeout/);
+  assert.deepEqual(events.slice(-2), ['failure', 'idle']);
+  const retry = reader.read(true);
+  assert.deepEqual(events.slice(-2), ['reading', 'request']);
+  pending[1].resolve({ threads: [], sourceError: null }); await retry;
+  assert.deepEqual(events.slice(-3), ['data', 'success', 'idle']);
+});
+
+test('HTTP success with a source failure retains its snapshot but never reports refresh success', async () => {
+  const events = [], cached = { threads: [{ id: 'retained' }], sourceError: 'source unavailable' };
+  const reader = createCatalogReader({ request: async () => cached,
+    onData: data => events.push(data), onSettled: error => events.push(error ? 'failure' : 'success') });
+  await assert.rejects(reader.read(true), /暂时无法更新/);
+  assert.deepEqual(events, [cached, 'failure']);
+});
+
+test('invalidation and pause release pending without a late request hiding a newer refresh', async () => {
+  const pending = [], events = [];
+  const reader = createCatalogReader({ request: () => new Promise(resolve => pending.push(resolve)),
+    onPendingChange: value => events.push(value), onData() {}, onSettled() {} });
+  const first = reader.read(); reader.invalidate();
+  assert.deepEqual(events, [true, false]);
+  const second = reader.read(true);
+  pending[0]({}); await first;
+  assert.deepEqual(events, [true, false, true]);
+  reader.pause(); pending[1]({}); await second;
+  assert.deepEqual(events, [true, false, true, false]);
+});

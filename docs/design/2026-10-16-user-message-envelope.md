@@ -18,7 +18,7 @@ Pocket 的 Markdown `skipHtml` 隐藏了前面的 HTML 块，但其后的 Markdo
 - Query 自己包含第二个同名标题时保留；不循环剥离。
 - 来源或固定说明不匹配、包装不完整、包装与分隔标题之间出现正文时保留，不猜测。
 - 支持已知格式的 LF/CRLF；不先 `trimStart()`，避免把四空格缩进代码当作运行时包装。
-- 附件及 response-annotations 的处理仍沿用原有各自的规则，不因为出现同名标题就删除上下文。
+- 附件及 response-annotations 不因同名标题而被删除。10-23补充了完整标准批注包装的独立解析与紧凑引用展示，见[引用批注](2026-10-23-annotations-refresh-controls.md#引用提问)；未知或不完整结构仍保留。
 
 ## 验证
 

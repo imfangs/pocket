@@ -175,9 +175,6 @@ export default function TaskList(p: Props) {
       ref={list}
       className="task-list-surface"
     >
-      {rows.length > 0 && p.runtimeUnavailable && <p className="task-runtime-availability" role="status">
-        运行状态暂不可用
-      </p>}
       {rows.length === 0 ? (
         <div className="empty-list">
           {p.query ? <Search size={30} /> : <Inbox size={32} />}

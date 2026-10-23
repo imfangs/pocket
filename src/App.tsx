@@ -16,13 +16,14 @@ import { toast } from "sonner";
 import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
 import TaskListPanel from "./TaskListPanel";
+import CollectionReadFeedback from "./CollectionReadFeedback";
 import Inspector from "./Inspector";
 import BootSplash from "./BootSplash";
 import type { HistoryCache } from "./conversationFeed";
 import type { OpenThreadResult } from "./threadConnection";
 import { SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
-import { createCatalogReader } from "./catalogReader";
+import { CatalogSourceError, createCatalogReader } from "./catalogReader";
 import { useReloadGuard } from "./updateSafety";
 import { hasUpdateBlockingDraft, protectedDraftThreadIds } from "./updateDrafts";
 import PocketUpdate from "./PocketUpdate";
@@ -90,6 +91,8 @@ export default function App({
   }, []);
   const [catalog, setCatalogState] = useState<Catalog>(empty),
     [loading, setLoading] = useState(true),
+    [catalogLoaded, setCatalogLoaded] = useState(false),
+    [catalogReading, setCatalogReading] = useState(false),
     [selected, setSelectedState] = useState<string | null>(() => {
       let id = new URLSearchParams(location.search).get("task");
       try { id ||= sessionStorage.getItem(machineStorageKey("pocket.pending-task")); sessionStorage.removeItem(machineStorageKey("pocket.pending-task")); } catch {}
@@ -163,7 +166,8 @@ export default function App({
   const [catalogReader] = useState(() => createCatalogReader({
     request: sync => api<Catalog>(sync ? "/api/sync" : "/api/catalog", sync ? "POST" : "GET",
       undefined, { signal: AbortSignal.timeout(15000) }),
-    onData(c) { if (c.csrfToken) setToken(c.csrfToken); setCatalog(c); },
+    onData(c) { if (c.csrfToken) setToken(c.csrfToken); setCatalog(c); if (!c.sourceError) setCatalogLoaded(true); },
+    onPendingChange(pending) { setCatalogReading(pending); if (pending) setReadError(""); },
     onSettled(error) { setLoading(false); setReadError(error ? catalogError(error) : ""); },
   }));
   const refresh = useCallback((sync = false) => catalogReader.read(sync), [catalogReader]);
@@ -176,7 +180,6 @@ export default function App({
     }
     if (silent) return syncing.current.then(() => {});
     setBusy(true);
-    setError("");
     return syncing.current.then(catalog => {
       if (catalog) notify("已刷新");
     }).finally(() => {
@@ -259,7 +262,9 @@ export default function App({
     };
     refresh()
       .then(catalog => { if (catalog) syncIfVisible(); })
-      .catch(() => {});
+      // A persisted source error still deserves the normal one fresh scan at
+      // entry. Network failures wait for the existing retry/foreground paths.
+      .catch(error => { if (error instanceof CatalogSourceError) syncIfVisible(); });
     const timer = setInterval(syncIfVisible, 45000);
     document.addEventListener("visibilitychange", syncIfVisible);
     window.addEventListener("online", syncIfVisible);
@@ -339,6 +344,8 @@ export default function App({
     || taskOperations.operations.find(operation => operation.threadId === current.id && operation.operation !== "create") : undefined;
   const title = navigationTitle(navigation, catalog.projects);
   const unreadKnown = catalog.sourceInfo?.pocketRead?.available === true || catalog.sourceInfo?.unread?.available === true;
+  const hasCatalog = catalogLoaded || catalog.threads.length > 0;
+  const catalogReadError = catalogReading ? "" : readError || (catalog.sourceError ? "暂时无法更新，请稍后重试。" : "");
   const { unread: unreadCount, running: runningCount } = navigationActivityCounts(displayCatalog.threads, navigation, query, runtimeStates);
   const guard = async (action: () => Promise<void>) => {
     setError("");
@@ -444,7 +451,7 @@ export default function App({
             <div className="heading">
               <h1 title={title}>
                 <span className="workspace-title">{title}</span>
-                <span className="workspace-count">{activity === "unread" && !unreadKnown || activity === "running" && !runtimeKnown ? "—" : threads.length}</span>
+                <span className="workspace-count">{!hasCatalog || activity === "unread" && !unreadKnown || activity === "running" && !runtimeKnown ? "—" : threads.length}</span>
               </h1>
             </div>
             <Button variant="soft" color="gray" type="button"
@@ -535,23 +542,18 @@ export default function App({
           </div>}
           {searchOpen && <p id="task-search-help" className="sr-only">在当前视图内搜索标题、项目和目录。</p>}
         </header>
-        {(error || readError || catalog.sourceError) && (
+        {error && (
           <div className="error-banner" role="alert">
             <AlertCircle size={17} />
             <span>
-              {error || readError ||
-                "暂时无法更新，显示上次内容。"}
+              {error}
             </span>
             <IconButton type="button"
               className="icon-button"
-              aria-label={error ? "关闭提示" : "重试刷新"}
-              disabled={!error && busy}
-              onClick={() => {
-                if (error) setError("");
-                else void syncTasks().catch(() => {});
-              }}
+              aria-label="关闭提示"
+              onClick={() => setError("")}
             >
-              {error ? <X size={15} /> : <RefreshCw size={15} />}
+              <X size={15} />
             </IconButton>
           </div>
         )}
@@ -570,7 +572,9 @@ export default function App({
               onDismiss={() => taskOperations.dismiss(operation.requestId)} />)}
         </div>}
         <div className="content">
-          <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}>
+          <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}
+            feedback={<CollectionReadFeedback hasCatalog={hasCatalog} pending={busy || !hasCatalog && (loading || catalogReading)}
+              error={catalogReadError} retry={() => void syncTasks().catch(() => {})} />}>
               {retainedInputThreads.length > 0 && <section className="retained-inputs" aria-label="保留的输入">
                 <p>保留的输入</p>
                 {retainedInputThreads.map(thread => <button key={thread.id} aria-label={`继续输入：${thread.title}`}
@@ -578,7 +582,7 @@ export default function App({
                   <span>{thread.title}</span><small>继续处理</small>
                 </button>)}
               </section>}
-              <TaskList
+              {hasCatalog && <TaskList
                 onPriority={prioritizeThread}
                 runtimeStates={taskStatuses.runtimeStates}
                 runtimeUnavailable={taskStatuses.runtimeUnavailable}
@@ -612,7 +616,7 @@ export default function App({
                 busy={busy}
                 query={query}
                 onClearQuery={() => setQuery("")}
-              />
+              />}
           </TaskListPanel>
           {current ? (
             <Inspector

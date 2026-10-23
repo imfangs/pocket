@@ -2,12 +2,13 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 import { ArrowDown, RefreshCw } from "lucide-react";
 import { bindPullToRefresh } from "./pullToRefresh";
 
-export default function TaskListPanel({ children, busy, onRefresh, scrollRef, inert = false }: {
+export default function TaskListPanel({ children, busy, onRefresh, scrollRef, inert = false, feedback }: {
   children: ReactNode;
   busy: boolean;
   onRefresh: () => Promise<void>;
   scrollRef?: RefObject<HTMLElement | null>;
   inert?: boolean;
+  feedback?: ReactNode;
 }) {
   const ownPanel = useRef<HTMLElement>(null);
   const panel = scrollRef ?? ownPanel;
@@ -32,6 +33,7 @@ export default function TaskListPanel({ children, busy, onRefresh, scrollRef, in
       </div>
       <div className="pull-refresh-content" data-dragging={visible && !pull.refreshing || undefined}
         style={{ transform: pull.distance ? `translateY(${pull.distance}px)` : undefined }}>
+        {!pull.refreshing && feedback}
         {children}
       </div>
     </section>

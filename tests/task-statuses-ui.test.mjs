@@ -199,7 +199,8 @@ test('the list renders native running without retired manual intent, and failure
   assert.doesNotMatch(active, /推进中/); assert.match(active, /data-state="running">运行中/);
   assert.match(active, /data-state="draft"/); assert.doesNotMatch(active, /data-state="unread"/);
   const failed = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: states, runtimeUnavailable: true }));
-  assert.match(failed, /运行状态暂不可用/); assert.doesNotMatch(failed, /data-state="running"|空闲/);
+  assert.doesNotMatch(failed, /运行状态暂不可用|data-state="running"|空闲/);
+  assert.match(failed, /Conversation/, 'keep existing rows without another availability banner');
   const loading = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: states, runtimeLoading: true }));
   assert.doesNotMatch(loading, /正在读取运行状态|data-state="running"|空闲/);
   const unknown = renderToStaticMarkup(createElement(TaskList, { ...props, runtimeStates: new Map([['thread', 'unknown']]) }));

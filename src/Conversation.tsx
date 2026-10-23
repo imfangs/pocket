@@ -626,6 +626,7 @@ export default function Conversation({
             disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />
             : <ConversationMessage key={message.id} threadId={thread.id} message={message}
               readMarker={message.id === pocketContent?.messageId ? readSentinel : undefined}
+              changeLayout={progress.changeLayout}
               queryDisclosure={message.role === "user" ? { expanded: expandedQueries.has(message.clientMessageId || message.id),
                 toggle: (open, anchor) => toggleQuery(message, open, anchor) } : undefined}
               recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />;
