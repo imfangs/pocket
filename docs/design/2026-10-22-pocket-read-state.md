@@ -52,6 +52,16 @@ API 提供 `pocketContent = { scope, revision, version, messageId, known: true }
 - 浏览器持久化的只有摘要/ID/版本，不是聊天正文。既有 10 会话内存历史缓存、草稿保护和 Service Worker 仅缓存公开壳的策略保持。
 - 清除浏览器站点数据或重装 PWA 会失去这些阅读记录。没有来源正文的会话不能凭旧蓝点猜测内容版本，已有本地记录在暂时未知时保留。
 
+## 待续：运行中与未读的列表呈现
+
+2026-10-23交接补记，状态：**已讨论、尚未实现/验证/发布**。来源是本会话中欧吉安在已读合并上线后询问“运行中的是不是不能归类为未读”；格得给出了互斥的呈现方案，随后本轮实际实施的是详情横滚修复。
+
+讨论方向：有效运行中只显示“运行中”，不计入未读徽标、数量与筛选；结束后再根据已有阅读水位决定未读。底层仍保存新内容和实际阅读，不因运行中而调用markSeen或清水位。等待回答/审批继续独立显示，状态过期不能被当作已结束。
+
+当前实现仍允许两者同时成立：`src/unread.ts`对`pocketUnread`优先返回；`tests/pocket-read-navigation.test.mjs`的“including while running”用例明确断言两种计数均为1。`smartOrder.ts`排除running的completedUnread加分，不代表徽标/筛选已经互斥。
+
+下一次实现时需统一列表呈现、数量和筛选的有效运行状态口径，保留阅读水位与等待操作；验收覆盖运行→结束、结束前已读/未读、同条回复追加、状态失效/离线，以及桌面旧提示不清新内容。将该回归改为新期望后，再修改与验证；完成后更新此段和CURRENT。
+
 ## 验证入口
 
 核心回归：`tests/pocket-desktop-read.test.mjs`、`tests/pocket-content.test.mjs`、`tests/pocket-read-state.test.mjs`、`tests/pocket-read-observation.test.mjs`、`tests/pocket-read-navigation.test.mjs`。浏览器覆盖实际阅读、返回、刷新、新内容、遮挡、旧位置、同源标签和原生零写入；发布状态与证据路径见 [CURRENT](../../CURRENT.md)。

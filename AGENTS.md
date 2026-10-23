@@ -4,7 +4,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 ## 开工顺序
 
-1. 先遵循 `/Users/fangs/workspace/AGENTS.md`，再读 [CURRENT.md](CURRENT.md)：确认继续方式、最近已验证版本、未决问题和本轮目标。自动运行状态以该页及实际 automation 为准。
+1. 先遵循 `/Users/fangs/workspace/AGENTS.md`，再读 [CURRENT.md](CURRENT.md)：先区分已发布行为、仅已讨论的待续事项和验证缺口；确认最近已验证版本。自动运行状态以该页及实际 automation 为准。
 2. 在本子仓库核对 `git status --short` 与当前分支，隔离其他任务的改动；运行命令和依赖从 [README.md](README.md)、`package.json`、`config/` 回读。
 3. 按下面的任务分支加载文档与代码。只有追溯旧取舍/验证时才查 [HISTORY.md](HISTORY.md)，不用把整份流水当成当前需求。
 4. 完成与本轮目标相称的实现和验证。已有功能优化、缺陷修复及对应发布沿用用户授权；纯文档维护只核对事实、链接与差异，不触发产品部署。
