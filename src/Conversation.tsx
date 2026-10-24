@@ -435,7 +435,8 @@ export default function Conversation({
       else feedbackTracker.trackQueued(receipt.requestId);
       // The immutable message card owns queued/accepted feedback.
       setNotice("");
-      nearBottom.current = true;
+      // submit() already follows this message. A late receipt must preserve
+      // any reading position the user chose while waiting for confirmation.
     } else if (
       receipt.status === "rejected" ||
       receipt.status === "not_found"
@@ -730,6 +731,13 @@ export default function Conversation({
           <Button
             className="primary"
             type={restoreOnlyAction || connectionOnlyAction ? "button" : "submit"}
+            onMouseDown={event => {
+              // Keep an active editor through the tap's synthetic mouse phase.
+              // Cancelling touch pointerdown instead would swallow WebKit clicks.
+              const input = composer.ref.current?.querySelector("textarea");
+              if (event.button === 0 && !composer.composing && !restoreOnlyAction && !connectionOnlyAction && !draft.requestId &&
+                  input && document.activeElement === input) event.preventDefault();
+            }}
             onClick={restoreOnlyAction ? () => { void restore(); } : retryConnection ? () => { void inputConnection.current?.request(true); } : undefined}
             disabled={
               restoreOnlyAction ? !online || thread.missing || managementBlocked || restoring || sending : connectionOnlyAction ? !online || connecting || preconnectBlocked : sending || restoring ||

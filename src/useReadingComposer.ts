@@ -73,5 +73,5 @@ export function useReadingComposer(content: Pick<ComposerState, "hasContent" | "
     setFocused(false);
   };
   return { ref, compact: compactComposer({ ...content, mobile, focused, composing, picking, keyboardOpen }), canCollapse, collapse, expand: () => setFocused(true),
-    setPicking, onCompositionStart: () => setComposing(true), onCompositionEnd: () => setComposing(false) };
+    composing, setPicking, onCompositionStart: () => setComposing(true), onCompositionEnd: () => setComposing(false) };
 }
