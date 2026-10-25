@@ -27,6 +27,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 项目导航、最近创建、关注/Codex置顶快捷分类、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：独立范围、创建时间倒序、单分数公式、消息来源、行为加分、有效状态与滚动锚 |
 | 发送后键盘/输入区收缩、迟到回执导致阅读跳动 | [发送连续性](docs/design/2026-10-25-send-ui-continuity.md)：条件焦点保持、IME例外与用户滚动优先 |
 | 新建后迟迟没有完成反馈、创建状态被旧操作拖慢 | [新建确认延迟](docs/design/2026-10-25-create-confirmation-latency.md)：原生耗时与前端确认分开，创建独立核对、同ID单飞与未知不重放 |
+| 新建剪贴板预填、Paste许可、读取失败恢复 | [Query与剪贴板](docs/design/2026-10-09-startup-and-query-entry.md)：默认点击内读取、保留系统许可、主动恢复与迟到结果保护；浏览器替身不能证明iPhone许可链路 |
 | 手机阅读态输入区收放、列表时间/状态位置 | [阅读与列表收敛](docs/design/2026-10-13-reading-composer-and-row-state.md)：同一输入节点、焦点/IME/附件/待处理保护与固定状态槽 |
 | 全局toast、消息身份标签、底部时间/复制与发送确认 | [轻量反馈与消息footer](docs/design/2026-10-12-light-feedback-and-message-footer.md)：统一Sonner样式、消息语义与待处理状态边界 |
 | 操作类产品的顺手标准、功能取舍、UI 复盘或跨项目借鉴 | [迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)：整体脉络、可观察标准、反例与验证办法；按目标项目重新判断适用性 |

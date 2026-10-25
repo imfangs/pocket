@@ -1,7 +1,7 @@
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { ClipboardPaste, Search, X } from "lucide-react";
 import { Modal } from "./Dialogs";
 import { api } from "./api";
 import { activeOperation, type CreateLocation, type TaskOperation } from "./taskOperations";
@@ -11,7 +11,7 @@ import { creationDirectories, creationDirectoryChoices, creationLocation, creati
 import { initialCreationSelection, readCreationPreference, saveCreationPreference, type CreationPreference } from "./creationPreference";
 import AutoTextarea from "./AutoTextarea";
 import AnimatedDetails from "./AnimatedDetails";
-import { applyCreationClipboard, creationQueryPayload, editCreationQuery, type CreationClipboard, type CreationQueryDraft } from "./creationQuery";
+import { applyCreationClipboard, beginCreationClipboard, createCreationClipboardReader, creationQueryPayload, editCreationQuery, type CreationClipboard, type CreationQueryDraft } from "./creationQuery";
 import { createCreationOptionsReader, type CreationOptions } from "./creationOptions";
 import { readAutoDirectPreference } from "./sendingPreference";
 
@@ -30,6 +30,8 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
   const [rememberedSelection] = useState(readCreationPreference);
   const [rememberedUnavailable, setRememberedUnavailable] = useState(false);
   const [queryDraft, setQueryDraft] = useState<CreationQueryDraft>(() => ({ text: initialQuery ?? "", revision: 0 }));
+  const [clipboardPending, setClipboardPending] = useState(false);
+  const clipboardReader = useRef<ReturnType<typeof createCreationClipboardReader> | null>(null);
   const query = queryDraft.text;
   const queryTooLong = query.length > 16000;
   const queryBox = useRef<HTMLDivElement>(null);
@@ -58,10 +60,17 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
   const locked = busy || activeOperation(operation) || operation?.status === "succeeded";
   const dirty = !activeOperation(operation) && operation?.status !== "succeeded" && (!!name || selectionTouched || !!query);
   useEffect(() => {
+    const reader = createCreationClipboardReader({
+      onPending: setClipboardPending,
+      onResult: (result, revision) => setQueryDraft(draft => applyCreationClipboard(draft, result, revision)),
+    });
+    clipboardReader.current = reader;
+    return () => { reader.dispose(); if (clipboardReader.current === reader) clipboardReader.current = null; };
+  }, []);
+  useEffect(() => {
     if (!clipboardRead || activeOperation(operation)) return;
-    let current = true;
-    void clipboardRead.then(result => { if (current) setQueryDraft(draft => applyCreationClipboard(draft, result)); });
-    return () => { current = false; };
+    clipboardReader.current?.watch(clipboardRead, 0);
+    return () => clipboardReader.current?.cancel();
   }, [clipboardRead, operation?.requestId]);
   useEffect(() => { if (directorySearchOpen) directorySearch.current?.focus(); }, [directorySearchOpen]);
   useReloadGuard(() => busy ? "会话正在创建，请稍后更新。" : dirty ? "新会话还有未提交的内容，请先处理。" : null);
@@ -101,6 +110,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         (directory ? projectSelect.current : directorySelect.current)?.focus();
         return;
       }
+      clipboardReader.current?.cancel();
       setQueryDraft(draft => editCreationQuery(draft, draft.text));
       submitting.current = true; setBusy(true); setError("");
       try {
@@ -116,12 +126,24 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         <div className="quick-create-query-input">
           <label className="sr-only" htmlFor="quick-create-query">首条消息</label>
           <AutoTextarea id="quick-create-query" data-autofocus value={query} disabled={locked} maxLength={16000}
-            aria-invalid={queryTooLong || undefined} placeholder="写下想讨论或完成的事，也可以粘贴内容"
-            onChange={event => { const text = event.target.value; setQueryDraft(draft => editCreationQuery(draft, text)); }} />
+            aria-invalid={queryTooLong || undefined} placeholder={clipboardPending ? "正在读取剪贴板…" : "写下想讨论或完成的事，也可以粘贴内容"}
+            onChange={event => { const text = event.target.value; clipboardReader.current?.cancel(); setQueryDraft(draft => editCreationQuery(draft, text)); }} />
           {query.length > 0 && <IconButton type="button" size="2" className="icon-button quick-create-clear" title="清空输入" aria-label="清空输入" disabled={locked} onClick={() => {
+            clipboardReader.current?.cancel();
             setQueryDraft(draft => editCreationQuery(draft, ""));
             queryBox.current?.querySelector("textarea")?.focus();
           }}><X size={16} aria-hidden="true" /></IconButton>}
+          {!query.length && !locked && <IconButton type="button" size="2" className="icon-button quick-create-clear" title="粘贴剪贴板" aria-label="粘贴剪贴板"
+            onMouseDown={event => { if (event.button === 0 && document.activeElement === queryBox.current?.querySelector("textarea")) event.preventDefault(); }}
+            onClick={() => {
+              if (locked || submitting.current) return;
+              const claimed = editCreationQuery(queryDraft, query);
+              setQueryDraft(claimed);
+              queryBox.current?.querySelector("textarea")?.focus({ preventScroll: true });
+              const read = beginCreationClipboard(() => navigator.clipboard.readText());
+              if (read) clipboardReader.current?.watch(read.then(result => !result.text && !result.hint
+                ? { ...result, hint: "剪贴板中没有文字。" } : result), claimed.revision);
+            }}><ClipboardPaste size={16} aria-hidden="true" /></IconButton>}
         </div>
         {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
         {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}

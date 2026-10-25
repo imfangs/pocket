@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { beginCreationClipboard, prepareCreationDialog, editCreationQuery, applyCreationClipboard, creationQueryPayload } from '../src/creationQuery.ts';
+import { beginCreationClipboard, createCreationClipboardReader, prepareCreationDialog, editCreationQuery, applyCreationClipboard, creationQueryPayload } from '../src/creationQuery.ts';
 
 const empty = () => ({ text: '', revision: 0 });
 
@@ -99,4 +99,69 @@ test('resuming an unresolved creation reads its latest receipt and keeps the cli
     getLatest: () => latest, flush: async () => {},
   });
   assert.equal(prepared.kind, 'dialog'); assert.equal(prepared.operation, latest); assert.equal(prepared.clipboardRead, undefined);
+});
+
+test('explicit paste accepts only the revision claimed when that read started', () => {
+  const retried = editCreationQuery(empty(), '');
+  assert.equal(applyCreationClipboard(retried, { text: 'Pasted after clearing' }, retried.revision).text, 'Pasted after clearing');
+  const typed = editCreationQuery(retried, 'New typing');
+  assert.equal(applyCreationClipboard(typed, { text: 'Late paste' }, retried.revision), typed);
+  const cleared = editCreationQuery(retried, '');
+  assert.equal(applyCreationClipboard(cleared, { text: 'Late paste' }, retried.revision), cleared);
+});
+
+const pendingClipboard = () => {
+  let resolve, reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+};
+const settleClipboard = () => new Promise(resolve => setImmediate(resolve));
+
+test('retrying a hung automatic read accepts the retry and discards the late original result', async () => {
+  const automatic = pendingClipboard(), retry = pendingClipboard(), pending = [];
+  let draft = empty();
+  const reader = createCreationClipboardReader({ onPending: value => pending.push(value), onResult: (result, revision) => { draft = applyCreationClipboard(draft, result, revision); } });
+  reader.watch(automatic.promise, 0);
+  draft = editCreationQuery(draft, ''); reader.watch(retry.promise, draft.revision);
+  automatic.resolve({ text: 'Old automatic content' }); await settleClipboard();
+  assert.equal(draft.text, ''); assert.deepEqual(pending, [true, true]);
+  retry.resolve({ text: 'Fresh retry content' }); await settleClipboard();
+  assert.equal(draft.text, 'Fresh retry content'); assert.deepEqual(pending, [true, true, false]); reader.dispose();
+});
+
+test('a newer retry supersedes an earlier retry even when their revision is equal', async () => {
+  const first = pendingClipboard(), second = pendingClipboard(), results = [];
+  const reader = createCreationClipboardReader({ onPending: () => {}, onResult: value => results.push(value) });
+  reader.watch(first.promise, 3); reader.watch(second.promise, 3);
+  second.resolve({ text: 'Newest' }); await settleClipboard(); first.resolve({ text: 'Stale' }); await settleClipboard();
+  assert.deepEqual(results, [{ text: 'Newest' }]); reader.dispose();
+});
+
+test('read failure settles feedback and a later successful retry replaces its error hint', async () => {
+  const pending = []; let draft = empty();
+  const reader = createCreationClipboardReader({ onPending: value => pending.push(value), onResult: (result, revision) => { draft = applyCreationClipboard(draft, result, revision); } });
+  reader.watch(Promise.reject(new DOMException('Denied', 'NotAllowedError')), 0); await settleClipboard();
+  assert.equal(draft.text, ''); assert.match(draft.hint, /手动粘贴/); assert.deepEqual(pending, [true, false]);
+  draft = editCreationQuery(draft, ''); reader.watch(Promise.resolve({ text: 'New paste' }), draft.revision); await settleClipboard();
+  assert.equal(draft.text, 'New paste'); assert.equal(draft.hint, undefined); reader.dispose();
+});
+
+test('editing, clearing, or submitting can cancel pending feedback without accepting its later result', async () => {
+  for (const action of ['typing', 'clearing', 'submitting']) {
+    const read = pendingClipboard(), pending = [], results = [];
+    const reader = createCreationClipboardReader({ onPending: value => pending.push(value), onResult: value => results.push(value) });
+    reader.watch(read.promise, 0); reader.cancel(); read.resolve({ text: action }); await settleClipboard();
+    assert.deepEqual(pending, [true, false], action); assert.deepEqual(results, [], action); reader.dispose();
+  }
+});
+
+test('disposed clipboard readers ignore late success, late failure and new reads', async () => {
+  for (const rejected of [false, true]) {
+    const read = pendingClipboard(), pending = [], results = [];
+    const reader = createCreationClipboardReader({ onPending: value => pending.push(value), onResult: value => results.push(value) });
+    reader.watch(read.promise, 0); reader.dispose();
+    if (rejected) read.reject(new Error('Late rejection')); else read.resolve({ text: 'Late result' });
+    reader.watch(Promise.resolve({ text: 'New result' }), 1); reader.cancel(); await settleClipboard();
+    assert.deepEqual(pending, [true]); assert.deepEqual(results, []);
+  }
 });

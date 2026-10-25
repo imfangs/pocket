@@ -2,14 +2,40 @@ import type { TaskOperation } from "./taskOperations";
 
 export type CreationClipboard = { text: string; hint?: string };
 export type CreationQueryDraft = { text: string; revision: number; hint?: string };
+const unavailableClipboard = (): CreationClipboard => ({ text: "", hint: "未能读取剪贴板，可重试或手动粘贴。" });
 
 // Call this from the initiating click before awaiting other work. The dialog
 // only consumes this already-started read.
 export function beginCreationClipboard(readText: () => Promise<string>, recovering = false): Promise<CreationClipboard> | undefined {
   if (recovering) return undefined;
-  const unavailable = () => ({ text: "", hint: "未能读取剪贴板，可以在这里手动粘贴。" });
-  try { return readText().then(text => ({ text }), unavailable); }
-  catch { return Promise.resolve(unavailable()); }
+  try { return readText().then(text => ({ text }), unavailableClipboard); }
+  catch { return Promise.resolve(unavailableClipboard()); }
+}
+
+// Clipboard reads have no cancellation API. Supersede the old result locally
+// when retrying, editing or leaving, while letting the browser own permission.
+export function createCreationClipboardReader(options: {
+  onPending: (pending: boolean) => void;
+  onResult: (result: CreationClipboard, revision: number) => void;
+}) {
+  let generation = 0, disposed = false;
+  return {
+    watch(read: Promise<CreationClipboard>, revision: number) {
+      if (disposed) return;
+      const current = ++generation;
+      options.onPending(true);
+      void read.catch(unavailableClipboard).then(result => {
+        if (disposed || current !== generation) return;
+        options.onPending(false);
+        options.onResult(result, revision);
+      });
+    },
+    cancel() {
+      generation++;
+      if (!disposed) options.onPending(false);
+    },
+    dispose() { disposed = true; generation++; },
+  };
 }
 
 export async function prepareCreationDialog(options: {
@@ -31,8 +57,8 @@ export function editCreationQuery(current: CreationQueryDraft, text: string): Cr
   return { text, revision: current.revision + 1 };
 }
 
-export function applyCreationClipboard(current: CreationQueryDraft, clipboard: CreationClipboard): CreationQueryDraft {
-  return current.revision === 0 ? { ...current, ...clipboard } : current;
+export function applyCreationClipboard(current: CreationQueryDraft, clipboard: CreationClipboard, expectedRevision = 0): CreationQueryDraft {
+  return current.revision === expectedRevision ? { ...current, ...clipboard } : current;
 }
 
 export function creationQueryPayload(query: string): { initialQuery?: string } {
