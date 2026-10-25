@@ -8,9 +8,10 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, realpathSync, rmSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readBridgeConfig } from '../server/bridge-config.mjs';
 import { bundledCli } from './helpers/bundled-cli.mjs';
 
-const config = JSON.parse(readFileSync(new URL('../config/desktop-bridge.json', import.meta.url), 'utf8'));
+const config = readBridgeConfig();
 const script = fileURLToPath(new URL('../bin/create-thread.py', import.meta.url));
 const exec = promisify(execFile);
 

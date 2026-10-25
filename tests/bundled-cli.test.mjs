@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, readFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readBridgeConfig } from '../server/bridge-config.mjs';
 
 const exec = promisify(execFile);
-const config = JSON.parse(readFileSync(new URL('../config/desktop-bridge.json', import.meta.url), 'utf8'));
+const config = readBridgeConfig();
 const bin = fileURLToPath(new URL('../bin', import.meta.url));
 const modern = '26.1007.21159:20052', legacy = '26.903.71938:8576';
 const launcher = 'codex-cli/bin/codex', executable = 'codex-cli/CodexCLI.app/Contents/MacOS/codex';

@@ -8,7 +8,9 @@ import { tmpdir } from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { bundledCli as cli } from './helpers/bundled-cli.mjs';
+import { readBridgeConfig } from '../server/bridge-config.mjs';
 
+const config = readBridgeConfig();
 const bridge = new URL('../bin/archive-thread.py', import.meta.url).pathname;
 const sha = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 function command(executable, args, { input = '', env = process.env, cwd } = {}) {
@@ -52,7 +54,7 @@ async function fixture(t, { empty = false, child = false } = {}) {
   }
   const id = await makeThread(), childId = child ? await makeThread(id) : null;
   const run = async (operation, expectedFingerprint, threadId = id, extra = {}) => {
-    const result = await command('python3', [bridge], { env, cwd: workspace,
+    const result = await command(config.python, [bridge], { env, cwd: workspace,
       input: JSON.stringify({ operation, threadId, codexHome: home, ...(expectedFingerprint ? { expectedFingerprint } : {}), ...extra }) });
     return result.stdout.trim() ? JSON.parse(result.stdout) : { status: 'unavailable', code: 'bridge_missing' };
   };
@@ -83,7 +85,7 @@ test('a completed writer-held thread waits and the same fingerprint works after 
   const { id, home, env, run, state } = await fixture(t);
   const before = await run('inspect'); assert.equal(before.status, 'ready');
   const folder = join(home, 'thread-writer-locks'); mkdirSync(folder, { recursive: true });
-  const holder = spawn('python3', ['-u', '-c', 'import fcntl,sys\nf=open(sys.argv[1],"w")\nfcntl.flock(f,fcntl.LOCK_EX)\nprint("locked",flush=True)\nsys.stdin.read()\nf.close()', join(folder, `${id}.lock`)], { env, stdio: ['pipe', 'pipe', 'pipe'] });
+  const holder = spawn(config.python, ['-u', '-c', 'import fcntl,sys\nf=open(sys.argv[1],"w")\nfcntl.flock(f,fcntl.LOCK_EX)\nprint("locked",flush=True)\nsys.stdin.read()\nf.close()', join(folder, `${id}.lock`)], { env, stdio: ['pipe', 'pipe', 'pipe'] });
   await once(holder.stdout, 'data');
   t.after(() => holder.stdin.end());
   const waiting = await run('inspect'); assert.equal(waiting.status, 'waiting'); assert.equal(waiting.fingerprint, before.fingerprint);
@@ -136,7 +138,7 @@ test('concurrent descendant activity during root restoration does not change the
   const before = await run('inspect'); assert.equal((await run('archive', before.fingerprint)).status, 'archived');
   const rootSha = sha(state(id).rollout_path), childPath = state(childId).rollout_path;
   const program = `import importlib.util,json,sys\nspec=importlib.util.spec_from_file_location('archive_bridge',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\ndef concurrent(binary,operation,root,store):\n result=m.official(binary,operation,root,store)\n with open(sys.argv[2],'ab') as out:out.write((json.dumps({'type':'event_msg','payload':{'type':'task_started','turn_id':'new-child-turn'}})+'\\n').encode())\n return result\nprint(json.dumps(m.execute(json.load(sys.stdin),run_cli=concurrent)))`;
-  const result = await command('python3', ['-c', program, bridge, childPath], { env, input: JSON.stringify({ operation: 'restore', threadId: id, codexHome: home }) });
+  const result = await command(config.python, ['-c', program, bridge, childPath], { env, input: JSON.stringify({ operation: 'restore', threadId: id, codexHome: home }) });
   assert.equal(result.code, 0, result.stderr);
   const restored = JSON.parse(result.stdout);
   assert.equal(restored.status, 'restored'); assert.equal(restored.verified, true); assert.deepEqual(restored.threadIds, [id]);
@@ -166,7 +168,7 @@ test('inspect has no write side effects and archive requires a confirmed fingerp
 
 async function uncertainRun(env, data, mode) {
   const program = `import importlib.util,json,sys,types\nspec=importlib.util.spec_from_file_location('archive_bridge',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\ncount=0\ndef uncertain(binary,operation,root,store):\n global count\n count+=1\n if sys.argv[2]=='after':\n  result=m.official(binary,operation,root,store)\n  if result.returncode: return result\n  raise RuntimeError('lost receipt after official execution')\n return types.SimpleNamespace(returncode=1,stderr='synthetic indeterminate failure')\nresult=m.execute(json.load(sys.stdin),run_cli=uncertain);result['attempts']=count;print(json.dumps(result))`;
-  const result = await command('python3', ['-c', program, bridge, mode], { env, input: JSON.stringify(data) });
+  const result = await command(config.python, ['-c', program, bridge, mode], { env, input: JSON.stringify(data) });
   assert.equal(result.code, 0, result.stderr); return JSON.parse(result.stdout);
 }
 
