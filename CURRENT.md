@@ -1,14 +1,14 @@
 # Pocket 当前状态
 
-维护日期：2026-10-25。输入与发送后的画面连续性修复已上线；当前发布及验证范围见下表。
+维护日期：2026-10-25。豌豆服务与内置网页已更新，空输入区的附件恢复修复已上线；当前发布及验证范围见下表。
 
 ## 下一次先看
 
-- **本轮豌豆更新与附件恢复待发布**：[本轮契约](docs/design/2026-10-25-wandou-update-and-attachment-recovery.md)。CLI0.164精确版本已完成142项真实隔离验证并接入；空稿附件列表失败不再强迫大面板，仍保留轻量重试和真正附件保护。1344项全测、构建、44项浏览器与独立CR通过，待打包、豌豆切换与公网发布回读。
+- **最近已上线：豌豆更新与附件恢复**：[本轮契约](docs/design/2026-10-25-wandou-update-and-attachment-recovery.md)。CLI0.164精确版本通过142项真实隔离验证；豌豆API与内置网页已切换到 `1d6da5c`，公网同版发布并回读完成。空稿附件列表失败不再强迫大面板，条内保留轻量重试，真实附件保护保持。1344项全测、远端170项、44项浏览器、独立CR和29个公网资源通过；目录/scope/型号读取正常，未重启Codex或连接器。
 
 - **最近已上线：发送画面连续性**：[输入与发送连续性](docs/design/2026-10-25-send-ui-continuity.md)。普通发送保留输入焦点，确认后不再误缩为一条；迟到回执不覆盖等待期间的上滚位置。IME、明确收起和键盘导航保持。1342全测、48项双浏览器与833帧消息交接检查通过；29个公网资源及功能回读通过，仅网页更新，系统键盘/PWA真机尚未直接验证。
 
-- **10-25后端更新与发送等待候选，仍待续**：[调查结果](docs/research/2026-10-25-updates-and-send-experience.md)。豌豆没有后端自更新，仍由主机按需SSH发布；Codex已升级，捆绑CLI0.164尚需兼容验证。发送POST无deadline、等待回执锁按钮、跨会话队列串行与重复history已隔离复现，但具体体感根因和耗时尚未确认；用户随后明确体感是输入/键盘/画面，本轮优先修前端；这些后端候选与CLI升级仍为待续项。本轮无真实发送/更新/重启，旧待发未动。
+- **10-25发送等待候选，仍待续**：[调查结果](docs/research/2026-10-25-updates-and-send-experience.md)。发送POST无deadline、等待回执锁按钮、跨会话队列串行与重复history已隔离复现，但具体体感根因和耗时尚未确认；用户明确体感是输入/键盘/画面，因此先修前端。这些后端候选尚未实施；CLI兼容与豌豆更新已在随后完成。后端仍按需SSH发布，未安装自动更新任务。
 
 - **最近已完成**：[引用、刷新和控件](docs/design/2026-10-23-annotations-refresh-controls.md)。问题优先、引用紧凑披露；刷新反馈不叠加且来源失败不假报成功；顶部选中态增强但保持克制。1342项全测、两阶段双浏览器、独立CR/视觉与29个公网资源/功能检查通过。仅网页发布，原始消息/回执/阅读水位与两机服务保持。
 
@@ -27,13 +27,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `5330f4322f80a866aa4cf53367462db778600f71`，发送焦点和阅读位置连续性；仅网页更新 |
-| 两机API源码 | `0dbdf39c904877de152fc29a9a1d4f8910a43f2e`，已读合并；前端与API版本不同是正常的分层发布，不需要为对齐SHA重启服务 |
-| 前端build | `b06b3665a3192c808d3df9c14c6a87e1a16faf6042564ebdfb3f3b4146d28584` |
-| Pages部署 | `06fc6a4b-0c92-4ec2-b2e3-42aedd073c93`；10-25 ready=true，29/29公开文件与功能检查通过，上传一次 |
-| 最近验证 | 1342项完整回归；两引擎48项发送UI检查、消息交接833帧无原文消失、独立CR通过。键盘高度用VV注入，不能等同iPhone系统键盘实测 |
-| 证据 | `.local/qa/send-ui-2026-10-25/release-verdict.json`、`report.md`、`qa-summary.json`、`pages-deploy.json`、`services-unchanged.json`；此前引用/刷新/顶部视觉证据留在 `.local/qa/annotations-refresh-2026-10-23/` |
-| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；10-23发布时保留11条既有待发记录、逐条策略与凭据；10-25只读现有9条，属不同日期快照。本轮未处置旧条目，近期网页发布未重启两机API/Codex/隧道 |
+| 前端/网关源码 | `1d6da5cb0a29229fa9db6c2a144cc72e77f95895`，包含发送连续性与空稿附件恢复修复 |
+| 两机API源码 | 豌豆 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895`，API PID73421；格得保留此前 `0dbdf39c904877de152fc29a9a1d4f8910a43f2e` 启动的进程PID8828。分层版本不同无需为对齐SHA重启 |
+| 前端build | `7cd2cf2e1c812180e576db0288e012d145a9a43b47e17a6620af13021ce6320c`；豌豆loopback与公网一致 |
+| Pages部署 | `ead49cfb-8796-485d-a2e8-66c01df291af`；10-25 ready=true，29/29公开文件与功能检查通过，上传一次 |
+| 最近验证 | 1344项完整回归；豌豆170项回归＋142项真实隔离CLI验证；44项双浏览器附件恢复流程和独立CR通过。此前发送48项/833帧证据仍保留；均不能等同iPhone系统键盘实测 |
+| 证据 | `.local/qa/wandou-update-2026-10-25/final/release-verdict.json`、`remote/upgrade.json`、`local-web-check.json`、`public-check.json`、`pages-deploy.json`；CLI与composer证据在其父目录。此前发送与引用证据保持原路径 |
+| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；豌豆切换前后旧账本、逐条发送策略、凭据、scope/identity保持，目录同步正常。格得API/两机Codex/连接器进程未动；格得待发数量在使用中变化，不对跨两小时快照声称数据全等。本轮未处置或重放旧条目 |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
@@ -62,8 +62,8 @@
 ## 运行维护与恢复入口
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；用项目的 `config/local-service.json`、`config/pages-site.json` 和FBT既有服务/发布工具。前端样式修改只发布网页。
-- 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。10-22 `.local/current` 指向API源码 `0dbdf39…` 的release，机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，不要假定非交互 `python3` 足够新。
+- 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。10-25 `.local/current`、私有服务配置working_directory和launchd实际命令均指向 `1d6da5c…` release；机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
 - 豌豆 `node_modules` 仍引用 `2f42176f35494c57212f9424d113f0437fae3d5d` release；连接器仍使用 `19d91ed4776d79fce17a79ed88ed3b79622197e7`。清理前核对依赖和launchd真实指向，不按旧日期删除。
-- Pages预检401先用配置中的Wrangler `whoami`续期，核对是否上传；已上传但验证未过使用原部署 `resume --resume-verification`。本轮两个发布都已完成，不重复提交。
-- 临时浏览器、fixture、传输tar、重复baseline-dist已清理，必要证据与运行/回退release保留。旧脚本中已删除的tar路径不是现成恢复包；继续发布须根据当前源码和元信息重新准备。
+- Pages预检401先用配置中的Wrangler `whoami`续期，核对是否上传；已上传但验证未过使用原部署 `resume --resume-verification`。本轮发布和豌豆切换均完成，不重复提交。
+- 临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当前、回退 `0dbdf39…`、依赖与连接器release保留；清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。
