@@ -42,4 +42,6 @@
 
 清空只修改本地编辑值，复用手动输入的错误/终态清理逻辑；原标题、指纹和已提交操作保持原契约。读取、提交、pending/unknown或不允许改名时，清空按钮与输入框一同禁用。空白名称不能点击保存；放弃未保存修改仍经现有关闭确认。原生改名与回执协议未改，只需发布共享网页。
 
-完整1344项回归与构建通过，Chromium/WebKit共65项交互与几何检查通过。WebKit曾在阻止pointerdown默认动作时吞掉tap后的click，已改为只在mousedown阶段保留已有焦点；补充探针确认tap清空且blur/focusout为0。该证据不代表iPhone系统键盘实测。验证证据保存在 `.local/qa/rename-clear-2026-10-25/`；实际发布状态见CURRENT。
+完整1344项回归与构建通过，Chromium/WebKit共73项交互与几何检查通过。WebKit曾在阻止pointerdown默认动作时吞掉tap后的click，已改为只在mousedown阶段保留已有焦点；补充探针确认tap清空且blur/focusout为0。该证据不代表iPhone系统键盘实测。验证证据保存在 `.local/qa/rename-clear-2026-10-25/`。
+
+源码 `7dbd322a2e7d51e901636bd891f20e180bf7bf99` 已发布，共享网页build为 `cf36bd66b748436e26bf8a6a470c94b6b7d1f44cd48040cb70e10eea8ed84e39`；Pages部署 `68c9419f-c03d-4131-be79-5cf584708d6f`，29个资源和功能回读通过。一次上传，预检401在上传前通过既有Wrangler续期恢复；没有重启两机服务或操作真实会话。浏览器与临时fixture进程已关闭，当前版本入口见CURRENT。
