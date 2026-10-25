@@ -232,6 +232,9 @@ dialog footer button { min-height:var(--control-height); }
 .directory-search-feedback, .directory-search-result { color:var(--muted); font-size:12px; }
 .directory-search-toggle { display:inline-flex; align-items:center; gap:6px; min-height:var(--control-height); color:var(--muted); font-size:13px; }
 .rename-thread-form input { width:100%; min-width:0; }
+.rename-thread-name { position:relative; }
+dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(var(--control-height) + 12px); }
+.rename-thread-clear { position:absolute; top:50%; inset-inline-end:2px; width:var(--control-height); height:var(--control-height); margin:0; transform:translateY(-50%); }
 .rename-thread-status { margin:12px 0 0; }
 .rename-thread-form .dialog-actions { justify-content:flex-end; }
 .rename-thread-form .dialog-actions > button { box-sizing:border-box; height:var(--control-height); margin:0; }

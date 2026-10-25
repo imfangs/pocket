@@ -1,5 +1,7 @@
 import { Button } from "./ui/Button";
+import { IconButton } from "./ui/IconButton";
 import { useEffect, useId, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { Modal } from "./Dialogs";
 import { api } from "./api";
 import type { Thread } from "./types";
@@ -20,7 +22,12 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
   const inputId = useId(), statusId = useId();
   saved.current = onSaved;
   const unresolved = renameUnresolved(operation), dirty = !unresolved && name !== baseline;
+  const nameDisabled = loading || submitting || unresolved || source?.canRename === false;
   useReloadGuard(() => submitting ? "正在提交新名称，请稍后更新。" : dirty ? "会话名称还有未保存的修改。" : null);
+  const editName = (value: string) => {
+    setName(value);
+    if (source?.canRename && !unresolved) { operationRef.current = undefined; setOperation(undefined); setError(""); }
+  };
 
   const accept = (incoming: RenameOperation) => {
     if (!alive.current || incoming.threadId !== thread.id) return;
@@ -132,11 +139,20 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
   return <Modal title="重命名会话" className="rename-thread-dialog" onClose={onClose} busy={submitting} dirty={dirty}>
     <form className="rename-thread-form" onSubmit={event => void submit(event)} noValidate>
       <label className="field-label" htmlFor={inputId}>会话名称</label>
-      <input ref={nameInput} id={inputId} value={name} autoComplete="off" enterKeyHint="done"
-        disabled={loading || submitting || unresolved || source?.canRename === false}
-        aria-describedby={statusId} aria-invalid={!!renameNameError(name) && !!error || undefined}
-        onKeyDown={event => { if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault(); }}
-        onChange={event => { setName(event.target.value); if (source?.canRename && !unresolved) { operationRef.current = undefined; setOperation(undefined); setError(""); } }} />
+      <div className="rename-thread-name">
+        <input ref={nameInput} id={inputId} value={name} autoComplete="off" enterKeyHint="done"
+          disabled={nameDisabled}
+          aria-describedby={statusId} aria-invalid={!!renameNameError(name) && !!error || undefined}
+          onKeyDown={event => { if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault(); }}
+          onChange={event => editName(event.target.value)} />
+        {name.length > 0 && <IconButton type="button" className="icon-button rename-thread-clear" title="清空名称" aria-label="清空名称" disabled={nameDisabled}
+          onMouseDown={event => { if (event.button === 0 && document.activeElement === nameInput.current) event.preventDefault(); }}
+          onClick={() => {
+            if (nameDisabled || inFlight.current) return;
+            editName("");
+            nameInput.current?.focus({ preventScroll: true });
+          }}><X size={16} aria-hidden="true" /></IconButton>}
+      </div>
       <p className="field-help rename-thread-status" id={statusId} role="status">
         {loading ? "正在读取原标题…" : operation ? renameOperationText(operation) : source && !source.canRename ? renameSourceHint(source) : "名称会同步到 Codex。"}
       </p>
@@ -148,7 +164,7 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
           <Button type="button" className="secondary" variant="soft" color="gray" disabled={busy || submitting} onClick={() => void check()}>{busy ? "正在核对…" : "核对结果"}</Button>
         </> : <>
           {(!source || !source.canRename) && <Button type="button" className="secondary" variant="soft" color="gray" disabled={loading} onClick={() => void readSource(true)}>重新读取</Button>}
-          <Button type="submit" className="primary" disabled={loading || submitting || !source?.canRename || name.trim() === source.title}>保存名称</Button>
+          <Button type="submit" className="primary" disabled={loading || submitting || !source?.canRename || !name.trim() || name.trim() === source.title}>保存名称</Button>
         </>}
       </footer>
     </form>
