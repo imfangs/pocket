@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { api } from "./api";
 import { activeOperation, creationRecoveryIds, failedOperation, mergeOperation, operationCheckError, pollOperation, readCreationRecoveryIds, saveCreationRecoveryIds, type TaskOperation } from "./taskOperations";
 import { useReloadGuard } from "./updateSafety";
+import { createTaskOperationPolling, pendingCreation } from "./taskOperationPolling";
 
 export default function useTaskOperations(onComplete: (operation: TaskOperation) => void) {
   const [restoredCreates] = useState(readCreationRecoveryIds);
@@ -9,6 +10,7 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
   const commands = useRef(new Set<string>()), mounted = useRef(true), complete = useRef(onComplete);
   const [operations, setOperations] = useState<TaskOperation[]>(() => [...receipts.current.values()]), [dismissed, setDismissed] = useState(new Set<string>());
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const polling = useRef<ReturnType<typeof createTaskOperationPolling> | null>(null);
   useLayoutEffect(() => { complete.current = onComplete; }, [onComplete]);
   useReloadGuard(() => operations.some(operation => operation.status === "unknown") ? "会话操作结果尚待核对，请先处理。" : null);
   const receive = useCallback((incoming: TaskOperation) => {
@@ -17,6 +19,7 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
     const next = mergeOperation(old, incoming);
     if (activeOperation(next)) watched.current.add(next.requestId);
     receipts.current.set(next.requestId, next);
+    polling.current?.observe(next);
     if (next.operation === "create" && watched.current.has(next.requestId))
       saveCreationRecoveryIds(creationRecoveryIds(receipts.current.values(), watched.current));
     setOperations([...receipts.current.values()].reverse());
@@ -24,19 +27,18 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
     if (watched.current.has(next.requestId) && next.status === "succeeded" && old?.status !== "succeeded") complete.current(next);
     return next;
   }, []);
-  const check = useCallback(async (requestId: string, signal?: AbortSignal) => {
-    try {
-      const result = await api<TaskOperation>(`/api/task-operations/${requestId}`, "GET", undefined,
-        { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
-      if (result.requestId !== requestId) throw new Error("操作回执编号不匹配。");
-      return receive(result);
-    } catch (failure) {
-      if (mounted.current && !signal?.aborted) setErrors(previous => ({ ...previous, [requestId]: operationCheckError(failure as Error, receipts.current.get(requestId)?.operation) }));
-    }
-  }, [receive]);
+  const check = useCallback((requestId: string) => polling.current?.check(requestId) ?? Promise.resolve(undefined), []);
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
+    const reader = createTaskOperationPolling({
+      request: (requestId, signal) => api<TaskOperation>(`/api/task-operations/${requestId}`, "GET", undefined, { signal }),
+      receive,
+      onError: (requestId, failure) => {
+        if (mounted.current && polling.current === reader) setErrors(previous => ({ ...previous, [requestId]: operationCheckError(failure, receipts.current.get(requestId)?.operation) }));
+      },
+    });
+    polling.current = reader;
     let timer: ReturnType<typeof setTimeout> | undefined, pending = false;
     const ready = () => !controller.signal.aborted && document.visibilityState === "visible" && navigator.onLine !== false;
     const read = async (list = false) => {
@@ -49,26 +51,33 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
           if (ready()) {
             [...result.operations].reverse().forEach(receive);
             const listed = new Set(result.operations.map(operation => operation.requestId));
-            await Promise.all([...receipts.current.values()].filter(operation => operation.operation === "create" && watched.current.has(operation.requestId) && !listed.has(operation.requestId))
-              .map(operation => check(operation.requestId, controller.signal)));
+            await Promise.all([...receipts.current.values()].filter(operation => operation.operation === "create" && watched.current.has(operation.requestId) &&
+              !pendingCreation(operation) && !listed.has(operation.requestId))
+              .map(operation => reader.check(operation.requestId)));
           }
         }
-        if (ready()) await Promise.all([...receipts.current.values()].filter(pollOperation).map(operation => check(operation.requestId, controller.signal)));
+        if (ready()) await Promise.all([...receipts.current.values()].filter(operation => pollOperation(operation) && !pendingCreation(operation))
+          .map(operation => reader.check(operation.requestId)));
       } catch { /* Keep known operations; an unavailable read never authorizes replay. */ }
       finally {
         pending = false;
         if (ready()) timer = setTimeout(() => void read(), [...receipts.current.values()].some(operation => operation.status === "pending") ? 1500 : 4000);
       }
     };
-    const resume = () => { clearTimeout(timer); if (ready()) void read(true); };
+    const resume = () => { clearTimeout(timer); reader.setActive(ready()); if (ready()) void read(true); };
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("online", resume);
+    window.addEventListener("offline", resume);
     window.addEventListener("pageshow", resume);
+    reader.setActive(ready());
+    receipts.current.forEach(operation => reader.observe(operation));
     void read(true);
     return () => {
-      mounted.current = false; controller.abort(); clearTimeout(timer);
+      mounted.current = false; controller.abort(); clearTimeout(timer); reader.stop();
+      if (polling.current === reader) polling.current = null;
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
+      window.removeEventListener("offline", resume);
       window.removeEventListener("pageshow", resume);
     };
   }, [receive, check]);
