@@ -14,6 +14,7 @@ _VERIFIED_CLI_VERSIONS = frozenset({
     "codex-cli 0.153.4",
     "codex-cli 0.162.0-alpha.17.2",
     "codex-cli 0.163.0-alpha.10.2",
+    "codex-cli 0.164.0-alpha.11.1",
 })
 _PACKAGED_LAYOUT = ("codex-cli/bin/codex", "codex-cli/CodexCLI.app/Contents/MacOS/codex")
 

@@ -97,6 +97,14 @@ test('attachment recovery errors retain an explicit retry entry even when the dr
   assert.equal(buttons(html).find(button => button.text === '载入已上传附件').disabled, false);
 });
 
+test('attachment read failures are readable rather than raw browser network errors', () => {
+  const html = render(DraftAttachmentList, { threadId, items: [{ ...draftAttachment('unknown'), error: 'Fetch is aborted' }],
+    controller: {}, disabled: false, error: 'Load failed', onRecover() {} });
+  assert.doesNotMatch(html, /Fetch is aborted|Load failed/);
+  assert.match(html, /连接暂时中断/);
+  assert.match(html, /data-upload-status="unknown"/);
+});
+
 test('submitted and queued attachment-only messages retain both attachments independently of the composer', () => {
   const queued = { id: 'queue-one', revision: 0, text: '', status: 'queued', attachments: [image, file], createdAt: 1 };
   for (const html of [renderSubmitted('unknown'), render(Outbox, { threadId, items: [queued], disabled: false, allowSend: true, refresh: async () => {}, drafts: new Map() })]) {

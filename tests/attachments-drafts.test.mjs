@@ -164,6 +164,19 @@ test('a late recovery read cannot put submitted attachments back into the new dr
   assert.equal(f.drafts.get(thread).text, 'The next draft'); assert.equal(f.controller.get(thread).length, 0);
 });
 
+test('an aborted draft listing never removes an unknown upload or its independent text', async () => {
+  const f = fixture({ list: async () => { throw new DOMException('Fetch is aborted', 'AbortError'); } });
+  const selected = file(), id = uuid(61);
+  f.drafts.set(thread, { text: 'Keep the current draft', attachments: [{ id, file: selected, name: selected.name,
+    size: selected.size, mime: selected.type, kind: 'file', status: 'unknown', error: '上传结果待确认，请核对状态。' }] });
+  await assert.rejects(f.controller.recover(thread), error => error.name === 'AbortError');
+  assert.equal(f.controller.get(thread)[0].file, selected);
+  assert.equal(f.controller.get(thread)[0].status, 'unknown');
+  assert.equal(f.drafts.get(thread).text, 'Keep the current draft');
+  assert.equal(readyAttachments(f.controller.get(thread)), false);
+  assert.deepEqual(f.calls, []);
+});
+
 test('cancelling a queued attachment restores it after a pre-cancel list read and preserves the newer draft', async () => {
   const attachment = publicFile(uuid(30)); let finishOldRead, reads = 0;
   const f = fixture({ list: () => ++reads === 1 ? new Promise(resolve => { finishOldRead = resolve; }) : Promise.resolve({ attachments: [attachment] }) });

@@ -84,6 +84,10 @@ export default function Conversation({
   const subscribeAttachments = useCallback((listener: () => void) => uploads.subscribe(thread.id, listener), [uploads, thread.id]);
   const attachments = useSyncExternalStore(subscribeAttachments, () => uploads.get(thread.id), () => uploads.get(thread.id));
   const [attachmentError, setAttachmentError] = useState("");
+  const [attachmentRecoveryError, setAttachmentRecoveryError] = useState("");
+  const [recoveringAttachments, setRecoveringAttachments] = useState(false);
+  // Only a known cancelled-queue recovery or capacity limit needs the larger
+  // attachment area. A failed draft-list GET does not prove any files exist.
   const [attachmentRecoveryNeeded, setAttachmentRecoveryNeeded] = useState(false);
   const [history, setHistory] = useState<History | null>(() => historyCache.get(thread.id)?.history ?? null),
     [transcript, setTranscript] = useState<SavedTranscript | null>(() => historyCache.get(thread.id)?.transcript ?? null),
@@ -199,10 +203,20 @@ export default function Conversation({
     try { uploads.add(thread.id, files); setAttachmentError(""); void inputConnection.current?.request(); }
     catch (failure) { setAttachmentError((failure as Error).message); }
   };
-  const recoverAttachments = async () => {
-    try { await uploads.recover(thread.id); setAttachmentError(""); setAttachmentRecoveryNeeded(false); }
-    catch (failure) { setAttachmentError((failure as Error).message); setAttachmentRecoveryNeeded(true); }
-  };
+  const recoverAttachments = useCallback(async (active: () => boolean = () => true) => {
+    const generation = readViewGeneration.current;
+    const current = () => active() && generation === readViewGeneration.current;
+    if (current()) setRecoveringAttachments(true);
+    try {
+      await uploads.recover(thread.id);
+      if (current()) { setAttachmentRecoveryError(""); setAttachmentRecoveryNeeded(false); }
+    } catch (failure) {
+      if (current()) {
+        setAttachmentRecoveryError(readableRequestError(failure, "附件暂未同步，请重试。"));
+        if ((failure as Error & { code?: string }).code === "attachment_recovery_limit") setAttachmentRecoveryNeeded(true);
+      }
+    } finally { if (current()) setRecoveringAttachments(false); }
+  }, [uploads, thread.id]);
   const load = useCallback(async () => { await Promise.all([feed.current?.refresh(), textFeed.current?.refresh()]); }, []);
   const returnToLatest = useCallback(() => {
     nearBottom.current = true;
@@ -242,12 +256,11 @@ export default function Conversation({
   const targetAvailable = !thread.archived && !thread.missing && !managementBlocked;
   useEffect(() => {
     if (!targetAvailable) return;
-    const recover = () => { void uploads.recover(thread.id).catch(failure => {
-      setAttachmentError(failure?.message || "暂时无法载入已上传附件，请重试。"); setAttachmentRecoveryNeeded(true);
-    }); };
+    let active = true;
+    const recover = () => { void recoverAttachments(() => active); };
     recover(); window.addEventListener("online", recover);
-    return () => window.removeEventListener("online", recover);
-  }, [uploads, thread.id, targetAvailable]);
+    return () => { active = false; window.removeEventListener("online", recover); };
+  }, [recoverAttachments, targetAvailable]);
   const canQueue = targetAvailable && history?.canQueue !== false;
   const connectionFailureCode = observedConnection.status === "failed" ? observedConnection.code : undefined;
   const compatibilityCode = isConnectionCompatibilityFailure(history?.readOnlyReason) ? history?.readOnlyReason
@@ -565,12 +578,14 @@ export default function Conversation({
     && !!(historyError || connectionError || connectionFailed);
   const recoveryMessage = readableRequestError(historyError || connectionError || connectionLabel);
   const inlineRecovery = recoveryVisible && (!connectionOnlyAction || composer.compact);
+  const inlineAttachmentRecovery = online && targetAvailable && !inlineRecovery &&
+    !!attachmentRecoveryError && !attachmentRecoveryNeeded;
   const recoverConnection = async () => {
     if (retryingHistory || !online) return;
     const generation = readViewGeneration.current;
     setRetryingHistory(true);
     try {
-      await load();
+      await Promise.all([load(), attachmentRecoveryError ? recoverAttachments() : undefined]);
     } finally {
       if (generation === readViewGeneration.current) setRetryingHistory(false);
     }
@@ -654,7 +669,7 @@ export default function Conversation({
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
       <Outbox threadId={thread.id} suppressNetworkErrors={!!historyError || connectionFailed || !online} items={shownOutbox} exitIds={handoffs.outbox} explicitExitIds={handoffs.explicit} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
         onAccepted={receipt => confirmAccepted(receipt, "queue")} onAttachmentRecovery={(recovered, error) => {
-          setAttachmentError(error ?? ""); setAttachmentRecoveryNeeded(!!error);
+          setAttachmentRecoveryError(error ? readableRequestError(error, "附件暂未同步，请重试。") : ""); setAttachmentRecoveryNeeded(!!error);
           setNotice(error ? "待发消息已删除，附件可重新载入草稿。" : recovered ? "待发消息已删除，附件已放回草稿。" : "待发消息已删除。");
         }} />
       <form ref={composer.ref} className={`conversation-composer${composer.compact ? " is-compact" : ""}`}
@@ -670,7 +685,8 @@ export default function Conversation({
             refresh={load} notify={setNotice} onInteractionChange={setStopInteraction} />
         </div>
         <div className="composer-input">
-        <DraftAttachmentList threadId={thread.id} items={attachments} controller={uploads} disabled={!online || !targetAvailable || !!draft.requestId} error={attachmentError}
+        <DraftAttachmentList threadId={thread.id} items={attachments} controller={uploads} disabled={!online || !targetAvailable || !!draft.requestId}
+          error={attachmentError || (attachmentRecoveryNeeded ? attachmentRecoveryError : undefined)}
           localRemovalAllowed={targetAvailable && !draft.requestId}
           onRecover={attachmentRecoveryNeeded ? () => void recoverAttachments() : undefined} />
         <label className="sr-only" htmlFor="user-query">
@@ -712,12 +728,19 @@ export default function Conversation({
           <span>{retryingHistory || connecting ? "重试中…" : /较慢/.test(recoveryMessage) ? "连接较慢" : "连接中断"}</span>
           {!retryingHistory && !connecting && <span className="composer-recovery-action">重试</span>}
         </button>}
-        {!inlineRecovery && (showConnectionState || !online) && <span className="composer-inline-state" role="status" title={connectionLabel} aria-label={connectionLabel}
+        {inlineAttachmentRecovery && <button type="button" className="composer-recovery composer-attachment-recovery" data-composer-reading-control=""
+          disabled={recoveringAttachments} title={attachmentRecoveryError} aria-label="重新读取附件"
+          onClick={event => { event.stopPropagation(); void recoverAttachments(); }}>
+          {recoveringAttachments ? <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" /> : <RefreshCw size={12} aria-hidden="true" />}
+          <span>{recoveringAttachments ? "读取中…" : "附件未同步"}</span>
+          {!recoveringAttachments && <span className="composer-recovery-action">重试</span>}
+        </button>}
+        {!inlineRecovery && !inlineAttachmentRecovery && (showConnectionState || !online) && <span className="composer-inline-state" role="status" title={connectionLabel} aria-label={connectionLabel}
           data-state={!online || connectionFailed || compatibilityCode ? "warning" : connecting ? "connecting" : "idle"}>
           {connecting && <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" />}
           <span>{inlineConnectionLabel}</span>
         </span>}
-        {!recoveryVisible && !showConnectionState && online && !historyError && history?.runtime === "active" && <span className="composer-inline-state composer-inline-runtime" role="status" data-state="running">运行中</span>}
+        {!recoveryVisible && !inlineAttachmentRecovery && !showConnectionState && online && !historyError && history?.runtime === "active" && <span className="composer-inline-state composer-inline-runtime" role="status" data-state="running">运行中</span>}
         </div>
         </div>
         <div className="composer-actions">

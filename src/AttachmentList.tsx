@@ -4,6 +4,7 @@ import { attachmentSize, canRemoveLocalAttachment, safeAttachmentUrl, type Attac
 import "./attachments.css";
 import { machineApiPath } from "./machineScope";
 import { useImagePreview } from "./ImagePreviewProvider";
+import { readableRequestError } from "./requestError";
 
 function Preview({ attachment, image }: { attachment?: PublicAttachment; image: boolean }) {
   const url = attachment && safeAttachmentUrl(attachment.previewUrl ?? attachment.url);
@@ -40,7 +41,7 @@ export function DraftAttachmentList({ threadId, items, controller, disabled, loc
       <Preview attachment={item.attachment} image={item.attachment?.kind === "image" || item.kind === "image"} />
       <span className="attachment-details"><span className="attachment-name" title={item.name}>{item.name}</span>
         <small role="status">{item.checking ? "正在核对…" : labels[item.status]} · {attachmentSize(item.size)}</small>
-        {item.error && <small className="attachment-error" role="alert">{item.error}</small>}
+        {item.error && <small className="attachment-error" role="alert">{readableRequestError(item.error, "附件处理未完成，请重试。")}</small>}
       </span>
       <div className="attachment-controls">
         {item.status === "failed" && <button type="button" disabled={disabled} aria-label={`重试上传 ${item.name}`} onClick={() => controller.retry(threadId, item.id)}><RefreshCw size={15} /></button>}
@@ -48,7 +49,7 @@ export function DraftAttachmentList({ threadId, items, controller, disabled, loc
         <button type="button" disabled={disabled && !(localRemovalAllowed && canRemoveLocalAttachment(item)) || item.status === "removing" || item.checking} aria-label={`移除附件 ${item.name}`} onClick={() => void controller.remove(threadId, item.id)}><X size={16} /></button>
       </div>
     </div>)}
-    {(error || items.length > 6) && <p className="attachment-error" role="alert">{error || "每条消息最多6个附件，请移除多余附件。"}</p>}
+    {(error || items.length > 6) && <p className="attachment-error" role="alert">{error ? readableRequestError(error, "附件暂未同步，请重试。") : "每条消息最多6个附件，请移除多余附件。"}</p>}
     {onRecover && <button type="button" className="text-button" disabled={disabled} onClick={onRecover}>载入已上传附件</button>}
   </section>;
 }
