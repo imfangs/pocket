@@ -10,6 +10,8 @@
 
 做类似操作类项目，或重新判断功能取舍与 UI 优先级时，参考[迭代复盘：操作类产品怎样做到顺手](docs/research/2026-10-11-pocket-interaction-retrospective.md)。文档覆盖创建以来的主线、可观察的顺手标准、功能精炼、UI 多轮打磨与小范围验证方法；早期构建过程保留在[09-29 复盘](docs/research/2026-09-29-pocket-build-retrospective.md)。
 
+核对“刚才不顺”、PostHog记录或会话回放时，从[使用反馈接续](docs/design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)进入：包含已验证的查询模板、反馈关联步骤、数据口径与正式入口验收方法。
+
 比较同类手机入口时，见 [ClawKit 与 Pocket 源码对照（2026-10-13）](docs/research/2026-10-13-clawkit-pocket-comparison.md)：区分原 owner 与共享引擎、功能入口和既有实测，列出可借机制及最小验证；研究建议未转为开发任务。
 
 面向多人独立使用的候选方案见 [手机 App、电脑连接器与加密中继（2026-10-13）](docs/research/2026-10-13-pocket-multiuser-architecture.md)：对照 Happy 与官方 app-server，区分通用连接和原任务执行归属，尚未实施。

@@ -13,7 +13,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
-| 真实使用分析、PostHog、回放、刚才不顺或事件口径 | [使用反馈](docs/design/2026-10-26-usage-feedback.md)：本人项目688532、production/qa与visit/request口径；优先 `posthog-cli api`，0.18.12按该文用每次调用的项目环境变量并回读目标，尚不支持master文档中的`call --project-id`。接入/排障按需读[官方Best Practices](/Users/fangs/.codex/skills/posthog-best-practices/SKILL.md)。浏览器验收携带正式CSP；发布检查覆盖外联域名，上线事实回CURRENT |
+| 查反馈、PostHog、采集无数据或体验复盘 | [反馈接续](docs/design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)：目标/schema核对、查询模板、反馈/回放关联和判断边界；[专项验收](docs/QUALITY.md#使用反馈验收)覆盖正式CSP与入库回读。工具版本/认证与事件口径留在使用反馈文档，上线状态回CURRENT |
 | 整体视觉、Radix Themes、基础控件/色阶/样式归属 | [整体视觉重整](docs/design/2026-10-19-visual-system.md)：整屏对照、tokens/结构/视觉分工、native行为保护；[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md)：variant几何、错误恢复按钮组合 |
 | Mermaid围栏、图表阅读/源码、Worker与Pele升级 | [会话图表](docs/design/2026-10-19-mermaid.md)：三类图、闭合判断、惰性渲染/内存回收、独立图表放大、资源与不可信内容边界；固定包来源回vendor/pele |
 | 详情工具栏/输入区、菜单数量、独立范围/状态/排序、未读用词 | [输入区与独立筛选](docs/design/2026-10-19-composer-and-navigation.md)：控件常驻/队列编辑/未知回执、v4维度与计数口径、未读不等于等待操作 |

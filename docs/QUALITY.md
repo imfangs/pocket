@@ -32,7 +32,7 @@ UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-eleme
 
 ## 已建立的验收基线
 
-- 使用分析与其他外联能力的浏览器fixture须继承正式响应头，尤其CSP；验证JS路径之外还要检查实际出口。PostHog的本机/Pages策略、旧CSP阻断对照及正式发布检查见[使用反馈纠错](design/2026-10-26-usage-feedback.md#同日纠错正式-csp-拦截了上报)。QA记录与production记录分别回读；资源哈希通过不能代替采集成功。
+- 使用分析与其他外联能力按下方[使用反馈验收](#使用反馈验收)核对正式入口约束及数据入库；资源哈希通过不能代替采集成功。
 
 - 合成测试通过 `npm test` 运行，入口会阻断真实原生 opener；定向测试使用 `node --import ./tests/helpers/block-native-open.mjs --test tests/<name>.test.mjs`。`makeApp` fixture 显式注入 `openThread`，需要已恢复 owner 时返回 `source: 'desktop', resumeState: 'resumed'`；不能让假 thread ID 打开用户桌面。来源与覆盖边界见[10-18恢复报错排查](research/2026-10-18-codex-rollout-test-isolation.md)。
 
@@ -55,6 +55,17 @@ UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-eleme
 - 读取调度：单路请求；运行中完成读取后 2 秒、空闲 8 秒再读；后台停止，前台/联网/pageshow 立即重读，18 秒超时后有界退避。缓存内容不会直接恢复发送许可。
 - 本机服务重启前后分组/备注哈希一致。证据 `.local/qa/feed-restart-baseline.json`、`feed-restart-after.json`。
 - 键盘与手势、Markdown、原 ID 与认证的既有证据见 QA.md。自动测试、桌面浏览器、iOS 模拟器、PWA 真机、长期使用效果分别表述。
+
+## 使用反馈验收
+
+目标是验证真实操作能留下可查询、可关联的记录；产品效果仍需另有使用证据。来源与CSP漏验反证见[使用反馈记录](design/2026-10-26-usage-feedback.md#同日纠错正式-csp-拦截了上报)。
+
+1. 浏览器fixture继承正式入口中影响行为的响应头，尤其CSP。携带相同JS而省略线上限制，不能代表正式环境；原生系统行为仍按真机边界处理。
+2. 数据策略与代码一起核验：`tests/usage-csp.test.mjs`覆盖本机/Pages连接白名单及脚本、frame限制；`tests/usage-journal.test.mjs`覆盖时序、关联、前后台计时与失败隔离。发布的`bin/verify-public.mjs`实际回读首页策略及采集所需域名。
+3. 对一个明确标为验收的操作，分别保留页面结果、请求/错误与PostHog独立查询回读。后端事件存在才确认已入库；查看回放时再区分有ID、有录制与实际能播放。正文/草稿与原任务行为的保护沿既有契约。
+4. 回读按反馈ID配对记录并核对环境、时间和内容。人工从正式入口提交的验收仍是测试样本；保存其用途，后续分析不把它归为真实痛点。原被阻断的反馈与补交的反馈分别记录。
+
+通过以上检查可以确认采集链路；发现问题频率、原因和改善效果，继续按[反馈复盘流程](design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)取证。
 
 ## 原生剪贴板验证
 
