@@ -43,6 +43,9 @@ export class DesktopService {
     this.recentReads = new Map();
     this.sending = new Set();
     this.queueReservations = new Set();
+    this.queueChecks = new Map();
+    this.queueWakeups = new Set();
+    this.queueEpoch = 0;
     this.stops = new ExecutionStops(store, payload => this.request({ ...payload, codexHome: this.codexHome }));
     store.db.exec(
       "CREATE TABLE IF NOT EXISTS dispatches(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,text_hash TEXT NOT NULL,status TEXT NOT NULL,turn_id TEXT,code TEXT,created_at INTEGER NOT NULL)",
@@ -129,6 +132,9 @@ export class DesktopService {
           const data = { ...result, checkedAt: entry.state.checkedAt };
           this.cache.set(id, { at: Date.now(), promise: Promise.resolve(data), pending: false, runtime: data.runtime });
           entry.state.status = "connected";
+          // An explicit connection/submission has made this owner ready. Do not
+          // wait behind unrelated slow owners in the background queue scan.
+          if (this.queueStarted) void this.processQueueForThread(id, true).catch(() => {});
           return;
         }
         const incompatible = compatibilityFailure(result);
@@ -500,6 +506,7 @@ export class DesktopService {
   }
   async dispatchQueued(id, requestId, input, delivery = "now", resumeAfterTurnId = null) {
     const automatic = delivery !== "now";
+    const queueEpoch = this.queueEpoch;
     this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
@@ -523,7 +530,7 @@ export class DesktopService {
         try { attachments = await this.attachments.prepare(saved); }
         catch { result = { ok: false, code: "attachment_unavailable", sent: false }; }
       }
-      if (!result && automatic && (this.stops.pause(id) || this.stops.pending(id)))
+      if (!result && automatic && (queueEpoch !== this.queueEpoch || this.stops.pause(id) || this.stops.pending(id)))
         result = { ok: false, code: "queue_paused", sent: false };
       if (!result) result = await this.request({ operation: "send", threadId: id, codexHome: this.codexHome,
         text: row.text, requestId, delivery, ...(attachments.length ? { attachments } : {}), ...(resumeAfterTurnId ? { resumeAfterTurnId } : {}) });
@@ -547,20 +554,44 @@ export class DesktopService {
     return this.getReceipt(id, requestId);
   }
   async processQueue() {
+    const epoch = this.queueEpoch;
     const ids = this.store.db.prepare("SELECT DISTINCT thread_id FROM outgoing_messages").all().map(r => r.thread_id);
-    for (const id of ids) await this.processQueueForThread(id);
+    for (const id of ids) {
+      if (epoch !== this.queueEpoch) return;
+      await this.processQueueForThread(id);
+    }
   }
-  async processQueueForThread(id) {
+  processQueueForThread(id, wake = false) {
+    const current = this.queueChecks.get(id);
+    if (current) {
+      if (wake) this.queueWakeups.add(id);
+      return current;
+    }
+    const epoch = this.queueEpoch;
+    const pending = this.checkQueueForThread(id, epoch).finally(() => {
+      if (this.queueChecks.get(id) !== pending) return;
+      this.queueChecks.delete(id);
+      // A connection may become ready while an older read is still in flight.
+      // Coalesce those notifications into one fresh check instead of losing it.
+      if (this.queueWakeups.delete(id) && this.queueStarted && epoch === this.queueEpoch)
+        return this.processQueueForThread(id);
+    });
+    this.queueChecks.set(id, pending);
+    return pending;
+  }
+  async checkQueueForThread(id, epoch) {
+    if (epoch !== this.queueEpoch) return;
     if (this.isLifecycleBlocked(id)) return;
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pause(id) || this.stops.pending(id)) return;
     if (this.models.pending(id)) {
       await this.models.read(id);
-      if (this.models.pending(id)) return;
+      if (epoch !== this.queueEpoch || this.models.pending(id)) return;
     }
     const head = this.outbox(id)[0];
     if (!head || head.status !== "queued") return;
     const history = await this.history(id);
+    if (epoch !== this.queueEpoch) return;
     const stopped = this.stops.latest(id);
     const explicitlyResumed = !this.stops.pause(id) && stopped?.status === "stopped" &&
       stopped.targetTurnId === history.latestTurnId && history.runtime === "idle" && history.canSend;
@@ -576,13 +607,17 @@ export class DesktopService {
     this.store.db.exec("UPDATE dispatches SET status='unknown',code='submission_interrupted' WHERE status='pending'");
     this.store.db.exec("UPDATE compactions SET status='unknown',code='submission_interrupted' WHERE status='pending'");
     this.store.db.exec("UPDATE request_responses SET status='unknown',code='submission_interrupted' WHERE status='pending'");
+    const epoch = this.queueEpoch;
     const tick = async () => {
+      if (!this.queueStarted || epoch !== this.queueEpoch) return;
       try { await this.processQueue(); } catch { /* Retry reads; never replay unknown submissions. */ }
-      if (this.queueStarted) { this.queueTimer = setTimeout(tick, 2000); this.queueTimer.unref?.(); }
+      if (this.queueStarted && epoch === this.queueEpoch) { this.queueTimer = setTimeout(tick, 2000); this.queueTimer.unref?.(); }
     };
     this.queueTimer = setTimeout(tick, 100); this.queueTimer.unref?.();
   }
   stopQueue() {
+    this.queueEpoch++;
+    this.queueWakeups.clear();
     this.queueStarted = false; clearTimeout(this.queueTimer);
     for (const entry of this.connections.values()) {
       if (entry.state.status === "connecting") {

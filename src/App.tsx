@@ -24,6 +24,7 @@ import type { OpenThreadResult } from "./threadConnection";
 import { SettingsDialog } from "./Dialogs";
 import { api, setToken } from "./api";
 import { CatalogSourceError, createCatalogReader } from "./catalogReader";
+import { startRecentThreadCatalogSync } from "./recentThreadCatalog";
 import { useReloadGuard } from "./updateSafety";
 import { hasUpdateBlockingDraft, protectedDraftThreadIds } from "./updateDrafts";
 import PocketUpdate from "./PocketUpdate";
@@ -279,6 +280,11 @@ export default function App({
       window.removeEventListener("pageshow", syncIfVisible);
     };
   }, [refresh, syncTasks, catalogReader]);
+  const recentSelected = catalog.threads.find(thread => thread.id === selected);
+  const recentCreatedAt = recentSelected && !recentSelected.archived && !recentSelected.missing && !recentSelected.sourceExcluded
+    ? recentSelected.createdAt : undefined;
+  useEffect(() => startRecentThreadCatalogSync({ createdAt: recentCreatedAt, sync: () => syncTasks(true) }),
+    [selected, recentCreatedAt, syncTasks]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
