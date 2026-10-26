@@ -32,6 +32,8 @@ UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-eleme
 
 ## 已建立的验收基线
 
+- 使用分析与其他外联能力的浏览器fixture须继承正式响应头，尤其CSP；验证JS路径之外还要检查实际出口。PostHog的本机/Pages策略、旧CSP阻断对照及正式发布检查见[使用反馈纠错](design/2026-10-26-usage-feedback.md#同日纠错正式-csp-拦截了上报)。QA记录与production记录分别回读；资源哈希通过不能代替采集成功。
+
 - 合成测试通过 `npm test` 运行，入口会阻断真实原生 opener；定向测试使用 `node --import ./tests/helpers/block-native-open.mjs --test tests/<name>.test.mjs`。`makeApp` fixture 显式注入 `openThread`，需要已恢复 owner 时返回 `source: 'desktop', resumeState: 'resumed'`；不能让假 thread ID 打开用户桌面。来源与覆盖边界见[10-18恢复报错排查](research/2026-10-18-codex-rollout-test-isolation.md)。
 
 - 公网可达性需区分探针与实际浏览器：09-30 urllib返回Cloudflare403/1010，而curl和手机尺寸浏览器正常。具体回读见CURRENT.md的18:04记录；单一探针失败先对照正常访问路径，不直接当成Pocket故障或据此重启、发布。
