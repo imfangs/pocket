@@ -1,0 +1,7 @@
+.usage-feedback { padding-block: 12px; border-top: 1px solid var(--gray-a5); }
+.usage-feedback p { margin: 0 0 10px; font-size: 13px; color: var(--gray-11); }
+.usage-feedback form { display: grid; gap: 10px; }
+.usage-feedback-reasons { display: flex; flex-wrap: wrap; gap: 8px; }
+.usage-feedback-reasons button { min-height: 44px; }
+.usage-feedback textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--gray-12); background: var(--color-background); border: 1px solid var(--gray-a7); border-radius: 10px; }
+.usage-feedback form > button { justify-self: start; }

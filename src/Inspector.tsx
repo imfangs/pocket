@@ -21,6 +21,7 @@ import { focusInspectorEntry, type InspectorEntryOrigin } from "./inspectorFocus
 import { machineTaskUrl } from "./machineScope";
 import ThreadModelSettings from "./ThreadModelSettings";
 import ThreadAutomations from "./ThreadAutomations";
+import UsageFeedback from "./UsageFeedback";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
@@ -114,6 +115,7 @@ export default function Inspector(p: Props) {
           {p.operation?.code === "outbox_not_empty" && <button type="button" className="text-button" onClick={() => setInfoOpen(false)}>查看待发消息</button>}
           {error && <p className="inline-error" role="alert">{error}</p>}
           <ThreadAutomations thread={p.thread} />
+          <UsageFeedback threadId={p.thread.id} />
           <dl className="conversation-info-details">
             <dt>来源项目</dt><dd>{p.thread.projectName === "无项目" ? "独立会话" : p.thread.projectName}</dd>
             <dt>工作目录</dt><dd>{p.thread.cwd}</dd>

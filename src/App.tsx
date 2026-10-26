@@ -32,6 +32,7 @@ import { UNASSIGNED_PROJECT } from "./projectNavigation";
 import { readPocketActivity, recordPocketVisit, rememberPocketCreations, savePocketActivity } from "./pocketActivity";
 import type { Catalog, Thread, View } from "./types";
 import NewConversationDialog from "./NewConversationDialog";
+import { startUsageAnalytics } from "./usageAnalytics";
 import { createSubmittedQueryStore, seedSubmittedQuery, visibleSubmittedQueries } from "./submittedQueries";
 import { prepareCreationDialog, type CreationClipboard } from "./creationQuery";
 import type { TaskOperation } from "./taskOperations";
@@ -73,6 +74,7 @@ export default function App({
   appearanceActions?: React.ReactNode;
   logoutAction?: React.ReactNode;
 }) {
+  useEffect(startUsageAnalytics, []);
   const [navigation, setNavigation] = useState(readPrefs);
   const { scope, project, activity, sort } = navigation;
   const [pocketActivity, setPocketActivity] = useState(() => readPocketActivity());

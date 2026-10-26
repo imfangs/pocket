@@ -18,6 +18,7 @@ export function frontendVersion(root) {
   walk('src');walk('public');
   if (existsSync(join(root, 'shared'))) walk('shared');
   for (const path of ['index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'bin/build-version.mjs']) add(path);
+  if (existsSync(join(root, 'config/usage-analytics.json'))) add('config/usage-analytics.json');
   return hash.digest('hex');
 }
 

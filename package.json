@@ -16,6 +16,7 @@
     "lucide-react": "^0.468.0",
     "mdast-util-from-markdown": "2.0.3",
     "pele": "file:vendor/pele/pele-1.6.0-pocket.44da152.tgz",
+    "posthog-js": "1.438.21",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",

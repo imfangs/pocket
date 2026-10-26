@@ -41,6 +41,8 @@ import { useReceiptEntrances } from "./useReceiptHandoff";
 import { questionPresentationStore } from "./questionPresentation";
 import { readAutoDirectPreference, shouldEnqueueNewMessage, subscribeSendingPreference } from "./sendingPreference";
 import { compactionKeepsComposerExpanded, desktopComposerHint } from "./composerStatus";
+import { recordUsageFailure, usage } from "./usageAnalytics";
+import { useUsageConversation } from "./useUsageConversation";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   attachments?: readonly DraftAttachment[];
@@ -137,6 +139,7 @@ export default function Conversation({
     history ? { ...history, messages: withSubmittedAttachments(history.messages, submitted) } : null,
     transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
   ), [history, transcript, submitted]);
+  useUsageConversation(thread.id, conversationRoot, shownMessages, submitted, !!draft.text || attachments.length > 0);
   const toolbarTiming = history?.turnTiming && history.runtime !== "active" && history.turnTiming.status !== "inProgress" && history.turnTiming.turnId &&
     shownMessages.some(message => message.role === "assistant" && message.turnId === history.turnTiming!.turnId &&
       ["final", "final_answer"].includes(message.phase || "") && message.turnDurationMs != null) ? null : history?.turnTiming;
@@ -341,7 +344,8 @@ export default function Conversation({
         setTranscript(data);
         setTranscriptLoading(false);
       },
-      onError() {
+      onError(failure) {
+        recordUsageFailure("transcript", failure, thread.id);
         setTranscriptLoading(false);
         // Keep readable content and let the native feed report connection state.
       },
@@ -386,6 +390,7 @@ export default function Conversation({
         }
       },
       onError(error) {
+        recordUsageFailure("history", error, thread.id);
         setHistoryError(readableRequestError(error, "暂时无法读取，请重试。"));
         setLoading(false);
       },
@@ -469,6 +474,7 @@ export default function Conversation({
     const requestId = draft.requestId || crypto.randomUUID();
     const submittedText = draft.text;
     const submittedAttachments = attachmentRefs(attachments);
+    usage.submit(thread.id, requestId, { action: draft.requestId ? "check" : "send", mode: enqueue ? "queue" : "direct", attachment_count: submittedAttachments.length });
     receiptRead.current = controller;
     nearBottom.current = true;
     // Capture before clearing the composer. Every later receipt updates this
@@ -494,16 +500,20 @@ export default function Conversation({
           }));
       }
       if (receipt.requestId !== requestId) throw new Error("回执与当前消息不匹配，请重新核对。");
+      usage.receipt(thread.id, requestId, receipt.status);
       submissions.receipt(thread.id, receipt);
       if (!ownsView()) return;
       // The submission card already shows this request is being confirmed.
       const confirmed = await waitForSubmission(receipt, signal => api<Receipt>(`/api/tasks/${thread.id}/messages/${requestId}`, "GET", undefined, { signal }), controller.signal);
+      usage.receipt(thread.id, requestId, confirmed.status);
       submissions.receipt(thread.id, confirmed);
       if (!ownsView()) return;
       receive(confirmed);
       void load();
     } catch (e) {
       const status = (e as Error & { status?: number }).status;
+      recordUsageFailure("submit", e, thread.id);
+      usage.receipt(thread.id, requestId, status && status < 500 ? "rejected" : "unknown");
       submissions.receipt(thread.id, { requestId, status: status && status < 500 ? "rejected" : "unknown" });
       if (!ownsView()) return;
       if (status && status < 500) {
@@ -511,6 +521,7 @@ export default function Conversation({
       } // Unknown stays on its original card; never add a second notice.
     } finally {
       release();
+      usage.waitEnded(thread.id, requestId, ownsView());
       if (receiptRead.current === controller) {
         receiptRead.current = null;
         if (!controller.signal.aborted) setSending(false);
@@ -705,6 +716,7 @@ export default function Conversation({
           placeholder={thread.archived ? "取消归档后可继续对话…" : composer.compact ? "继续对话…" : enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
           value={draft.text}
           maxLength={16000}
+          onFocus={() => usage.focus(thread.id)}
           onChange={(e) => updateDraft({ text: e.target.value })}
           onInput={(e) => updateDraft({ text: e.currentTarget.value })}
           onPaste={event => {

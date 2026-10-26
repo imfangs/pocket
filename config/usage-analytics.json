@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "projectKey": "phc_Arvxr9cvhujn5oF7vGpWZc7HPQnyTMneDsTBQecUDA8d",
+  "apiHost": "https://us.i.posthog.com",
+  "uiHost": "https://us.posthog.com",
+  "origins": [
+    "https://x.fangs.cc",
+    "https://threads.local"
+  ],
+  "environment": "production"
+}
