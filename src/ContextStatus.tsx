@@ -8,6 +8,7 @@ import type { History } from "./conversationFeed";
 import { api } from "./api";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { controlReceipt, controlUnresolved, useControlRequest, type ControlReceipt } from "./controlRequests";
+import { compactionKeepsComposerExpanded } from "./composerStatus";
 
 const labels: Record<string, string> = {
   pending: "正在提交…",
@@ -20,18 +21,21 @@ const labels: Record<string, string> = {
 export default function ContextStatus({
   threadId,
   history,
+  compact = false,
   disabled,
   refresh,
   onInteractionChange,
 }: {
   threadId: string;
   history: History | null;
+  compact?: boolean;
   disabled: boolean;
   refresh: () => Promise<void> | undefined;
   onInteractionChange?: (active: boolean) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
   useEffect(() => { window.dispatchEvent(new Event("pocket-reading-visibility-change")); }, [open]);
   const { owner, state } = useControlRequest(threadId, "compact");
   const [error, setError] = useState("");
@@ -43,15 +47,17 @@ export default function ContextStatus({
   const receipt = controlReceipt(state, history?.compactionRequest);
   const status = receipt?.status;
   const pending = controlUnresolved(status);
+  const uncertain = status === "unknown";
   const working = busy || !!state?.posting;
-  const interacting = open || working || pending || !!history?.compaction?.active;
+  // Opening a control in the reading bar must not move it into a larger editor.
+  const interacting = (!compact && (open || working)) || compactionKeepsComposerExpanded(status);
   useEffect(() => {
     onInteractionChange?.(interacting);
     return () => onInteractionChange?.(false);
   }, [interacting, onInteractionChange]);
   const requestId = receipt?.requestId;
   const usageLabel = usage ? `上下文用量 ${Math.round(usage.percent)}%` : "上下文用量与压缩";
-  const triggerLabel = `${usageLabel}${history?.compaction?.active ? "，压缩中" : pending ? "，压缩结果待核对" : ""}`;
+  const triggerLabel = `${usageLabel}${uncertain ? "，压缩结果待核对" : history?.compaction?.active ? "，压缩中" : pending ? "，压缩结果待核对" : ""}`;
   useReloadGuard(() => working ? "压缩操作尚未完成，请稍后更新。"
     : pending ? "压缩结果尚待核对，请处理后再更新。" : null);
   useEffect(() => {
@@ -105,9 +111,9 @@ export default function ContextStatus({
     }
   };
   return (
-    <div className="context-status">
+    <div ref={root} className="context-status" data-ongoing={history?.compaction?.active || pending || open || working || undefined}>
       <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Trigger type="button" className="context-trigger" title={triggerLabel} aria-label={triggerLabel}
+        <Popover.Trigger type="button" className="context-trigger" title={triggerLabel} aria-label={triggerLabel} data-composer-reading-control={compact ? "" : undefined}
           onPointerDown={event => {
             // Keep the composer layout stable until click opens the popover.
             // Keyboard focus and activation retain their normal behavior.
@@ -134,7 +140,7 @@ export default function ContextStatus({
               />
             </svg>
           )}
-          {history?.compaction?.active
+          {uncertain ? "压缩待核对" : history?.compaction?.active
             ? "压缩中…"
             : pending
               ? "压缩待核对"
@@ -154,9 +160,18 @@ export default function ContextStatus({
             align="start"
             aria-label="上下文用量与压缩"
             onCloseAutoFocus={event => {
-              // Pointer readers return to the compact input; keyboard users
-              // retain the trigger as their next focus target.
-              if (pointerOpened.current) event.preventDefault();
+              // Preserve outside pointer focus; keyboard dismissal needs a
+              // visible destination even if compaction just finished.
+              const trigger = root.current?.querySelector(".context-trigger");
+              if (trigger && !trigger.getClientRects().length) {
+                // Completion can remove this reading-bar trigger. Preserve an
+                // outside click's destination; otherwise return to the reader.
+                event.preventDefault();
+                const active = document.activeElement;
+                if (active === document.body || active === trigger || !active?.isConnected ||
+                    event.target instanceof Element && event.target.contains(active))
+                  root.current?.closest(".conversation")?.querySelector<HTMLElement>(".conversation-messages")?.focus({ preventScroll: true });
+              } else if (pointerOpened.current) event.preventDefault();
               pointerOpened.current = false;
             }}
           >

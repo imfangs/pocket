@@ -146,6 +146,14 @@ test('messages keep accessible identities while time, duration and copy actions 
   assert.match(progress, /<footer[^>]*>[\s\S]*aria-label="复制过程"[\s\S]*<\/footer>/);
 });
 
+test('observed compaction has one primary status instead of a duplicate connection notice', () => {
+  const html = renderConversation({ source: 'desktop', resumeState: 'resumed', runtime: 'active', canSend: false,
+    compaction: { active: true }, hint: '正在压缩上下文，完成后可继续。', messages: [], checkedAt: 2 });
+  assert.doesNotMatch(html, /正在压缩上下文，完成后可继续/);
+  assert.match(html, /压缩中…/);
+  assert.doesNotMatch(html, /composer-inline-runtime/);
+});
+
 test('reopening an async question restores written text with a labelled native fieldset', () => {
   const question = { key: 'key', title: 'Which direction?', options: ['A', 'B'] };
   const drafts = new Map([['thread/question/key', { text: 'Preserved written answer', answerMode: 'custom', customText: 'Preserved written answer', optionText: 'B' }]]);

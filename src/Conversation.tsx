@@ -40,6 +40,7 @@ import { receiptHandoffs } from "./receiptMotion";
 import { useReceiptEntrances } from "./useReceiptHandoff";
 import { questionPresentationStore } from "./questionPresentation";
 import { readAutoDirectPreference, shouldEnqueueNewMessage, subscribeSendingPreference } from "./sendingPreference";
+import { compactionKeepsComposerExpanded, desktopComposerHint } from "./composerStatus";
 export type QueryDraft = {
   text: string; requestId?: string; revision?: number;
   attachments?: readonly DraftAttachment[];
@@ -50,11 +51,6 @@ const statuses: Record<string, string> = {
   systemError: "上次运行出错",
   unavailable: "未连接",
 };
-const routineDesktopHints = new Set([
-  "消息会在 Mac 的原任务中运行，沿用原模型与权限。",
-  "消息会在 Mac 的会话中运行，沿用原模型与权限。",
-  "正在运行，新消息默认进入 Pocket 待发列表。",
-]);
 export default function Conversation({
   thread,
   drafts,
@@ -269,9 +265,9 @@ export default function Conversation({
   const staleConnection = observedConnection.status === "connected" && history?.source !== "desktop" && (history?.checkedAt ?? 0) > observedConnection.checkedAt;
   const showConnectionState = targetAvailable &&
     (history?.source !== "desktop" || connecting || observedConnection.status === "failed" || !!connectionError);
-  const desktopHint = history?.source === "desktop" && history.canSend && routineDesktopHints.has(history.hint) ? undefined
-    : history?.hint?.replaceAll("原任务", "会话").replaceAll("原会话", "会话");
-  const connectionHint = managementHint || (thread.archived ? "已归档，取消归档后可继续对话。"
+  const desktopHint = desktopComposerHint(history);
+  const hasRestoreAction = thread.archived && !!onRestore && !draft.requestId;
+  const connectionHint = managementHint || (thread.archived ? hasRestoreAction ? undefined : "已归档，取消归档后可继续对话。"
     : !targetAvailable ? "会话暂不可用" : history?.source === "desktop" ? desktopHint : undefined);
   const connectionFailed = !!connectionError || staleConnection || observedConnection.status === "failed";
   const connectionLabel = !online ? "离线" : connecting ? "连接中…"
@@ -289,8 +285,8 @@ export default function Conversation({
   const sendAndConnect = !compatibilityCode && enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
   const composer = useReadingComposer({ hasContent: shownMessages.length > 0, hasDraft: draft.text.length > 0,
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
-    pending: sending || !!draft.requestId || contextInteraction || stopInteraction || !!history?.compaction?.active ||
-      ["pending", "accepted", "unknown"].includes(history?.compactionRequest?.status ?? "") ||
+    pending: sending || !!draft.requestId || contextInteraction || stopInteraction ||
+      compactionKeepsComposerExpanded(history?.compactionRequest?.status) ||
       ["pending", "accepted", "unknown"].includes(history?.stopRequest?.status ?? ""),
     // Archived history still has an actionable unarchive button with no draft.
     feedback: !!(thread.archived || error || compatibilityCode) });
@@ -558,7 +554,7 @@ export default function Conversation({
     shownOutbox.some(item => ["pending", "unknown"].includes(item.status)) ||
     visibleSubmissions.some(item => ["pending", "submitting", "connecting", "unknown"].includes(item.status));
   const hasComposerContent = !!draft.text.trim() || attachments.length > 0;
-  const restoreOnlyAction = thread.archived && !!onRestore && !draft.requestId;
+  const restoreOnlyAction = hasRestoreAction;
   const retryConnection = showConnectionState && connectionFailed && !compatibilityCode && !hasComposerContent && !draft.requestId && !preconnectBlocked;
   const connectionOnlyAction = !hasComposerContent && !draft.requestId && (retryConnection || connecting);
   const connectionContext = useRef<{ connect: () => Promise<void>; available: () => boolean }>({ connect, available: () => false });
@@ -735,12 +731,13 @@ export default function Conversation({
           <span>{recoveringAttachments ? "读取中…" : "附件未同步"}</span>
           {!recoveringAttachments && <span className="composer-recovery-action">重试</span>}
         </button>}
-        {!inlineRecovery && !inlineAttachmentRecovery && (showConnectionState || !online) && <span className="composer-inline-state" role="status" title={connectionLabel} aria-label={connectionLabel}
+        {!inlineRecovery && !inlineAttachmentRecovery && (showConnectionState || !online) &&
+          !(online && connecting && connectionOnlyAction && !composer.compact) && <span className="composer-inline-state" role="status" title={connectionLabel} aria-label={connectionLabel}
           data-state={!online || connectionFailed || compatibilityCode ? "warning" : connecting ? "connecting" : "idle"}>
           {connecting && <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" />}
           <span>{inlineConnectionLabel}</span>
         </span>}
-        {!recoveryVisible && !inlineAttachmentRecovery && !showConnectionState && online && !historyError && history?.runtime === "active" && <span className="composer-inline-state composer-inline-runtime" role="status" data-state="running">运行中</span>}
+        {!recoveryVisible && !inlineAttachmentRecovery && !showConnectionState && online && !historyError && history?.runtime === "active" && !history.compaction?.active && !history.pendingRequests?.length && <span className="composer-inline-state composer-inline-runtime" role="status" data-state="running">运行中</span>}
         </div>
         </div>
         <div className="composer-actions">
@@ -750,7 +747,7 @@ export default function Conversation({
             <ChevronDown size={18} aria-hidden="true" />
           </button>
           <ContextStatus threadId={thread.id} history={compatibilityCode && history ? { ...history, canCompact: false, canAttemptCompact: false } : history}
-            disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} onInteractionChange={setContextInteraction} />
+            compact={composer.compact} disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} onInteractionChange={setContextInteraction} />
           <Button
             className="primary"
             type={restoreOnlyAction || connectionOnlyAction ? "button" : "submit"}

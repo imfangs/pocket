@@ -19,7 +19,13 @@
     padding: 9px 11px;
     white-space: nowrap;
   }
-  .conversation-composer.is-compact .composer-actions { display:none; }
+  .conversation-composer.is-compact .composer-actions { display:contents; }
+  .conversation-composer.is-compact .composer-actions > * { display:none; }
+  .conversation-composer.is-compact:has(.context-status[data-ongoing]) { grid-template-columns:minmax(0,1fr) max-content max-content; }
+  .conversation-composer.is-compact:has(.context-status[data-ongoing]):not(:has(.stop-execution)) { grid-template-columns:minmax(0,1fr) max-content; }
+  .conversation-composer.is-compact .composer-actions > .context-status[data-ongoing] { display:block; grid-column:2; grid-row:1; }
+  .conversation-composer.is-compact .context-trigger { min-height:44px; }
+  .conversation-composer.is-compact:has(.context-status[data-ongoing]) .composer-overview .stop-execution { grid-column:3; }
   .conversation-composer.is-compact .composer-inline-runtime { display:inline-flex; }
   .conversation-composer.is-compact .composer-text-field { border-color:var(--line); outline:none; }
   .conversation-composer:not(.is-compact) .composer-collapse { display:inline-flex; flex:none; align-items:center; justify-content:center; width:44px; height:44px; }
@@ -28,4 +34,5 @@
   .conversation:has(.outbox textarea) .conversation-composer.is-compact .composer-overview { display:flex; }
   .conversation:has(.outbox textarea) .conversation-composer.is-compact .runtime-summary { display:flex; }
   .conversation:has(.outbox textarea) .conversation-composer.is-compact .composer-actions { display:flex; }
+  .conversation:has(.outbox textarea) .conversation-composer.is-compact .composer-actions > .context-status { display:block; }
 }

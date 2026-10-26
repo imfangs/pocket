@@ -99,3 +99,5 @@
 原生证据在`ios/`与`react/events.jsonl`；PWA独立回读为根目录`pwa-independent-readback.json`。XCUITest无法完成系统Paste，改用已有固定`serve-sim 0.1.48`镜像与按OCR精确定位的HID实际点击；普通菜单使用原生AX。验证方法与清理要求已写入[QUALITY](../QUALITY.md#原生剪贴板验证)。
 
 收尾已回读：三个一次性设备和其镜像helper均停删，工具无剩余session/claim，剪贴板共享设置恢复原值，原CurrentDevice未变；两个本地fixture停止，产品4397/4399服务未动。必要截图与事件保留，重复截图约1.58MB已清理。回执见`ios/cleanup.json`及`react/cleanup.json`。日志中的较长许可等待包含测试工具操作时间，不能当作产品性能数据。
+
+用户随后反馈框内粘贴“好像有时候可以，有时候不行”，并明确“我在观察下吧”。因此保留当前版本、暂不继续改动剪贴板；尚未取得失败时具体提示、输入法和内容类型，不能把间歇性反馈归因到某个已证实原因。之后有新的实际现象再接续。

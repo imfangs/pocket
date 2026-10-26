@@ -45,6 +45,13 @@ test('unresolved stops remain available for verification after the runtime stops
   }
 });
 
+test('an unknown compaction result remains explicit even during observed background compaction', () => {
+  const html = render(ContextStatus, { contextUsage, compaction: { active: true }, compactionRequest: { requestId: 'unconfirmed-compaction', status: 'unknown' } });
+  assert.equal(visibleText(html), '压缩待核对');
+  assert.match(html, /data-ongoing="true"/);
+  assert.match(html, /aria-label="上下文用量 37%，压缩结果待核对"/);
+});
+
 test('stop control distinguishes current execution from a settled receipt', () => {
   assert.equal(render(StopExecution, { canStop: false, stopRequest: { requestId: 'settled-stop', status: 'stopped' } }), '');
   const html = render(StopExecution, { canStop: true, activeTurnId: 'current-turn' });
