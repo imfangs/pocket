@@ -209,6 +209,25 @@ test('the list renders native running without retired manual intent, and failure
   assert.doesNotMatch(unobserved, /状态待确认/);
 });
 
+test('Pocket unread rows render only running until fresh runtime evidence ends, without changing their watermark', () => {
+  const row = Object.freeze({ ...thread, pocketUnread: true });
+  const states = new Map([['thread', 'running']]);
+  const render = (overrides = {}) => renderToStaticMarkup(createElement(TaskList,
+    { ...props, threads: [row], runtimeStates: states, ...overrides }));
+  const active = render();
+  assert.match(active, /data-state="running">运行中/);
+  assert.doesNotMatch(active, /data-state="unread"/);
+  for (const overrides of [{ runtimeUnavailable: true }, { runtimeLoading: true },
+    { runtimeStates: new Map() }, { runtimeStates: new Map([['thread', 'unknown']]) }]) {
+    const html = render(overrides);
+    assert.doesNotMatch(html, /data-state="running"|空闲|已完成/);
+    assert.match(html, /data-state="unread"/);
+  }
+  states.set('thread', 'idle');
+  assert.match(render(), /data-state="unread"/);
+  assert.equal(row.pocketUnread, true);
+});
+
 test('active status replaces time in the first row while useful secondary context stays separate', () => {
   for (const [status, label] of [['waiting_approval', '等待确认'], ['waiting_input', '等待回答'], ['running', '运行中']]) {
     const html = renderToStaticMarkup(createElement(TaskList, { ...props,

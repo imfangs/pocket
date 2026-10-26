@@ -69,20 +69,62 @@ test('a desktop read updates count, filter, badge and rank together without answ
   assert.equal(threadListStates(newReply).some(state => state.key === 'unread'), true);
 });
 
-test('a new assistant revision remains unread with native false, including while running', () => {
+test('running excludes new content from unread presentation without consuming its reading watermark', () => {
   const store = createPocketReadStateStore({ storage: storageFixture(), machine: () => 'ged', browser: () => undefined });
   store.observeCatalog([row], 'source-a'); store.markSeen(row.id, content(1));
-  const incoming = { ...row, pocketContent: content(2), hasUnreadTurn: false, needsInput: false };
+  const incoming = { ...row, pocketContent: content(2), desktopReadContent: content(1), hasUnreadTurn: false, needsInput: false };
   store.observeCatalog([incoming], 'source-a');
   store.observeCatalog([row], 'source-a'); // Late metadata operation response.
   store.markSeen(row.id, content(1)); // Late observation of the old rendered answer.
   const projected = projection(store, incoming);
   const statuses = new Map([[row.id, 'running']]);
-  assert.equal(hasUnreadContent(projected, 'running'), true);
-  assert.deepEqual(navigationActivityCounts([projected], prefs, '', statuses), { unread: 1, running: 1 });
-  assert.equal(filterThreads([projected], 'all', '', 'project', 'smart', statuses, { now }, 'unread').length, 1);
-  assert.equal(threadListStates(projected, false, 'running').some(state => state.key === 'unread'), true);
+  assert.equal(hasUnreadContent(projected, 'running'), false);
+  assert.deepEqual(navigationActivityCounts([projected], prefs, '', statuses), { unread: 0, running: 1 });
+  assert.equal(filterThreads([projected], 'all', '', 'project', 'smart', statuses, { now }, 'unread').length, 0);
+  assert.equal(filterThreads([projected], 'all', '', 'project', 'smart', statuses, { now }, 'running').length, 1);
+  assert.deepEqual(threadListStates(projected, false, 'running').map(state => state.key), ['running']);
   assert.equal(needsUserInput(projected, 'running'), false);
+  assert.equal(smartThreadScore(projected, { now, runtimeStates: statuses }),
+    smartThreadScore({ ...projected, pocketUnread: false }, { now, runtimeStates: statuses }));
+  assert.equal(store.unread(incoming), true, 'running is presentation only, not a read receipt');
+
+  statuses.set(row.id, 'idle');
+  assert.deepEqual(navigationActivityCounts([projected], prefs, '', statuses), { unread: 1, running: 0 });
+  assert.equal(filterThreads([projected], 'all', '', 'project', 'smart', statuses, { now }, 'unread').length, 1);
+  assert.deepEqual(threadListStates(projected, false, 'idle').map(state => state.key), ['unread']);
+  assert.equal(needsUserInput(projected, 'idle'), true);
+});
+
+test('reading during a run stays read on completion but an appended reply becomes unread afterwards', () => {
+  const store = createPocketReadStateStore({ storage: storageFixture(), machine: () => 'ged', browser: () => undefined });
+  store.observeCatalog([row], 'source-a');
+  assert.equal(hasUnreadContent(projection(store, row), 'running'), false);
+  store.markSeen(row.id, content(1));
+  const read = projection(store, row);
+  assert.equal(hasUnreadContent(read, 'idle'), false);
+  assert.equal(navigationActivityCounts([read], prefs, '', new Map([[row.id, 'idle']])).unread, 0);
+  assert.deepEqual(threadListStates(read, false, 'idle'), []);
+
+  const appended = { ...row, pocketContent: content(2) };
+  store.observeCatalog([appended]);
+  const unread = projection(store, appended);
+  assert.equal(store.unread(appended), true);
+  assert.equal(hasUnreadContent(unread, 'running'), false);
+  assert.equal(hasUnreadContent(unread, 'idle'), true);
+});
+
+test('absent and unknown runtime evidence preserve unread content without inventing a completed state', () => {
+  const store = createPocketReadStateStore({ storage: storageFixture(), machine: () => 'ged', browser: () => undefined });
+  store.observeCatalog([row], 'source-a');
+  for (const status of [undefined, 'unknown']) {
+    const projected = projection(store, row);
+    const statuses = status ? new Map([[row.id, status]]) : undefined;
+    assert.deepEqual(navigationActivityCounts([projected], prefs, '', statuses), { unread: 1, running: 0 });
+    assert.equal(filterThreads([projected], 'all', '', 'project', 'smart', statuses, { now }, 'unread').length, 1);
+    assert.deepEqual(threadListStates(projected, false, status).map(state => state.key),
+      status ? ['unknown', 'unread'] : ['unread']);
+    assert.equal(store.unread(row), true);
+  }
 });
 
 test('reading a question clears unread while preserving pending answer or approval and attention rank', () => {

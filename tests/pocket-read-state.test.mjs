@@ -143,7 +143,8 @@ test('a hint conflicting with a previously known older version cannot advance re
 });
 
 test('absorbed desktop reading propagates across tabs and unchanged hints do not notify again', () => {
-  const values = new Map(), a = setup({ values }), b = setup({ values });
+  const values = new Map(), now = () => 100;
+  const a = setup({ values, now }), b = setup({ values, now });
   const releaseA = a.store.subscribe(() => {}), releaseB = b.store.subscribe(() => {});
   a.store.observeCatalog([thread()]); b.store.observeCatalog([thread()]);
   const key = [...values.keys()][0], old = values.get(key);
@@ -156,6 +157,31 @@ test('absorbed desktop reading propagates across tabs and unchanged hints do not
   values.set(key, old); a.change(key); b.change(key);
   assert.equal(a.store.unread(thread()), false);
   assert.equal(b.store.unread(thread()), false);
+  releaseA(); releaseB();
+});
+
+test('cross-tab timestamp reconciliation notifies once without changing the absorbed read watermark', () => {
+  const values = new Map(), a = setup({ values, now: () => 100 }), b = setup({ values, now: () => 101 });
+  const releaseA = a.store.subscribe(() => {}), releaseB = b.store.subscribe(() => {});
+  a.store.observeCatalog([thread()]); b.store.observeCatalog([thread()]);
+  const key = [...values.keys()][0];
+  const read = thread(content(), { desktopReadContent: content() });
+  a.store.observeCatalog([read]);
+  const beforeCrossTab = JSON.parse(values.get(key));
+  b.change(key);
+  const afterCrossTab = JSON.parse(values.get(key));
+  assert.equal(beforeCrossTab.touchedAt, 100);
+  assert.equal(afterCrossTab.touchedAt, 101);
+  assert.deepEqual(afterCrossTab.seen, beforeCrossTab.seen);
+  const before = a.store.getSnapshot();
+  a.store.observeCatalog([read]);
+  assert.equal(a.store.getSnapshot(), before + 1);
+  const settled = a.store.getSnapshot();
+  a.store.observeCatalog([read]); a.store.observeCatalog([read]);
+  assert.equal(a.store.getSnapshot(), settled);
+  assert.equal(a.store.unread(thread()), false);
+  assert.equal(b.store.unread(thread()), false);
+  assert.deepEqual(JSON.parse(values.get(key)).seen, beforeCrossTab.seen);
   releaseA(); releaseB();
 });
 
