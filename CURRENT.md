@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-26。重复状态提示与压缩期间的输入区占位优化已上线；剪贴板间歇问题按用户选择先观察，暂不继续修改。
+维护日期：2026-10-26。PostHog使用反馈与回放接入已上线并回读；剪贴板间歇问题继续按用户选择先观察。
 
 ## 下一次先看
 
-- **使用反馈已实现，待本轮发布回读**：[PostHog接入](docs/design/2026-10-26-usage-feedback.md)。本人项目688532，Free方案及Session Replay已启用；发送/回执/可见内容/前后台分开观测，会话信息加入“刚才不顺”。1373项全测、34项Chromium/WebKit与SDK阻断验证通过，合成事件已在真实PostHog回读，回放快照已上报，后台播放仍在核验。配置限定正式origin，QA标记不作为实际体验数据；原owner、发送与阅读水位不变，未新增自动化。
+- **最近已上线：使用反馈与回放**：[PostHog接入](docs/design/2026-10-26-usage-feedback.md)。本人项目688532，Free方案及Session Replay已启用；发送/回执/可见内容/前后台分开观测，会话信息加入“刚才不顺”。1373项全测、34项Chromium/WebKit与SDK阻断验证、30个公开文件与功能回读通过。合成事件已在真实PostHog回读，两段录制入库；独立回放页已实际显示Pocket画面并可重新播放。列表内嵌播放器本次曾加载失败，改从Share→Open in new browser tab验证成功。原owner、发送与阅读水位不变，未新增自动化；实体手机和真实使用痛点仍待自然使用取得证据。
 
 - **最近已上线：状态与阅读空间**：[实现与取舍](docs/design/2026-10-26-status-reading-space.md)。已知压缩与accepted回执可回到单条输入栏，保留上下文详情/核对和停止；按对应控件去掉已知重复的压缩、审批、连接和归档说明。1366项全测、最后25项定向、116项双浏览器与29个公网资源/功能回读通过。390px测试场景底部由约214.4缩到46px，正文增加约168.4px；unknown/pending、附件、IME和必要错误保护保持。
 
@@ -37,12 +37,12 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `bb945f1a78bec736af58f24e9f69a8216d97aeab`，状态提示与阅读空间收敛；此前剪贴板恢复、新建核对与输入保护保持 |
+| 前端/网关源码 | `0430ed19977144535f0401f3acce62215bbced5a`，PostHog使用反馈与回放；此前状态空间、剪贴板恢复、新建核对与输入保护保持 |
 | 两机API源码 | 豌豆 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895`，API PID73421；格得保留此前 `0dbdf39c904877de152fc29a9a1d4f8910a43f2e` 启动的进程PID8828。分层版本不同无需为对齐SHA重启 |
-| 前端build | 公网 `b975d0e1c2dc5cbd7b1de1be78821b6f2067dd24701d6843de54b801524d5940`；豌豆内置网页随API release保留 `7cd2cf2e…`，本次共享网页优化不要求重启API |
-| Pages部署 | `0dc2ce4e-73bf-400d-8747-a24b3d24c29a`；10-26 ready=true，29/29公开文件与功能检查通过，上传一次 |
-| 最近验证 | 状态空间：1366项完整回归、最后25项定向、116项双浏览器与独立CR。此前原生剪贴板验证在26.5/27 Safari及27主屏幕Web App通过；均不等同用户物理iPhone验证 |
-| 证据 | 状态空间在 `.local/qa/status-space-2026-10-26/` 的 `release-verdict.json`、`qa-summary.json`、`report.md`、`comparison-390-dark.jpg`、`pages-deploy.json`；剪贴板原生与此前发布证据保留原路径 |
+| 前端build | 公网 `c27d61402795c70f68fef29f4a4a14ecc6056608f12280ac0a74082c7a710463`；豌豆内置网页随API release保留 `7cd2cf2e…`，共享网页更新不要求重启API |
+| Pages部署 | `366b1ee0-1a4a-45b7-ac4c-c304ea94469c`；10-26 ready=true，30/30公开文件与功能检查通过；首次preflight 401后复用Wrangler登录续期，实际上传一次 |
+| 最近验证 | 使用反馈：1373项完整回归、34项双浏览器/SDK阻断检查、独立CR与真实PostHog事件/回放回读。此前状态空间与原生剪贴板证据保持；不等同用户物理iPhone或长期使用效果 |
+| 证据 | 使用反馈在 `.local/qa/usage-2026-10-26/` 的 `tests.log`、`browser-results.json`、`report.md`、`pages-deploy-final.json` 与 `posthog-replay-working.png`；状态空间、剪贴板原生及此前发布证据保留原路径 |
 | 数据与运行 | `~/Library/Application Support/CodexNavigator/`；豌豆切换前后旧账本、逐条发送策略、凭据、scope/identity保持，目录同步正常。格得API/两机Codex/连接器进程未动；格得待发数量在使用中变化，不对跨两小时快照声称数据全等。本轮未处置或重放旧条目 |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
