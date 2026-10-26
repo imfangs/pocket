@@ -26,7 +26,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 优先关注与Codex置顶、输入意图预连接、精简文案、消息相对时间 | [独立优先与输入意图](docs/design/2026-10-15-priority-and-composer.md)：双标记/加分、旧接口兼容、单主按钮和共享时钟 |
 | 动效、详情转场、右滑与横滚冲突、内容过渡 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：跟手、披露、创建/消息衔接、主动pin换位和轻反馈；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
 | 项目导航、最近创建、关注/Codex置顶快捷分类、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：独立范围、创建时间倒序、单分数公式、消息来源、行为加分、有效状态与滚动锚 |
-| 发送后键盘/输入区收缩、迟到回执导致阅读跳动 | [发送连续性](docs/design/2026-10-25-send-ui-continuity.md)：条件焦点保持、IME例外与用户滚动优先 |
+| Query在消息与待发区搬移/重影、发送后键盘或阅读跳动 | [发送连续性](docs/design/2026-10-25-send-ui-continuity.md)：同请求稳定消息行、行内状态/队列操作、精确身份与全文保护；焦点、IME和用户滚动优先 |
 | 新建后迟迟没有完成反馈、创建状态被旧操作拖慢 | [新建确认延迟](docs/design/2026-10-25-create-confirmation-latency.md)：原生耗时与前端确认分开，创建独立核对、同ID单飞与未知不重放 |
 | 新建首Query卡在待发、自动标题滞后 | [首条消息与标题同步](docs/design/2026-10-26-create-delivery-and-title.md)：连接就绪唤醒本会话队列、停止代次保护、近期详情有界目录快刷；连接耗时与轮询延迟分开验证 |
 | 新建剪贴板预填、Paste许可、读取失败恢复 | [Query与剪贴板](docs/design/2026-10-09-startup-and-query-entry.md)：默认点击内读取、保留系统许可、主动恢复与迟到结果保护；浏览器替身不能证明iPhone许可链路 |

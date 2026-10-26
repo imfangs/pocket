@@ -6,15 +6,16 @@ import AnnotationQuotes, { type AnnotationLayoutChange } from "./AnnotationQuote
 import type { Message } from "./conversationFeed";
 import { formatDuration } from "./TurnDuration";
 import { readableCodexMarkdown } from "./codexMarkup";
-import { useMemo, type Ref } from "react";
+import { useMemo, type Ref, type ReactNode } from "react";
 import AttachmentList from "./AttachmentList";
 import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
 import MessageTimestamp from "./MessageTimestamp";
 import { validMessageTimestamp } from "./messageTime";
 import "./message-footer.css";
 
-export default function ConversationMessage({ message, threadId, recentlySent = false, queryDisclosure, readMarker, changeLayout }: {
+export default function ConversationMessage({ message, threadId, recentlySent = false, queryDisclosure, readMarker, changeLayout, queryDelivery }: {
   message: Message; threadId?: string; recentlySent?: boolean; queryDisclosure?: QueryDisclosure; readMarker?: Ref<HTMLDivElement>; changeLayout?: AnnotationLayoutChange;
+  queryDelivery?: { requestId: string; state?: string; controls: ReactNode; hasControls: boolean };
 }) {
   const presentation = useMemo(() => {
     if (message.role === "user") return presentUserMessage(message.text);
@@ -44,8 +45,11 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
   const duration = final && message.turnDurationMs != null ? formatDuration(message.turnDurationMs) : null;
   return (
     <article
-      className={`conversation-message ${message.role} message-${kind}${confirmed ? " is-recently-sent" : ""}`}
+      className={`conversation-message ${message.role} message-${kind}${confirmed ? " is-recently-sent" : ""}${queryDelivery ? " query-message" : ""}`}
       data-message-id={message.id}
+      data-query-id={queryDelivery?.requestId}
+      data-query-state={queryDelivery?.state}
+      tabIndex={queryDelivery ? -1 : undefined}
       aria-label={label}
     >
       {displayText.trim() && (kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
@@ -58,8 +62,9 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
       {presentation.annotations.length > 0 && <AnnotationQuotes annotations={presentation.annotations} changeLayout={changeLayout} />}
       <AttachmentList attachments={message.attachments} />
       {message.truncated && <small>内容较长，此处已截取。</small>}
+      {queryDelivery?.controls}
       {(hasTimestamp || copyable || confirmed || duration) && <footer className="message-footer">
-        {confirmed && <span className="message-send-confirmed"><Check size={13} aria-hidden="true" />已发送</span>}
+        {confirmed && !queryDelivery?.hasControls && <span className="message-send-confirmed"><Check size={13} aria-hidden="true" />已发送</span>}
         {duration && <span className="message-duration">总用时 <time>{duration}</time></span>}
         {hasTimestamp && <MessageTimestamp timestamp={timestamp} />}
         {copyable && <CopyButton text={presentation.copyText} label={kind === "user" ? "复制这条消息" : progress ? "复制过程" : "复制回复"} />}

@@ -5,12 +5,31 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { createSubmittedQueryStore, seedSubmittedQuery } from '../src/submittedQueries.ts';
+import { queueHeadState } from '../src/submissionFeedback.ts';
 
-const vite = await createServer({ configFile: false, root: fileURLToPath(new URL('..', import.meta.url)), esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+// Portal targets are DOM refs, so SSR cannot render their action subtree. Capture
+// the real Conversation boundary props; controller actions have their own tests.
+const probeKey = Symbol.for('pocket.ssr.submission-continuity-ui.test.mjs');
+globalThis[probeKey] = {};
+const controllerBoundary = {
+  name: 'capture-conversation-controller-props', enforce: 'pre',
+  resolveId(source, importer) {
+    if (importer?.endsWith('/src/Conversation.tsx') && ['./Outbox', './SubmittedQueryCards'].includes(source))
+      return '\0' + 'pocket.ssr.submission-continuity-ui.test.mjs' + source;
+  },
+  load(id) {
+    if (!id.startsWith('\0' + 'pocket.ssr.submission-continuity-ui.test.mjs')) return;
+    const name = id.endsWith('/Outbox') ? 'outbox' : 'submitted';
+    return `export default function ControllerBoundary(props) { globalThis[Symbol.for(${JSON.stringify('pocket.ssr.submission-continuity-ui.test.mjs')})][${JSON.stringify(name)}] = props; return null; }`;
+  },
+};
+
+const vite = await createServer({ plugins: [controllerBoundary], configFile: false, root: fileURLToPath(new URL('..', import.meta.url)), esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
 const { default: Conversation } = await vite.ssrLoadModule('/src/Conversation.tsx');
-after(() => vite.close());
+after(async () => { delete globalThis[probeKey]; await vite.close(); });
 
 function render(submissions, history, drafts = new Map()) {
+  globalThis[probeKey] = {};
   return renderToStaticMarkup(createElement(Conversation, {
     thread: { id: 'thread', archived: false, missing: false }, drafts, submissions,
     historyCache: history ? new Map([['thread', { history, scrollTop: 0, nearBottom: true }]]) : new Map(),
@@ -20,13 +39,21 @@ function render(submissions, history, drafts = new Map()) {
 const history = overrides => ({ source: 'desktop', runtime: 'idle', canSend: true, checkedAt: 1, messages: [], outbox: [], hint: '', ...overrides });
 const entry = { threadId: 'thread', requestId: 'submitted-one', text: 'The submitted first query', status: 'accepted', createdAt: 1 };
 const outbox = { id: entry.requestId, text: entry.text, status: 'queued', revision: 0, createdAt: 1 };
+function assertSingleQuery(html) {
+  assert.equal(html.split(entry.text).length - 1, 1, 'one complete submitted body');
+  assert.equal((html.match(/data-query-id="submitted-one"/g) || []).length, 1, 'one stable query row');
+  assert.equal((html.match(/aria-label="复制这条消息"/g) || []).length, 1, 'one message copy action');
+  assert.doesNotMatch(html, /data-submission-id=|data-outbox-id=|复制已提交消息|class="submitted-queries"|class="outbox"/);
+}
 
 test('accepted first query remains visible while native history has not echoed it and a new draft is being written', () => {
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, entry);
   const drafts = new Map([['thread', { text: 'An independent next query' }]]);
   const html = render(submissions, undefined, drafts);
-  assert.match(html, /The submitted first query/);
-  assert.equal(html.split('已发送').length - 1, 1, 'the submitted query card owns the success feedback');
+  assertSingleQuery(html);
+  assert.match(html, /data-query-state="accepted"/);
+  assert.equal(globalThis[probeKey].submitted.items[0].status, 'accepted', 'inline controls own the success state');
+  assert.equal(globalThis[probeKey].outbox.items.length, 0);
   assert.doesNotMatch(html, /conversation-feedback|send-feedback/);
   assert.doesNotMatch(html, /<strong>你<\/strong>|原文已保留|消息出现前会保留/);
   assert.match(html, /<textarea[^>]*>An independent next query<\/textarea>/);
@@ -36,48 +63,58 @@ test('accepted first query remains visible while native history has not echoed i
 test('quick creation shows a queued first query before the first history response', () => {
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, { ...entry, status: 'queued' });
   const html = render(submissions);
-  assert.match(html, /data-submission-id="submitted-one"/);
-  assert.match(html, /正在连接 Mac/);
+  assertSingleQuery(html);
+  assert.match(html, /data-query-state="queued"/);
+  assert.equal(globalThis[probeKey].submitted.items[0].status, 'queued');
+  assert.equal(globalThis[probeKey].submitted.connecting, true);
+  assert.ok(globalThis[probeKey].submitted.inlineTargets instanceof Map);
   assert.doesNotMatch(html, /已发送|原文已保留/);
-  assert.match(html, /The submitted first query/);
 });
 
 test('real outbox renders exactly one copy and accepted receipt overrides a stale queued row', () => {
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, entry);
   const html = render(submissions, history({ outbox: [outbox] }));
-  assert.equal(html.split(entry.text).length - 1, 1);
-  assert.doesNotMatch(html, /data-submission-id="submitted-one"/);
-  assert.match(html, /data-feedback-state="accepted" data-outbox-id="submitted-one"/);
-  assert.doesNotMatch(html, /is-queue-breathing|>直接发送<|>编辑<|>删除</);
+  assertSingleQuery(html);
+  assert.match(html, /data-query-state="accepted"/);
+  assert.equal(globalThis[probeKey].submitted.items.length, 0);
+  assert.equal(globalThis[probeKey].outbox.items[0].status, 'accepted', 'stale queued status cannot restore mutable controls');
+  assert.doesNotMatch(html, /data-query-breathing="true"/);
 });
 
 test('rendered exact user echo replaces both temporary card and stale outbox in one frame', () => {
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, entry);
   const messages = [{ id: 'native-message', role: 'user', clientMessageId: entry.requestId, text: entry.text }];
   const html = render(submissions, history({ messages, outbox: [outbox] }));
-  assert.equal(html.split(entry.text).length - 1, 1);
-  assert.doesNotMatch(html, /data-submission-id|data-outbox-id/);
+  assertSingleQuery(html);
+  assert.match(html, /data-message-id="native-message"/);
+  assert.equal(globalThis[probeKey].submitted.items.length, 0);
+  assert.equal(globalThis[probeKey].outbox.items.length, 0);
 });
 
 test('unknown submission retains its original text while the independent draft stays editable', () => {
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, { ...entry, status: 'unknown' });
   const html = render(submissions, history(), new Map([['thread', { text: 'A new draft' }]]));
-  assert.match(html, /结果待核对/);
-  assert.match(html, /核对不会重复发送/);
-  assert.doesNotMatch(html, />重新编辑<|>收起<|>直接发送<|>重试发送<|data-feedback-state="accepted"/);
-  assert.match(html, /The submitted first query/);
+  assertSingleQuery(html);
+  assert.match(html, /data-query-state="unknown"/);
+  assert.equal(globalThis[probeKey].submitted.items[0].status, 'unknown', 'only verification actions are exposed for an unknown receipt');
+  assert.equal(typeof globalThis[probeKey].submitted.check, 'function');
+  assert.equal(globalThis[probeKey].outbox.items.length, 0);
+  assert.doesNotMatch(html, /data-query-state="accepted"/);
   assert.match(html, /<textarea[^>]*>A new draft<\/textarea>/);
   assert.doesNotMatch(html.match(/<textarea[^>]*>/)[0], /disabled/);
   assert.ok(submissions.reloadBlocker());
 });
 
-test('a truncated history echo keeps the complete accepted text card rendered', () => {
+test('a same-id truncated history echo uses one complete query body without retiring its receipt', () => {
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, entry);
   const messages = [{ id: 'truncated-native', role: 'user', clientMessageId: entry.requestId, text: 'The submitted', truncated: true }];
   const html = render(submissions, history({ messages }));
-  assert.match(html, /data-submission-id="submitted-one"/);
-  assert.match(html, /The submitted first query/);
-  assert.match(html, /已发送/);
+  assertSingleQuery(html);
+  assert.match(html, /data-message-id="truncated-native"/);
+  assert.doesNotMatch(html, /<p>The submitted<\/p>|内容较长，此处已截取/);
+  assert.equal(globalThis[probeKey].submitted.items[0].status, 'accepted');
+  assert.equal(globalThis[probeKey].submitted.items[0].text, entry.text);
+  assert.equal(typeof globalThis[probeKey].submitted.check, 'function');
   assert.ok(submissions.reloadBlocker());
 });
 
@@ -85,8 +122,12 @@ test('complete rollout text leaves unknown outbox status and verification contro
   const submissions = createSubmittedQueryStore(); seedSubmittedQuery(submissions, { ...entry, status: 'unknown' });
   const messages = [{ id: 'saved-message', role: 'user', clientMessageId: entry.requestId, text: entry.text }];
   const html = render(submissions, history({ source: 'rollout', messages, outbox: [{ ...outbox, status: 'unknown' }] }));
-  assert.match(html, /data-feedback-state="unknown" data-outbox-id="submitted-one"/);
-  assert.match(html, /核对状态/);
-  assert.match(html, /首条结果待核对，队列已暂停/);
+  assertSingleQuery(html);
+  assert.match(html, /data-query-state="unknown"/);
+  const queue = globalThis[probeKey].outbox;
+  assert.equal(queue.items[0].status, 'unknown');
+  assert.equal(queueHeadState(queue.items[0]).blocked, true);
+  assert.equal(typeof queue.refresh, 'function');
+  assert.equal(globalThis[probeKey].submitted.items.length, 0);
   assert.ok(submissions.reloadBlocker());
 });

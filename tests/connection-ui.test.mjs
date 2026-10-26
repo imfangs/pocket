@@ -5,16 +5,34 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 
-const vite = await createServer({ configFile: false, root: fileURLToPath(new URL('..', import.meta.url)), esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+// Portal targets are DOM refs, so SSR cannot render their action subtree. Capture
+// the real Conversation boundary props; controller actions have their own tests.
+const probeKey = Symbol.for('pocket.ssr.connection-ui.test.mjs');
+globalThis[probeKey] = {};
+const controllerBoundary = {
+  name: 'capture-conversation-controller-props', enforce: 'pre',
+  resolveId(source, importer) {
+    if (importer?.endsWith('/src/Conversation.tsx') && ['./Outbox'].includes(source))
+      return '\0' + 'pocket.ssr.connection-ui.test.mjs' + source;
+  },
+  load(id) {
+    if (!id.startsWith('\0' + 'pocket.ssr.connection-ui.test.mjs')) return;
+    const name = id.endsWith('/Outbox') ? 'outbox' : 'submitted';
+    return `export default function ControllerBoundary(props) { globalThis[Symbol.for(${JSON.stringify('pocket.ssr.connection-ui.test.mjs')})][${JSON.stringify(name)}] = props; return null; }`;
+  },
+};
+
+const vite = await createServer({ plugins: [controllerBoundary], configFile: false, root: fileURLToPath(new URL('..', import.meta.url)), esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
 const { default: Conversation } = await vite.ssrLoadModule('/src/Conversation.tsx');
-after(() => vite.close());
+after(async () => { delete globalThis[probeKey]; await vite.close(); });
 const id = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
 const connection = status => ({ requestId: 'connection-one', status, startedAt: 10, checkedAt: 20, ...(status === 'failed' ? { code: 'connection_timeout' } : {}) });
 function render(state, override = {}, seed = 'Keep this draft') {
   const history = { source: 'rollout', runtime: 'unavailable', canSend: false, canQueue: true, canAttemptSend: true, messages: [], outbox: [{ id: 'q', text: 'Saved instruction', status: 'queued', revision: 0 }], checkedAt: 15, hint: '显示已保存的历史。连接 Mac 中的原任务后可发送消息。', connection: connection(state), ...override };
   const drafts = new Map([[id, typeof seed === 'string' ? { text: seed } : seed]]);
+  globalThis[probeKey] = {};
   const html = renderToStaticMarkup(createElement(Conversation, { thread: { id, archived: false, missing: false }, drafts, historyCache: new Map([[id, { history, scrollTop: 0, nearBottom: true }]]), onConnect: async () => ({ connection: connection('connecting') }) }));
-  return { html, drafts };
+  return { html, drafts, controls: { ...globalThis[probeKey] } };
 }
 
 function assertPrimaryAction(html, { type, disabled, text }) {
@@ -87,11 +105,13 @@ test('a fresh resumed desktop clears an old failed connection without overriding
 
 test('incompatible history keeps text editable and queue storage available without promising automatic connection', () => {
   for (const readOnlyReason of ['desktop_protocol_incompatible', 'unsupported_app_identity', 'app_version_changed']) {
-    const { html, drafts } = render('idle', { connection: { status: 'idle' }, readOnlyReason, canAttemptSend: false, canAttemptCompact: false });
+    const { html, drafts, controls } = render('idle', { connection: { status: 'idle' }, readOnlyReason, canAttemptSend: false, canAttemptCompact: false });
     assert.match(html, /class="composer-text-field"[\s\S]*class="composer-inline-state" role="status"/);
     assert.match(html, /<span>暂不可连接<\/span>/);
     assert.doesNotMatch(html, /版本已变化|提交消息后自动连接|发送并连接/);
-    assert.match(html, /<button aria-label="直接发送第 1 条消息" disabled=""/);
+    assert.equal(controls.outbox.allowSend, false, 'incompatible history forbids immediate queue dispatch');
+    assert.equal(controls.outbox.items[0].status, 'queued');
+    assert.ok(controls.outbox.inlineTargets instanceof Map);
     assertPrimaryAction(html, { type: 'submit', disabled: false, text: '加入队列' });
     assert.match(html, /加入队列/);
     assert.match(html, /Saved instruction/);
@@ -104,18 +124,19 @@ test('incompatible history keeps text editable and queue storage available witho
 });
 
 test('an incompatible connection result blocks stale sending permissions before history finishes refreshing', () => {
-  const { html } = render('failed', { connection: { ...connection('failed'), code: 'desktop_protocol_incompatible' }, canAttemptSend: true });
+  const { html, controls } = render('failed', { connection: { ...connection('failed'), code: 'desktop_protocol_incompatible' }, canAttemptSend: true });
   assert.match(html, /Codex 接口暂不兼容/);
-  assert.match(html, /<button aria-label="直接发送第 1 条消息" disabled=""/);
+  assert.equal(controls.outbox.allowSend, false, 'connection incompatibility overrides stale canAttemptSend');
   assert.doesNotMatch(html, /发送并连接/);
 });
 
 test('fresh resumed history clears an old incompatible connection while preserving the queued text and draft', () => {
-  const { html, drafts } = render('failed', { connection: { ...connection('failed'), code: 'desktop_protocol_incompatible' },
+  const { html, drafts, controls } = render('failed', { connection: { ...connection('failed'), code: 'desktop_protocol_incompatible' },
     source: 'desktop', resumeState: 'resumed', checkedAt: 100, canSend: true, canAttemptSend: true,
     hint: '消息会在 Mac 的原任务中运行，沿用原模型与权限。' });
   assert.doesNotMatch(html, /Codex 接口暂不兼容|重试连接/);
-  assert.doesNotMatch(html.match(/<button aria-label="直接发送第 1 条消息"[^>]*>/)[0], /disabled/);
+  assert.equal(controls.outbox.allowSend, true, 'fresh resumed history restores explicit queue dispatch');
+  assert.equal(controls.outbox.disabled, false);
   assert.match(html, /Saved instruction/);
   assert.equal(drafts.get(id).text, 'Keep this draft');
 });

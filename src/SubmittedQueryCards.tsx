@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, Copy } from "lucide-react";
 import { submittedQueryLabel, type SubmittedQuery } from "./submittedQueries";
 import "./submitted-queries.css";
@@ -31,7 +32,7 @@ function SubmittedQueryText({ text }: { text: string }) {
   </div>;
 }
 
-export default function SubmittedQueryCards({ items, connecting, paused, disabled, check, dismiss, restore, suppressNetworkErrors = false, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS }: {
+export default function SubmittedQueryCards({ items, connecting, paused, disabled, check, dismiss, restore, suppressNetworkErrors = false, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS, inlineTargets }: {
   items: readonly SubmittedQuery[];
   connecting: boolean;
   paused: boolean;
@@ -42,8 +43,32 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
   suppressNetworkErrors?: boolean;
   exitIds?: ReadonlySet<string>;
   explicitExitIds?: ReadonlySet<string>;
+  inlineTargets?: ReadonlyMap<string, HTMLElement>;
 }) {
-  const presence = useHandoffRows(items, submissionKey, exitIds, explicitExitIds);
+  const presence = useHandoffRows(items, submissionKey, inlineTargets ? NO_HANDOFF_IDS : exitIds, explicitExitIds);
+  const inlineNodes = useRef(new Map<string, HTMLElement>());
+  const inlineRefs = useRef(new Map<string, (node: HTMLElement | null) => void>());
+  const inlineRef = (id: string) => {
+    let bind = inlineRefs.current.get(id);
+    if (!bind) {
+      bind = node => {
+        const previous = inlineNodes.current.get(id);
+        if (!node && previous?.contains(previous.ownerDocument.activeElement))
+          previous.closest<HTMLElement>("article[data-message-id]")?.focus({ preventScroll: true });
+        if (node) inlineNodes.current.set(id, node); else inlineNodes.current.delete(id);
+      };
+      inlineRefs.current.set(id, bind);
+    }
+    return bind;
+  };
+  const focusedInline = inlineTargets ? [...inlineNodes.current.values()].find(node => node.contains(node.ownerDocument.activeElement)) : undefined;
+  const focusedControl = focusedInline?.ownerDocument.activeElement;
+  const focusedMessage = focusedInline?.closest<HTMLElement>("article[data-message-id]");
+  useLayoutEffect(() => {
+    const doc = focusedInline?.ownerDocument;
+    if (focusedControl && !focusedControl.isConnected && focusedMessage?.isConnected &&
+        (!doc?.activeElement || doc.activeElement === doc.body)) focusedMessage.focus({ preventScroll: true });
+  });
   const [checking, setChecking] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   useEffect(() => {
@@ -87,21 +112,25 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
     try { await navigator.clipboard.writeText(item.text); setCopied(item.requestId); clearError(item.requestId); }
     catch { recordError(item, new Error("未能复制，可长按文字复制。")); }
   };
-  if (!presence.rows.length) return null;
-  return <section className="submitted-queries" aria-label="已提交的消息">
-    {presence.rows.map(({ item, leaving }) => {
+  const rows = inlineTargets ? items.map(item => ({ item, leaving: false })) : presence.rows;
+  if (!rows.length) return null;
+  const Row = inlineTargets ? "div" : "article";
+  const renderedRows = rows.map(({ item, leaving }) => {
+      const target = inlineTargets?.get(item.requestId);
+      if (inlineTargets && !target) return null;
       const accepted = item.status === "accepted", waiting = ["submitting", "connecting", "pending", "queued", "not_queued"].includes(item.status);
       const canDismiss = ["rejected", "not_found", "cancelled"].includes(item.status);
       const error = errors.get(item.requestId);
       const showError = error && matchesError(error, item) && items.some(current => current.requestId === item.requestId) &&
         !(suppressNetworkErrors && isNetworkError(error.failure));
-      return <article key={item.requestId} ref={node => presence.bind(item.requestId, node)} className={`submitted-query${item.status === "queued" && !paused && !disabled && !leaving ? " is-queue-breathing" : ""}`}
+      const row = <Row key={item.requestId} ref={inlineTargets ? inlineRef(item.requestId) : node => presence.bind(item.requestId, node)} className={`${inlineTargets ? "query-inline-actions submission-inline-actions" : "submitted-query"}${item.status === "queued" && !paused && !disabled && !leaving && !inlineTargets ? " is-queue-breathing" : ""}`}
         onClickCapture={event => { if (leaving) { event.preventDefault(); event.stopPropagation(); } }}
-        data-submission-id={item.requestId} data-submission-status={item.status} data-feedback-state={accepted ? "accepted" : waiting ? "pending" : item.status}>
+        data-submission-id={item.requestId} data-submission-status={item.status} data-feedback-state={accepted ? "accepted" : paused && item.status === "queued" ? "paused" : waiting ? "pending" : item.status}
+        data-query-breathing={inlineTargets && item.status === "queued" && !paused && !disabled || undefined}>
         <div className="submitted-query-heading">
           <span role="status">{accepted && <CheckCircle2 size={13} aria-hidden="true" />}{submittedQueryLabel(item, connecting)}</span>
           <div className="submitted-query-primary-actions">
-            {item.text.trim() && <button type="button" className="submitted-query-copy" aria-label={copied === item.requestId ? "已复制已提交消息" : "复制已提交消息"}
+            {!inlineTargets && item.text.trim() && <button type="button" className="submitted-query-copy" aria-label={copied === item.requestId ? "已复制已提交消息" : "复制已提交消息"}
               title={copied === item.requestId ? "已复制" : "复制已提交消息"} onClick={() => void copy(item)}>
               {copied === item.requestId ? <span>已复制</span> : <Copy size={15} aria-hidden="true" />}
             </button>}
@@ -110,14 +139,15 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
           </div>
           {item.status === "unknown" && <span className="sr-only">核对不会重复发送。</span>}
         </div>
-        {item.text.trim() && <SubmittedQueryText text={item.text} />}
-        <AttachmentList attachments={item.attachments} />
+        {!inlineTargets && item.text.trim() && <SubmittedQueryText text={item.text} />}
+        {!inlineTargets && <AttachmentList attachments={item.attachments} />}
         {(canDismiss || restore && ["rejected", "not_found"].includes(item.status)) && <div className="submitted-query-actions">
           {restore && ["rejected", "not_found"].includes(item.status) && <button type="button" disabled={disabled || !!checking || !!restoring} onClick={() => void editAgain(item)}>{restoring === item.requestId ? "正在取回…" : "重新编辑"}</button>}
           {canDismiss && <button type="button" onClick={() => dismiss(item.requestId)}>收起</button>}
         </div>}
         {showError && <p className="receipt-action-error submitted-query-error" role="alert">{readableRequestError(error.failure, "暂时无法核对，请稍后再试。")}</p>}
-      </article>;
-    })}
-  </section>;
+      </Row>;
+      return target ? createPortal(row, target, item.requestId) : row;
+    });
+  return inlineTargets ? <>{renderedRows}</> : <section className="submitted-queries" aria-label="已提交的消息">{renderedRows}</section>;
 }

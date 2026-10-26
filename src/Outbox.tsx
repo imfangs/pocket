@@ -1,5 +1,6 @@
 import AutoTextarea from "./AutoTextarea";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { QueuedMessage } from "./conversationFeed";
 import type { QueryDraft } from "./Conversation";
 import { api } from "./api";
@@ -20,7 +21,7 @@ type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
 type OutboxError = { status: QueuedMessage["status"]; revision: number; failure: unknown };
 const matchesError = (error: OutboxError, item: QueuedMessage) => error.status === item.status && error.revision === item.revision;
 const outboxKey = (item: QueuedMessage) => item.id;
-export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, onActivity, onAccepted, onAttachmentRecovery, suppressNetworkErrors = false, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, onActivity, onAccepted, onAttachmentRecovery, suppressNetworkErrors = false, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS, inlineTargets, focusRoot }: {
   threadId: string;
   items: QueuedMessage[];
   paused?: { stopId: string } | null;
@@ -36,8 +37,35 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   suppressNetworkErrors?: boolean;
   exitIds?: ReadonlySet<string>;
   explicitExitIds?: ReadonlySet<string>;
+  inlineTargets?: ReadonlyMap<string, HTMLElement>;
+  focusRoot?: RefObject<HTMLElement | null>;
 }) {
-  const presence = useHandoffRows(items, outboxKey, exitIds, explicitExitIds);
+  const presence = useHandoffRows(items, outboxKey, inlineTargets ? NO_HANDOFF_IDS : exitIds, explicitExitIds);
+  const inlineNodes = useRef(new Map<string, HTMLElement>());
+  const inlineRefs = useRef(new Map<string, (node: HTMLElement | null) => void>());
+  const inlineRef = (id: string) => {
+    let bind = inlineRefs.current.get(id);
+    if (!bind) {
+      bind = node => {
+        const previous = inlineNodes.current.get(id);
+        if (!node && previous?.contains(previous.ownerDocument.activeElement))
+          previous.closest<HTMLElement>("article[data-message-id]")?.focus({ preventScroll: true });
+        if (node) inlineNodes.current.set(id, node); else inlineNodes.current.delete(id);
+      };
+      inlineRefs.current.set(id, bind);
+    }
+    return bind;
+  };
+  const focusedInline = inlineTargets ? [...inlineNodes.current.values()].find(node => node.contains(node.ownerDocument.activeElement)) : undefined;
+  const focusedControl = focusedInline?.ownerDocument.activeElement;
+  const focusedMessage = focusedInline?.closest<HTMLElement>("article[data-message-id]");
+  useLayoutEffect(() => {
+    // A state change may remove a button without replacing the portal wrapper.
+    // Restore only focus lost by that removal; a user's new destination wins.
+    const doc = focusedInline?.ownerDocument;
+    if (focusedControl && !focusedControl.isConnected && focusedMessage?.isConnected &&
+        (!doc?.activeElement || doc.activeElement === doc.body)) focusedMessage.focus({ preventScroll: true });
+  });
   const [editing, setEditing] = useState<{ id: string; revision: number } | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -79,7 +107,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   useLayoutEffect(() => {
     if (busy || disabled || !focusNext.current) return;
     const desired = focusNext.current;
-    const row = [...(section.current?.querySelectorAll<HTMLElement>("[data-outbox-id]") ?? [])]
+    const row = [...((focusRoot?.current ?? section.current)?.querySelectorAll<HTMLElement>("[data-outbox-id]") ?? [])]
       .find(element => element.dataset.outboxId === desired.id);
     const target = row?.querySelector<HTMLElement>(desired.target === "editor" ? "textarea" : '[data-outbox-action="edit"]');
     if (target) {
@@ -87,14 +115,14 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
       target.scrollIntoView({ block: "nearest" });
     }
     focusNext.current = null;
-  }, [editing, busy, disabled, items]);
+  }, [editing, busy, disabled, items, focusRoot]);
   useEffect(() => {
     const leave = (event: FocusEvent) => {
-      if (focusNext.current?.target === "action" && event.target instanceof Node && !section.current?.contains(event.target)) focusNext.current = null;
+      if (focusNext.current?.target === "action" && event.target instanceof Node && !(focusRoot?.current ?? section.current)?.contains(event.target)) focusNext.current = null;
     };
     document.addEventListener("focusin", leave);
     return () => document.removeEventListener("focusin", leave);
-  }, []);
+  }, [focusRoot]);
   useEffect(() => {
     if (!editing) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -204,27 +232,27 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
     focusNext.current = { id: item.id, target: "action" };
     setEditing(null); setText(""); clearError(item.id);
   };
-  if (!presence.rows.length) return null;
-  const { editing: headEditing, blocked: headBlocked } = queueHeadState(items[0] ?? presence.rows[0].item, editing?.id);
+  const rows = inlineTargets ? items.map(item => ({ item, leaving: false })) : presence.rows;
+  if (!rows.length) return null;
+  const { editing: headEditing, blocked: headBlocked } = queueHeadState(items[0] ?? rows[0].item, editing?.id);
   const remainingCount = items.filter(item => item.status !== "accepted" && !acceptedItems.has(item.id)).length;
-  return (
-    <section ref={section} className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? "首条结果待核对，队列已暂停" : paused ? "队列已暂停" : headEditing ? editing?.id === items[0]?.id ? "首条编辑中，队列已暂停" : "首条已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理" : connectionPending ? "连接恢复后依次发送" : items[0]?.autoDirect === true ? "可接收时依次发送" : "本轮结束后依次发送"}</span>}
-        {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
-      </div>
-      {presence.rows.map(({ item, leaving }, index) => {
+  const firstInline = inlineTargets ? rows.find(({ item }) => inlineTargets.has(item.id))?.item.id : undefined;
+  const queueErrorVisible = queueError && queueError.stopId === paused?.stopId && !(suppressNetworkErrors && isNetworkError(queueError.failure));
+  const renderedRows = rows.map(({ item, leaving }, index) => {
+        const target = inlineTargets?.get(item.id);
+        if (inlineTargets && !target) return null;
         const accepted = item.status === "accepted" || acceptedItems.has(item.id);
         const mutable = !accepted && ["queued", "rejected", "editing"].includes(item.status);
         const error = errors.get(item.id);
         const showError = !accepted && error && matchesError(error, item) && items.some(current => current.id === item.id) &&
           !(suppressNetworkErrors && isNetworkError(error.failure));
         const feedback = queueFeedbackState(item, { accepted, paused: !!paused, editing: editing?.id === item.id, busy: busy === item.id, disabled, headBlocked });
-        return <div className={`outbox-item queue-feedback${feedback.breathing && !leaving ? " is-queue-breathing" : ""}`} key={item.id} ref={node => presence.bind(item.id, node)} data-feedback-state={feedback.state} data-outbox-id={item.id} role="group" aria-label={`待发消息 ${index + 1}`} aria-busy={busy === item.id}
+        const row = <div className={`${inlineTargets ? "query-inline-actions outbox-inline-actions" : "outbox-item queue-feedback"}${feedback.breathing && !leaving && !inlineTargets ? " is-queue-breathing" : ""}`} key={item.id} ref={inlineTargets ? inlineRef(item.id) : node => presence.bind(item.id, node)} data-feedback-state={feedback.state} data-query-breathing={inlineTargets && feedback.breathing || undefined} data-outbox-id={item.id} data-query-editing={inlineTargets && editing?.id === item.id || undefined} role="group" aria-label={`待发消息 ${index + 1}`} aria-busy={busy === item.id}
           onClickCapture={event => { if (leaving) { event.preventDefault(); event.stopPropagation(); } }}>
           {editing?.id === item.id ? <AutoTextarea aria-label="编辑待发消息" value={text} maxLength={16000} disabled={!!busy || disabled}
             onChange={e => { setText(e.target.value); drafts.set(key(item.id), { text: e.target.value, revision: editing.revision }); }} />
-            : <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
-          <AttachmentList attachments={item.attachments} />
+            : !inlineTargets && <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
+          {!inlineTargets && <AttachmentList attachments={item.attachments} />}
           <div className="outbox-actions">
             <small>{accepted ? "已发送" : busy === item.id || item.status === "pending" ? "正在提交…" :
               item.status === "unknown" ? "结果待确认，不会自动重发" :
@@ -239,10 +267,20 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
               <button aria-label={`${item.status === "editing" ? "恢复排队" : "直接发送"}第 ${index + 1} 条消息`} disabled={!!busy || disabled || (!allowSend && item.status !== "editing")} onClick={() => void act(item, item.status === "editing" ? "resume" : "send")}>{item.status === "editing" ? "恢复排队" : "直接发送"}</button>
             </> : <button disabled={!!busy || disabled} onClick={() => void act(item, "check")}>核对状态</button>}
           </div>
+          {inlineTargets && item.id === firstInline && paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
           {showError && <p className="receipt-action-error" role="alert">{readableRequestError(error.failure)}</p>}
+          {inlineTargets && item.id === firstInline && queueErrorVisible && <p className="receipt-action-error" role="alert">{readableRequestError(queueError!.failure)}</p>}
         </div>;
-      })}
-      {queueError && queueError.stopId === paused?.stopId && !(suppressNetworkErrors && isNetworkError(queueError.failure)) &&
+        return target ? createPortal(row, target, item.id) : row;
+      });
+  if (inlineTargets) return <>{renderedRows}</>;
+  return (
+    <section ref={section} className="outbox" aria-label="Pocket 待发消息">
+      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? "首条结果待核对，队列已暂停" : paused ? "队列已暂停" : headEditing ? editing?.id === items[0]?.id ? "首条编辑中，队列已暂停" : "首条已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理" : connectionPending ? "连接恢复后依次发送" : items[0]?.autoDirect === true ? "可接收时依次发送" : "本轮结束后依次发送"}</span>}
+        {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
+      </div>
+      {renderedRows}
+      {queueErrorVisible &&
         <p className="receipt-action-error" role="alert">{readableRequestError(queueError.failure)}</p>}
     </section>
   );

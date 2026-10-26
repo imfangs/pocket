@@ -1,0 +1,44 @@
+.query-message { position: relative; isolation: isolate; }
+.query-message[data-query-state="submitting"],
+.query-message[data-query-state="connecting"],
+.query-message[data-query-state="queued"],
+.query-message[data-query-state="pending"] {
+  border-color: var(--send-blue-line);
+  background: var(--send-blue-bg);
+}
+.query-message[data-query-state="accepted"]:has(.query-inline-actions) {
+  border-color: var(--send-green-line);
+  background: var(--send-green-bg);
+}
+.query-message:has(.query-inline-actions[data-query-breathing="true"])::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  pointer-events: none; border-radius: inherit;
+  background: linear-gradient(115deg, var(--send-blue-glow), transparent 80%);
+  animation: pocket-queue-breathe 2400ms var(--ease) infinite;
+}
+.query-controls:empty { display: none; }
+.query-inline-actions { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.query-inline-actions .outbox-actions,
+.query-inline-actions .submitted-query-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; }
+.query-inline-actions button { min-height: 44px; padding: 4px 0; border: 0; background: none; color: var(--accent); font-size: 12px; }
+.query-inline-actions button:disabled { opacity: .5; }
+.query-inline-actions small { font-size: 12px; }
+.query-inline-actions[data-feedback-state="accepted"] { color: var(--send-green); }
+.query-message:has(.query-inline-actions:is([data-feedback-state="paused"], [data-feedback-state="editing"], [data-feedback-state="unknown"], [data-feedback-state="rejected"])) {
+  border-color: var(--line); background: var(--surface-soft);
+}
+.query-inline-actions textarea { width: 100%; min-height: 88px; margin-block: 4px; }
+.query-message:has([data-query-editing="true"]) > .user-query-body { display: none; }
+.conversation:has(.outbox-inline-actions textarea) .composer-input,
+.conversation:has(.outbox-inline-actions textarea) .composer-actions > .attachment-picker,
+.conversation:has(.outbox-inline-actions textarea) .composer-actions > .primary { display: none; }
+.conversation:has(.outbox-inline-actions textarea) .conversation-composer { display: flex; flex-direction: row; align-items: center; gap: 6px; }
+.conversation:has(.outbox-inline-actions textarea) .composer-overview { display: flex; flex: 1; }
+.conversation:has(.outbox-inline-actions textarea) .runtime-summary,
+.conversation:has(.outbox-inline-actions textarea) .composer-actions { display: flex; }
+.conversation:has(.outbox-inline-actions textarea) .composer-actions { margin: 0; padding: 0; flex: none; }
+.conversation:has(.outbox-inline-actions textarea) .composer-actions > .context-status { display: block; }
+.query-message:focus:not(:focus-visible) { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .query-message:has(.query-inline-actions[data-query-breathing="true"])::before { animation: none; opacity: .55; }
+}

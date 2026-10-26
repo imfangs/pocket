@@ -36,8 +36,9 @@ import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATT
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 import { useReadingComposer } from "./useReadingComposer";
 import "./reading-composer.css";
-import { receiptHandoffs } from "./receiptMotion";
-import { useReceiptEntrances } from "./useReceiptHandoff";
+import { queryTimeline, type TimelineQuery } from "./queryTimeline";
+import { useDeferredQueryEcho } from "./useDeferredQueryEcho";
+import "./query-timeline.css";
 import { questionPresentationStore } from "./questionPresentation";
 import { readAutoDirectPreference, shouldEnqueueNewMessage, subscribeSendingPreference } from "./sendingPreference";
 import { compactionKeepsComposerExpanded, desktopComposerHint } from "./composerStatus";
@@ -145,10 +146,25 @@ export default function Conversation({
       ["final", "final_answer"].includes(message.phase || "") && message.turnDurationMs != null) ? null : history?.turnTiming;
   const shownOutbox = useMemo(() => submittedOutbox(submitted, shownMessages, history?.outbox ?? []), [submitted, shownMessages, history?.outbox]);
   const visibleSubmissions = useMemo(() => visibleSubmittedQueries(submitted, shownMessages, shownOutbox), [submitted, shownMessages, shownOutbox]);
-  const handoffs = useMemo(() => receiptHandoffs(submitted, shownMessages, shownOutbox), [submitted, shownMessages, shownOutbox]);
-  const submissionIds = useMemo(() => visibleSubmissions.map(item => item.requestId), [visibleSubmissions]);
-  const queueIds = useMemo(() => shownOutbox.map(item => item.id), [shownOutbox]);
-  useReceiptEntrances(conversationRoot, submissionIds, queueIds, handoffs.messageIds);
+  const deferredQueries = useDeferredQueryEcho(shownMessages, submitted,
+    { disabled: !online || !!historyError, refresh: () => feed.current?.refresh() });
+  const timeline = useMemo(() => queryTimeline(shownMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries),
+    [shownMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries]);
+  const [queryTargets, setQueryTargets] = useState<ReadonlyMap<string, HTMLElement>>(() => new Map());
+  const queryRefs = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
+  const queryRef = (requestId: string) => {
+    let ref = queryRefs.current.get(requestId);
+    if (!ref) {
+      ref = node => setQueryTargets(previous => {
+        if (previous.get(requestId) === node || !node && !previous.has(requestId)) return previous;
+        const next = new Map(previous);
+        if (node) next.set(requestId, node); else next.delete(requestId);
+        return next;
+      });
+      queryRefs.current.set(requestId, ref);
+    }
+    return ref;
+  };
   useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
   useEffect(() => { submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted]);
   const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
@@ -169,11 +185,19 @@ export default function Conversation({
     const key = message.clientMessageId || message.id;
     progress.changeLayout(anchor, () => setExpandedQueries(current => {
       const visible = new Set(shownMessages.filter(item => item.role === "user").map(item => item.clientMessageId || item.id));
+      for (const query of timeline.tail) visible.add(query.requestId);
       const next = new Set([...current].filter(id => visible.has(id)));
       if (open) next.add(key); else next.delete(key);
       return next;
     }));
   };
+  const renderQuery = (query: TimelineQuery) => <ConversationMessage key={`query:${query.requestId}`}
+    threadId={thread.id} message={query.message} changeLayout={progress.changeLayout}
+    queryDisclosure={{ expanded: expandedQueries.has(query.requestId),
+      toggle: (open, anchor) => toggleQuery(query.message, open, anchor) }}
+    recentlySent={(recentAccepted.get(query.requestId) ?? 0) > Date.now()}
+    queryDelivery={{ requestId: query.requestId, state: query.state, hasControls: query.hasControls,
+      controls: <div className="query-controls" ref={queryRef(query.requestId)} /> }} />;
   useLayoutEffect(() => {
     const saved = historyCache.get(thread.id);
     if (saved) saved.expandedQueries = [...expandedQueries];
@@ -415,7 +439,7 @@ export default function Conversation({
     }
     previousLatest.current = latest ? { id: latest.id, text: latest.text } : null;
     restoreScroll.current = null;
-  }, [shownMessages, visibleSubmissions, progress.entries, progress.readingProtected]);
+  }, [shownMessages, visibleSubmissions, shownOutbox, queryTargets, progress.entries, progress.readingProtected]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
@@ -636,13 +660,16 @@ export default function Conversation({
             {targetAvailable && <p>写下你想讨论或完成的事。</p>}
           </div>
         )}
-        {progress.entries.map(entry => {
+        {[...progress.entries.map(entry => {
           if (entry.type === "progress") return <ProgressDisclosure key={entry.id} id={entry.id} count={entry.messages.length}
             open={progress.expanded.has(entry.id)} onOpenChange={open => progress.toggle(entry.id, open)}>
             {entry.messages.map(message => <ConversationMessage key={message.id} threadId={thread.id} message={message}
               readMarker={message.id === pocketContent?.messageId ? readSentinel : undefined} />)}
           </ProgressDisclosure>;
           const message = entry.message;
+          if (timeline.hiddenMessages.has(message.id)) return null;
+          const query = timeline.byMessage.get(message.id);
+          if (query) return renderQuery(query);
           const messageQuestions = questionsByMessage.get(message.id);
           return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceFiles={message.files} sourceTruncated={message.truncated}
             readMarker={message.id === pocketContent?.messageId ? { sourceMessageId: message.id, markerRef: readSentinel } : undefined}
@@ -653,10 +680,10 @@ export default function Conversation({
               queryDisclosure={message.role === "user" ? { expanded: expandedQueries.has(message.clientMessageId || message.id),
                 toggle: (open, anchor) => toggleQuery(message, open, anchor) } : undefined}
               recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />;
-        })}
+        }), ...timeline.tail.map(renderQuery)]}
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
-        <SubmittedQueryCards items={visibleSubmissions} exitIds={handoffs.submissions} explicitExitIds={handoffs.explicit} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
+        <SubmittedQueryCards items={visibleSubmissions} inlineTargets={queryTargets} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
           disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} />
       </div>
       {awayFromLatest && <button type="button" className="conversation-latest" onClick={returnToLatest}>
@@ -674,7 +701,7 @@ export default function Conversation({
         </div>}
       </div>
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
-      <Outbox threadId={thread.id} suppressNetworkErrors={!!historyError || connectionFailed || !online} items={shownOutbox} exitIds={handoffs.outbox} explicitExitIds={handoffs.explicit} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
+      <Outbox threadId={thread.id} suppressNetworkErrors={!!historyError || connectionFailed || !online} items={shownOutbox} inlineTargets={queryTargets} focusRoot={messages} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
         onAccepted={receipt => confirmAccepted(receipt, "queue")} onAttachmentRecovery={(recovered, error) => {
           setAttachmentRecoveryError(error ? readableRequestError(error, "附件暂未同步，请重试。") : ""); setAttachmentRecoveryNeeded(!!error);
           setNotice(error ? "待发消息已删除，附件可重新载入草稿。" : recovered ? "待发消息已删除，附件已放回草稿。" : "待发消息已删除。");

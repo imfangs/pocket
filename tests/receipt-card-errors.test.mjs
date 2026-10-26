@@ -30,6 +30,7 @@ function mount(file, initial, request = async () => {}, clipboard = async () => 
   const jsx = (type, props, key) => ({ type, props: props ?? {}, key });
   const imports = {
     react: { useState, useRef, useEffect: effect, useLayoutEffect: effect, useId: () => useState('test-text')[0] },
+    'react-dom': { createPortal: (children, container, key) => ({ type: 'portal', props: { children, container }, key }) },
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
     'lucide-react': { Check: 'check-icon', CheckCircle2: 'check-circle', Copy: 'copy-icon' },
     './submittedQueries': queries, './submissionFeedback': feedback, './requestError': requestErrors,
@@ -160,5 +161,62 @@ test('a failed queue send binds its feedback to the shared unknown receipt befor
     submissions.receipt('thread', { requestId: 'a', status: 'accepted' });
     ui.render({ ...props, items: queries.submittedOutbox(submissions.getThread('thread'), [], [a]) });
     assert.deepEqual(alerts(ui.output), []);
+  } finally { ui.close(); }
+});
+
+test('inline submitted controls use the requested slot without duplicating text, files or copy actions', async () => {
+  const a = { ...item('a'), attachments: [{ id: 'attachment' }] }, target = {}, calls = [];
+  const props = { ...cardProps([a]), inlineTargets: new Map([['a', target]]), check: async value => { calls.push(value.requestId); } };
+  const ui = mount('SubmittedQueryCards.tsx', props);
+  try {
+    const portal = nodes(ui.output).find(node => node.type === 'portal');
+    assert.equal(portal.props.container, target);
+    assert.equal(row(ui.output, 'a').props['data-submission-status'], 'unknown');
+    assert.equal(nodes(ui.output).some(node => node.type === 'attachments'), false);
+    assert.equal(nodes(ui.output).some(node => node.props?.className === 'submitted-query-copy'), false);
+    assert.equal(nodes(ui.output).some(node => node.props?.text === a.text), false);
+    button(row(ui.output, 'a'), '核对状态').props.onClick(); await ui.flush();
+    assert.deepEqual(calls, ['a']);
+    ui.render({ ...props, items: [] });
+    assert.equal(row(ui.output, 'a'), undefined, 'inline removal retains no second exiting card');
+  } finally { ui.close(); }
+});
+
+test('inline queue portals keep one controller and put pause recovery on the first available slot', async () => {
+  const a = queueItem('a', 'unknown'), b = queueItem('b'), second = {}, calls = [];
+  const props = { ...queueProps([a, b]), paused: { stopId: 'pause' }, inlineTargets: new Map([['b', second]]) };
+  const ui = mount('Outbox.tsx', props, async (path, method, body) => { calls.push({ path, method, body }); throw Error('resume failed'); });
+  try {
+    assert.equal(row(ui.output, 'a'), undefined);
+    assert.equal(nodes(ui.output).find(node => node.type === 'portal').props.container, second);
+    assert.equal(nodes(ui.output).some(node => node.type === 'attachments' || node.props?.className === 'outbox-text' || node.props?.className === 'outbox-heading'), false);
+    assert.equal(text(ui.output).includes(b.text), false);
+    assert.equal(nodes(ui.output).filter(node => node.type === 'button' && text(node) === '恢复排队').length, 1);
+    button(ui.output, '恢复排队').props.onClick(); await ui.flush();
+    assert.equal(calls[0].path, '/api/tasks/thread/queue/resume');
+    assert.equal(calls[0].body.expectedStopId, 'pause');
+    assert.equal(alerts(row(ui.output, 'b')).length, 1);
+  } finally { ui.close(); }
+});
+
+test('inline queue editing preserves server revision and drafts while rendering only its editor', async () => {
+  const a = queueItem('a', 'queued', 0), calls = [], props = { ...queueProps([a]), inlineTargets: new Map([['a', {}]]) };
+  const ui = mount('Outbox.tsx', props, async (path, method, body) => {
+    calls.push({ path, method, body });
+    return { outbox: [{ ...a, revision: path.endsWith('/edit') ? 1 : 2, status: path.endsWith('/edit') ? 'editing' : 'queued', text: body?.text ?? a.text }] };
+  });
+  try {
+    button(ui.output, '编辑第 1 条待发消息').props.onClick(); await ui.flush();
+    const editor = nodes(ui.output).find(node => node.type === 'textarea');
+    assert.equal(editor.props.value, a.text);
+    assert.equal(row(ui.output, 'a').props['data-query-editing'], true);
+    assert.equal(nodes(ui.output).some(node => node.props?.className === 'outbox-text'), false);
+    editor.props.onChange({ target: { value: 'Saved inline edit' } }); ui.render();
+    assert.equal(props.drafts.get('thread/outbox/a').text, 'Saved inline edit');
+    button(ui.output, '保存并排队').props.onClick(); await ui.flush();
+    assert.equal(calls[1].method, 'PATCH');
+    assert.equal(calls[1].body.expectedRevision, 1);
+    assert.equal(calls[1].body.text, 'Saved inline edit');
+    assert.equal(props.drafts.has('thread/outbox/a'), false);
   } finally { ui.close(); }
 });
