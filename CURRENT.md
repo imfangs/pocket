@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-26。PostHog正式CSP阻断已修复并发布，CLI认证与只读查询已打通；运行中排除未读保持，剪贴板继续先观察。
+维护日期：2026-10-26。真实反馈中的新建首条消息等待与标题滞后已修复，格得Pocket后台和共享网页均已更新；PostHog、运行/未读互斥保持，剪贴板继续先观察。
 
 ## 下一次先看
 
-- **本轮修复已验证，待发布：新建首条消息与标题。** [契约与取证](docs/design/2026-10-26-create-delivery-and-title.md)。真实回放确认创建后待发、手动直接发送和旧Query标题；连接就绪现唤醒本会话队列，保留FIFO/原策略/unknown，停止代次保护覆盖整轮与timer。刚创建并打开的会话在60秒内每5秒补一次目录同步。1401项完整回归、124项队列组合、18项标题浏览器与独立CR通过，更新后真机效果待观察。
+- **最近已上线：新建首条消息与标题。** [契约与取证](docs/design/2026-10-26-create-delivery-and-title.md)。真实回放确认创建后待发、手动直接发送和旧Query标题；连接就绪现唤醒本会话队列，保留FIFO/原策略/unknown，停止代次保护覆盖整轮与timer。刚创建并打开的会话在60秒内每5秒补一次目录同步。1401项完整回归、124项队列组合、18项标题浏览器与独立CR通过，30个公网文件/功能回读通过。格得API已更新，重启前后9条待发和发送/暂停账本及凭据哈希一致；豌豆后台未变。更新后真机效果仍待自然使用验证，连接本身的慢读取未作提速承诺。
 
 - **最近已修复：PostHog正式CSP阻断。** [纠错记录](docs/design/2026-10-26-usage-feedback.md#同日纠错正式-csp-拦截了上报)。用户提交真实反馈后只查到QA记录，发现正式站与本机HTML的connect-src仅self；原fixture漏带正式响应头。现在只放行两个PostHog必要域名，8项旧策略复现、34项带CSP浏览器、1378项全测及30个公网文件/功能检查通过。网页与格得Pocket API已更新，队列/派发/分组/备注/置顶哈希保持，仅sourceInfo正常刷新。原反馈此前未入库；15:40用户补交的“测试一下”已在production由CLI读回，标记/说明共用反馈ID，并查到对应18秒录制。CLI本人授权、项目/schema/只读SQL已验证，0.18.12目标参数按AGENTS的新入口。
 
@@ -24,7 +24,7 @@
 
 - **最近已上线：发送画面连续性**：[输入与发送连续性](docs/design/2026-10-25-send-ui-continuity.md)。普通发送保留输入焦点，确认后不再误缩为一条；迟到回执不覆盖等待期间的上滚位置。IME、明确收起和键盘导航保持。1342全测、48项双浏览器与833帧消息交接检查通过；29个公网资源及功能回读通过，仅网页更新，系统键盘/PWA真机尚未直接验证。
 
-- **10-25发送等待候选，仍待续**：[调查结果](docs/research/2026-10-25-updates-and-send-experience.md)。发送POST无deadline、等待回执锁按钮、跨会话队列串行与重复history已隔离复现，但具体体感根因和耗时尚未确认；用户明确体感是输入/键盘/画面，因此先修前端。这些后端候选尚未实施；CLI兼容与豌豆更新已在随后完成。后端仍按需SSH发布，未安装自动更新任务。
+- **10-25发送等待候选，部分已处理**：[调查结果](docs/research/2026-10-25-updates-and-send-experience.md)。发送POST无deadline、等待回执锁按钮、跨会话队列串行与重复history曾隔离复现。10-26已针对新提交连接就绪后的等待增加本会话唤醒；普通后台扫描仍串行，其余候选未实施。CLI兼容与豌豆更新已完成此前阶段；后端仍按需发布，未安装自动更新任务。
 
 - **最近已完成**：[引用、刷新和控件](docs/design/2026-10-23-annotations-refresh-controls.md)。问题优先、引用紧凑披露；刷新反馈不叠加且来源失败不假报成功；顶部选中态增强但保持克制。1342项全测、两阶段双浏览器、独立CR/视觉与29个公网资源/功能检查通过。仅网页发布，原始消息/回执/阅读水位与两机服务保持。
 
@@ -42,13 +42,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `66815819ef51964a286dfc0cca08fa7a33c8857c`，PostHog CSP与发布检查修复；运行中排除未读及此前输入/阅读保护保持 |
-| 两机API源码 | 格得 `66815819ef51964a286dfc0cca08fa7a33c8857c`，Pocket API PID44953，本次为本机HTML CSP更新而重启；豌豆保持 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895` / PID73421 |
-| 前端build | 公网与格得内置网页 `ed21f3cd655c2bc5e15e2fe23e5ad980da18da19496759043bf802239c3a7d67`；豌豆内置网页仍随其API release保留 `7cd2cf2e…`，公网共享页面已更新 |
-| Pages部署 | `ea06555f-e78a-4a4f-abcd-d1189bb912ef`；10-26 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，上传一次 |
-| 最近验证 | CSP：1378项全测、8项原策略阻断复现、34项修复后浏览器检查；发布含CSP连接策略检查。本机服务/TLS与认证catalog回读通过；15:40用户真实补交反馈、标记/说明关联及录制元数据已由CLI回读 |
-| 证据 | `.local/qa/usage-csp-2026-10-26/` 中的两组browser-results、tests.log、pages-deploy.json、local-restart.json、store-before/after.json、authenticated-catalog.json；前次运行互斥与使用反馈证据保留 |
-| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本次重启前制作私有SQLite一致备份，outgoing_messages/dispatches/groups/annotations/pin_overrides逐表SHA相同，settings仅sourceInfo刷新。原Codex/连接器及豌豆API未重启，未处置或重放旧条目 |
+| 前端/网关源码 | `499da54198e0f87a5574de3822c740abcf58e991`，新提交队列唤醒与近期会话标题快刷；PostHog CSP、运行中排除未读及输入/阅读保护保持 |
+| 两机API源码 | 格得 `499da54198e0f87a5574de3822c740abcf58e991`，Pocket API PID89511，本次为队列唤醒更新而重启；豌豆保持 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895` / PID73421，尚无本轮队列唤醒修复 |
+| 前端build | 公网与格得内置网页 `a70f74679ab1d3623038a30ba7c7e9e2673e9ed5ff390d223b47fa3b83e1681d`；豌豆内置网页仍随其API release保留 `7cd2cf2e…`，公网共享页面已更新 |
+| Pages部署 | `0c39df5e-5dc1-416e-b111-b884468a3cad`；10-26 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过。首次预检401后沿用Wrangler登录续期，实际上传一次 |
+| 最近验证 | 首Query/标题：1401项全测、124项队列组合、18项标题双浏览器、独立CR；真实回放与原生记录已对照，本机API/TLS/目标catalog和状态回读正常。修复后的真实手机效果尚未独立确认；此前CSP与PostHog真实提交证据保持 |
+| 证据 | 本轮 `.local/qa/feedback-send-2026-10-26/` 的 `case-verdict.json`、`tests-final.log`、`review/final-review.json`、`service-restart.json`、`store-verdict.json`、`pages-deploy.json` 与 `release-verdict.json`；此前CSP与真实PostHog提交证据保留在 `.local/qa/usage-csp-2026-10-26/` |
+| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本次重启前保存私有SQLite一致备份，outgoing_messages/dispatches/queue_pauses/execution_stops/compactions/annotations/pin_overrides及凭据SHA相同，9条待发保留。原Codex/连接器及豌豆API未重启，未处置或重放旧条目 |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
