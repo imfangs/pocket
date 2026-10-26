@@ -54,6 +54,14 @@ UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-eleme
 - 本机服务重启前后分组/备注哈希一致。证据 `.local/qa/feed-restart-baseline.json`、`feed-restart-after.json`。
 - 键盘与手势、Markdown、原 ID 与认证的既有证据见 QA.md。自动测试、桌面浏览器、iOS 模拟器、PWA 真机、长期使用效果分别表述。
 
+## 原生剪贴板验证
+
+2026-10-26验证方法：模拟`readText`只验证应用接纳与保护逻辑，不能证明iOS系统Paste许可。使用一次性Simulator、合成文本和本地fixture，先隔离剪贴板自动共享；不要读取或覆盖Mac真实剪贴板。记录调用前/返回、Promise结果、modal/focus、input/change和最终字段长度，区分许可拒绝、空文本与应用丢弃。
+
+本次`agent-device`的XCUITest驱动不能完成系统Paste交互。普通菜单可用原生AX导航；系统Paste改用已安装的固定版本`serve-sim`镜像与HID真实点击，先确认真实画面，再以本地OCR的单词框定位。不要通过修改隐私许可或模拟API结果让检查通过。主屏幕验证必须回读`display-mode: standalone`及`navigator.standalone`，安装入口可见不等于独立Web App已经启动。
+
+每次结束按精确UDID停止镜像helper、停删本次设备，再恢复原剪贴板共享配置并回读；不删预先存在的runtime或其他任务的设备。2026-10-26的工具版本、事件与清理证据在`.local/qa/creation-clipboard-2026-10-26/`。
+
 ## 受控发送验收
 
 只有发送/桥接相关改动或链路异常需要时才运行，不把每日回显变成任务污染。默认真实验证保持只读或操作可恢复的 Pocket 元数据。

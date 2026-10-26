@@ -74,3 +74,28 @@
 相关21项、两浏览器41项恢复/迟到保护与全量1360项回归通过；独立CR及构建通过。按钮44×44且未增加输入区高度，浏览器与临时服务已关闭。证据入口 `.local/qa/creation-clipboard-2026-10-25/independent/` 的 `report.md`、`probe-result.json`、`implementation.md`与`recovery-verdict.json`；未读取真实剪贴板、未创建或发送真实任务。iPhone系统许可的具体失败原因仍待实际反馈，不能将合成浏览器成功表述为真机已经恢复；最新发布状态由CURRENT维护。
 
 本轮恢复优化已发布：源码 `8425905b58c3568e8601b171a6d95656f12d42e6`，build `034fba2005fcd1185bca4c37959ef2bacf80c2d4a2ea7a644c599ab4070d7d23`，Pages `0e230f78-ee52-45f0-adbd-3d33896aecf7`；一次上传，29个公开文件匹配和功能回读通过。两机服务、Codex与连接器未重启。用户关于手机是否出现Paste、点后仍空或提示读取失败的补充尚未返回，后续据此继续定位实际系统行为。
+
+## 2026-10-26：Paste出现但未预填
+
+欧吉安补充：“剪贴板有东西，点加号有paste，但是输入框没有被预填好。”这确认系统菜单会出现，不能继续只用模拟readText成功来评价问题。上一轮只修复了失败后的恢复路径，未确认这次手机未预填的根因。
+
+本轮使用隔离iOS模拟器与合成剪贴板，记录调用返回、原生Paste、modal/focus、input事件和Promise结果顺序；Mac真实剪贴板和真实会话不作测试对象。研究与原生证据保存在 `.local/qa/creation-clipboard-2026-10-26/`。
+
+固定WebKit源码核对表明，PR67845修改的是Promise settlement排队顺序，不能解释成Paste许可请求已改为异步。`showModal`/DOM focus也没有直接等同原生resignFirstResponder或拒绝许可的源码证据。对应源码、官方文档和反证见证据目录的`research/report.md`、`research/source/report.md`。
+
+真实原生验证结果：
+
+| 路径 | 结果 |
+| --- | --- |
+| iOS26.5 Safari，最小原生页面 | 实际HID点击系统Paste后，37字合成文本成功填入 |
+| iOS26.5 Safari，当前Pocket React组件 | 系统Paste后字段43字、可编辑、无失败提示 |
+| iOS27 Safari，当前Pocket React组件 | 系统Paste后字段43字、可编辑、无失败提示 |
+| iOS27，实际从主屏幕打开的Web App | `displayModeStandalone`与`navigatorStandalone`均true；系统Paste后字段41字、可编辑、无失败提示，主侧另行GET回读一致 |
+
+上述观察中，系统许可等待发生在`readText`返回之前。26.5的Promise fulfilled先于modal，27 Safari/PWA则晚于modal，但随后均正常预填；这证明了排队顺序差异，没有证明它会造成文字丢失。三次React检查没有记录到beforeinput/input/change/paste事件，未复现“focus抢走Paste”或输入事件提前取消读取。原生模拟器仍不能代替用户物理设备、第三方输入法、真实剪贴板内容类型及当前网页版本，所以本轮不据猜测修改产品或重新发布。
+
+最小手机对照已询问：在同一个空白新建框里点右上角“粘贴”，看能否带入、是否提示读取失败或没有文字；另询问主屏幕/Safari和豆包/系统键盘环境。结果尚未返回。若手动粘贴成功，再重点对照第一次读取与预填归属；若失败或为空，继续核对系统许可/内容类型，不自动重试权限或覆盖用户输入。
+
+原生证据在`ios/`与`react/events.jsonl`；PWA独立回读为根目录`pwa-independent-readback.json`。XCUITest无法完成系统Paste，改用已有固定`serve-sim 0.1.48`镜像与按OCR精确定位的HID实际点击；普通菜单使用原生AX。验证方法与清理要求已写入[QUALITY](../QUALITY.md#原生剪贴板验证)。
+
+收尾已回读：三个一次性设备和其镜像helper均停删，工具无剩余session/claim，剪贴板共享设置恢复原值，原CurrentDevice未变；两个本地fixture停止，产品4397/4399服务未动。必要截图与事件保留，重复截图约1.58MB已清理。回执见`ios/cleanup.json`及`react/cleanup.json`。日志中的较长许可等待包含测试工具操作时间，不能当作产品性能数据。
