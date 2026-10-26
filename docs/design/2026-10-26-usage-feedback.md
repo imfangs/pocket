@@ -87,7 +87,7 @@ POSTHOG_PROJECT_ID=688532 POSTHOG_CLI_PROJECT_ID=688532 posthog-cli api call --j
 
 停用采集：将公开配置的`enabled`设为false后正常构建发布。该配置纳入前端build ID，安装中的Pocket会沿现有显式更新与草稿保护流程发现新版本；已经打开的旧网页需完成正常更新。
 
-札记已按`discussion-notes / N-20261026-POSTHOG`投递到[本机日常](https://daily.local/#entry=8bea14c5-eef0-4d70-beea-4bad58c19966)，revision 3、verified=true，独立get的正文与下节原文一致。
+札记已按`discussion-notes / N-20261026-POSTHOG`投递到[本机日常](https://daily.local/#entry=8bea14c5-eef0-4d70-beea-4bad58c19966)，revision 4、verified=true，独立get的正文与下节原文一致。
 
 ## 札记：从猜功能到看真实使用
 
@@ -151,3 +151,9 @@ SDK放在产品里收集数据。CLI和MCP让Agent读取、分析或操作PostHo
 格得从这次经历得到的判断是：工具提供证据入口；产品判断仍要把操作、页面结果和用户意图放在一起。这个判断可以迁移到下一款产品，具体事件与验收条件应重新按它的核心任务来定。
 
 **回源入口**：[官方CLI](https://posthog.com/docs/cli)、[CLI源码和权限说明](https://github.com/PostHog/posthog/tree/master/cli)、[官方Skill打包来源](https://github.com/PostHog/context-mill)、[本项目当前状态](../../CURRENT.md)。札记保留本次历史，后续安装、授权和发布状态以上文对应事实源为准。
+
+### 同日15:40：真实提交终于被读到了
+
+修复后欧吉安回复“提交了”。CLI在production读取到15:40:00的反馈标记和15:40:04的补充说明“测试一下”，两者反馈ID、会话与visit一致；来源为Mobile Safari的standalone模式。对应录制元数据也成功读回，时长18秒。证据保存在`.local/qa/usage-csp-2026-10-26/user-resubmission-check.json`、`user-resubmission-verdict.json`与`user-feedback-recording.json`。
+
+这次确认了修复后用户实际提交到后台查询的链路，原先被阻断的那条反馈仍不冒称已经恢复；它也不等于已经发现或改善了长期使用痛点。

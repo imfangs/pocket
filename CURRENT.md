@@ -4,7 +4,7 @@
 
 ## 下一次先看
 
-- **最近已修复：PostHog正式CSP阻断。** [纠错记录](docs/design/2026-10-26-usage-feedback.md#同日纠错正式-csp-拦截了上报)。用户提交真实反馈后只查到QA记录，发现正式站与本机HTML的connect-src仅self；原fixture漏带正式响应头。现在只放行两个PostHog必要域名，8项旧策略复现、34项带CSP浏览器、1378项全测及30个公网文件/功能检查通过。网页与格得Pocket API已更新，队列/派发/分组/备注/置顶哈希保持，仅sourceInfo正常刷新。原反馈此时仍未入库；旧页面需更新/重开后再提交，不能用QA代替用户反馈。CLI本人授权、项目/schema/只读SQL已验证，0.18.12目标参数按AGENTS的新入口。
+- **最近已修复：PostHog正式CSP阻断。** [纠错记录](docs/design/2026-10-26-usage-feedback.md#同日纠错正式-csp-拦截了上报)。用户提交真实反馈后只查到QA记录，发现正式站与本机HTML的connect-src仅self；原fixture漏带正式响应头。现在只放行两个PostHog必要域名，8项旧策略复现、34项带CSP浏览器、1378项全测及30个公网文件/功能检查通过。网页与格得Pocket API已更新，队列/派发/分组/备注/置顶哈希保持，仅sourceInfo正常刷新。原反馈此前未入库；15:40用户补交的“测试一下”已在production由CLI读回，标记/说明共用反馈ID，并查到对应18秒录制。CLI本人授权、项目/schema/只读SQL已验证，0.18.12目标参数按AGENTS的新入口。
 
 - **最近已上线：运行中排除未读。** [阅读契约](docs/design/2026-10-22-pocket-read-state.md#2026-10-26运行中与未读的列表呈现)已补齐此前漏做的方案：有效运行中不计入标签、数量和筛选；水位保留，结束后按实际阅读判断，等待操作不变。1377项完整回归、83项定向、60项双浏览器、独立CR及30个公网文件/功能回读通过。原全测发现一项测试时钟偶发性，已固定测试时钟并补异时钟合并回归，产品阅读存储未改。仅共享网页更新，无Mac服务或Codex重启。
 
@@ -44,7 +44,7 @@
 | 两机API源码 | 格得 `66815819ef51964a286dfc0cca08fa7a33c8857c`，Pocket API PID44953，本次为本机HTML CSP更新而重启；豌豆保持 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895` / PID73421 |
 | 前端build | 公网与格得内置网页 `ed21f3cd655c2bc5e15e2fe23e5ad980da18da19496759043bf802239c3a7d67`；豌豆内置网页仍随其API release保留 `7cd2cf2e…`，公网共享页面已更新 |
 | Pages部署 | `ea06555f-e78a-4a4f-abcd-d1189bb912ef`；10-26 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，上传一次 |
-| 最近验证 | CSP：1378项全测、8项原策略阻断复现、34项修复后浏览器检查；发布含CSP连接策略检查。本机服务/TLS与认证catalog回读通过；用户补发的正式反馈仍待核对 |
+| 最近验证 | CSP：1378项全测、8项原策略阻断复现、34项修复后浏览器检查；发布含CSP连接策略检查。本机服务/TLS与认证catalog回读通过；15:40用户真实补交反馈、标记/说明关联及录制元数据已由CLI回读 |
 | 证据 | `.local/qa/usage-csp-2026-10-26/` 中的两组browser-results、tests.log、pages-deploy.json、local-restart.json、store-before/after.json、authenticated-catalog.json；前次运行互斥与使用反馈证据保留 |
 | 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本次重启前制作私有SQLite一致备份，outgoing_messages/dispatches/groups/annotations/pin_overrides逐表SHA相同，settings仅sourceInfo刷新。原Codex/连接器及豌豆API未重启，未处置或重放旧条目 |
 
