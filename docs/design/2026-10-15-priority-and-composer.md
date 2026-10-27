@@ -1,5 +1,7 @@
 # 独立优先关注与输入意图
 
+2026-10-28补记：原生input／paste／composition-start触发的预连接必须等当前输入事件传播结束，让React先保存受控值；使用下一任务而不是microtask。首字符丢失的因果复现、修复与范围见[Impeccable完整路径检查](2026-10-28-impeccable-polish.md)。pointer与Tab仍按原有意图规则立即处理。
+
 2026-10-15。方帅要求将Pocket排序标记与Codex置顶分开，精简常用文案，主动输入时预连接，并把近期消息时间改为相对表述。发布身份回 CURRENT。
 
 ## 两个独立标记

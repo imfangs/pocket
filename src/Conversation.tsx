@@ -608,8 +608,10 @@ export default function Conversation({
   const recoveryVisible = online && !compatibilityCode && !thread.archived && !managementBlocked
     && !!(historyError || connectionError || connectionFailed);
   const recoveryMessage = readableRequestError(historyError || connectionError || connectionLabel);
-  const inlineRecovery = recoveryVisible && (!connectionOnlyAction || composer.compact);
-  const inlineAttachmentRecovery = online && targetAvailable && !inlineRecovery &&
+  const emptyReadRecovery = recoveryVisible && !!historyError && !loading && !transcriptLoading
+    && !shownMessages.length && !visibleSubmissions.length && !shownOutbox.length;
+  const inlineRecovery = recoveryVisible && !emptyReadRecovery && (!connectionOnlyAction || composer.compact);
+  const inlineAttachmentRecovery = online && targetAvailable && !inlineRecovery && !emptyReadRecovery &&
     !!attachmentRecoveryError && !attachmentRecoveryNeeded;
   const recoverConnection = async () => {
     if (retryingHistory || !online) return;
@@ -660,6 +662,14 @@ export default function Conversation({
             {targetAvailable && <p>写下你想讨论或完成的事。</p>}
           </div>
         )}
+        {emptyReadRecovery && <div className="history-empty conversation-empty conversation-read-recovery" role="status">
+          <h3>暂时无法读取会话</h3>
+          <Button type="button" variant="soft" color="gray" disabled={retryingHistory}
+            onClick={() => void recoverConnection()}>
+            <RefreshCw size={15} aria-hidden="true" />
+            {retryingHistory ? "正在读取…" : "重新读取"}
+          </Button>
+        </div>}
         {[...progress.entries.map(entry => {
           if (entry.type === "progress") return <ProgressDisclosure key={entry.id} id={entry.id} count={entry.messages.length}
             open={progress.expanded.has(entry.id)} onOpenChange={open => progress.toggle(entry.id, open)}>
@@ -770,7 +780,7 @@ export default function Conversation({
           <span>{recoveringAttachments ? "读取中…" : "附件未同步"}</span>
           {!recoveringAttachments && <span className="composer-recovery-action">重试</span>}
         </button>}
-        {!inlineRecovery && !inlineAttachmentRecovery && (showConnectionState || !online) &&
+        {!emptyReadRecovery && !inlineRecovery && !inlineAttachmentRecovery && (showConnectionState || !online) &&
           !(online && connecting && connectionOnlyAction && !composer.compact) && <span className="composer-inline-state" role="status" title={connectionLabel} aria-label={connectionLabel}
           data-state={!online || connectionFailed || compatibilityCode ? "warning" : connecting ? "connecting" : "idle"}>
           {connecting && <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" />}

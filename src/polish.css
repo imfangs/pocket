@@ -28,7 +28,7 @@ button, a { transition:background-color 140ms var(--ease), color 140ms var(--eas
 .field-help, .field-description, .field-description p { color:var(--muted); font-size:12px; line-height:1.7; }
 :where(textarea, input:not([type='checkbox']):not([type='radio']):not([type='color']), select) { border:1px solid var(--line-strong); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); }
 textarea { font-size:16px; line-height:1.5; }
-textarea::placeholder, input::placeholder { color:var(--muted); opacity:.85; }
+textarea::placeholder, input::placeholder { color:var(--muted); opacity:1; }
 textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 
 /* Navigation and collection */
@@ -43,6 +43,7 @@ textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 .nav-item.selected :is(svg,small) { color:inherit; }
 .sidebar-bottom { border-top:1px solid var(--line); padding:12px 0; }
 .sidebar-bottom .nav-item { font-size:13px; }
+.sidebar-tools .sidebar-settings { margin:0; box-sizing:border-box; }
 .sidebar-backdrop.shown { background:#0b142e55; backdrop-filter:blur(3px); }
 .workspace { background:var(--canvas); }
 .workspace-header { padding:24px var(--page-gutter) 12px; background:var(--surface); border-bottom:1px solid var(--line); }
@@ -222,7 +223,11 @@ dialog footer button { min-height:var(--control-height); }
 .new-conversation-settings > summary { display:flex; align-items:center; min-height:44px; padding:2px 0; color:var(--text-secondary); font-size:13px; font-weight:500; cursor:pointer; }
 .new-conversation-settings > summary::after { content:''; width:7px; height:7px; margin:0 5px 3px auto; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(45deg); }
 .new-conversation-settings[open] > summary::after { transform:rotate(225deg); margin-bottom:-3px; }
-.new-conversation-settings-body { padding:12px 0 0; }
+.new-conversation-settings-body { display:grid; gap:var(--space-5); padding:12px 0 0; }
+.new-conversation-location-fields { display:grid; gap:var(--space-4); }
+.new-conversation-field { display:grid; gap:var(--space-2); min-width:0; }
+.new-conversation-field > .field-label, .new-conversation-field > .field-help, .new-conversation-field > .inline-error { margin:0; }
+.new-conversation-field .new-directory-heading { margin-bottom:0; }
 .new-conversation-form > footer { margin:0; flex-wrap:wrap; }
 .new-conversation-form > footer > button { flex:1 1 140px; min-width:0; max-width:100%; width:auto; white-space:normal; }
 .new-directory-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
@@ -230,7 +235,7 @@ dialog footer button { min-height:var(--control-height); }
 .directory-search { display:flex; align-items:center; gap:8px; width:100%; min-width:0; margin:8px 0; }
 .directory-search input { width:100%; min-width:0; }
 .directory-search-feedback, .directory-search-result { color:var(--muted); font-size:12px; }
-.directory-search-toggle { display:inline-flex; align-items:center; gap:6px; min-height:var(--control-height); color:var(--muted); font-size:13px; }
+.directory-search-toggle { display:inline-flex; align-items:center; gap:6px; min-height:var(--control-height); margin:0; box-sizing:border-box; flex:none; color:var(--muted); font-size:13px; }
 .rename-thread-form input { width:100%; min-width:0; }
 .rename-thread-name { position:relative; }
 dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(var(--control-height) + 12px); }
@@ -385,7 +390,7 @@ dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(
   .task-row { padding-inline:16px; }
 }
 @media (pointer:coarse) {
-  .pocket-button, .pocket-icon-button { min-height:44px; }
+  .pocket-button, .pocket-icon-button, .composer-actions .context-trigger { min-height:44px; }
   .pocket-icon-button { min-width:44px; }
   .copy-button { width:44px; height:44px; }
   .row-open { min-width:44px; min-height:44px; }

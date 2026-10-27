@@ -9,23 +9,63 @@ class Target {
   emit(type, data = {}) { for (const fn of this.listeners.get(type) ?? []) fn({ type, target: this, isTrusted: true, ...data }); }
 }
 function fixture(connect = async () => {}) {
-  let available = true, calls = 0;
+  let available = true, calls = 0, requests = 0;
   const document = new Target(), input = new Target(), browser = new Target();
   document.defaultView = browser;
   const form = { ownerDocument: document, querySelector: () => input };
   const intent = createComposerConnectionIntent({ available: () => available, connect: async () => { calls++; await connect(); } });
-  const unbind = bindComposerConnectionIntent(form, () => { void intent.request(); });
-  return { document, input, browser, intent, calls: () => calls, available: value => { available = value; },
+  const unbind = bindComposerConnectionIntent(form, () => { requests++; void intent.request(); });
+  return { document, input, browser, intent, calls: () => calls, requests: () => requests, available: value => { available = value; },
     close() { unbind(); intent.dispose(); } };
 }
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
+const nextTask = async () => { await new Promise(resolve => setTimeout(resolve, 0)); await flush(); };
+
+test('native edits let the controlled input commit before a connection can render', async () => {
+  for (const type of ['input', 'paste', 'compositionstart']) {
+    const f = fixture();
+    f.input.emit(type);
+    await flush();
+    assert.equal(f.requests(), 0, `${type} must not request during input propagation or its microtasks`);
+    await nextTask();
+    assert.equal(f.calls(), 1, `${type} still connects after input propagation`);
+    f.close();
+  }
+});
+
+test('a burst of native edit events shares one deferred request', async () => {
+  const f = fixture();
+  f.input.emit('paste'); f.input.emit('compositionstart'); f.input.emit('input');
+  await nextTask();
+  assert.equal(f.requests(), 1);
+  assert.equal(f.calls(), 1);
+  f.input.emit('input'); await nextTask();
+  assert.equal(f.calls(), 1, 'later typing never repeats the automatic connection');
+  f.close();
+});
+
+test('leaving cancels a deferred edit before even requesting a connection', async () => {
+  const f = fixture();
+  f.input.emit('input'); f.close();
+  await nextTask();
+  assert.equal(f.requests(), 0);
+  assert.equal(f.calls(), 0);
+});
+
+test('a direct pointer consumes an outstanding edit intention without a delayed duplicate', async () => {
+  const f = fixture();
+  f.input.emit('input'); f.input.emit('pointerdown', { button: 0 });
+  await flush(); assert.equal(f.calls(), 1);
+  await nextTask(); assert.equal(f.requests(), 1);
+  f.close();
+});
 
 test('reading, restored drafts and even trusted programmatic focus never open a conversation', async () => {
   const f = fixture();
   f.document.emit('focusin', { target: f.input });
   f.input.emit('input', { isTrusted: false });
   f.input.emit('pointerdown', { isTrusted: false, button: 0 });
-  await flush();
+  await nextTask();
   assert.equal(f.calls(), 0);
   f.close();
 });
@@ -65,13 +105,13 @@ test('Tab arriving at this input is intention; Tab to another field or window re
 
 test('offline or blocked intention is not spent and eligibility is rechecked before opening', async () => {
   const f = fixture();
-  f.available(false); f.input.emit('input'); await flush(); assert.equal(f.calls(), 0);
+  f.available(false); f.input.emit('input'); await nextTask(); assert.equal(f.calls(), 0);
   f.available(true); f.input.emit('input'); f.available(false);
-  await flush(); assert.equal(f.calls(), 0);
-  f.available(true); f.input.emit('input'); await flush(); assert.equal(f.calls(), 1);
+  await nextTask(); assert.equal(f.calls(), 0);
+  f.available(true); f.input.emit('input'); await nextTask(); assert.equal(f.calls(), 1);
   f.close();
-  const next = fixture(); next.available(false); next.input.emit('input'); await flush();
-  next.available(true); next.input.emit('input'); await flush(); assert.equal(next.calls(), 1);
+  const next = fixture(); next.available(false); next.input.emit('input'); await nextTask();
+  next.available(true); next.input.emit('input'); await nextTask(); assert.equal(next.calls(), 1);
   next.close();
 });
 

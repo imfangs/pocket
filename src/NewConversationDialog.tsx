@@ -29,6 +29,8 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
   const [directorySearchOpen, setDirectorySearchOpen] = useState(false);
   const [rememberedSelection] = useState(readCreationPreference);
   const [rememberedUnavailable, setRememberedUnavailable] = useState(false);
+  const [locationRequired, setLocationRequired] = useState(false);
+  const [selectionError, setSelectionError] = useState<"directory" | "project" | null>(null);
   const [queryDraft, setQueryDraft] = useState<CreationQueryDraft>(() => ({ text: initialQuery ?? "", revision: 0 }));
   const [clipboardPending, setClipboardPending] = useState(false);
   const clipboardReader = useRef<ReturnType<typeof createCreationClipboardReader> | null>(null);
@@ -82,11 +84,14 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         // Failed reads retain the current choice for a later successful retry.
         if (!result.available || !result.locations.length) return;
         setLocations(result.locations);
+        const nextDirectories = creationDirectories(result.locations);
         const initial: CreationPreference & { unavailable?: true } = optionsLoaded.current && !selection.current.cwd ? selection.current
-          : initialCreationSelection(creationDirectories(result.locations), optionsLoaded.current ? selection.current : rememberedSelection, startingCwd.current);
+          : initialCreationSelection(nextDirectories, optionsLoaded.current ? selection.current : rememberedSelection, startingCwd.current);
         optionsLoaded.current = true;
         selectLocation(initial.cwd, initial.locationId);
         setRememberedUnavailable(!!initial.unavailable);
+        // Once required choices are exposed, keep their place for this dialog.
+        if (!creationLocation(nextDirectories, initial.cwd, initial.locationId)) setLocationRequired(true);
       },
       onError: setOptionsError,
       onLoading: setLoading,
@@ -101,12 +106,66 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
       window.removeEventListener("online", online); window.removeEventListener("offline", offline);
     };
   }, []);
+  const locationFields = <div className="new-conversation-location-fields" data-required={locationRequired || undefined}>
+    <div className="new-conversation-field new-conversation-directory">
+      <div className="new-directory-heading">
+        <label className="field-label" htmlFor="new-conversation-location">工作目录</label>
+        <Button type="button" className="text-button directory-search-toggle" variant="ghost" color="gray" size="2" aria-expanded={directorySearchOpen} aria-controls="new-directory-search"
+          disabled={locked} onClick={() => { setDirectorySearchOpen(value => !value); setDirectoryQuery(""); }}>
+          <Search size={14} aria-hidden="true" />{directorySearchOpen ? "收起查找" : "查找目录"}
+        </Button>
+      </div>
+      {directorySearchOpen && <div className="directory-search" id="new-directory-search">
+        <Search size={16} aria-hidden="true" />
+        <input ref={directorySearch} type="search" aria-label="搜索工作目录" placeholder="搜索目录名或路径" value={directoryQuery} disabled={locked}
+          onChange={event => setDirectoryQuery(event.target.value)} onKeyDown={event => {
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+            if (event.key === "Enter") { event.preventDefault(); directorySelect.current?.focus(); return; }
+            if (event.key === "Escape" && directoryQuery) { event.preventDefault(); event.stopPropagation(); setDirectoryQuery(""); }
+          }} />
+      </div>}
+      <select ref={directorySelect} id="new-conversation-location" value={directoryCwd} disabled={loading || locked} onChange={event => {
+        selectLocation(event.target.value, "");
+        setSelectionTouched(true);
+        setDirectoryQuery("");
+        setError(""); setSelectionError(null);
+        const location = creationLocation(directories, event.target.value, "");
+        saveCreationPreference({ cwd: event.target.value, locationId: location?.id || "" });
+      }} required aria-invalid={selectionError === "directory" || undefined}
+        aria-describedby={selectionError === "directory" ? "new-conversation-directory-error" : undefined}>
+        <option value="">{loading ? "正在读取目录…" : "选择一个工作目录"}</option>
+        {hiddenSelection && <optgroup label="当前选择"><option value={hiddenSelection.directory.cwd}>{hiddenSelection.label}</option></optgroup>}
+        {directoryResults.map(choice => <option key={choice.directory.cwd} value={choice.directory.cwd}>{choice.label}</option>)}
+      </select>
+      {selectionError === "directory" && <p id="new-conversation-directory-error" className="inline-error" role="alert">请选择工作目录后创建。</p>}
+      {rememberedUnavailable && !selectionTouched && <p className="field-help">上次的目录或项目已不可用，请重新选择。</p>}
+      {directoryQuery && !loading && <p className="field-help directory-search-feedback" role="status">
+        {directoryResults.length ? `找到 ${directoryResults.length} 个目录。` : "没有匹配目录，试试路径中的词。"}
+        {hiddenSelection && ` 当前选择仍是「${hiddenSelection.label}」。`}
+      </p>}
+      {directory && <p className="field-help new-conversation-path">{directory.cwd}</p>}
+    </div>
+    {projects.length > 1 ? <div className="new-conversation-field new-conversation-project">
+      <label className="field-label" htmlFor="new-conversation-project">归属项目</label>
+      <select ref={projectSelect} id="new-conversation-project" value={projectLocationId} disabled={loading || locked}
+        onChange={event => {
+          selectLocation(directoryCwd, event.target.value); setSelectionTouched(true);
+          setError(""); setSelectionError(null);
+          saveCreationPreference({ cwd: directoryCwd, locationId: event.target.value });
+        }} required aria-invalid={selectionError === "project" || undefined}
+          aria-describedby={selectionError === "project" ? "new-conversation-project-error" : undefined}>
+        <option value="">选择归属项目</option>
+        {projects.map(choice => <option key={choice.location.id} value={choice.location.id}>{choice.label}</option>)}
+      </select>
+      {selectionError === "project" && <p id="new-conversation-project-error" className="inline-error" role="alert">请选择归属项目后创建。</p>}
+    </div> : projects.length === 1 ? <p className="field-help">归属项目：{projects[0].label}</p> : null}
+  </div>;
   return <Modal title="新建会话" className="new-conversation-dialog" onClose={() => (closeRequested || !busy) && onClose()} busy={busy} dirty={dirty} closeRequested={closeRequested}>
     <form className="new-conversation-form" noValidate onSubmit={async event => {
       event.preventDefault(); if (!available || loading || locked || submitting.current || queryTooLong) return;
       if (!selectedLocation) {
-        setError(directory ? "请选择归属项目后创建。" : "请选择工作目录后创建。");
-        if (settings.current) settings.current.open = true;
+        setSelectionError(directory ? "project" : "directory");
+        if (!locationRequired && settings.current) settings.current.open = true;
         (directory ? projectSelect.current : directorySelect.current)?.focus();
         return;
       }
@@ -148,59 +207,17 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
         {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}
       </div>
+      {locationRequired && locationFields}
       <AnimatedDetails ref={settings} className="new-conversation-settings">
-      <summary>更多设置</summary>
-      <div className="new-conversation-settings-body">
-      <div className="new-directory-heading">
-        <label className="field-label" htmlFor="new-conversation-location">工作目录</label>
-        <Button type="button" className="text-button directory-search-toggle" variant="ghost" color="gray" size="2" aria-expanded={directorySearchOpen} aria-controls="new-directory-search"
-          disabled={locked} onClick={() => { setDirectorySearchOpen(value => !value); setDirectoryQuery(""); }}>
-          <Search size={14} aria-hidden="true" />{directorySearchOpen ? "收起查找" : "查找目录"}
-        </Button>
-      </div>
-      {directorySearchOpen && <div className="directory-search" id="new-directory-search">
-        <Search size={16} aria-hidden="true" />
-        <input ref={directorySearch} type="search" aria-label="搜索工作目录" placeholder="搜索目录名或路径" value={directoryQuery} disabled={locked}
-          onChange={event => setDirectoryQuery(event.target.value)} onKeyDown={event => {
-            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-            if (event.key === "Enter") { event.preventDefault(); directorySelect.current?.focus(); return; }
-            if (event.key === "Escape" && directoryQuery) { event.preventDefault(); event.stopPropagation(); setDirectoryQuery(""); }
-          }} />
-      </div>}
-      <select ref={directorySelect} id="new-conversation-location" value={directoryCwd} disabled={loading || locked} onChange={event => {
-        selectLocation(event.target.value, "");
-        setSelectionTouched(true);
-        setDirectoryQuery("");
-        setError("");
-        const location = creationLocation(directories, event.target.value, "");
-        saveCreationPreference({ cwd: event.target.value, locationId: location?.id || "" });
-      }} required>
-        <option value="">{loading ? "正在读取目录…" : "选择一个工作目录"}</option>
-        {hiddenSelection && <optgroup label="当前选择"><option value={hiddenSelection.directory.cwd}>{hiddenSelection.label}</option></optgroup>}
-        {directoryResults.map(choice => <option key={choice.directory.cwd} value={choice.directory.cwd}>{choice.label}</option>)}
-      </select>
-      {rememberedUnavailable && !selectionTouched && <p className="field-help">上次的目录或项目已不可用，请重新选择。</p>}
-      {directoryQuery && !loading && <p className="field-help directory-search-feedback" role="status">
-        {directoryResults.length ? `找到 ${directoryResults.length} 个目录。` : "没有匹配目录，试试路径中的词。"}
-        {hiddenSelection && ` 当前选择仍是「${hiddenSelection.label}」。`}
-      </p>}
-      {directory && <p className="field-help new-conversation-path">{directory.cwd}</p>}
-      {projects.length > 1 ? <>
-        <label className="field-label" htmlFor="new-conversation-project">归属项目</label>
-        <select ref={projectSelect} id="new-conversation-project" value={projectLocationId} disabled={loading || locked}
-          onChange={event => {
-            selectLocation(directoryCwd, event.target.value); setSelectionTouched(true);
-            setError("");
-            saveCreationPreference({ cwd: directoryCwd, locationId: event.target.value });
-          }} required>
-          <option value="">选择归属项目</option>
-          {projects.map(choice => <option key={choice.location.id} value={choice.location.id}>{choice.label}</option>)}
-        </select>
-      </> : projects.length === 1 ? <p className="field-help">归属项目：{projects[0].label}</p> : null}
-      <label className="field-label" htmlFor="new-conversation-name">标题 <small>可选</small></label>
-      <input id="new-conversation-name" value={name} disabled={locked} maxLength={220} placeholder="留空自动命名"
-        onChange={event => setName(event.target.value)} />
-      </div>
+        <summary>更多设置</summary>
+        <div className="new-conversation-settings-body">
+          {!locationRequired && locationFields}
+          <div className="new-conversation-field new-conversation-title">
+            <label className="field-label" htmlFor="new-conversation-name">标题 <small>可选</small></label>
+            <input id="new-conversation-name" value={name} disabled={locked} maxLength={220} placeholder="留空自动命名"
+              onChange={event => setName(event.target.value)} />
+          </div>
+        </div>
       </AnimatedDetails>
       {operation && <TaskOperationStatus operation={operation} error={operationError} onCheck={onCheck} onCancel={onCancelOperation} />}
       {(error || optionsError) && <p className="inline-error" role="alert">{error || optionsError}</p>}

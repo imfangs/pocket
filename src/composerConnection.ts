@@ -28,31 +28,42 @@ export function bindComposerConnectionIntent(form: HTMLFormElement, request: () 
   const document = form.ownerDocument;
   if (!input) return () => {};
   let tabPending = false;
+  let editTimer: ReturnType<typeof setTimeout> | undefined;
+  const cancelEdit = () => { clearTimeout(editTimer); editTimer = undefined; };
+  const requestNow = () => { cancelEdit(); request(); };
   const key = (event: KeyboardEvent) => { tabPending = event.isTrusted && event.key === "Tab"; };
   const focus = (event: FocusEvent) => {
-    if (event.target === input && tabPending) request();
+    if (event.target === input && tabPending) requestNow();
     tabPending = false;
   };
   const pointer = (event: PointerEvent) => {
     tabPending = false;
-    if (event.isTrusted && event.button === 0) request();
+    if (event.isTrusted && event.button === 0) requestNow();
   };
-  const edit = (event: Event) => { if (event.isTrusted) request(); };
+  const click = (event: Event) => { if (event.isTrusted) requestNow(); };
+  const edit = (event: Event) => {
+    if (!event.isTrusted || editTimer !== undefined) return;
+    // A microtask here can render the old controlled value before React's
+    // delegated input handler saves the first character. Let this input event
+    // finish before connecting; paste and composition can share the same task.
+    editTimer = setTimeout(() => { editTimer = undefined; request(); }, 0);
+  };
   const blur = () => { tabPending = false; };
   document.addEventListener("keydown", key, true);
   document.addEventListener("focusin", focus, true);
   document.defaultView?.addEventListener("blur", blur);
   input.addEventListener("pointerdown", pointer);
-  input.addEventListener("click", edit);
+  input.addEventListener("click", click);
   input.addEventListener("input", edit);
   input.addEventListener("paste", edit);
   input.addEventListener("compositionstart", edit);
   return () => {
+    cancelEdit();
     document.removeEventListener("keydown", key, true);
     document.removeEventListener("focusin", focus, true);
     document.defaultView?.removeEventListener("blur", blur);
     input.removeEventListener("pointerdown", pointer);
-    input.removeEventListener("click", edit);
+    input.removeEventListener("click", click);
     input.removeEventListener("input", edit);
     input.removeEventListener("paste", edit);
     input.removeEventListener("compositionstart", edit);
