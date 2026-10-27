@@ -1,0 +1,4 @@
+.heartbeat-trigger-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heartbeat-trigger-heading > span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.heartbeat-trigger-heading > button { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; border: 0; padding: 4px 0; background: none; color: var(--accent); font-size: 12px; }
+.heartbeat-trigger-body:not([hidden]) { margin-top: 4px; }

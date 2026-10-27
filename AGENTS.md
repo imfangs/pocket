@@ -46,7 +46,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |
 | 手机上传、附件草稿、图片/文件发送及队列恢复 | [附件发送](docs/design/2026-10-10-attachments.md)：私有落盘、原owner输入、上传/发送编号及文件保留边界 |
 | 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
-| Markdown、Codex 专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)、[图片契约](docs/IMAGES.md) |
+| Markdown、定时消息正文空白、Codex专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)：heartbeat触发与结果安全投影、代码示例保护；图片边界见[图片契约](docs/IMAGES.md) |
 | Pocket 前端更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
 | Codex 升级后连接失败、协议不兼容或内置 CLI 变化 | [桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)：App 发布号仅作诊断，IPC 契约与 CLI 语义分别检查 |
 | 通知与用户确认 | [通知](docs/NOTIFICATIONS.md)、会话契约中的审批/阻塞问题章节 |

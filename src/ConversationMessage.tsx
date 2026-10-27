@@ -9,6 +9,7 @@ import { readableCodexMarkdown } from "./codexMarkup";
 import { useMemo, type Ref, type ReactNode } from "react";
 import AttachmentList from "./AttachmentList";
 import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
+import HeartbeatTrigger from "./HeartbeatTrigger";
 import MessageTimestamp from "./MessageTimestamp";
 import { validMessageTimestamp } from "./messageTime";
 import "./message-footer.css";
@@ -20,7 +21,7 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
   const presentation = useMemo(() => {
     if (message.role === "user") return presentUserMessage(message.text);
     const text = readableCodexMarkdown(message.text);
-    return { text, copyText: text, annotations: [] };
+    return { text, copyText: text, annotations: [], automationInstructions: undefined };
   }, [message.role, message.text]);
   const displayText = presentation.text;
   const progress =
@@ -52,7 +53,7 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
       tabIndex={queryDelivery ? -1 : undefined}
       aria-label={label}
     >
-      {displayText.trim() && (kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
+      {presentation.automationInstructions ? <HeartbeatTrigger instructions={presentation.automationInstructions} changeLayout={changeLayout} /> : displayText.trim() && (kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
         images={message.images}
         files={message.role === "assistant" && !message.truncated ? message.files : undefined}
         threadId={threadId}
