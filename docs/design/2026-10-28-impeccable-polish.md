@@ -49,6 +49,8 @@ Nielsen初审为28/40，属于设计判断，不是用户效率、满意度或�
 
 基线 `0f9ff25`；最终候选build `fddfb3a43dc04f7d101b0832b9de0553dff95963d3c7f76faba035f935baf13c`。证据在 `.local/qa/impeccable-2026-10-28/`，A视觉、B的DOM／detector原始结果和CR输入事件诊断分别独立保留；发布身份以 [CURRENT](../../CURRENT.md) 为准。
 
+10-28已发布：源码 `3546e24996d1cffa5170bba5ee85d09e9b5a283f`，Pages `323af052-58d9-4ebc-bfe3-614042e0c702`，30/30公开资源与功能检查通过，本机公开build一致；上传一次，未重启两机服务或Codex。Impeccable审查快照已保存并关闭，这是该目标首个评分记录，不构成分数改善趋势。浏览器、fixture和重复构建均已清理。
+
 ## 方法与接续
 
 上下文工具判定已有实现可继续精修，不要求补一套产品访谈才动手。`docs/DESIGN.md`是早期构想，现行依据从[整体视觉重整](2026-10-19-visual-system.md)、tokens及最新增量读取。本轮不安装自动检测hook或升级正在使用的技能。

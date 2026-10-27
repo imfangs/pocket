@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-28。定时检查正文空白已修复并发布；Query原位交接、首条消息等待修复、标题快刷、PostHog与运行/未读互斥保持，剪贴板继续先观察。
+维护日期：2026-10-28。Impeccable设计精修与首次输入首字丢失修复已发布；定时正文、Query原位交接、首条消息等待、标题快刷、PostHog与运行/未读互斥保持，剪贴板继续先观察。
 
 ## 下一次先看
 
-- **本轮已验证，待网页发布：Impeccable设计精修。** [审查与修改](docs/design/2026-10-28-impeccable-polish.md)。独立视觉/技术评审后，提前披露缺失必填目录、把无正文错误恢复放回阅读区、清除归档/设置4px命中重叠、提高placeholder对比并校准模型/上下文触控与字段间距。完整路径另复现并修复既有首字符丢失：原生编辑事件的预连接后置到下一任务。1436项全测、创建/恢复/几何/输入专项及独立视觉已通过，等待公网回读；不需后台更新。
+- **最近已上线：Impeccable设计精修。** [审查与修改](docs/design/2026-10-28-impeccable-polish.md)。独立视觉/技术评审后，提前披露缺失必填目录、把无正文错误恢复放回阅读区、清除归档/设置4px命中重叠、提高placeholder对比并校准模型/上下文触控与字段间距。完整路径另复现并修复既有首字符丢失：原生编辑事件的预连接后置到下一任务。1436项全测、创建/恢复/几何/输入专项及独立视觉通过；30个公网资源/功能与本机公开构建已回读。仅网页更新，未改后台或真实会话，物理iPhone/原生IME未直接复验。
 
 - **最近已上线：定时检查正文空白。** [消息标记修复](docs/design/2026-09-30-codex-markup-and-current-questions.md#2026-10-28定时检查正文空白)。真实会话中的heartbeat包装被Markdown当作HTML整块隐藏，内容本身没有丢失；现在触发显示“定时检查”并可展开原检查内容，回复显示message说明，DONT_NOTIFY不隐藏历史。1432项完整回归、11项专项、184项真实样本双浏览器、独立CR及30个公网文件/功能检查通过。只更新网页，原消息/定时执行/回执/已读不改，两机服务未重启；物理iPhone尚未直接复验。
 
@@ -48,13 +48,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `9bcb053f9243218f797ce2fc3742e89e93b7307d`，定时触发与结果安全展示；Query稳定消息行、队列唤醒、标题快刷、PostHog CSP与运行/未读互斥保持 |
+| 前端/网关源码 | `3546e24996d1cffa5170bba5ee85d09e9b5a283f`，Impeccable精修与首字输入保护；定时消息、Query稳定行、标题快刷、PostHog CSP与运行/未读互斥保持 |
 | 两机API源码 | 上次10-26核对：格得 `499da54198e0f87a5574de3822c740abcf58e991` / PID89511；豌豆 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895` / PID73421，尚无队列唤醒修复。本轮只更新网页，PID仍是历史快照 |
-| 前端build | 公网与格得内置网页 `c80fbb9626fcc751f504b665549ed5ba4c0ccaf234e8e3ae362f8e8a00d6a7fe`；豌豆内置网页上次核对为 `7cd2cf2e…`，公网共享页面已更新 |
-| Pages部署 | `0ff16502-76f3-4ea4-8f5a-fdf26a248e7d`；10-28 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，实际上传一次 |
-| 最近验证 | heartbeat：1432项全测、11项专项、184项真实样本浅/暗双浏览器和独立CR，检查结果/指令展开/复制均正常；物理iPhone未验。此前Query交接、首Query/标题、CSP及PostHog取证保持 |
-| 证据 | 最新 `.local/qa/blank-messages-2026-10-28/` 的 `source-transcript.json`、`tests.log`、`browser/final-verdict.json`、`pages-deploy.json`、`local-public-build.json` 和 `release-verdict.json`；此前证据保留各自QA目录 |
-| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本轮只读目标transcript验证格式，不修改消息、回执、队列或定时任务。没有发送测试消息或重启服务；上次后台更新的数据核验见[首条消息与标题](docs/design/2026-10-26-create-delivery-and-title.md#发布结果) |
+| 前端build | 公网与格得内置网页 `fddfb3a43dc04f7d101b0832b9de0553dff95963d3c7f76faba035f935baf13c`；豌豆内置网页上次核对为 `7cd2cf2e…`，公网共享页面已更新 |
+| Pages部署 | `323af052-58d9-4ebc-bfe3-614042e0c702`；10-28 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，实际上传一次 |
+| 最近验证 | Impeccable：1436项全测、独立前后视觉、创建42/恢复92/几何80/输入42项浏览器检查，原生编辑监听的4项新回归先红后绿。唯一detector得到2处旧语义边线warning，新增渲染改动无命中。物理iPhone/原生IME未验；此前检查证据保持 |
+| 证据 | 最新 `.local/qa/impeccable-2026-10-28/` 的 `tests-final.log`、两份assessment报告/复测、`cr/DIAGNOSIS.md`、`pages-deploy.json`、`local-public-build.json`、`release-verdict.json`；设计快照在 `.impeccable/critique/` 已闭环，旧证据留原QA目录 |
+| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本轮交互测试全部隔离合成，仅回读公开构建。不改消息、回执、队列或定时任务，没有真实发送或重启服务；上次后台更新的数据核验见[首条消息与标题](docs/design/2026-10-26-create-delivery-and-title.md#发布结果) |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
