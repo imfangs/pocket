@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-28。Impeccable设计精修与首次输入首字丢失修复已发布；定时正文、Query原位交接、首条消息等待、标题快刷、PostHog与运行/未读互斥保持，剪贴板继续先观察。
+维护日期：2026-10-28。最新反馈中的首开读取提示已补齐并发布；标题反馈确认当时已正常回读。Impeccable精修、首字输入保护、定时正文及Query原位交接保持，剪贴板继续先观察。
 
 ## 下一次先看
 
-- **本轮已验证，待网页发布：首开加载反馈。** [反馈复核](docs/design/2026-10-28-feedback-loading.md)。真实首开到内容可见约13.3秒，正文区无状态；现在无缓存首读显示明确读取提示，单路先空不提前进入空态。1442项全测、38项双浏览器与独立CR通过。另一条标题反馈已确认当时Pocket正确回读了原生保存的Query摘要，本轮不改同步或重放命名；等待网页发布回读。
+- **最近已上线：首开加载反馈。** [反馈复核](docs/design/2026-10-28-feedback-loading.md)。真实首开到内容可见约13.3秒，正文区无状态；现在无缓存首读显示明确读取提示，单路先空不提前进入空态。1442项全测、38项双浏览器、独立CR及30个公网文件/功能回读通过。读取总耗时原因未定位，本轮不宣称提速。另一条标题反馈已确认当时Pocket正确回读了原生保存的Query摘要，当前名称也与Codex一致；未改同步或重放命名。
 
 - **最近已上线：Impeccable设计精修。** [审查与修改](docs/design/2026-10-28-impeccable-polish.md)。独立视觉/技术评审后，提前披露缺失必填目录、把无正文错误恢复放回阅读区、清除归档/设置4px命中重叠、提高placeholder对比并校准模型/上下文触控与字段间距。完整路径另复现并修复既有首字符丢失：原生编辑事件的预连接后置到下一任务。1436项全测、创建/恢复/几何/输入专项及独立视觉通过；30个公网资源/功能与本机公开构建已回读。仅网页更新，未改后台或真实会话，物理iPhone/原生IME未直接复验。
 
@@ -50,13 +50,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `3546e24996d1cffa5170bba5ee85d09e9b5a283f`，Impeccable精修与首字输入保护；定时消息、Query稳定行、标题快刷、PostHog CSP与运行/未读互斥保持 |
+| 前端/网关源码 | `a09f8c13a692bedc3074dfccd575874af5fced44`，首开读取提示与双路空态判断；此前Impeccable、首字输入保护、定时消息、Query稳定行及标题快刷保持 |
 | 两机API源码 | 上次10-26核对：格得 `499da54198e0f87a5574de3822c740abcf58e991` / PID89511；豌豆 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895` / PID73421，尚无队列唤醒修复。本轮只更新网页，PID仍是历史快照 |
-| 前端build | 公网与格得内置网页 `fddfb3a43dc04f7d101b0832b9de0553dff95963d3c7f76faba035f935baf13c`；豌豆内置网页上次核对为 `7cd2cf2e…`，公网共享页面已更新 |
-| Pages部署 | `323af052-58d9-4ebc-bfe3-614042e0c702`；10-28 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，实际上传一次 |
-| 最近验证 | Impeccable：1436项全测、独立前后视觉、创建42/恢复92/几何80/输入42项浏览器检查，原生编辑监听的4项新回归先红后绿。唯一detector得到2处旧语义边线warning，新增渲染改动无命中。物理iPhone/原生IME未验；此前检查证据保持 |
-| 证据 | 最新 `.local/qa/impeccable-2026-10-28/` 的 `tests-final.log`、两份assessment报告/复测、`cr/DIAGNOSIS.md`、`pages-deploy.json`、`local-public-build.json`、`release-verdict.json`；设计快照在 `.impeccable/critique/` 已闭环，旧证据留原QA目录 |
-| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本轮交互测试全部隔离合成，仅回读公开构建。不改消息、回执、队列或定时任务，没有真实发送或重启服务；上次后台更新的数据核验见[首条消息与标题](docs/design/2026-10-26-create-delivery-and-title.md#发布结果) |
+| 前端build | 公网与格得内置网页 `0572f0e9dbf99e2a67789f2a90cca929247adfdde730e90800dcfe975f0f0713`；豌豆内置网页上次核对为 `7cd2cf2e…`，公网共享页面已更新 |
+| Pages部署 | `5e4b977b-4f6f-4240-9d8e-da7fa6330d93`；10-28 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，实际上传一次 |
+| 最近验证 | 首读：1442项全测、38项双浏览器、独立CR；真实访问事件和回放确认原问题，修复用双路延迟/缓存/空/失败/Query保护检验。实体iPhone新版本未直接复验；此前设计与输入证据保持 |
+| 证据 | 最新 `.local/qa/feedback-review-2026-10-28/` 的原始反馈、两组回放/结论、`tests-final.log`、`loading/acceptance-green/`、`pages-deploy.json`、`local-public-build.json` 和 `release-verdict.json`；旧证据留原QA目录 |
+| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本轮只读反馈、回放、目标元信息与当前目录；修复验收全部隔离合成。没有真实发送、改名、队列/定时任务操作或服务重启；上次后台数据核验见[首条消息与标题](docs/design/2026-10-26-create-delivery-and-title.md#发布结果) |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
