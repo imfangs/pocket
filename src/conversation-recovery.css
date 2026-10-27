@@ -4,6 +4,8 @@
 .composer-recovery-action { color:var(--accent); }
 .conversation-feedback .conversation-action-error { margin:0; padding:2px 0; color:var(--danger); background:none; border:0; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
 .conversation-feedback .message-notice { margin:0; padding:2px 0; }
+.conversation-read-loading { display:flex; align-items:center; justify-content:center; gap:8px; padding:48px 16px; color:var(--muted); font-size:13px; line-height:1.5; }
+.conversation-read-loading svg { flex:none; }
 .conversation-read-recovery { display:grid; justify-items:center; gap:var(--space-4); }
 .conversation-read-recovery h3 { margin:0; }
 .conversation-read-recovery .pocket-button { min-height:44px; }

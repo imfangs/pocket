@@ -17,6 +17,7 @@ import { useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript, Message } from "./conversationFeed";
 import { displayConversation } from "./transcript";
+import { emptyConversationState } from "./conversationReadState";
 import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
@@ -608,6 +609,8 @@ export default function Conversation({
   const recoveryVisible = online && !compatibilityCode && !thread.archived && !managementBlocked
     && !!(historyError || connectionError || connectionFailed);
   const recoveryMessage = readableRequestError(historyError || connectionError || connectionLabel);
+  const emptyReadState = emptyConversationState({ online, loading, transcriptLoading, historyFailed: !!historyError,
+    messageCount: shownMessages.length, submissionCount: visibleSubmissions.length, outboxCount: shownOutbox.length });
   const emptyReadRecovery = recoveryVisible && !!historyError && !loading && !transcriptLoading
     && !shownMessages.length && !visibleSubmissions.length && !shownOutbox.length;
   const inlineRecovery = recoveryVisible && !emptyReadRecovery && (!connectionOnlyAction || composer.compact);
@@ -656,7 +659,11 @@ export default function Conversation({
               : "还有更早的消息未显示"}
           </p>
         )}
-        {!loading && !historyError && !shownMessages.length && !visibleSubmissions.length && !shownOutbox.length && (
+        {emptyReadState === "loading" && <div className="conversation-read-loading" role="status">
+          <LoaderCircle size={16} className="composer-connection-spinner" aria-hidden="true" />
+          <span>正在读取消息…</span>
+        </div>}
+        {emptyReadState === "empty" && (
           <div className="history-empty conversation-empty">
             <h3>{targetAvailable ? "从一句话开始" : "暂时没有可显示的消息"}</h3>
             {targetAvailable && <p>写下你想讨论或完成的事。</p>}
