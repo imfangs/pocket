@@ -1,6 +1,6 @@
 import { useId, useState, useSyncExternalStore } from "react";
 import { trimReadingCache } from "./readingCache";
-import { readingCacheLimitOptions, readReadingCacheLimit, saveReadingCacheLimit, subscribeReadingCacheLimit } from "./readingCachePreference";
+import { defaultReadingCacheLimit, readingCacheLimitOptions, readReadingCacheLimit, saveReadingCacheLimit, subscribeReadingCacheLimit } from "./readingCachePreference";
 import "./reading-cache-settings.css";
 
 export default function ReadingCacheSettings() {
@@ -17,7 +17,7 @@ export default function ReadingCacheSettings() {
         // conversation remain owned by their existing controllers.
         void trimReadingCache();
       }}>
-        {readingCacheLimitOptions.map(value => <option key={value} value={value}>{value} 个{value === 50 ? "（默认）" : ""}</option>)}
+        {readingCacheLimitOptions.map(value => <option key={value} value={value}>{value} 个{value === defaultReadingCacheLimit ? "（默认）" : ""}</option>)}
       </select>
     </div>
     <p id={`${id}-help`} className="field-help">保留近期读过的会话，最多使用 30 MiB。</p>

@@ -5,5 +5,5 @@
 }
 .reading-cache-setting-row { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; }
 .reading-cache-setting-row > label { min-width:0; color:var(--ink); font-size:13px; font-weight:600; }
-.reading-cache-setting-row > select { flex:none; height:44px; min-height:44px; width:144px; max-width:60%; padding:0 8px; font-size:16px; }
+.reading-cache-setting-row > select { flex:none; height:44px; min-height:44px; width:156px; max-width:64%; padding:0 8px; font-size:16px; }
 .reading-cache-setting .field-help { margin-bottom:0; }

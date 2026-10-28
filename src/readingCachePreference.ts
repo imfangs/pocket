@@ -1,7 +1,7 @@
 export const readingCachePreferenceKey = "pocket.reading-cache.limit.v1";
-export const readingCacheLimitOptions = Object.freeze([20, 50, 100, 200, 500] as const);
+export const readingCacheLimitOptions = Object.freeze([20, 50, 100, 128, 200, 500] as const);
 export type ReadingCacheLimit = typeof readingCacheLimitOptions[number];
-export const defaultReadingCacheLimit: ReadingCacheLimit = 50;
+export const defaultReadingCacheLimit: ReadingCacheLimit = 128;
 const changedEvent = "pocket-reading-cache-limit-changed";
 type PreferenceBrowser = Pick<Window, "addEventListener" | "removeEventListener" | "dispatchEvent" | "localStorage">;
 type PreferenceChange = { source: object; limit: ReadingCacheLimit; persisted: boolean };

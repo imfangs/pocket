@@ -24,10 +24,10 @@ function browserFixture() {
   return { browser, storage, changed, create: () => createReadingCachePreferenceStore({ browser: () => browser }) };
 }
 
-test('cache count defaults to 50 and all five choices share one browser key across machines', () => {
+test('cache count defaults to 128 and all choices share one browser key across machines', () => {
   const f = browserFixture(), first = f.create();
-  assert.equal(first.read(), 50);
-  assert.deepEqual(readingCacheLimitOptions, [20, 50, 100, 200, 500]);
+  assert.equal(first.read(), 128);
+  assert.deepEqual(readingCacheLimitOptions, [20, 50, 100, 128, 200, 500]);
   for (const limit of readingCacheLimitOptions) {
     assert.deepEqual(first.save(limit), { limit, persisted: true });
     assert.equal(first.read(), limit);
@@ -35,9 +35,9 @@ test('cache count defaults to 50 and all five choices share one browser key acro
   }
   assert.deepEqual([...f.storage.values], [[readingCachePreferenceKey, '500']]);
   for (const bad of ['0', '21', '501', 'null', '{', '020', ' 50', '50.0', 'Infinity']) {
-    f.storage.setItem(readingCachePreferenceKey, bad); assert.equal(first.read(), 50, bad);
+    f.storage.setItem(readingCachePreferenceKey, bad); assert.equal(first.read(), 128, bad);
   }
-  assert.deepEqual(first.save(123), { limit: 50, persisted: true });
+  assert.deepEqual(first.save(123), { limit: 128, persisted: true });
 });
 
 test('same-page subscribers and cross-tab storage events stay synchronized and unsubscribe cleanly', () => {
@@ -47,7 +47,7 @@ test('same-page subscribers and cross-tab storage events stay synchronized and u
   assert.deepEqual(seenA, [200]); assert.deepEqual(seenB, [200]);
   f.storage.setItem(readingCachePreferenceKey, '20'); f.changed();
   f.storage.setItem(readingCachePreferenceKey, '{bad'); f.changed();
-  assert.deepEqual(seenA, [200, 20, 50]); assert.deepEqual(seenB, [200, 20, 50]);
+  assert.deepEqual(seenA, [200, 20, 128]); assert.deepEqual(seenB, [200, 20, 128]);
   f.changed('other'); f.changed(readingCachePreferenceKey, {});
   assert.equal(seenA.length, 3);
   stopA(); stopB(); first.save(100); f.changed();
@@ -147,14 +147,14 @@ test('a slow in-flight batch and queued old work cannot grow past a lowered limi
 
 test('cross-tab decreases and bad-value fallback trigger trimming without a new body write', async t => {
   const f = await fixture(t, true), storage = f.keep(createReadingCacheStorage());
-  saveReadingCacheLimit(200); await storage.write(Array.from({ length: 100 }, (_, index) => record(index, f.now)), f.now);
+  saveReadingCacheLimit(200); await storage.write(Array.from({ length: 150 }, (_, index) => record(index, f.now)), f.now);
   const external = value => {
     f.storage.setItem(readingCachePreferenceKey, value);
     const event = new Event('storage'); Object.assign(event, { key: readingCachePreferenceKey, storageArea: f.storage }); window.dispatchEvent(event);
   };
-  external('{bad'); assert.equal(readReadingCacheLimit(), 50);
+  external('{bad'); assert.equal(readReadingCacheLimit(), 128);
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal((await readDatabase()).entries.length, 50, 'the subscribed adapter queued its own immediate trim');
+  assert.equal((await readDatabase()).entries.length, 128, 'the subscribed adapter queued its own immediate trim');
   external('20'); assert.equal(readReadingCacheLimit(), 20);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal((await readDatabase()).entries.length, 20);

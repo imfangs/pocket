@@ -138,8 +138,8 @@ test('disk count and byte bounds evict older entries within one committed transa
   const makeRecord = (id, bytes = 1024) => ({ schema: 1, key: readingCacheKey('ged', 's', 'transcript', id), machine: 'ged', scope: 's',
     kind: 'transcript', threadId: id, savedAt: baseTime, accessedAt: baseTime + Number(id), bytes,
     json: JSON.stringify({ source: 'rollout', messages: [{ id, role: 'assistant', text: 'x'.repeat(bytes - 512) }] }), fence: readingCacheFence('ged') });
-  await storage.write(Array.from({ length: 55 }, (_, index) => makeRecord(String(index))), baseTime);
-  assert.equal((await records()).length, 50);
+  await storage.write(Array.from({ length: defaultReadingCacheLimit + 5 }, (_, index) => makeRecord(String(index))), baseTime);
+  assert.equal((await records()).length, defaultReadingCacheLimit);
   assert.equal(await storage.transcript(readingCacheKey('ged', 's', 'transcript', '0'), 'ged'), null);
   await storage.write(Array.from({ length: 35 }, (_, index) => makeRecord(String(index + 100), 1024 * 1024)), baseTime);
   const remaining = await records();
