@@ -145,11 +145,15 @@ export function parseHistory(text, startOffset = 0) {
     }
   }
   let budget = 160000;
+  let budgetTruncated = false;
   const visible = textMessages
     .slice(-80)
     .reverse()
     .map((message) => {
       const text = message.text.slice(0, Math.max(0, budget));
+      // Individual messages were already capped above. Only a further loss to
+      // the aggregate window can be recovered by loading an earlier page.
+      budgetTruncated ||= text.length < message.text.length;
       budget -= text.length;
       return {
         ...message,
@@ -164,7 +168,7 @@ export function parseHistory(text, startOffset = 0) {
     messageId: lastReadableAssistant.id, readable: target?.id === lastReadableAssistant.id && !target.truncated }
     : startOffset === 0 ? { known: true, version: EMPTY_CONTENT_VERSION, messageId: null, readable: false }
       : { known: false };
-  return { messages: visible, hasMore: textMessages.length > visible.length, lastMessageAt, [POCKET_CONTENT]: content,
+  return { messages: visible, hasMore: budgetTruncated || textMessages.length > visible.length, lastMessageAt, [POCKET_CONTENT]: content,
     turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
 }
 

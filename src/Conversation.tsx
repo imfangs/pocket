@@ -25,6 +25,7 @@ import { holdReload, useReloadGuard } from "./updateSafety";
 import { connectionFailureHint, connectionFromHistory, isConnectionCompatibilityFailure, newerConnection } from "./threadConnection";
 import type { ConnectOptions, OpenThreadResult, ThreadConnection } from "./threadConnection";
 import { bindComposerConnectionIntent, createComposerConnectionIntent } from "./composerConnection";
+import { bindConversationDwellConnection } from "./conversationDwell";
 import "./composer-connection.css";
 import { displayedPocketContent, observeVisiblePocketRead } from "./readObservation";
 import { pocketReadState, type PocketContent } from "./pocketReadState";
@@ -355,6 +356,10 @@ export default function Conversation({
   const receiptRead = useRef<AbortController | null>(null);
   const checkingSubmissions = useRef(new Map<string, AbortController>());
   const connectionOpen = useRef<AbortController | null>(null);
+  const passiveConnection = useRef(false);
+  const inputPreferred = useRef(false);
+  const stopDwell = useRef<(() => void) | null>(null);
+  const preferInputConnection = () => { inputPreferred.current = true; stopDwell.current?.(); stopDwell.current = null; };
   const restorePending = useRef(false);
   const inputConnection = useRef<ReturnType<typeof createComposerConnectionIntent> | null>(null);
   useEffect(() => () => receiptRead.current?.abort(), [thread.id]);
@@ -472,13 +477,15 @@ export default function Conversation({
     const subscription = startConnectionFeed({
       request: signal => api<ThreadConnection>(`/api/tasks/${thread.id}/connection`, "GET", undefined, { signal }),
       onData(data) {
+        const wasPassive = passiveConnection.current;
+        if (data.status !== "connecting") passiveConnection.current = false;
         setConnectionError("");
         setConnection(previous => data.status === "idle" && previous.status === "connecting" && previous.requestId === connectingId
-          ? { ...previous, status: "failed", checkedAt: Date.now(), code: "connection_unknown" }
+          ? { ...previous, status: wasPassive ? "skipped" : "failed", checkedAt: Date.now(), code: "connection_unknown" }
           : newerConnection(previous, data));
         if (data.status !== "connecting") void load();
       },
-      onError() { setConnectionError("连接状态待确认"); },
+      onError() { if (!passiveConnection.current) setConnectionError("连接状态待确认"); },
     });
     return () => subscription.stop();
   }, [thread.id, connectingId, load, managementBlocked]);
@@ -683,22 +690,28 @@ export default function Conversation({
       }
     }
   };
-  const connect = async () => {
-    if (connecting || connectionOpen.current || !online || !targetAvailable || compatibilityCode) return;
+  const connect = async (intent?: "reading") => {
+    const promote = intent !== "reading" && passiveConnection.current;
+    if ((connecting || connectionOpen.current) && !promote || !online || !targetAvailable || compatibilityCode) return;
+    if (intent !== "reading") preferInputConnection();
+    if (promote) connectionOpen.current?.abort();
+    passiveConnection.current = intent === "reading";
     const controller = new AbortController();
     connectionOpen.current = controller;
     setOpening(true);
-    setError("");
-    setConnectionError("");
+    if (intent !== "reading") { setError(""); setConnectionError(""); }
     const ownsView = () => !controller.signal.aborted && connectionOpen.current === controller;
     try {
-      const result = await onConnect({ quiet: true });
+      const result = await onConnect({ quiet: true, ...(intent ? { intent } : {}) });
       if (!ownsView()) return;
+      if (result.status === "skipped") { passiveConnection.current = false; return; }
+      setConnectionError("");
       if (result.connection) setConnection(previous => newerConnection(previous, result.connection));
       else setConnectionError("连接状态待确认");
       void load();
     } catch (error) {
-      if (ownsView()) setConnectionError("连接失败");
+      if (ownsView()) passiveConnection.current = false;
+      if (ownsView() && intent !== "reading") setConnectionError("连接失败");
     } finally {
       if (ownsView()) { connectionOpen.current = null; setOpening(false); }
     }
@@ -724,7 +737,7 @@ export default function Conversation({
   const retryConnection = showConnectionState && connectionFailed && !compatibilityCode && !hasComposerContent && !draft.requestId && !preconnectBlocked;
   const connectionOnlyAction = !hasComposerContent && !draft.requestId && (retryConnection || connecting);
   const connectionContext = useRef<{ connect: () => Promise<void>; available: () => boolean }>({ connect, available: () => false });
-  connectionContext.current = { connect, available: () => online && targetAvailable && !preconnectBlocked && !connecting &&
+  connectionContext.current = { connect, available: () => online && targetAvailable && !preconnectBlocked && (!connecting || passiveConnection.current) &&
     (history?.source !== "desktop" || !!historyError) && (observedConnection.status !== "connected" || staleConnection) &&
     document.visibilityState !== "hidden" && !!composer.ref.current?.isConnected &&
     !composer.ref.current.closest('[inert], [aria-hidden="true"]') && !document.querySelector("[data-reading-overlay]") };
@@ -733,8 +746,24 @@ export default function Conversation({
     if (!form) return;
     const controller = createComposerConnectionIntent({ available: () => connectionContext.current.available(), connect: () => connectionContext.current.connect() });
     inputConnection.current = controller;
-    const unbind = bindComposerConnectionIntent(form, () => { void controller.request(); });
+    const unbind = bindComposerConnectionIntent(form, () => { preferInputConnection(); void controller.request(); });
     return () => { unbind(); controller.dispose(); if (inputConnection.current === controller) inputConnection.current = null; };
+  }, [thread.id]);
+  const dwellContext = useRef<{ available: () => boolean; connect: () => Promise<void> }>({ available: () => false, connect: () => Promise.resolve() });
+  dwellContext.current = {
+    available: () => !inputPreferred.current && !connecting && !connectionOpen.current && connectionContext.current.available() && !shownOutbox.length &&
+      !submitted.some(item => ["pending", "submitting", "connecting", "queued", "editing", "unknown"].includes(item.status)),
+    connect: () => connect("reading"),
+  };
+  useEffect(() => {
+    const document = composer.ref.current?.ownerDocument;
+    if (!document || inputPreferred.current) return;
+    const dispose = bindConversationDwellConnection(document, {
+      available: () => dwellContext.current.available(), connect: () => dwellContext.current.connect(),
+      visible: () => !!composer.ref.current?.isConnected && !composer.ref.current.closest('[inert], [aria-hidden="true"]'),
+    });
+    stopDwell.current = dispose;
+    return () => { dispose(); if (stopDwell.current === dispose) stopDwell.current = null; };
   }, [thread.id]);
   const recoveryVisible = online && !compatibilityCode && !thread.archived && !managementBlocked
     && !!(historyError || connectionError || connectionFailed);

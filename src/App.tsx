@@ -20,7 +20,7 @@ import CollectionReadFeedback from "./CollectionReadFeedback";
 import Inspector from "./Inspector";
 import BootSplash from "./BootSplash";
 import type { HistoryCache } from "./conversationFeed";
-import type { OpenThreadResult } from "./threadConnection";
+import type { ConnectOptions, OpenThreadResult } from "./threadConnection";
 import { SettingsDialog } from "./Dialogs";
 import { api, setToken, clearReadResponses } from "./api";
 import { CatalogSourceError, createCatalogReader } from "./catalogReader";
@@ -551,8 +551,10 @@ export default function App({
     return () => window.removeEventListener("pocket-open-task", fromNotification);
   });
   const open = useCallback(
-    async (t: Thread, options?: { quiet?: boolean }) => {
-      const result = await api<OpenThreadResult>(`/api/open/${t.id}`, "POST");
+    async (t: Thread, options?: ConnectOptions) => {
+      const result = await api<OpenThreadResult>(`/api/open/${t.id}`, "POST",
+        options?.intent === "reading" ? { intent: "reading" } : undefined);
+      if (result.status === "skipped" || options?.intent === "reading") return result;
       catalogReader.invalidate();
       setCatalog((c) => ({
         ...c,

@@ -73,7 +73,7 @@ export class DesktopService {
     this.cache.delete(id);
     const entry = this.connections.get(id);
     if (entry?.state.status === "connecting") {
-      entry.state.status = "failed";
+      entry.state.status = entry.reading ? "skipped" : "failed";
       entry.state.code = "lifecycle_pending";
       entry.controller.abort();
     }
@@ -83,16 +83,41 @@ export class DesktopService {
     const entry = this.connections.get(id);
     return entry ? { ...entry.state } : { status: "idle" };
   }
-  connect(id, { open = true } = {}) {
+  readingConnectionBlocked(id, data) {
+    const thread = this.store.thread(id);
+    return thread.archived || thread.missing || thread.sourceExcluded || thread.separator ||
+      this.isLifecycleBlocked(id) || this.sending.has(id) || this.queueReservations.has(id) ||
+      this.outbox(id).length > 0 || this.stops.pause(id) || this.stops.pending(id) ||
+      this.compactionPending(id) || this.models.pending(id) || this.renamePending?.(id) ||
+      !!this.store.db.prepare("SELECT 1 FROM dispatches WHERE thread_id=? AND status IN('pending','unknown') LIMIT 1").get(id) ||
+      !!this.store.db.prepare("SELECT 1 FROM request_responses WHERE thread_id=? AND status IN('pending','accepted','unknown') LIMIT 1").get(id) ||
+      !!data?.pendingRequests?.length || data?.compaction?.active ||
+      data?.source === "desktop" && data.resumeState === "resumed" && data.canSend === false;
+  }
+  connect(id, { open = true, reading = false } = {}) {
+    // Passive browsing must not make an old queued or uncertain request runnable.
+    // This gate is checked again after every asynchronous read and before open.
+    if (reading && this.readingConnectionBlocked(id)) return null;
     this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
     if (!this.openThread) throw new AppError("当前环境无法连接桌面会话", 503);
     const previous = this.connections.get(id);
-    if (previous?.state.status === "connecting") return { ...previous.state };
+    if (previous?.state.status === "connecting") {
+      // A real input/submission takes over the existing operation rather than
+      // being rejected by the passive queue guard or starting a duplicate open.
+      if (!reading && previous.reading) {
+        previous.reading = false;
+        // The first passive lookup may still be waiting for an owner. A real
+        // input/submission must open now, not after that read times out. Recovery
+        // shares this promise; a late open failure cannot change a ready owner.
+        void previous.openOnce?.().catch(() => {});
+      }
+      return { ...previous.state };
+    }
     const now = Date.now();
     const entry = { state: { requestId: randomUUID(), status: "connecting", startedAt: now, checkedAt: now },
-      controller: new AbortController() };
+      controller: new AbortController(), reading };
     this.connections.delete(id);
     this.connections.set(id, entry);
     if (this.connections.size > 100) {
@@ -100,14 +125,22 @@ export class DesktopService {
       if (oldest) this.connections.delete(oldest[0]);
     }
     this.cache.delete(id);
-    // The response is immediate. Only this explicit operation may open a desktop
-    // thread; ordinary history and queue polling remain read-only.
-    void this.recoverConnection(id, entry, open);
+    // Passive visits read first; only this requested recovery may open the
+    // desktop. Ordinary history and queue polling remain read-only.
+    void this.recoverConnection(id, entry, reading ? false : open);
     return { ...entry.state };
   }
   async recoverConnection(id, entry, openImmediately) {
     const { signal } = entry.controller;
     const current = () => !signal.aborted && this.connections.get(id) === entry;
+    const allowed = data => {
+      if (!current()) return false;
+      if (entry.reading && this.readingConnectionBlocked(id, data)) {
+        Object.assign(entry.state, { status: "skipped", code: "reading_blocked", checkedAt: Date.now() });
+        return false;
+      }
+      return true;
+    };
     const deadline = entry.state.startedAt + this.connectionTimeoutMs;
     const bounded = async operation => {
       let timer, abort;
@@ -120,13 +153,29 @@ export class DesktopService {
       try { return await Promise.race([operation(), timeout]); }
       finally { clearTimeout(timer); signal.removeEventListener("abort", abort); }
     };
-    let opened = false, lastCode = "connection_timeout";
+    let opened = false, openPromise, lastCode = "connection_timeout";
+    const openOnce = data => {
+      if (!openPromise) {
+        // Assign before invoking the opener, so recovery and takeover cannot
+        // perform two native opens, including synchronous/reentrant callers.
+        openPromise = Promise.resolve().then(async () => {
+          if (!allowed(data) || entry.state.status !== "connecting") return false;
+          if (Date.now() >= deadline) throw new Error("connection_timeout");
+          await bounded(() => this.openThread(id));
+          opened = true;
+          return true;
+        });
+      }
+      return openPromise;
+    };
+    entry.openOnce = openOnce;
     try {
-      if (openImmediately) { await bounded(() => this.openThread(id)); opened = true; }
-      for (let attempt = 0; current() && Date.now() < deadline; attempt++) {
+      if (!allowed()) return;
+      if (openImmediately && !await openOnce()) return;
+      for (let attempt = 0; allowed() && Date.now() < deadline; attempt++) {
         const result = await bounded(() => this.request({ operation: "history", threadId: id,
           codexHome: this.codexHome, ownerLookupTimeoutMs: 10000 }));
-        if (!current()) return;
+        if (!allowed(result)) return;
         entry.state.checkedAt = Date.now();
         if (result.ok && result.source === "desktop" && result.resumeState === "resumed") {
           const data = { ...result, checkedAt: entry.state.checkedAt };
@@ -134,13 +183,16 @@ export class DesktopService {
           entry.state.status = "connected";
           // An explicit connection/submission has made this owner ready. Do not
           // wait behind unrelated slow owners in the background queue scan.
-          if (this.queueStarted) void this.processQueueForThread(id, true).catch(() => {});
+          if (this.queueStarted && !entry.reading) void this.processQueueForThread(id, true).catch(() => {});
           return;
         }
         const incompatible = compatibilityFailure(result);
         lastCode = incompatible || result.connectionReason || result.code || "thread_not_resumed";
         if (incompatible) break;
-        if (!opened) { await bounded(() => this.openThread(id)); opened = true; }
+        if (!opened) {
+          if (!allowed(result)) return;
+          if (!await openOnce(result)) return;
+        }
         await bounded(() => new Promise(resolve => {
           // Keep the full initialization window without rapidly exhausting it.
           // Production reads are separated by 500 ms, 1 s, then at least 2 s.
@@ -149,9 +201,11 @@ export class DesktopService {
           timer.unref?.();
         }));
       }
-      if (current()) Object.assign(entry.state, { status: "failed", code: lastCode, checkedAt: Date.now() });
+      if (current() && entry.state.status === "connecting") Object.assign(entry.state, { status: entry.reading ? "skipped" : "failed", code: lastCode, checkedAt: Date.now() });
     } catch (error) {
-      if (current()) Object.assign(entry.state, { status: "failed", code: error.message === "connection_timeout" ? lastCode : "desktop_unavailable", checkedAt: Date.now() });
+      if (current() && entry.state.status === "connecting") Object.assign(entry.state, { status: entry.reading ? "skipped" : "failed", code: error.message === "connection_timeout" ? lastCode : "desktop_unavailable", checkedAt: Date.now() });
+    } finally {
+      delete entry.openOnce;
     }
   }
   connectForSubmission(id) {

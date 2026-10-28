@@ -2,12 +2,34 @@ import type { History, Message, SavedTranscript } from "./conversationFeed";
 
 function bounded(messages: Message[], hasMore = false) {
   let remaining = 160000;
+  let budgetTruncated = false;
   const visible = messages.slice(-80).reverse().map(message => {
-    const text = message.text.slice(0, Math.max(0, Math.min(24000, remaining)));
+    const messageLimit = Math.min(24000, message.text.length);
+    const available = Math.max(0, Math.min(messageLimit, remaining));
+    budgetTruncated ||= available < messageLimit;
+    const text = message.text.slice(0, available);
     remaining -= text.length;
     return text === message.text ? message : { ...message, text, truncated: true };
   }).filter(message => message.text || message.attachments?.length).reverse();
-  return { messages: visible, hasMore: hasMore || visible.length < messages.length };
+  return { messages: visible, hasMore: hasMore || budgetTruncated || visible.length < messages.length };
+}
+
+function savedEarlierBoundary(displayed: Message[], saved: Message[], hasMore: boolean) {
+  const positions = new Map(displayed.map((message, index) => [message.id, { message, index }]));
+  let boundary = -1, lastDisplayed = -1, lastSaved = -1;
+  for (let index = 0; index < saved.length; index++) {
+    const message = saved[index], match = positions.get(message.id);
+    if (!match || match.message.role !== message.role ||
+        match.message.turnId && message.turnId && match.message.turnId !== message.turnId) continue;
+    if (match.index <= lastDisplayed) return false;
+    if (match.index === 0) boundary = index;
+    lastDisplayed = match.index; lastSaved = index;
+  }
+  // A longer native prefix already covers a shorter saved tail. Only borrow
+  // the saved boundary when it reaches our first visible message and the two
+  // ordered views do not continue into different, unshared tails.
+  return boundary >= 0 && (lastDisplayed === displayed.length - 1 || lastSaved === saved.length - 1) &&
+    (hasMore || boundary > 0);
 }
 
 // Merge only display text, never runtime/capability fields. Shared IDs establish
@@ -31,8 +53,11 @@ export function displayConversation(history: History | null, transcript: SavedTr
     const hasDelegatedInput = transcript?.messages.some(message => message.origin === "codex_delegation" && message.turnId === b.turnId);
     const nativeInput = hasDelegatedInput && !completed.some(message => message.role === "user")
       ? live.filter(message => message.turnId === a.turnId && message.role === "user") : [];
-    return bounded([...live.filter(message => message.turnId !== a.turnId),
-      ...nativeInput, ...completed], !!history.hasMore);
+    const previous = live.filter(message => message.turnId !== a.turnId);
+    const displayed = [...previous, ...nativeInput, ...completed];
+    return bounded(displayed, !!history.hasMore ||
+      savedEarlierBoundary(displayed, saved, !!transcript?.hasMore) ||
+      !previous.length && !!transcript?.hasMore);
   }
   const index = new Map(live.map((message, i) => [message.id, i]));
   let anchor = saved.length - 1;
@@ -60,7 +85,8 @@ export function displayConversation(history: History | null, transcript: SavedTr
     following?.role === "assistant" && first?.role === "assistant" && following.id === first.id &&
     opening.turnId === first.turnId && following.turnId === first.turnId && !index.has(opening.id) &&
     !live.some(message => message.role === "user" && message.turnId === opening.turnId) ? [opening] : [];
-  return bounded([...delegatedPrefix, ...merged], !!history?.hasMore);
+  const displayed = [...delegatedPrefix, ...merged];
+  return bounded(displayed, !!history?.hasMore || savedEarlierBoundary(displayed, saved, !!transcript?.hasMore));
 }
 
 // Existing callers that only need display text keep the same merge result.

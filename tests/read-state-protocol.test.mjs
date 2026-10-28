@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, chmodSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, chmodSync, rmSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { writeNativeReadState } from '../server/read-state.mjs';
@@ -25,7 +25,22 @@ async function fixture(t, options = {}) {
   const identityKey = digest(['execution-storage', 'apikey']);
   const executionHostKey = 'local:' + digest(['local', 'local', null]);
   const global = { 'electron-thread-read-state-v1': { version: 1, unreadByIdentity: { [identityKey]: { [executionHostKey]: [id] } } } };
-  const saveGlobal = () => writeFileSync(join(home, '.codex-global-state.json'), JSON.stringify(global));
+  const globalPath = join(home, '.codex-global-state.json');
+  let initialized = false, pendingGlobalWrite;
+  const finishGlobalWrite = () => { pendingGlobalWrite?.(); pendingGlobalWrite = undefined; };
+  const saveGlobal = () => {
+    const body = JSON.stringify(global);
+    const publish = () => {
+      writeFileSync(globalPath + '.tmp', body);
+      renameSync(globalPath + '.tmp', globalPath);
+    };
+    if (initialized && options.holdPartialGlobalWrite) {
+      // Only the explicit failure fixture exposes an incomplete publication.
+      // Hold it until the test releases it, without a timing-sensitive sleep.
+      writeFileSync(globalPath, ''); pendingGlobalWrite = publish;
+    } else publish();
+    initialized = true;
+  };
   saveGlobal();
   const calls = [];
   const server = net.createServer(socket => {
@@ -44,16 +59,18 @@ async function fixture(t, options = {}) {
         }
         if (message.method === 'thread-read-state-changed') {
           global['electron-thread-read-state-v1'].unreadByIdentity[identityKey][executionHostKey] = [];
-          saveGlobal(); options.onRead?.({ rollout });
+          // Publish the completed fixture event last, after any injected activity.
+          options.onRead?.({ rollout }); saveGlobal();
         }
       }
     });
   });
   const socket = join(home, 'ipc', 'ipc.sock'); server.listen(socket); await once(server, 'listening'); chmodSync(socket, 0o700);
-  t.after(async () => { await new Promise(resolve => server.close(resolve)); rmSync(home, { recursive: true, force: true }); });
+  t.after(async () => { finishGlobalWrite(); await new Promise(resolve => server.close(resolve)); rmSync(home, { recursive: true, force: true }); });
   const expected = { sourceVersion: readHistorySourceVersion(home, id), ...readLocalReadStateSnapshot(home, id) };
   delete expected.unread;
-  return { home, rollout, calls, expected, run: () => writeNativeReadState({ threadId: id, requestId, codexHome: home, expected }) };
+  return { home, rollout, calls, expected, finishGlobalWrite,
+    run: () => writeNativeReadState({ threadId: id, requestId, codexHome: home, expected }) };
 }
 
 test('native read bridge uses the versioned original broadcast and independently confirms its state', async t => {
@@ -88,6 +105,17 @@ test('activity after the native broadcast stays unknown and never emits an unrea
   // The append can be detected between either of the readback's two fstats.
   assert.ok(['observation_changed_after_write', 'read_outcome_unknown'].includes(result.code));
   assert.deepEqual(calls.filter(call => call.type === 'broadcast').map(call => call.params.hasUnreadTurn), [false]);
+});
+
+test('incomplete native state publication after the broadcast stays unknown without a second write', async t => {
+  const { home, rollout, calls, run, finishGlobalWrite } = await fixture(t, { holdPartialGlobalWrite: true });
+  const before = readFileSync(rollout), result = await run();
+  assert.equal(result.status, 'unknown'); assert.equal(result.code, 'read_outcome_unknown');
+  assert.deepEqual(calls.map(call => call.method), ['initialize', 'thread-read-state-changed']);
+  assert.deepEqual(calls.filter(call => call.type === 'broadcast').map(call => call.params.hasUnreadTurn), [false]);
+  finishGlobalWrite();
+  assert.equal(readLocalReadStateSnapshot(home, id).unread, false);
+  assert.deepEqual(readFileSync(rollout), before);
 });
 
 test('unsupported auth and stale host identities are refused before any native write', async t => {

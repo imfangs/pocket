@@ -137,6 +137,36 @@ test("desktop timing uses native duration for completed turns and start time for
   assert.equal(data.turnTiming.turnId, "new");
 });
 
+test("history reports older content when native limits omit or shorten earlier messages", async t => {
+  for (const [count, characters, visible] of [[205, 10, 80], [10, 24000, 7], [7, 24000, 7]]) {
+    const f = await fakeDesktop(t, [{ ...idle, turnsPagination: { hasLoadedOldest: true }, turns: [{
+      turnId: "single-turn", status: "completed", itemsPagination: { hasLoadedOldest: true },
+      items: Array.from({ length: count }, (_, index) => ({ type: "agentMessage", id: `message-${index}`,
+        text: "x".repeat(characters), phase: index === count - 1 ? "final_answer" : "commentary" })),
+    }] }]);
+    const result = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+    assert.equal(result.messages.length, visible);
+    assert.equal(result.messages[0].id, `message-${count - visible}`);
+    if (characters === 24000) assert.equal(result.messages[0].text.length, 16000);
+    assert.equal(result.hasMore, true);
+    assert.equal(f.calls.some(call => call.method === "thread-follower-start-turn"), false);
+  }
+});
+
+test("history includes per-turn older-item pagination while distinguishing a single truncated message", async t => {
+  for (const [oldest, characters, expectedMore] of [[false, 10, true], [true, 24001, false]]) {
+    const f = await fakeDesktop(t, [{ ...idle, turnsPagination: { hasLoadedOldest: true }, turns: [{
+      turnId: "single-turn", status: "completed", itemsPagination: { hasLoadedOldest: oldest },
+      items: [{ type: "agentMessage", id: "message", text: "x".repeat(characters), phase: "final_answer" }],
+    }] }]);
+    const result = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });
+    assert.equal(result.messages.length, 1);
+    assert.equal(result.messages[0].text.length, Math.min(24000, characters));
+    assert.equal(result.messages[0].truncated, characters > 24000);
+    assert.equal(result.hasMore, expectedMore);
+  }
+});
+
 test("missing or invalid desktop timing is never invented from message timestamps", async (t) => {
   const f = await fakeDesktop(t, [{ ...idle, turns: [{ turnId: "old", status: "completed", durationMs: -1, finalAssistantStartedAtMs: 900, items: [] }] }]);
   const data = await desktopRequest({ operation: "history", threadId: id, codexHome: f.home });

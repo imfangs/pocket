@@ -136,10 +136,9 @@ export function makeApp(options = {}) {
     const result = await dispatchResponse(operation, () => desktop.getReceipt(threadId, requestId), options.dispatchReplyWaitMs ?? 1000);
     return json(res, result.status, result.data);
   };
-  async function body(req, maxBytes = 4 * 1024 * 1024) {
-    if (
-      !String(req.headers["content-type"] || "").startsWith("application/json")
-    )
+  async function body(req, maxBytes = 4 * 1024 * 1024, allowEmpty = false) {
+    const isJson = String(req.headers["content-type"] || "").startsWith("application/json");
+    if (!isJson && !allowEmpty)
       throw new AppError("需要 JSON 请求", 415);
     const chunks = [];
     let n = 0;
@@ -148,6 +147,8 @@ export function makeApp(options = {}) {
       if (n > maxBytes) throw new AppError("请求过大", 413);
       chunks.push(chunk);
     }
+    if (allowEmpty && n === 0) return {};
+    if (!isJson) throw new AppError("需要 JSON 请求", 415);
     try {
       return JSON.parse(Buffer.concat(chunks).toString("utf8"));
     } catch {
@@ -484,7 +485,18 @@ export function makeApp(options = {}) {
         return json(res, 200, store.patchThread(task[1], await body(req)));
       const open = path.match(/^\/api\/open\/([a-f0-9-]{36})$/i);
       if (open && method === "POST") {
+        const input = await body(req, 1024, true);
+        if (!input || typeof input !== "object" || Array.isArray(input) ||
+            Object.keys(input).some(key => key !== "intent") ||
+            input.intent !== undefined && input.intent !== "reading")
+          throw new AppError("连接参数无效", 400);
         const t = store.thread(open[1]);
+        if (input.intent === "reading") {
+          const connection = desktop.connect(t.id, { reading: true });
+          // Staying on a reading view is not another explicit navigation/open.
+          return json(res, 200, { status: connection ? "handoff_requested" : "skipped", thread: { ...t, ...store.annotation(t.id, t) },
+            connection: connection || desktop.connection(t.id) });
+        }
         desktop.requireLifecycleOpen(t.id);
         if (t.missing)
           throw new AppError("来源中已找不到这条会话，请先同步", 409);

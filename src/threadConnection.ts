@@ -2,13 +2,13 @@ import type { Thread } from "./types";
 
 export type ThreadConnection = { status: "idle" } | {
   requestId: string;
-  status: "connecting" | "connected" | "failed";
+  status: "connecting" | "connected" | "failed" | "skipped";
   startedAt: number;
   checkedAt: number;
   code?: string;
 };
 export type OpenThreadResult = { status: string; thread: Thread; connection?: ThreadConnection; readOnly?: boolean };
-export type ConnectOptions = { quiet?: boolean };
+export type ConnectOptions = { quiet?: boolean; intent?: "reading" };
 
 // History and the small connection endpoint can finish in either order. A late
 // snapshot must not turn a verified/failed attempt back into "connecting".

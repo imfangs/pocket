@@ -422,6 +422,7 @@ def history(state):
     turns = ordered_turns(state)
     observed_at = int(time.time() * 1000)
     messages = []
+    has_more = not state.get("turnsPagination", {}).get("hasLoadedOldest", False) or len(turns) > 30
     for turn in turns[-30:]:
         tid = turn.get("turnId")
         params = turn.get("params") or {}
@@ -430,6 +431,7 @@ def history(state):
         first_user = next((i for i in items if i.get("type") == "userMessage"), None)
         steering = [i for i in items if i.get("type") == "steeringUserMessage" and i.get("status") == "accepted"]
         pagination = turn.get("itemsPagination") or {}
+        has_more = has_more or pagination.get("hasLoadedOldest") is False
         common = {"turnId": tid, "timestamp": turn.get("turnStartedAtMs"), "turnStatus": turn.get("status")}
         if not any(i.get("type") == "userMessage" for i in items):
             value = input_message(params.get("input"), params.get("attachments"))
@@ -474,11 +476,17 @@ def history(state):
                           m["role"] == "assistant" and m.get("phase") in ("final", "final_answer")), None)
             if final is not None:
                 final["turnDurationMs"] = timing["durationMs"]
+    has_more = has_more or len(messages) > 80
     messages = messages[-80:]
     budget = 160000
     for message in reversed(messages):
         original = message["text"]
-        message["text"] = original[:min(24000, max(0, budget))]
+        message_limit = min(24000, len(original))
+        available = min(message_limit, max(0, budget))
+        # Aggregate clipping can be recovered on an earlier page. The single
+        # message limit still applies there, so that cap alone is not hasMore.
+        has_more = has_more or available < message_limit
+        message["text"] = original[:available]
         message["truncated"] = len(message["text"]) < len(original)
         budget -= len(message["text"])
     messages = [m for m in messages if m["text"] or m.get("attachmentPaths")]
@@ -495,7 +503,7 @@ def history(state):
             "recentTurns": [{"id": t.get("turnId"), "status": t.get("status")} for t in turns[-30:] if t.get("turnId")],
             "latestTurnStatus": turns[-1].get("status") if turns else None,
             "turnTiming": turn_timing(turns[-1], observed_at) if turns else None,
-            "canSend": allowed, "hint": hint, "hasMore": not state.get("turnsPagination", {}).get("hasLoadedOldest", False) or len(turns) > 30,
+            "canSend": allowed, "hint": hint, "hasMore": has_more,
             "queueReady": allowed and state.get("threadRuntimeStatus", {}).get("type") == "idle" and
                           (not turns or turns[-1].get("status") == "completed"),
             "latestTurnId": turns[-1].get("turnId") if turns else None}

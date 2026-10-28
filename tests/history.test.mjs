@@ -4,7 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { parseHistory, parseHistoryLines, readPersistedHistory } from "../server/history.mjs";
+import { zstdCompressSync } from "node:zlib";
+import { HistoryPageReader, parseHistory, parseHistoryLines, readPersistedHistory } from "../server/history.mjs";
 import { NavigatorStore } from "../server/store.mjs";
 import { DesktopService } from "../server/desktop.mjs";
 const id = "aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa";
@@ -168,6 +169,39 @@ test("history exposes visible user and assistant text, never instructions, reaso
     parseHistoryLines(values).map((m) => m.text),
     ["Question", "Working", "Answer"],
   );
+});
+test("saved history reports aggregate partial clipping but not the single-message limit", () => {
+  for (const [count, characters, firstLength, expectedMore] of [[7, 24000, 16000, true], [1, 24001, 24000, false]]) {
+    const data = parseHistory(Array.from({ length: count }, (_, index) =>
+      message(`saved-${index}`, "assistant", ["x".repeat(characters)], ["unknown"])).join("\n"));
+    assert.equal(data.messages.length, count);
+    assert.equal(data.messages[0].text.length, firstLength);
+    assert.equal(data.messages[0].truncated, true);
+    assert.equal(data.hasMore, expectedMore);
+  }
+});
+
+test("ordinary and compressed recent readers preserve an aggregate-only earlier-history boundary", async t => {
+  for (const compressed of [false, true]) {
+    const home = mkdtempSync(join(tmpdir(), "pocket-saved-budget-"));
+    mkdirSync(join(home, "sessions"));
+    const path = join(home, "sessions", "fixture.jsonl");
+    const db = new DatabaseSync(join(home, "state_5.sqlite"));
+    db.exec("CREATE TABLE threads(id TEXT,rollout_path TEXT)");
+    db.prepare("INSERT INTO threads VALUES(?,?)").run(id, path);
+    db.close();
+    const raw = JSON.stringify({ type: "session_meta", payload: { id } }) + "\n" +
+      Array.from({ length: 7 }, (_, index) => message(`saved-${index}`, "assistant",
+        ["x".repeat(24000)], ["unknown"])).join("\n") + "\n";
+    writeFileSync(path + (compressed ? ".zst" : ""), compressed ? zstdCompressSync(raw) : raw);
+    const reader = new HistoryPageReader();
+    t.after(() => { reader.close(); rmSync(home, { recursive: true, force: true }); });
+    const recent = await reader.recent(home, id);
+    assert.equal(recent.messages.length, 7);
+    assert.equal(recent.messages[0].text.length, 16000);
+    assert.equal(recent.hasMore, true);
+    if (!compressed) assert.equal(readPersistedHistory(home, id).hasMore, true);
+  }
 });
 test("history reads only the matching rollout under permitted source directories", (t) => {
   const home = temporary(t);

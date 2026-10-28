@@ -3,8 +3,8 @@ type Options = {
   connect: () => Promise<unknown>;
 };
 
-// A reading view never opens a desktop conversation. Only an input gesture may
-// spend this view's one automatic attempt; failure does not retry on every key.
+// Input intention has its own attempt, separate from passive reading prefetch.
+// A failed input connection does not retry on every subsequent key.
 export function createComposerConnectionIntent(options: Options) {
   let attempted = false, disposed = false;
   let pending: Promise<void> | null = null;
