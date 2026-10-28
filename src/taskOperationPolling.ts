@@ -5,21 +5,29 @@ type Options = {
   request: (requestId: string, signal: AbortSignal) => Promise<TaskOperation>;
   receive: (operation: TaskOperation) => TaskOperation;
   onError: (requestId: string, error: Error) => void;
+  isCreationWatched?: (requestId: string) => boolean;
   now?: () => number;
   setTimer?: (callback: () => void, delay: number) => Timer;
   clearTimer?: (timer: Timer) => void;
 };
-type Creation = { startedAt: number; failures: number; running: boolean; resumeRequested?: boolean; timer?: Timer };
+type Creation = { startedAt: number; failures: number; running: boolean; slow: boolean; resumeRequested?: boolean; timer?: Timer };
 
 // A local optimistic pending operation has no createdAt. Only the Mac's
 // durable receipt authorizes polling, avoiding a premature not-found error.
 export const pendingCreation = (operation: TaskOperation) => operation.operation === "create" && operation.status === "pending";
 const confirmedCreation = (operation: TaskOperation) => pendingCreation(operation) && Number.isFinite(operation.createdAt);
+// A succeeded lifecycle only reads its independent first-message receipt.
+// Never include lifecycle unknown here: its GET can perform creation recovery.
+const awaitingFirstMessage = (operation: TaskOperation) => operation.operation === "create" && operation.status === "succeeded" &&
+  !!operation.initialMessage && !["accepted", "cancelled"].includes(operation.initialMessage.status);
+const needsSlowRead = (operation: TaskOperation) => awaitingFirstMessage(operation) &&
+  !["queued", "pending"].includes(operation.initialMessage!.status);
 
 export function createTaskOperationPolling(options: Options) {
   const now = options.now ?? Date.now, setTimer = options.setTimer ?? setTimeout, clearTimer = options.clearTimer ?? clearTimeout;
   const requests = new Map<string, { promise: Promise<TaskOperation | undefined>; controller: AbortController }>();
   const creations = new Map<string, Creation>();
+  const forgotten = new Set<string>();
   let active = false, stopped = false;
   const unschedule = (entry: Creation) => {
     if (entry.timer !== undefined) clearTimer(entry.timer);
@@ -70,25 +78,33 @@ export function createTaskOperationPolling(options: Options) {
     }
     entry.failures = result ? 0 : entry.failures + 1;
     const elapsed = now() - entry.startedAt;
-    const interval = elapsed < 10000 ? 500 : elapsed < 30000 ? 1500 : 4000;
+    const interval = entry.slow ? 15000 : elapsed < 10000 ? 500 : elapsed < 30000 ? 1500 : 4000;
     schedule(requestId, entry, Math.max(interval, entry.failures ? Math.min(8000, 500 * 2 ** entry.failures) : 0));
   };
   const observe = (operation: TaskOperation) => {
     if (stopped) return;
     const existing = creations.get(operation.requestId);
-    if (!confirmedCreation(operation)) {
+    if (forgotten.has(operation.requestId) || !confirmedCreation(operation) &&
+      !(options.isCreationWatched?.(operation.requestId) !== false && awaitingFirstMessage(operation))) {
       if (existing) unschedule(existing);
       creations.delete(operation.requestId);
       return;
     }
-    if (existing) return;
-    const entry: Creation = { startedAt: now(), failures: 0, running: false };
+    if (existing) { existing.slow = needsSlowRead(operation); return; }
+    const entry: Creation = { startedAt: now(), failures: 0, running: false, slow: needsSlowRead(operation) };
     creations.set(operation.requestId, entry);
     schedule(operation.requestId, entry, 0);
   };
   return {
     check,
     observe,
+    forget(requestId: string) {
+      forgotten.add(requestId);
+      const entry = creations.get(requestId);
+      if (entry) unschedule(entry);
+      creations.delete(requestId);
+      requests.get(requestId)?.controller.abort();
+    },
     setActive(value: boolean) {
       if (stopped) return;
       active = value;
@@ -107,6 +123,7 @@ export function createTaskOperationPolling(options: Options) {
       stopped = true;
       for (const entry of creations.values()) unschedule(entry);
       creations.clear();
+      forgotten.clear();
       for (const entry of requests.values()) entry.controller.abort();
     },
   };

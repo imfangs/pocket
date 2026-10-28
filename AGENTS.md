@@ -29,7 +29,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 动效、详情转场、右滑与横滚冲突、内容过渡 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：跟手、披露、创建/消息衔接、主动pin换位和轻反馈；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
 | 项目导航、最近创建、关注/Codex置顶快捷分类、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：独立范围、创建时间倒序、单分数公式、消息来源、行为加分、有效状态与滚动锚 |
 | Query在消息与待发区搬移/重影、发送后键盘或阅读跳动 | [发送连续性](docs/design/2026-10-25-send-ui-continuity.md)：同请求稳定消息行、行内状态/队列操作、精确身份与全文保护；焦点、IME和用户滚动优先 |
-| 新建后迟迟没有完成反馈、创建状态被旧操作拖慢 | [新建确认延迟](docs/design/2026-10-25-create-confirmation-latency.md)：原生耗时与前端确认分开，创建独立核对、同ID单飞与未知不重放 |
+| 新建回列表、行内进度、弱网恢复、确认延迟 | [列表确认](docs/design/2026-10-09-creation-and-send-feedback.md#2026-10-28提交后回列表行内确认)：立即返回、蓝转绿、失败输入恢复与后台核对；[确认延迟](docs/design/2026-10-25-create-confirmation-latency.md)保留原生耗时及同ID单飞依据 |
 | 新建首Query卡在待发、自动标题滞后 | [首条消息与标题同步](docs/design/2026-10-26-create-delivery-and-title.md)：连接就绪唤醒本会话队列、停止代次保护、近期详情有界目录快刷；连接耗时与轮询延迟分开验证 |
 | 新建剪贴板预填、Paste许可、读取失败恢复 | [Query与剪贴板](docs/design/2026-10-09-startup-and-query-entry.md)：默认点击内读取、保留系统许可、主动恢复与迟到结果保护；浏览器替身不能证明iPhone许可链路 |
 | 手机阅读态输入区收放、列表时间/状态位置 | [阅读与列表收敛](docs/design/2026-10-13-reading-composer-and-row-state.md)：同一输入节点、焦点/IME/附件/待处理保护与固定状态槽 |
@@ -40,7 +40,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 整体 UI、导航、筛选、阅读层级与表单 | [工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md)；整体减法或同类删减再次出现时，先按[迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)第4、6节审视完整路径的相邻区域，确定覆盖范围与保留理由 |
 | 列表运行中/等待状态、状态过期 | [列表运行状态](docs/design/2026-10-08-running-status.md)：原owner候选读取、共享轮询与归档取消边界 |
 | 最近访问/运行/新建会话的后台状态跟踪 | [近期活跃预取](docs/design/2026-10-22-active-thread-prefetch.md)：有界内存集合、批量优先提示、公平轮转；不读取正文或制造访问/已读 |
-| 列表、来源导入、元数据恢复 | [数据与接口](docs/ARCHITECTURE.md)、[桌面列表范围](docs/design/2026-10-14-desktop-list-scope.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
+| 列表、来源导入、元数据恢复、阅读缓存 | [数据与接口](docs/ARCHITECTURE.md)、[桌面列表范围](docs/design/2026-10-14-desktop-list-scope.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
 | 阅读后清除未读、跨端重复未读、运行中排除未读、内容版本与缓存 | [阅读状态与已读合并](docs/design/2026-10-22-pocket-read-state.md)：有效运行状态仅抑制列表未读；本地水位、真实可见阅读与精确版本桌面提示保持，原生写回仅旧客户端兼容 |
 | 用户引用批注、列表刷新反馈、顶部筛选/排序选中态 | [本轮契约](docs/design/2026-10-23-annotations-refresh-controls.md)：问题优先、引用披露、请求反馈互斥与轻量选中表面 |
 | 新提问选项、回答/忽略与重复显示 | [可选提问](docs/design/2026-10-10-optional-question-prompts.md)：新题选项直接展示、精确投影去重、草稿与未知回答保护 |
@@ -49,6 +49,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 手机上传、附件草稿、图片/文件发送及队列恢复 | [附件发送](docs/design/2026-10-10-attachments.md)：私有落盘、原owner输入、上传/发送编号及文件保留边界 |
 | 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
 | Markdown、定时消息正文空白、Codex专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)：heartbeat触发与结果安全投影、代码示例保护；图片边界见[图片契约](docs/IMAGES.md) |
+| Markdown/TXT等文件页内预览、下载与预览字节复用 | [消息文件](docs/design/2026-10-22-message-components.md)：受控文件权限、1MiB文本预览、关闭恢复、按当前预览下载；文件内容不继承会话组件权限 |
 | Pocket 前端更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
 | Codex 升级后连接失败、协议不兼容或内置 CLI 变化 | [桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)：App 发布号仅作诊断，IPC 契约与 CLI 语义分别检查 |
 | 通知与用户确认 | [通知](docs/NOTIFICATIONS.md)、会话契约中的审批/阻塞问题章节 |

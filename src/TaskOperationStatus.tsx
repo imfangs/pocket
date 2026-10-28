@@ -2,10 +2,12 @@ import { useLayoutEffect, useRef } from "react";
 import { activeOperation, observeCreationNotice, operationCancelLabel, operationText, type TaskOperation } from "./taskOperations";
 import { animateReceiptHandoff } from "./receiptMotion";
 
-export default function TaskOperationStatus({ operation, title, error, onCheck, onCancel, onOpen, onDismiss, autoDismissEnabled = false }: {
+export default function TaskOperationStatus({ operation, title, error, onCheck, onCancel, onOpen, onDismiss, onRetry, onDiscard, autoDismissEnabled = false }: {
   operation: TaskOperation; title?: string; error?: string;
   onCheck: () => void; onCancel: () => void; onOpen?: () => void; onDismiss?: () => void;
   autoDismissEnabled?: boolean;
+  onRetry?: () => void;
+  onDiscard?: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null), dismiss = useRef(onDismiss);
   const exit = useRef<(() => void) | null>(null);
@@ -36,6 +38,8 @@ export default function TaskOperationStatus({ operation, title, error, onCheck, 
     <div className="task-operation-actions">
       {cancelLabel && <button className="text-button" onClick={onCancel}>{cancelLabel}</button>}
       {operation.status === "unknown" && <button className="text-button" onClick={onCheck}>核对操作状态</button>}
+      {onRetry && <button className="text-button" onClick={onRetry}>修改后重试</button>}
+      {onDiscard && <button className="text-button" onClick={onDiscard}>放弃本次新建</button>}
       {operation.operation === "create" && (operation.status === "succeeded" || operation.creationStatus === "created") && onOpen && <button className="text-button" onClick={() => { notice.current?.stop(); onOpen(); }}>{operation.status === "succeeded" ? "打开新会话" : "查看已创建会话"}</button>}
       {!activeOperation(operation) && onDismiss && <button className="text-button" onClick={() => close(true)}>关闭提示</button>}
     </div>

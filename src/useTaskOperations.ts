@@ -12,12 +12,17 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
   const [errors, setErrors] = useState<Record<string, string>>({});
   const polling = useRef<ReturnType<typeof createTaskOperationPolling> | null>(null);
   useLayoutEffect(() => { complete.current = onComplete; }, [onComplete]);
-  useReloadGuard(() => operations.some(operation => operation.status === "unknown") ? "会话操作结果尚待核对，请先处理。" : null);
+  useReloadGuard(() => {
+    const current = [...receipts.current.values()];
+    if (current.some(operation => operation.operation === "create" && operation.status === "pending" && !Number.isFinite(operation.createdAt)))
+      return "会话正在提交，请稍后更新。";
+    return current.some(operation => operation.status === "unknown") ? "会话操作结果尚待核对，请先处理。" : null;
+  });
   const receive = useCallback((incoming: TaskOperation) => {
     if (!mounted.current || !incoming?.requestId) return incoming;
     const old = receipts.current.get(incoming.requestId);
     const next = mergeOperation(old, incoming);
-    if (activeOperation(next)) watched.current.add(next.requestId);
+    if (next.operation !== "create" && activeOperation(next)) watched.current.add(next.requestId);
     receipts.current.set(next.requestId, next);
     polling.current?.observe(next);
     if (next.operation === "create" && watched.current.has(next.requestId))
@@ -34,34 +39,43 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
     const reader = createTaskOperationPolling({
       request: (requestId, signal) => api<TaskOperation>(`/api/task-operations/${requestId}`, "GET", undefined, { signal }),
       receive,
+      isCreationWatched: requestId => watched.current.has(requestId),
       onError: (requestId, failure) => {
         if (mounted.current && polling.current === reader) setErrors(previous => ({ ...previous, [requestId]: operationCheckError(failure, receipts.current.get(requestId)?.operation) }));
       },
     });
     polling.current = reader;
-    let timer: ReturnType<typeof setTimeout> | undefined, pending = false;
+    let timer: ReturnType<typeof setTimeout> | undefined, pending = false, listRequested = false, listFailures = 0;
     const ready = () => !controller.signal.aborted && document.visibilityState === "visible" && navigator.onLine !== false;
     const read = async (list = false) => {
+      if (list) listRequested = true;
       if (!ready() || pending) return;
       clearTimeout(timer); pending = true;
       try {
-        if (list) {
+        if (listRequested) {
           const result = await api<{ operations: TaskOperation[] }>("/api/task-operations", "GET", undefined,
             { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
           if (ready()) {
             [...result.operations].reverse().forEach(receive);
             const listed = new Set(result.operations.map(operation => operation.requestId));
+            listRequested = false; listFailures = 0;
             await Promise.all([...receipts.current.values()].filter(operation => operation.operation === "create" && watched.current.has(operation.requestId) &&
-              !pendingCreation(operation) && !listed.has(operation.requestId))
+              operation.status !== "unknown" && !pendingCreation(operation) && !listed.has(operation.requestId))
               .map(operation => reader.check(operation.requestId)));
           }
         }
         if (ready()) await Promise.all([...receipts.current.values()].filter(operation => pollOperation(operation) && !pendingCreation(operation))
           .map(operation => reader.check(operation.requestId)));
-      } catch { /* Keep known operations; an unavailable read never authorizes replay. */ }
+      } catch {
+        // Retry only the read-only list after weak-network failures. A single
+        // unknown-operation GET can trigger recovery, so it stays explicit.
+        if (listRequested) listFailures = Math.min(listFailures + 1, 5);
+      }
       finally {
         pending = false;
-        if (ready()) timer = setTimeout(() => void read(), [...receipts.current.values()].some(operation => operation.status === "pending") ? 1500 : 4000);
+        const delay = listRequested ? Math.min(15000, 1000 * 2 ** Math.max(0, listFailures - 1))
+          : [...receipts.current.values()].some(operation => operation.status === "pending") ? 1500 : 4000;
+        if (ready()) timer = setTimeout(() => void read(), delay);
       }
     };
     const resume = () => { clearTimeout(timer); reader.setActive(ready()); if (ready()) void read(true); };
@@ -116,8 +130,10 @@ export default function useTaskOperations(onComplete: (operation: TaskOperation)
   };
   const notices = operations.filter(operation => !dismissed.has(operation.requestId) && (activeOperation(operation) || watched.current.has(operation.requestId) &&
     (operation.status === "changed" || operation.status === "rejected" || operation.operation === "create" && operation.status === "succeeded")));
-  return { operations, notices, errors, start, check, cancel, get: (id: string) => receipts.current.get(id), dismiss: (id: string) => {
+  const creations = operations.filter(operation => operation.operation === "create" && watched.current.has(operation.requestId));
+  return { operations, creations, notices, errors, start, check, cancel, get: (id: string) => receipts.current.get(id), dismiss: (id: string) => {
     watched.current.delete(id);
+    polling.current?.forget(id);
     saveCreationRecoveryIds(creationRecoveryIds(receipts.current.values(), watched.current));
     setDismissed(old => new Set(old).add(id));
   } };

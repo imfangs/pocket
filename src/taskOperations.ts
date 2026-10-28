@@ -60,6 +60,13 @@ export function mergeOperation(current: TaskOperation | undefined, incoming: Tas
   if (current.requestId !== incoming.requestId || current.operation !== incoming.operation) return current;
   if (current.threadId && incoming.threadId && current.threadId !== incoming.threadId) return current;
   if (current.updatedAt !== undefined && incoming.updatedAt !== undefined && incoming.updatedAt < current.updatedAt) return current;
+  if (current.initialMessage && incoming.initialMessage) {
+    if (current.initialMessage.requestId !== incoming.initialMessage.requestId) return current;
+    // Lifecycle timestamps do not advance with the independent dispatch ledger.
+    // A late list therefore cannot undo an exact first-message terminal receipt.
+    if (["accepted", "cancelled"].includes(current.initialMessage.status))
+      incoming = { ...incoming, initialMessage: current.initialMessage };
+  }
   if (["succeeded", "cancelled", "changed", "rejected"].includes(current.status)) {
     if (current.status === "succeeded" && incoming.status === "succeeded" && incoming.initialMessage &&
       (!current.initialMessage || current.initialMessage.requestId === incoming.initialMessage.requestId))

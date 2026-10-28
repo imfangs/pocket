@@ -7,7 +7,7 @@ type Options = {
 };
 
 // Native automatic naming may finish after the creation receipt. Only the
-// currently open recent thread borrows a short, bounded faster catalog cadence.
+// open recent thread or tracked background creation borrows a bounded faster cadence.
 // The creation time fixes the deadline; rerenders and reopening cannot renew it.
 export function startRecentThreadCatalogSync(options: Options) {
   const browser = options.browser ?? window, visibility = options.visibility ?? document;

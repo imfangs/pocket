@@ -128,9 +128,30 @@ test('invalid routes never issue a request and wrong-machine responses never con
 });
 
 test('download errors explain expired login, moved files and temporary failure without exposing server details', async () => {
-  for (const [status, expected] of [[401, /登录已过期/], [404, /文件已移动/], [409, /文件已更新/], [410, /文件已移动/], [413, /超过20 MiB/], [503, /下载未完成/]]) {
+  for (const [status, expected] of [[401, /登录已过期/], [404, /文件已移动/], [409, /文件已更新/], [410, /文件已移动/], [413, /超过20 MiB/], [503, /文件读取未完成/]]) {
     await assert.rejects(filesApi.fetchMessageFile(file, threadId, { machine: 'ged', request: async () => new Response('private server detail', { status }) }), expected);
   }
+});
+
+test('text references open an in-page preview without issuing a request or weakening registration', () => {
+  const textPath = '/fixture/说明.md', textFile = { ...file, name: '说明.md' };
+  const html = markdown(`[说明](<${textPath}>)`, { files: { [textPath]: textFile } });
+  assert.match(html, /预览文件：说明.md/); assert.match(html, />查看<\/span>/);
+  assert.doesNotMatch(html, /<dialog|href=|src=|\/fixture\//);
+  assert.doesNotMatch(markdown(`[说明](<${textPath}>)`, { files: { [textPath]: textFile }, threadId: other }), /<button/);
+});
+
+test('preview byte limits cancel early while never raising the existing download ceiling', async () => {
+  let cancelled = false;
+  const limit = 1024 * 1024;
+  await assert.rejects(filesApi.fetchMessageFile(file, threadId, { maxBytes: limit, request: async () => new Response(new ReadableStream({ cancel() { cancelled = true; } }), { headers: { 'Content-Length': String(limit + 1) } }) }), /文件较大/);
+  assert.equal(cancelled, true);
+  cancelled = false;
+  await assert.rejects(filesApi.fetchMessageFile(file, threadId, { maxBytes: limit, request: async () => new Response(new ReadableStream({ pull(c) { c.enqueue(new Uint8Array(limit)); }, cancel() { cancelled = true; } })) }), /文件较大/);
+  assert.equal(cancelled, true);
+  await assert.rejects(filesApi.fetchMessageFile(file, threadId, { maxBytes: 100 * 1024 * 1024, request: async () => new Response('', { headers: { 'Content-Length': String(filesApi.maxMessageFileBytes + 1) } }) }), /超过20 MiB/);
+  const downloadable = await filesApi.fetchMessageFile(file, threadId, { request: async () => new Response(new Uint8Array(limit + 1)) });
+  assert.equal(downloadable.size, limit + 1);
 });
 
 test('declared and streaming file sizes are bounded at 20 MiB and oversized transfers are cancelled', async () => {

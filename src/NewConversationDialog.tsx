@@ -15,11 +15,15 @@ import { applyCreationClipboard, beginCreationClipboard, createCreationClipboard
 import { createCreationOptionsReader, type CreationOptions } from "./creationOptions";
 import { readAutoDirectPreference } from "./sendingPreference";
 
-export default function NewConversationDialog({ preferredCwd, initialQuery, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose, closeRequested = false }: {
+export type NewConversationInput = { locationId: string; name?: string; initialQuery?: string; autoDirect?: boolean };
+
+export default function NewConversationDialog({ preferredCwd, initialQuery, initialName, initialSelection, clipboardRead, operation, operationError, onCreate, onCheck, onCancelOperation, onClose, closeRequested = false }: {
   preferredCwd?: string; operation?: TaskOperation; operationError?: string;
   initialQuery?: string;
+  initialName?: string;
+  initialSelection?: CreationPreference;
   clipboardRead?: Promise<CreationClipboard>;
-  onCreate: (input: { locationId: string; name?: string; initialQuery?: string; autoDirect?: boolean }) => Promise<unknown>;
+  onCreate: (input: NewConversationInput, location?: CreateLocation) => Promise<unknown>;
   onCheck: () => void; onCancelOperation: () => void; onClose: () => void;
   closeRequested?: boolean;
 }) {
@@ -27,7 +31,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
   const [projectLocationId, setProjectLocationId] = useState("");
   const [directoryQuery, setDirectoryQuery] = useState(""), [selectionTouched, setSelectionTouched] = useState(false);
   const [directorySearchOpen, setDirectorySearchOpen] = useState(false);
-  const [rememberedSelection] = useState(readCreationPreference);
+  const [rememberedSelection] = useState(() => initialSelection ?? readCreationPreference());
   const [rememberedUnavailable, setRememberedUnavailable] = useState(false);
   const [locationRequired, setLocationRequired] = useState(false);
   const [selectionError, setSelectionError] = useState<"directory" | "project" | null>(null);
@@ -38,7 +42,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
   const queryTooLong = query.length > 16000;
   const queryBox = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState(false);
-  const [name, setName] = useState(""), [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const [name, setName] = useState(initialName ?? ""), [loading, setLoading] = useState(true), [error, setError] = useState("");
   const [optionsError, setOptionsError] = useState("");
   const optionsReader = useRef<ReturnType<typeof createCreationOptionsReader> | null>(null);
   const selection = useRef({ cwd: "", locationId: "" }), optionsLoaded = useRef(false);
@@ -176,7 +180,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, clip
         saveCreationPreference({ cwd: selectedLocation.cwd, locationId: selectedLocation.id });
         const message = creationQueryPayload(query);
         await onCreate({ locationId: selectedLocation.id, ...(name.trim() ? { name: name.trim() } : {}), ...message,
-          ...(message.initialQuery ? { autoDirect: readAutoDirectPreference() } : {}) });
+          ...(message.initialQuery ? { autoDirect: readAutoDirectPreference() } : {}) }, selectedLocation);
       }
       catch (failure) { setError((failure as Error).message); }
       finally { submitting.current = false; setBusy(false); }

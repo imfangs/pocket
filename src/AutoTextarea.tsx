@@ -13,9 +13,11 @@ export default function AutoTextarea(props: ComponentProps<"textarea">) {
       const viewport = window.visualViewport?.height ?? window.innerHeight;
       const border = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
       const scroll = input.scrollTop;
+      const conversation = input.closest<HTMLElement>(".conversation");
+      const messages = conversation?.querySelector<HTMLElement>(".conversation-messages");
+      const messageScroll = messages?.scrollTop;
       input.style.height = "0px";
       const natural = input.scrollHeight + border;
-      const conversation = input.closest<HTMLElement>(".conversation");
       const group = input.closest<HTMLElement>(".conversation-composer, .outbox, .question-prompts, .request-actions");
       let available = Infinity;
       if (conversation && group) {
@@ -28,6 +30,11 @@ export default function AutoTextarea(props: ComponentProps<"textarea">) {
       input.style.height = `${Math.max(min, Math.min(max, natural))}px`;
       input.style.overflowY = natural > max ? "auto" : "hidden";
       input.scrollTop = scroll;
+      // Measuring the textarea briefly enlarges its flex sibling. WebKit can
+      // clamp that sibling's scrollTop to the temporary, smaller scroll range.
+      // Restore only this measurement side effect; Conversation still decides
+      // whether the settled layout should follow the latest message.
+      if (messages && messageScroll !== undefined && messages.scrollTop !== messageScroll) messages.scrollTop = messageScroll;
     };
     const schedule = () => {
       cancelAnimationFrame(frame);

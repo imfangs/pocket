@@ -27,10 +27,11 @@ function clock() {
     get size() { return timers.size; },
   };
 }
-function fixture(request = async () => pending) {
+function fixture(request = async () => pending, options = {}) {
   const timer = clock(), calls = [], errors = [], received = [], operations = new Map();
   const reader = createTaskOperationPolling({
     ...timer,
+    ...options,
     request: async (requestId, signal) => { calls.push({ requestId, signal, at: timer.now() }); return request(requestId, signal, calls.length); },
     receive: incoming => { const next = mergeOperation(operations.get(incoming.requestId), incoming); operations.set(next.requestId, next); received.push(next); return next; },
     onError: (requestId, error) => errors.push({ requestId, error }),
@@ -127,4 +128,52 @@ test('mismatched read receipts report an error without adopting or completing an
   const f = fixture(async () => ({ ...pending, requestId: 'another-create', status: 'succeeded' }));
   f.observe(pending); await f.timer.advance(0);
   assert.equal(f.received.length, 0); assert.equal(f.errors.length, 1); assert.match(f.errors[0].error.message, /编号不匹配/); f.reader.stop();
+});
+
+test('a created conversation keeps checking its first queued message until accepted', async () => {
+  const queued = { ...pending, status: 'succeeded', creationStatus: 'created', threadId: 'thread',
+    initialMessage: { requestId: 'first-message', status: 'queued' } };
+  const f = fixture(async (_id, _signal, attempt) => attempt === 1 ? queued :
+    { ...queued, initialMessage: { ...queued.initialMessage, status: 'accepted' } });
+  f.observe(pending); await f.timer.advance(0);
+  assert.equal(f.operations.get(id).initialMessage.status, 'queued');
+  await f.timer.advance(500);
+  assert.equal(f.operations.get(id).initialMessage.status, 'accepted');
+  await f.timer.advance(60000);
+  assert.equal(f.calls.length, 2); assert.equal(f.timer.size, 0);
+  f.reader.stop();
+});
+
+test('only watched creations are followed and dismissal aborts the read without reviving it from a late list', async () => {
+  const queued = { ...pending, status: 'succeeded', threadId: 'thread', initialMessage: { requestId: 'first', status: 'queued' } };
+  const watched = new Set(), response = deferred();
+  const f = fixture(() => response.promise, { isCreationWatched: requestId => watched.has(requestId) });
+  f.observe(queued); await f.timer.advance(5000); assert.equal(f.calls.length, 0);
+  watched.add(id); f.observe(queued); await f.timer.advance(0); assert.equal(f.calls.length, 1);
+  watched.delete(id); f.reader.forget(id); assert.equal(f.calls[0].signal.aborted, true);
+  response.resolve({ ...queued, initialMessage: { requestId: 'first', status: 'accepted' } });
+  await flush(); f.observe(queued); f.observe(pending); await f.timer.advance(60000);
+  assert.equal(f.calls.length, 1); assert.equal(f.received.length, 0); assert.equal(f.errors.length, 0);
+  f.reader.stop();
+});
+
+test('created messages needing attention use slow reads and resume ordinary confirmation after external recovery', async () => {
+  for (const status of ['unknown', 'rejected', 'editing', 'not_queued']) {
+    const created = { ...pending, status: 'succeeded', threadId: 'thread', initialMessage: { requestId: 'first', status } };
+    const f = fixture(async (_id, _signal, attempt) => ({ ...created, initialMessage: { requestId: 'first',
+      status: attempt === 1 ? status : attempt === 2 ? 'queued' : 'accepted' } }));
+    f.observe(created); await f.timer.advance(14999); assert.equal(f.calls.length, 1, status);
+    await f.timer.advance(1); assert.equal(f.operations.get(id).initialMessage.status, 'queued', status);
+    await f.timer.advance(1500); assert.equal(f.operations.get(id).initialMessage.status, 'accepted', status);
+    assert.deepEqual(f.calls.map(call => call.at), [0, 15000, 16500]); f.reader.stop();
+  }
+});
+
+test('an existing unowned pending creation keeps its original confirmation path without following its later first message', async () => {
+  const f = fixture(async () => ({ ...pending, status: 'succeeded', initialMessage: { requestId: 'first', status: 'queued' } }),
+    { isCreationWatched: () => false });
+  f.observe(pending); await f.timer.advance(0);
+  assert.equal(f.operations.get(id).status, 'succeeded');
+  await f.timer.advance(60000); assert.equal(f.calls.length, 1);
+  f.reader.stop();
 });

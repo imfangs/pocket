@@ -21,9 +21,6 @@
   border:1px solid var(--line);
   border-radius:18px;
   background:var(--surface-raised);
-  background:color-mix(in srgb, var(--surface-raised) 94%, transparent);
-  -webkit-backdrop-filter:blur(12px);
-  backdrop-filter:blur(12px);
   color:var(--ink);
   box-shadow:0 2px 8px #00000012;
   font-size:13px;

@@ -19,8 +19,10 @@ import SwipeTaskRow from "./SwipeTaskRow";
 import { bindTaskListMotion } from "./taskListMotion";
 import { bindListInteraction, heldListRows } from "./listInteraction";
 import { inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
+import type { CreationCue } from "./creationList";
 import "./task-list-status.css";
 import "./thread-automations.css";
+import "./creation-list.css";
 interface Props {
   threads: Thread[];
   projectScope?: string;
@@ -46,6 +48,7 @@ interface Props {
   runtimeStates?: ReadonlyMap<string, TaskStatus>;
   runtimeUnavailable?: boolean;
   runtimeLoading?: boolean;
+  creationCues?: ReadonlyMap<string, CreationCue>;
 }
 export default function TaskList(p: Props) {
   const [limits, setLimits] = useState(() => new Map<string, number>());
@@ -130,7 +133,7 @@ export default function TaskList(p: Props) {
     }
     rememberAnchor();
     motion.current?.commit(scope);
-  }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, prioritizingId, held, scope, limit, rememberAnchor]);
+  }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, p.creationCues, prioritizingId, held, scope, limit, rememberAnchor]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { setOpenRowId(null); }, [scope]);
   useEffect(() => {
@@ -188,12 +191,14 @@ export default function TaskList(p: Props) {
         <div className="task-list" role="list" aria-label="会话列表">
           {rows.map((t) => {
             const inactive = !currentRows.has(t.id);
-            const recentlyCreated = !inactive && recentCreationExpiry(t, now) !== null;
+            const creation = inactive ? undefined : p.creationCues?.get(t.id);
+            const creationPending = creation && creation.phase !== "confirmed" ? creation : undefined;
+            const recentlyCreated = !inactive && (creation ? creation.phase === "confirmed" : recentCreationExpiry(t, now) !== null);
             const messageAt = lastMessageTime(t);
             const runtime = p.runtimeUnavailable || p.runtimeLoading ? undefined : p.runtimeStates?.get(t.id);
             const presentation = threadListPresentation(t, p.draftIds?.has(t.id), runtime);
             const states = presentation.secondaryStates.filter(state => state.key !== "archived" || p.view !== "archived");
-            const rowState = presentation.primaryState?.key ?? states.find(state => state.key === "unread")?.key;
+            const rowState = creationPending ? `creation-${creationPending.phase}` : presentation.primaryState?.key ?? states.find(state => state.key === "unread")?.key;
             const automations = t.automationSummary;
             const hasAutomations = !!automations && Number.isInteger(automations.count) && automations.count > 0;
             const allAutomationsPaused = hasAutomations && automations.activeCount === 0 && automations.pausedCount === automations.count;
@@ -205,7 +210,7 @@ export default function TaskList(p: Props) {
             ].filter(Boolean).join("，")}${automations.stale ? "；缓存可能已过期" : ""}` : "";
             return (
               <SwipeTaskRow
-                className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${recentlyCreated ? "is-recently-created" : ""}`}
+                className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${recentlyCreated ? "is-recently-created" : ""} ${creationPending ? `is-creation-${creationPending.phase}` : ""}`}
                 key={t.id}
                 threadId={t.id} title={t.title} prioritized={pocketPriority(t)} open={openRowId === t.id}
                 disabled={inactive || p.busy || !!prioritizingId} pending={prioritizingId === t.id} error={priorityErrors[t.id]}
@@ -217,6 +222,8 @@ export default function TaskList(p: Props) {
                   className="task-select"
                   data-thread-id={t.id}
                   data-row-state={rowState}
+                  data-creation-request-id={creation?.requestId}
+                  data-creation-state={creation?.phase}
                   disabled={inactive}
                   onClick={event => { if (!latest.current.currentRows.has(t.id)) return; setOpenRowId(null); p.onSelect(t.id, event.detail !== 0, inspectorEntryFromClick(event)); }}
                   aria-pressed={p.selected === t.id}
@@ -234,8 +241,9 @@ export default function TaskList(p: Props) {
                       role="img" aria-label={automationLabel} title={automationLabel}>
                       {allAutomationsPaused ? <AlarmClockOff size={13} aria-hidden="true" /> : <Clock size={13} aria-hidden="true" />}
                     </span>}
-                    <span className="row-status-slot" data-list-status="primary" data-list-status-key={presentation.primaryState?.key ?? "time"}>
-                      {presentation.primaryState ? <span className="task-state-badge" data-state={presentation.primaryState.key}>
+                    <span className="row-status-slot" data-list-status="primary" data-list-status-key={creationPending ? `creation-${creationPending.phase}` : presentation.primaryState?.key ?? "time"}>
+                      {creationPending ? <span className="creation-state-label" data-creation-phase={creationPending.phase} role="status">{creationPending.label}</span>
+                        : presentation.primaryState ? <span className="task-state-badge" data-state={presentation.primaryState.key}>
                         {presentation.primaryState.label}
                       </span> : messageAt !== null ? <time dateTime={new Date(messageAt).toISOString()} title={`最后消息：${new Date(messageAt).toLocaleString("zh-CN")}`}>{ago(messageAt)}</time>
                         : <span aria-label="暂无可确认的消息时间" title="暂无可确认的消息时间">—</span>}

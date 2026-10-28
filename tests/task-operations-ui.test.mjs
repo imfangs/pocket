@@ -13,6 +13,21 @@ test('created and first-message delivery are distinct; terminal creation only up
   assert.match(operationText(unknown),/已创建/);assert.doesNotMatch(operationText(unknown),/已发送/);
 });
 
+test('accepted or cancelled first messages survive stale creation lists while editable failures can recover', () => {
+  const base = { requestId: 'create', operation: 'create', status: 'succeeded', createdAt: 100, updatedAt: 200,
+    threadId: 'thread', creationStatus: 'created', initialMessage: { requestId: 'first', status: 'queued' } };
+  for (const status of ['accepted', 'cancelled']) {
+    const settled = { ...base, initialMessage: { ...base.initialMessage, status } };
+    for (const stale of ['queued', 'pending', 'editing', 'unknown', 'rejected', 'not_queued'])
+      assert.equal(mergeOperation(settled, { ...base, initialMessage: { ...base.initialMessage, status: stale } }).initialMessage.status, status);
+  }
+  for (const status of ['editing', 'rejected', 'unknown']) {
+    const previous = { ...base, initialMessage: { ...base.initialMessage, status } };
+    assert.equal(mergeOperation(previous, base).initialMessage.status, 'queued');
+    assert.equal(mergeOperation(previous, { ...base, initialMessage: { requestId: 'other', status: 'accepted' } }), previous);
+  }
+});
+
 const operation = status => ({ requestId: 'one', operation: 'archive', status, threadId: 'thread' });
 test('only proven pre-forward failures release a create; missing or lost replies stay unknown', () => {
   const initial = { requestId: 'one', operation: 'create', status: 'pending' };
