@@ -13,7 +13,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
-| 查反馈、PostHog、采集无数据或体验复盘 | [反馈接续](docs/design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)：目标/schema核对、查询模板、反馈/回放关联和判断边界；[专项验收](docs/QUALITY.md#使用反馈验收)覆盖正式CSP与入库回读。工具版本/认证与事件口径留在使用反馈文档，上线状态回CURRENT |
+| 查反馈、PostHog、采集无数据或体验复盘 | 先读私有台账 `.local/feedback-ledger.json` 按反馈ID对照，再按[反馈接续](docs/design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)查询和补记，区分已发布与效果确认；[专项验收](docs/QUALITY.md#使用反馈验收)覆盖正式CSP与入库回读。工具版本/认证与事件口径留在使用反馈文档，上线状态回CURRENT |
 | 整体视觉、Radix Themes、基础控件/色阶/样式归属 | [整体视觉重整](docs/design/2026-10-19-visual-system.md)：整屏对照、tokens/结构/视觉分工、native行为保护；[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md)：variant几何、错误恢复按钮组合 |
 | Impeccable精修、首次必填披露、空白错误恢复与首字丢失 | [10-28设计审查](docs/design/2026-10-28-impeccable-polish.md)：两路独立评审、局部几何与提示对比、原生input后置预连接；已记忆选择和阅读空间保持 |
 | 首开空白／无加载状态、标题反馈复核 | [加载与标题反馈](docs/design/2026-10-28-feedback-loading.md)：双路首读与缓存分开、沿前后visit定位、原生标题摘要与Pocket回读分开判断 |
