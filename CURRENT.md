@@ -1,12 +1,12 @@
 # Pocket 当前状态
 
-维护日期：2026-10-28。滑动正文收键盘已发布并回读；此前新建列表确认、文本预览、输入滚动与实色提示保持。剪贴板继续先观察。
+维护日期：2026-10-28。分层阅读缓存与条件传输已发布到网页和两台Mac，公网回读通过；滑动收键盘、新建列表确认及文本预览保持。剪贴板继续先观察。
 
 ## 下一次先看
 
-- **本轮待发布：分层阅读缓存。** [缓存契约](docs/design/2026-10-28-reading-cache.md)与[组件选择](docs/research/2026-10-28-cache-components.md)。采用idb，20会话有界内存＋50会话/30MiB/7天IndexedDB；认证后先展示缓存，后台核对，退出/401跨标签清理。只存阅读投影，回执/权限/读水位不借缓存更新。GET 304与sync 204减少未变正文传输，旧接口兼容；跨标签版本、迟到来源、相同正文写盘频率均有保护。1540项全测、源码36项/最终包23项浏览器、独立CR通过；合成gzip正文约20KB→条件响应0B。网页和两机API发布在本轮收尾，实体iPhone长期效果待实际使用。
+- **最近已上线：分层阅读缓存。** [缓存契约](docs/design/2026-10-28-reading-cache.md)与[组件选择](docs/research/2026-10-28-cache-components.md)。采用idb，20会话有界内存＋50会话/30MiB/7天IndexedDB；认证后先展示缓存，后台核对，退出/401跨标签清理。只存阅读投影，回执/权限/读水位不借缓存更新。GET 304与sync 204减少未变正文传输，旧接口兼容；跨标签版本、迟到来源、相同正文写盘频率均有保护。1540项全测、源码36项/最终包23项浏览器、独立CR通过；合成gzip正文约20KB→条件响应0B。网页31/31公开文件、两机API53项远端检查和公网认证回读通过；两机目录/正文/历史均实际304，豌豆sync实际204。实体iPhone长期效果待实际使用。
 
-- **最近已上线：滑动正文收键盘。** [交互契约](docs/design/2026-10-13-reading-composer-and-row-state.md#2026-10-28-滑动正文收起键盘)：主输入框聚焦时主动纵向触摸收键盘，保留草稿/选区与阅读位置；自动scroll、IME、选字、横向内容与返回边缘保持。收键盘期间暂停近底跟随，视口稳定后按实际位置恢复。1482项全测与构建通过，独立CR修复多指最后触点在消息区外结束时的阅读保护泄漏，48项专项与最终包23项双浏览器冒烟通过，30/30公开文件及功能回读通过。缓存扩充分层与成本只做了判断，见[架构](docs/ARCHITECTURE.md#阅读缓存与传输)，未实施新的持久正文存储或增量协议。
+- **最近已上线：滑动正文收键盘。** [交互契约](docs/design/2026-10-13-reading-composer-and-row-state.md#2026-10-28-滑动正文收起键盘)：主输入框聚焦时主动纵向触摸收键盘，保留草稿/选区与阅读位置；自动scroll、IME、选字、横向内容与返回边缘保持。收键盘期间暂停近底跟随，视口稳定后按实际位置恢复。1482项全测与构建通过，独立CR修复多指最后触点在消息区外结束时的阅读保护泄漏，48项专项与最终包23项双浏览器冒烟通过，30/30公开文件及功能回读通过。缓存后续落地见上条；完整消息增量仍未实施。
 
 - **最近已上线：新建、阅读与弱网连续性。** [创建确认](docs/design/2026-10-09-creation-and-send-feedback.md#2026-10-28提交后回列表行内确认)：提交立即回列表，蓝色进度在首Query明确accepted后转绿，仅异常额外提示；保留失败输入/原ID，后台核对和新建标题预取，首次读取失败自动退避重试。[输入滚动](docs/design/2026-10-25-send-ui-continuity.md#2026-10-28输入测量期间保持阅读位置)修复WebKit测量输入高度导致的93px反复跳动。[文本文件](docs/design/2026-10-22-message-components.md)支持MD/TXT等页内预览，关闭恢复、原件下载及同次预览字节复用；顶部toast半透明/blur已撤下。1475项完整回归、创建178项/预览92项/输入48项双浏览器验收、统一包34项冒烟与独立CR通过，30/30公网资源及功能回读通过；没有新增持久正文缓存或缓存库，缓存现状与后续测量点见[架构](docs/ARCHITECTURE.md#阅读缓存与传输)。
 
@@ -56,13 +56,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `2804dbd94b620eb521a2f83b7e0209f473b2a55e`，滑动正文收键盘与稳定阅读保护；此前新建、预览和输入修复保持 |
-| 两机API源码 | 上次10-26核对：格得 `499da54198e0f87a5574de3822c740abcf58e991` / PID89511；豌豆 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895` / PID73421，尚无队列唤醒修复。本轮只更新网页，PID仍是历史快照 |
-| 前端build | 公网与格得内置网页 `de9b820e78027cfc051e6d636c37f7f6c152a5fda40bd05d1e2090282a45a0ae`；豌豆内置网页上次核对为 `7cd2cf2e…`，公网共享页面已更新 |
-| Pages部署 | `73bb3f45-d3db-472e-a5b5-3815fe366565`；10-28 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，实际上传一次 |
-| 最近验证 | 1482项全测、48项交互与23项最终包双浏览器检查、独立CR；原生Chromium触摸、WebKit合成事件、草稿/选区/IME及键盘收尾已验。实体iPhone与原生IME尚未直接复验 |
-| 证据 | 最新 `.local/qa/scroll-dismiss-keyboard-2026-10-28/`：`tests-final.log`、`final-verification.json`、`pages-deploy.json`与`release-versions.json`；此前 `.local/qa/background-create-2026-10-28/`：`tests-integrated.log`、`browser/acceptance-summary.json`、`browser/unified-smoke/verdict.json`、`pages-deploy.json`及`release-versions.json`；文本与滚动证据分别在 `.local/qa/text-file-preview-2026-10-28/`、`.local/qa/composer-scroll-2026-10-28/` |
-| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本轮验收全部隔离合成；只更新共享网页及本机公开构建。没有真实发送、改名、队列/定时任务操作或服务重启；上次后台数据核验见[首条消息与标题](docs/design/2026-10-26-create-delivery-and-title.md#发布结果) |
+| 前端/网关源码 | `0b5a2691ae048aac11fd3ed6fbe38723e8b4f9cf`，分层阅读缓存/条件响应；保留KV降频、滑动收键盘和此前界面功能 |
+| 两机API源码 | 两机均 `0b5a2691ae048aac11fd3ed6fbe38723e8b4f9cf`；格得PID50495、豌豆PID31365为本轮切换回读，后续运维需重查 |
+| 前端build | 公网、格得与豌豆内置网页均 `cce6679b1e6872252340772d6d3677f805637b3fd18b20a8f73a3c39f24f4e27`，三端独立回读一致 |
+| Pages部署 | `daa85853-f251-4514-a755-0a8d14acc048`；10-28 ready=true，31/31文件及匿名访问/manifest/CSP功能检查通过，上传一次 |
+| 最近验证 | 1540全测、远端53项、源码36项/最终包23项双浏览器与独立CR；暖启动、双路空态、跨机/来源、注销跨tab、IDB故障、版本和TTL已验。实体iPhone尚未直接复验 |
+| 证据 | `.local/qa/reading-cache-2026-10-28/`：`tests-final.log`、`final-browser.json`、`final-unverified-source.json`、`conditional-transfer.json`、`pages-deploy.json`、`local-upgrade.json`、`remote-upgrade.json`、`live-ged.json`、`live-wandou.json`、`release-versions.json`；旧证据留原目录 |
+| 数据与运行 | 两机API已切换；Codex、连接器、凭据、桥接配置、阅读scope、原队列/策略及用户元数据保持。格得仅来源缓存相关表正常更新；公网验收创建并退出自己的认证session，只读会话，未发送/改名/归档 |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
@@ -82,6 +82,7 @@
 
 ## 阻塞、未决记录与验证缺口
 
+- **部分旧归档原稿缺失**：本轮公网读取旧归档遇到503，loopback定位为3条2026-04 rollout路径ENOENT；近期归档两机均可读且条件响应正常。现象在缓存版本处理前的源文件读取发生，本轮未补造内容或清理原会话；下次来源范围修复时核对路径迁移/记录缺失标记。证据为本轮QA的`local-read-diagnosis.json`。
 - **原生标读写回未稳定恢复**：10-22重启后的Codex仍有双listener/readback_unconfirmed证据。当前主线不依赖写回；不因蓝点不一致重启Codex、批量补标或改原存储。旧局部成功只证明当次对象，见[原生同步历史](docs/design/2026-10-05-read-state-sync.md)。
 - **归档仍可能长期等待writer**：原会话或spawn子树被桌面持有时，独立CLI/RPC不能完成。共享原Core的stdio适配器只做过隔离原型，未安装，真实GUI与桌面副作用未验。用户要求“Tabbit调研”及相关子会话先保留，已取消请求不得恢复。见[归档owner研究](docs/research/2026-10-16-archive-owner-route.md)。
 - **旧发送未知结果与队列**：本轮未重放或清除旧条目。09-30记录只作检索入口 `.local/qa/connectivity-2026-09-30/dispatches.json`；下一次操作先查当前账本与原历史，不凭历史中缺少文本判定未发送。
@@ -93,7 +94,7 @@
 - **2026-10-28 KV续约降频已上线并回读**：同址续约10分钟、KV/回执30分钟；60秒检查/失败重试和换址登记保持。网关源 `3b42e1f` / Pages `d56d7385-69ef-4e9b-9c7f-d0f238145600`，从已发布 `2804dbd` 的代码隔离构建，前端build仍为 `de9b820e…`，未夹带并行缓存开发。1482项全测、构建、30/30公开资源及功能检查通过。格得连接器PID12894实测654.228秒续约；豌豆5分钟不重复写，首次定时提交遇既有网络错误，下一分钟自动重试成功，实际721.807秒；保留失败与恢复，未记成无故障首续约。两机新租约均1800秒，公网health/身份与匿名catalog401通过，API/Codex未重启。三路全天写量下降仍为估计。契约见[手机链路](docs/MOBILE.md)，完整版本/时间与原始证据见[续约验收](.local/qa/kv-renewal-2026-10-28/README.md)；其它前端发布条目按各自事实源接续。
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；用项目的 `config/local-service.json`、`config/pages-site.json` 和FBT既有服务/发布工具。前端样式修改只发布网页。
-- 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。10-25 `.local/current`、私有服务配置working_directory和launchd实际命令均指向 `1d6da5c…` release；机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
+- 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。10-28 `.local/current`、私有API配置working_directory和launchd实际命令均指向 `0b5a269…` release；机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
 - 豌豆 `node_modules` 仍引用 `2f42176f35494c57212f9424d113f0437fae3d5d` release；连接器10-28已切到独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`，仅原 `19d91ed4776d79fce17a79ed88ed3b79622197e7` 的10分钟常量变更，旧release与私有配置备份保留回退，API/.local/current保持。清理前核对依赖和launchd真实指向，不按旧日期删除。
 - Pages预检401先用配置中的Wrangler `whoami`续期，核对是否上传；已上传但验证未过使用原部署 `resume --resume-verification`。本轮发布和豌豆切换均完成，不重复提交。
 - 临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当前、回退 `0dbdf39…`、依赖与连接器release保留；清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
