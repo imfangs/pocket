@@ -8,6 +8,7 @@ import { once } from "node:events";
 import { createHash } from "node:crypto";
 import { desktopRequest } from "../server/desktop.mjs";
 import { runBridge } from "../server/bridge-process.mjs";
+import { readBridgeConfig } from "../server/bridge-config.mjs";
 const id = "aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa";
 const requestId = "bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb";
 const idle = {
@@ -863,7 +864,7 @@ test('future App releases use live IPC while a different bundle identity is reje
       <key>CFBundleIdentifier</key><string>${bundleId}</string>
       <key>CFBundleShortVersionString</key><string>99.1.future</string>
       <key>CFBundleVersion</key><string>99999</string></dict></plist>`);
-    const config = JSON.parse(readFileSync(new URL('../config/desktop-bridge.json', import.meta.url), 'utf8'));
+    const config = readBridgeConfig();
     const script = fileURLToPath(new URL('../bin/desktop-bridge.py', import.meta.url));
     const result = await runBridge({ operation: 'send', threadId: id, codexHome: f.home, requestId, text: 'Original settings' }, {
       command: config.python, timeoutMs: 5000,
