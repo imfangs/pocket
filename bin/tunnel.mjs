@@ -99,7 +99,7 @@ async function publish() {
     !state.connected ||
     !state.publicOrigin ||
     (publishedOrigin === state.publicOrigin &&
-      Date.now() - lastPublishedAt < 300000)
+      Date.now() - lastPublishedAt < 600000)
   )
     return;
   publishing = true;

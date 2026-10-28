@@ -99,9 +99,9 @@ async function registerConnection(request, env, url) {
       return json(400, { error: "接入地址无效" }, machineId);
     const now = Date.now();
     const record = { machineId, publicOrigin: upstream.origin, connected: true, updatedAt: new Date(now).toISOString() };
-    await env.NAVIGATOR_CONNECTION.put(config.key, JSON.stringify(record), { expirationTtl: 900 });
+    await env.NAVIGATOR_CONNECTION.put(config.key, JSON.stringify(record), { expirationTtl: 1800 });
     return json(200, { ok: true, machineId, entryOrigin: url.origin, publicOrigin: upstream.origin,
-      publishedAt: record.updatedAt, expiresAt: new Date(now + 900000).toISOString() }, machineId);
+      publishedAt: record.updatedAt, expiresAt: new Date(now + 1800000).toISOString() }, machineId);
   } catch (e) {
     if (e instanceof SyntaxError || e instanceof TypeError)
       return json(400, { error: "登记信息无效" }, machineId);

@@ -27,7 +27,8 @@ test("Mac registration renews a short-lived route without a Wrangler OAuth sessi
   assert.equal(writes.length, 1);
   assert.equal(writes[0][0], "origin");
   assert.equal(JSON.parse(writes[0][1]).publicOrigin, connection.publicOrigin);
-  assert.equal(writes[0][2].expirationTtl, 900);
+  assert.equal(writes[0][2].expirationTtl, 1800);
+  assert.equal(Date.parse(receipt.expiresAt) - Date.parse(receipt.publishedAt), 1800000);
   assert.ok(Date.parse(receipt.expiresAt) > Date.now());
   assert.equal(r.headers.get("cache-control"), "no-store");
 });
@@ -161,5 +162,6 @@ test("a remote publisher registers directly into its own short-lived KV route", 
   assert.equal(writes.length, 1);
   assert.equal(writes[0][0], "origin:wandou");
   assert.equal(JSON.parse(writes[0][1]).machineId, "wandou");
-  assert.equal(writes[0][2].expirationTtl, 900);
+  assert.equal(writes[0][2].expirationTtl, 1800);
+  assert.equal(Date.parse(result.expiresAt) - Date.parse(result.publishedAt), 1800000);
 });

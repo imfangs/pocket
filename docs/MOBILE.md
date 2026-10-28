@@ -55,6 +55,8 @@ node bin/verify-public.mjs https://x.fangs.cc
 
 连接状态中 `connected` 表示隧道已建立，`published`、`publishedAt` 与 `expiresAt` 表示固定入口登记状态。连接器健康检查同时要求隧道连接、登记成功且未过期；登记失败会返回 503 与不含凭据的 `registrationError`。首次登记可能因网络失败重试；不要把进程 running 等同于公网可用。等待约一分钟后回读，再按配置重启具体服务；不重传未变化的前端。
 
+2026-10-28 调整续约：同地址成功登记后至少 10 分钟才再次写 KV；检查/失败重试仍每 60 秒，实际正常间隔约 10–11 分钟。首次连通或新隧道地址不受同地址节流限制。Worker 每次登记的 KV TTL 与回执有效期均为 30 分钟，先发布 Worker 再更新连接器；格得和豌豆连接器分别核验，不能用单机更新代表双机生效。此取舍减少固定写额度占用，并保留约 20 分钟续约失败余量；失效地址最长保留 30 分钟，真实访问仍须经过上游连接和鉴权。部署、运行版本与实测证据见 CURRENT。
+
 登记凭据的恢复：保留本机私有 `relay-registration.json`，不要用网站四位访问口令替代它。`node bin/registration-key.mjs` 会复用已有 key 并生成私有 `relay-registration.sha256` 文件，stdout 只显示路径。初次配置或丢失 key 后重新配对时，将 verifier 文件通过 stdin 配置为 Pages 生产环境的 `NAVIGATOR_REGISTRATION_SHA256` secret，再发布 Worker。发布操作仍使用管理凭据，运行时续登记不需要管理凭据。不要误轮换现有 key；换 key 必须同步云端 verifier。
 
 口令文件直接在 Mac 本地打开后输入手机。请勿将口令放进 URL、仓库或分享截图。手机安装须用正式固定地址；旧 trycloudflare 地址会在连接器重启后失效。
