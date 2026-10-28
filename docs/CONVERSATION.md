@@ -164,3 +164,5 @@ UI 仅在实际离线、输入为空、操作提交中或相应能力被明确�
 问题使用 thread-follower-submit-user-input 返回原请求，不发成普通 query；答案正文不写入响应账本，只保留哈希。明确 rejected 后的新用户操作使用新响应 ID；pending/unknown 仍只核对，不重放。MCP 自定义表单及其他未支持类型显示需在 Mac 处理，不伪装成普通命令批准。
 
 自动与隔离 UI 验证覆盖文件 diff 改变、权限不扩展、问题精确 ID 与答案、重复响应、过期请求及未知回执；实际新类型审批尚待真实请求出现时验收。
+
+2026-10-28补充：[子任务通知](design/2026-10-28-subagent-notifications.md)与[派生请求投影](design/2026-10-28-delegated-query.md)均为展示适配，保留原消息身份和执行边界。
