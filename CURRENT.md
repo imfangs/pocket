@@ -86,7 +86,7 @@
 
 ## 阻塞、未决记录与验证缺口
 
-- **部分旧归档原稿缺失**：本轮公网读取旧归档遇到503，loopback定位为3条2026-04 rollout路径ENOENT；近期归档两机均可读且条件响应正常。现象在缓存版本处理前的源文件读取发生，本轮未补造内容或清理原会话；下次来源范围修复时核对路径迁移/记录缺失标记。证据为本轮QA的`local-read-diagnosis.json`。
+- **压缩历史读取兼容待修（10-28纠正“原稿缺失”判断）**：容量核对时当前63个未归档会话中，8个原路径为.jsonl但文件实际是.jsonl.zst；流式只读解压并校验session ID后均可解析，原文并未丢失。此前3条2026-04归档ENOENT也找到同名.zst副本，因此旧结论只能证明原路径不可读。Pocket现有readPersistedHistory未适配压缩来源，需单独补有界读取、身份/版本核验与错误呈现；本轮仅测算、未改代码或原文件。证据`.local/qa/cache-capacity-2026-10-28/`的`estimate-complete.json`、`missing-path-search.json`与`prior-missing-path-check.json`。
 - **原生标读写回未稳定恢复**：10-22重启后的Codex仍有双listener/readback_unconfirmed证据。当前主线不依赖写回；不因蓝点不一致重启Codex、批量补标或改原存储。旧局部成功只证明当次对象，见[原生同步历史](docs/design/2026-10-05-read-state-sync.md)。
 - **归档仍可能长期等待writer**：原会话或spawn子树被桌面持有时，独立CLI/RPC不能完成。共享原Core的stdio适配器只做过隔离原型，未安装，真实GUI与桌面副作用未验。用户要求“Tabbit调研”及相关子会话先保留，已取消请求不得恢复。见[归档owner研究](docs/research/2026-10-16-archive-owner-route.md)。
 - **旧发送未知结果与队列**：本轮未重放或清除旧条目。09-30记录只作检索入口 `.local/qa/connectivity-2026-09-30/dispatches.json`；下一次操作先查当前账本与原历史，不凭历史中缺少文本判定未发送。
