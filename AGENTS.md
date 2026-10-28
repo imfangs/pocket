@@ -98,6 +98,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 - 功能改动先跑相关回归；发布前运行 `npm test` 和 `npm run build`，再验证受影响的实际流程。文档改动检查路径、事实、历史保全和 diff 即可。验证策略及受控真实发送对象只在 [QUALITY](docs/QUALITY.md) 维护。
 - 默认使用合成数据和只读真实验收；必要发送按受控对象/文本约定操作，避免污染其他原任务。区分自动测试、浏览器、模拟器、iPhone 主屏幕真机与长期使用证据。
+- 桥接测试与生产调用一样通过 `readBridgeConfig()` 读取解释器/IPC路径，保留 `NAVIGATOR_BRIDGE_CONFIG` 的机器覆盖；不能硬读可提交默认配置。10-28豌豆预检已复现默认Python路径不存在、其私有配置可用的差异。
 - 本地开发优先复用已有 API 或任务内临时 fixture；结束后关闭自己启动的临时进程。已登记服务的生命周期复用 FBT local，实际配置留在本仓库，不顺手重启 Codex。
 - 发布从项目配置进入 [FBT Pages Site](/Users/fangs/workspace/fbt/workflows/pages-site/SKILL.md)；本地服务管理从 [FBT local](/Users/fangs/workspace/fbt/local/SKILL.md) 进入。上传已成功但回读未通过时，继续同一部署的 `resume --resume-verification`，先核对结果再决定下一步。
 - `CURRENT.md` 只保留最近已验证版本、当前行为、继续方式和未决事项；被后续版本替代的详细流水移入 `HISTORY.md` 或对应设计记录，保留原日期与证据。检查并本地提交本任务改动，沿用 Workspace 的 Git 规则；本地 commit 不代表 push、发布或真实效果完成。

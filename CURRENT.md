@@ -1,10 +1,12 @@
 # Pocket 当前状态
 
-维护日期：2026-10-28。历史分页、压缩来源、子任务通知呈现与派生Query补齐均已上线，网页与两机API、公网读取已核对；之前后端CR修复也已生效。键盘边缘返回、缓存默认128保持，剪贴板继续先观察。
+维护日期：2026-10-28。5秒停留提前连接与旧消息入口边界修复已上线，网页/两机API及只读公网回读通过。历史分页、压缩来源、通知呈现、派生Query、键盘手势和缓存默认128保持；剪贴板继续先观察。
 
 ## 下一次先看
 
-- **待发布：停留5秒提前连接与旧消息入口边界。** 用户选择[5秒可见停留](docs/design/2026-10-28-dwell-connection.md)，输入仍立即；被动连接检查待发/未知/管理阻塞、静默skipped，并可由真实输入升级同一操作。独立浏览器96项及目标测试通过，统一回归收尾中。另补[分页边界](docs/design/2026-10-28-history-pagination.md#同日2220的入口反馈)的原生/保存历史预算裁剪与相关来源合并。22:20的实际反馈使用旧`5779fd…`，先按旧客户端缺少功能处理；不能把合成发现当成该反馈的新版复现。当前发布基线仍见下表，尚未发布这两项新改动。
+- **最近已上线：停留5秒提前连接。** [触发与边界](docs/design/2026-10-28-dwell-connection.md)：连续可见、在线且无待发/未知/管理阻塞时尝试一次；输入仍有独立机会，并立即接管同一单飞打开，无需等被动lookup。后台/切换/弹层取消计时，skipped不新增错误或访问时间。1697项全测、288项远端测试、50项最终包双浏览器与独立CR通过；只读公网、31个发布文件及功能回读通过。连接会按需打开Mac会话，不是纯网络预热；未进行用户会话的真实自动打开或发送试验、未实测内存/电量，实体iPhone仍待实际使用。证据 `.local/qa/dwell-connection-2026-10-28/`。
+
+- **最近已上线：更早消息入口边界。** [22:20反馈与补修](docs/design/2026-10-28-history-pagination.md#同日2220的入口反馈)：该反馈当时使用分页前旧`5779fd…`，已说明回列表点击顶部更新；更新后的本人效果未确认。同时独立修复原生/保存历史的80条及16万字符预算遗漏（含部分裁剪），轮内分页和相关来源合并也保留入口；单条24k和无关分叉不误报。当前仍点击按钮加载，没有新增触顶自动连载。
 
 - **最近已上线：加载更早消息与压缩历史。** [历史分页](docs/design/2026-10-28-history-pagination.md)支持主动加载、较新窗口及返回最新，保持阅读锚点、输入/选区与长Query；仅旧页展示，不参与发送回执或已读。普通和同名 `.jsonl.zst` 来源共用有界只读worker；完整单页也能补回原4MiB尾窗口之外的内容。1643项全测、123项远端测试、最终包双浏览器18项与独立CR通过；格得公网实际读取80+80条，压缩样本从12条尾部补全55条，豌豆用20条分页验证20+25条连续历史。没有真机复验；证据 `.local/qa/history-pagination-2026-10-28/`。
 
@@ -70,13 +72,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `ae1d4d09551a9e1aaba9610e0ffaeb8acc3b78e2`；历史分页、通知与派生Query，包含既有视觉/缓存/手势与CR修复 |
-| 两机API源码 | 两机均 `ae1d4d09551a9e1aaba9610e0ffaeb8acc3b78e2`；本次回读PID为格得89716、豌豆26310；后续运维仍需重查 |
-| 前端build | 公网HTML/manifest、格得与豌豆内置网页均 `8a8e2cc53cd2fe8924ef4eacad67969c82ff47b184f53027b1185273f91aea74`，独立回读一致 |
-| Pages部署 | `2c10a05f-d28c-48ac-b1c0-e65e26f88027`；10-28 ready=true，31/31公开文件与项目功能检查通过，实际上传一次 |
-| 最近验证 | 1643项全测、123项豌豆目标测试、最终包双浏览器18项及独立CR通过；另有长按/取消/复制、读取与同文隔离专项。物理iPhone未直接复验 |
-| 证据 | 最新 `.local/qa/history-pagination-2026-10-28/` 的 `tests-final.log`、`remote-prepare.json`、`remote-retry-upgrade.json`、`pages-deploy.json`、`live-ged.json`、`live-wandou.json`、`release-versions.json`；通知/派生专项见上方入口 |
-| 数据与运行 | 两机API已更新，配置/凭据、阅读scope、用户元数据、派发与队列保留；Codex与连接器未重启。验证没有发送测试消息、改名或归档真实会话 |
+| 前端/网关源码 | `5b12d5c71efb60e940b520dc0067f2402fd62cf4`；功能实现为`95dc13c`，后续仅修测试读取机器配置，前端产物不变 |
+| 两机API源码 | 两机生产文件均对应 `5b12d5c71efb60e940b520dc0067f2402fd62cf4`（与95dc13c运行文件一致）；回读PID为格得83545、豌豆89857，后续运维需重查 |
+| 前端build | 公网HTML/manifest、格得与豌豆内置网页均 `b8445f67f0b8ed4d809fbf583d715c09eacaaf7b33304efaa31e1786db74f6fd`，独立回读一致 |
+| Pages部署 | `5f3e1cd6-56ae-4698-a78a-96fc4e082d77`；10-28 ready=true，31/31公开文件与项目功能检查通过，实际上传一次 |
+| 最近验证 | 1697项全测、288项豌豆测试、最终包双浏览器50项及独立CR通过；有被动/输入升级、弹层/后台取消、队列保护与来源边界回归。原生打开/发送使用fake，物理iPhone未直接复验 |
+| 证据 | 最新 `.local/qa/dwell-connection-2026-10-28/release/`：`tests-final.log`、`remote-prepare-final.json`、`remote-upgrade.json`、`pages-deploy.json`、`live-ged.json`、`live-wandou.json`、`release-versions.json`；浏览器在上级`final-verdict.json` |
+| 数据与运行 | 两机API已更新，私有连接配置/凭据、阅读scope、用户元数据、派发和队列核对保留；Codex与连接器未重启。未真实发送、改名或归档；被动规则验收使用合成原生接口 |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
@@ -105,13 +107,15 @@
 
 ## 运行维护与恢复入口
 
+- **停留连接发布已完成。** 最新prepare曾暴露两项子测试硬读仓库默认Python而忽略机器配置（连带父测试失败）；仅测试改用生产已有的配置解析后，远端288项通过。另一个本地全测偶发来自夹具半写global JSON，已改原子发布并保留半写返回unknown的负例，生产标读代码未改。失败/修复证据留最新QA；不是新连接功能的原生运行故障。安装包、分片及从未启用的95dc候选已清理，当前5b/回退ae1/依赖0b5与连接器版本保留。
+
 - **本轮已完成，不重复上传或切换。** 首次豌豆传输中断后按32KiB校验片续传，整包SHA一致才安装；第一次服务切换因切换前已经存在的续约失败触发回退，连接自行恢复后，在独立 `retry-1/` 中校验正常基线再切换成功。部署检查与网络事件分开记录，不把这次回退说成新代码故障。Pages预检401发生在上传前，刷新CLI认证后实际上传一次并核验完成。完整操作与清理回执在最新QA目录。
 
 - **2026-10-28 KV续约降频已上线并回读**：同址续约10分钟、KV/回执30分钟；60秒检查/失败重试和换址登记保持。网关源 `3b42e1f` / Pages `d56d7385-69ef-4e9b-9c7f-d0f238145600`，从已发布 `2804dbd` 的代码隔离构建，前端build仍为 `de9b820e…`，未夹带并行缓存开发。1482项全测、构建、30/30公开资源及功能检查通过。格得连接器PID12894实测654.228秒续约；豌豆5分钟不重复写，首次定时提交遇既有网络错误，下一分钟自动重试成功，实际721.807秒；保留失败与恢复，未记成无故障首续约。两机新租约均1800秒，公网health/身份与匿名catalog401通过，API/Codex未重启。三路全天写量下降仍为估计。契约见[手机链路](docs/MOBILE.md)，完整版本/时间与原始证据见[续约验收](.local/qa/kv-renewal-2026-10-28/README.md)；其它前端发布条目按各自事实源接续。
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；用项目的 `config/local-service.json`、`config/pages-site.json` 和FBT既有服务/发布工具。前端样式修改只发布网页。
-- 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。10-28 `.local/current`、私有API配置working_directory和launchd实际命令均指向 `ae1d4d0…` release；机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 豌豆当前 `node_modules` 引用 `0b5a2691ae048aac11fd3ed6fbe38723e8b4f9cf` release（同时保留为上一版API回退）；连接器10-28已切到独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`，仅原 `19d91ed4776d79fce17a79ed88ed3b79622197e7` 的10分钟常量变更，旧release与私有配置备份保留回退；该次连接器调整未改API，API当前版本见上表。清理前核对依赖和launchd真实指向，不按旧日期删除。
+- 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。10-28 `.local/current`、私有API配置working_directory和launchd实际命令均指向 `5b12d5c…` release；机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
+- 豌豆当前 `node_modules` 引用 `0b5a2691ae048aac11fd3ed6fbe38723e8b4f9cf` release（依赖保留，上一版API回退为`ae1d4d0…`）；连接器10-28已切到独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`，仅原 `19d91ed4776d79fce17a79ed88ed3b79622197e7` 的10分钟常量变更，旧release与私有配置备份保留回退；该次连接器调整未改API，API当前版本见上表。清理前核对依赖和launchd真实指向，不按旧日期删除。
 - Pages预检401先用配置中的Wrangler `whoami`续期，核对是否上传；已上传但验证未过使用原部署 `resume --resume-verification`。本轮发布和豌豆切换均完成，不重复提交。
 - 临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当前、回退 `0dbdf39…`、依赖与连接器release保留；清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。
