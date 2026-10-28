@@ -127,7 +127,12 @@ export function bindInspectorSwipe(panel: HTMLElement, close: () => void, browse
   let start: { id: number; x: number; y: number; time: number; base: number; claimed: boolean; lastX: number; lastTime: number; velocity: number } | null = null;
   let suppressUntil = 0;
   const cancel = () => { const claimed = start?.claimed; start = null; if (claimed) motion?.cancel(); };
-  const hasSelection = () => browser.getSelection()?.isCollapsed === false;
+  const hasSelection = () => {
+    if (browser.getSelection()?.isCollapsed === false) return true;
+    const active = browser.document?.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+    return !!active && panel.contains(active) && typeof active.selectionStart === "number" &&
+      typeof active.selectionEnd === "number" && active.selectionStart !== active.selectionEnd;
+  };
   const horizontalScroll = (target: Element | null) => {
     if (!motion) return false;
     for (let node = target; node && node !== panel; node = node.parentElement) {
@@ -192,6 +197,9 @@ export function bindInspectorSwipe(panel: HTMLElement, close: () => void, browse
     if (event.detail > 0 && event.timeStamp <= suppressUntil) { suppressUntil = 0; event.preventDefault(); event.stopPropagation(); }
   };
   const pointer = () => { suppressUntil = 0; };
+  const newEdit = (event: Event) => {
+    if ((event.target as Element | null)?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) cancel();
+  };
   // Only a claimed edge gesture prevents scrolling; vertical, diagonal and
   // selection gestures remain native. The legacy callback route stays passive.
   panel.addEventListener("touchstart", begin, { passive: true });
@@ -203,6 +211,9 @@ export function bindInspectorSwipe(panel: HTMLElement, close: () => void, browse
     panel.addEventListener("click", click, true);
     panel.addEventListener("pointerdown", pointer, { passive: true });
     browser.document.addEventListener("selectionchange", cancel);
+    panel.addEventListener("input", newEdit, true);
+    panel.addEventListener("focusin", newEdit, true);
+    panel.addEventListener("compositionstart", newEdit, true);
   }
   return () => {
     cancel();
@@ -215,6 +226,9 @@ export function bindInspectorSwipe(panel: HTMLElement, close: () => void, browse
       panel.removeEventListener("click", click, true);
       panel.removeEventListener("pointerdown", pointer);
       browser.document.removeEventListener("selectionchange", cancel);
+      panel.removeEventListener("input", newEdit, true);
+      panel.removeEventListener("focusin", newEdit, true);
+      panel.removeEventListener("compositionstart", newEdit, true);
     }
   };
 }

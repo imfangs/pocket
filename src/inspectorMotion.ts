@@ -8,6 +8,7 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
   const document = browser.document, workspace = panel.closest<HTMLElement>(".workspace");
   const narrow = browser.matchMedia("(max-width: 760px)"), reduced = browser.matchMedia("(prefers-reduced-motion: reduce)");
   let phase: Phase = "idle", animation: Animation | null = null, generation = 0, stopped = false, closed = false, suspended = false;
+  let composing = false;
   let releaseReading: (() => void) | null = null, offset = 0;
   const visible = () => !suspended && document.visibilityState !== "hidden";
   const editing = () => !!document.activeElement && panel.contains(document.activeElement) &&
@@ -93,7 +94,7 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
     settle();
   };
   const releaseSwipe = bindInspectorSwipe(panel, () => close(false), browser, {
-    enabled: () => enabled() && !editing() && phase !== "exiting" && phase !== "closed",
+    enabled: () => enabled() && !composing && phase !== "exiting" && phase !== "closed",
     start() {
       const current = stopAnimation();
       if (animated()) { hold(); setPhase("dragging"); setOffset(current); }
@@ -102,6 +103,9 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
     move(value) { if (phase === "dragging") setOffset(value); },
     release(complete, velocity) {
       if (complete) {
+        // A confirmed message-area gesture can leave editing. Keep focus for
+        // short/cancelled gestures, and never transform the focused editor.
+        if (editing()) (document.activeElement as HTMLElement)?.blur();
         if (phase === "dragging") travel(width(), "exiting", velocity); else close(false);
       } else if (phase === "dragging") travel(0, "settling");
     },
@@ -120,6 +124,10 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
   const resume = () => { suspended = false; resized(); };
   const visibility = () => document.visibilityState === "hidden" ? suspend() : resume();
   const preference = () => { if (reduced.matches && !closed) { if (phase === "exiting") { stopAnimation(); finishClose(); } else settle(); } };
+  const compositionStarted = () => { composing = true; };
+  const compositionEnded = () => { composing = false; };
+  panel.addEventListener("compositionstart", compositionStarted, true);
+  panel.addEventListener("compositionend", compositionEnded, true);
   panel.addEventListener("pointerdown", interacted, true);
   panel.addEventListener("focusin", interacted, true);
   panel.addEventListener("input", interacted, true);
@@ -142,6 +150,8 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
       panel.removeEventListener("pointerdown", interacted, true);
       panel.removeEventListener("focusin", interacted, true);
       panel.removeEventListener("input", interacted, true);
+      panel.removeEventListener("compositionstart", compositionStarted, true);
+      panel.removeEventListener("compositionend", compositionEnded, true);
       browser.removeEventListener("resize", resized);
       browser.removeEventListener("orientationchange", resized);
       browser.removeEventListener("pagehide", suspend);

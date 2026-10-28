@@ -49,6 +49,68 @@ function fixture({entry=false,reduced=false,desktop=false,animate=true}={}){
     allow:value=>{allowed=value;},select:value=>{selection=value;},phase:()=>panel.attrs.get('data-inspector-motion'),finish:()=>panel.calls.at(-1)?.animation.finish()};
 }
 
+function focusEditor(f, selected = false) {
+  const input = new Node(); input.value = 'Retained draft'; input.selectionStart = 4; input.selectionEnd = selected ? 8 : 4;
+  input.matches = selector => /input|textarea|contenteditable/.test(selector);
+  input.closest = selector => /input|textarea|contenteditable/.test(selector) ? input : null;
+  let blurs = 0;
+  input.blur = () => { blurs++; f.document.activeElement = null; f.panel.removeAttribute('data-keyboard-open'); };
+  f.panel.children.push(input); f.document.activeElement = input; f.panel.setAttribute('data-keyboard-open', '');
+  return { input, blurs: () => blurs };
+}
+
+test('a completed message edge swipe returns while the keyboard is open, without transforming the editor', () => {
+  const f = fixture(), editor = focusEditor(f);
+  f.touch('touchstart', 20, 200, 0);
+  assert.equal(f.touch('touchmove', 160, 201, 100).defaultPrevented, true);
+  assert.equal(editor.blurs(), 0); assert.equal(f.panel.style.transform, undefined); assert.equal(f.panel.calls.length, 0);
+  f.touch('touchend', 170, 201, 200);
+  assert.equal(editor.blurs(), 1); assert.equal(f.closes(), 1);
+  assert.equal(editor.input.value, 'Retained draft'); assert.equal(f.panel.calls.length, 0); f.control.dispose();
+});
+
+test('cancelled or short keyboard-open swipes preserve focus and text', () => {
+  for (const kind of ['short', 'reverse', 'cancel', 'vertical']) {
+    const f = fixture(), editor = focusEditor(f);
+    f.touch('touchstart', 20, 200, 0);
+    f.touch('touchmove', kind === 'vertical' ? 22 : 60, kind === 'vertical' ? 270 : 201, 100);
+    if (kind === 'cancel') f.touch('touchcancel', 60, 201, 150, { fingers: 0 });
+    if (kind === 'reverse') f.touch('touchmove', 25, 201, 250);
+    f.touch('touchend', kind === 'reverse' ? 25 : 60, 201, 400);
+    assert.equal(f.closes(), 0, kind); assert.equal(editor.blurs(), 0, kind);
+    assert.equal(f.document.activeElement, editor.input); assert.equal(editor.input.selectionStart, 4);
+    assert.equal(editor.input.value, 'Retained draft'); f.control.dispose();
+  }
+});
+
+test('IME and new editing cancel the entire swipe; composition end only enables a new gesture', () => {
+  for (const event of ['compositionstart', 'input', 'focusin']) {
+    const f = fixture(), editor = focusEditor(f);
+    f.touch('touchstart', 20, 200, 0); f.touch('touchmove', 90, 201, 100);
+    f.panel.fire(event, { target: editor.input });
+    f.panel.fire('compositionend', { target: editor.input });
+    f.touch('touchend', 180, 201, 200);
+    assert.equal(f.closes(), 0, event); assert.equal(editor.blurs(), 0, event);
+    f.touch('touchstart', 20, 200, 400); f.touch('touchmove', 160, 201, 500); f.touch('touchend', 170, 201, 600);
+    assert.equal(f.closes(), 1, event); f.control.dispose();
+  }
+  const f = fixture(), editor = focusEditor(f);
+  f.panel.fire('compositionstart', { target: editor.input });
+  f.touch('touchstart', 20, 200, 0); f.touch('touchmove', 160, 201, 100); f.touch('touchend', 170, 201, 200);
+  assert.equal(f.closes(), 0); assert.equal(editor.blurs(), 0); f.control.dispose();
+});
+
+test('an editor selection or input-origin gesture remains protected while the keyboard is open', () => {
+  for (const kind of ['selection', 'input-origin']) {
+    const f = fixture(), editor = focusEditor(f, kind === 'selection');
+    const at = kind === 'input-origin' ? editor.input : f.target;
+    f.touch('touchstart', 20, 200, 0, { at });
+    assert.equal(f.touch('touchmove', 160, 201, 100, { at }).defaultPrevented, false);
+    f.touch('touchend', 170, 201, 200, { at });
+    assert.equal(f.closes(), 0); assert.equal(editor.blurs(), 0); f.control.dispose();
+  }
+});
+
 test('mobile entry holds reading and travels from the right, then restores all at-rest styles',()=>{
   const f=fixture({entry:true});assert.equal(f.holdCount(),1);assert.equal(f.phase(),'entering');
   assert.deepEqual(f.panel.calls[0].frames,[{transform:'translate3d(390px, 0, 0)'},{transform:'translate3d(0px, 0, 0)'}]);
@@ -100,7 +162,7 @@ test('vertical, diagonal, outside-edge, long press, multiple touches and protect
     if(kind==='horizontal'){target.scrollWidth=700;target.overflowX='auto';}
     if(kind==='selection')f.select(true);
     if(kind==='overlay')f.allow(false);
-    if(kind==='editing'){f.document.activeElement=target;target.matches=()=>true;f.panel.children.push(target);}
+    if(kind==='editing'){f.document.activeElement=target;target.matches=()=>true;target.closest=()=>target;f.panel.children.push(target);}
     f.touch('touchstart',kind==='outside'?80:20,200,0,{at:target,fingers:kind==='multi'?2:1});
     const event=f.touch('touchmove',kind==='vertical'?23:kind==='diagonal'?60:170,kind==='vertical'?280:kind==='diagonal'?230:201,kind==='long'?450:100,{at:target});
     f.touch('touchend',180,202,200,{at:target});

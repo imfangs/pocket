@@ -27,7 +27,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 离线整页视觉、对齐、主题和公开壳更新 | [离线布局收敛](docs/design/2026-10-15-offline-layout.md)：独立公开页面、中轴与安全区、深链保留 |
 | 列表触摸稳定、草稿退出、新建/离线恢复、搜索扩围与归档主动作 | [交互稳定与原地恢复](docs/design/2026-10-15-interaction-recovery.md)：完整路径修复与原回执边界 |
 | 优先关注与Codex置顶、输入意图预连接、精简文案、消息相对时间 | [独立优先与输入意图](docs/design/2026-10-15-priority-and-composer.md)：双标记/加分、旧接口兼容、单主按钮和共享时钟 |
-| 动效、详情转场、右滑与横滚冲突、内容过渡 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：跟手、披露、创建/消息衔接、主动pin换位和轻反馈；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
+| 动效、详情转场、键盘打开时右滑返回、右滑与横滚冲突 | [五项动效实现](docs/design/2026-10-15-motion-implementation.md)：编辑焦点与导航意图分离、IME/选区保护、跟手与内容衔接；[原始评审](docs/design/2026-10-14-motion-study.md)保留取舍来源 |
 | 项目导航、最近创建、关注/Codex置顶快捷分类、统一Rank、最后消息时间与状态色 | [项目与智能排序](docs/design/2026-10-14-smart-navigation.md)：独立范围、创建时间倒序、单分数公式、消息来源、行为加分、有效状态与滚动锚 |
 | Query在消息与待发区搬移/重影、发送后键盘或阅读跳动 | [发送连续性](docs/design/2026-10-25-send-ui-continuity.md)：同请求稳定消息行、行内状态/队列操作、精确身份与全文保护；焦点、IME和用户滚动优先 |
 | 新建回列表、行内进度、弱网恢复、确认延迟 | [列表确认](docs/design/2026-10-09-creation-and-send-feedback.md#2026-10-28提交后回列表行内确认)：立即返回、蓝转绿、失败输入恢复与后台核对；[确认延迟](docs/design/2026-10-25-create-confirmation-latency.md)保留原生耗时及同ID单飞依据 |
