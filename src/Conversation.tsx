@@ -13,7 +13,7 @@ import "./conversation-recovery.css";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
 import ProgressDisclosure from "./ProgressDisclosure";
-import { useProgressMessages } from "./useProgressMessages";
+import { hasMessageSelection, useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript, Message } from "./conversationFeed";
 import { displayConversation } from "./transcript";
@@ -37,6 +37,10 @@ import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATT
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 import { useReadingComposer } from "./useReadingComposer";
 import { bindMessageScrollDismiss } from "./messageScrollDismiss";
+import { createEarlierHistoryReader, type EarlierHistoryChange } from "./earlierHistory";
+import { captureEarlierHistoryAnchor, restoreEarlierHistoryAnchor, type EarlierHistoryAnchor } from "./earlierHistoryAnchor";
+import EarlierHistoryMessage from "./earlierHistoryMessage";
+import "./earlierHistory.css";
 import type { ReadingCache } from "./readingCache";
 import { currentMachineId } from "./machineScope";
 import "./reading-composer.css";
@@ -58,6 +62,7 @@ const statuses: Record<string, string> = {
   systemError: "上次运行出错",
   unavailable: "未连接",
 };
+const emptyQueryTargets: ReadonlyMap<string, HTMLElement> = new Map();
 export default function Conversation({
   thread,
   drafts,
@@ -156,6 +161,62 @@ export default function Conversation({
     previousLatest = useRef<{ id: string; text: string } | null>(null),
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
+  const earlierMode = useRef(false), previousEarlierMode = useRef(false), earlierAnchor = useRef<EarlierHistoryAnchor | null>(null);
+  const earlierStart = useRef<{ top: number; id: string | null } | null>(null);
+  const prepareEarlier = useRef<(next: Message[], change: EarlierHistoryChange, boundary: string | null) => boolean>(() => true);
+  const earlierReader = useMemo(() => createEarlierHistoryReader({
+    read: (before, signal) => api(`/api/tasks/${thread.id}/transcript-page${before ? `?before=${encodeURIComponent(before)}` : ""}`,
+      "GET", undefined, { signal }),
+    canApply: (...args) => prepareEarlier.current(...args),
+  }), [thread.id]);
+  const subscribeEarlier = useCallback((listener: () => void) => earlierReader.subscribe(() => {
+    if (!earlierAnchor.current && messages.current) earlierAnchor.current = captureEarlierHistoryAnchor(messages.current);
+    listener();
+  }), [earlierReader]);
+  const earlier = useSyncExternalStore(subscribeEarlier, earlierReader.getSnapshot, earlierReader.getSnapshot);
+  earlierMode.current = earlier.active;
+  prepareEarlier.current = (next, change, boundary) => {
+    const root = messages.current;
+    if (!root || hasMessageSelection(root) || root.querySelector(".outbox-inline-actions textarea") ||
+        root.ownerDocument.querySelector("[data-reading-motion], [data-reading-overlay], dialog[open]")) return false;
+    const focused = root.ownerDocument.activeElement;
+    if (keyboardDismiss.current.composing || focused && conversationRoot.current?.contains(focused) &&
+        focused.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return false;
+    const anchor = captureEarlierHistoryAnchor(root);
+    const candidateIds = new Set(next.map(message => message.id));
+    const keepsAnchor = !!anchor && candidateIds.has(anchor.id);
+    const sharedAnchor = captureEarlierHistoryAnchor(root, candidateIds);
+    // A reader may have scrolled into the page that would be evicted while the
+    // request was pending. Keep the current view until they return to the load
+    // control; the prepared result is bounded and needs no second HTTP read.
+    if (earlierMode.current && change !== "restart" && anchor && !keepsAnchor) return false;
+    if (!earlierMode.current && change === "initial" && !sharedAnchor && earlierStart.current &&
+        (Math.abs(root.scrollTop - earlierStart.current.top) > 2 || (anchor?.id ?? null) !== earlierStart.current.id)) return false;
+    // A native user ID can differ while the next visible assistant ID agrees.
+    // Use that exact shared identity before the explicit page-boundary fallback.
+    earlierAnchor.current = sharedAnchor ??
+      (boundary ? { id: boundary, offset: anchor?.offset ?? 0 } : null);
+    return true;
+  };
+  const rememberEarlierStart = () => {
+    const root = messages.current;
+    earlierStart.current = root ? { top: root.scrollTop, id: captureEarlierHistoryAnchor(root)?.id ?? null } : null;
+  };
+  const loadEarlier = () => {
+    if (!earlier.active && !earlier.loading) rememberEarlierStart();
+    void earlierReader.older();
+  };
+  const applyEarlier = () => {
+    if (!earlier.active) rememberEarlierStart();
+    earlierReader.applyReady();
+  };
+  useEffect(() => () => earlierReader.stop(), [earlierReader]);
+  useLayoutEffect(() => {
+    if ((earlier.active || !previousEarlierMode.current) && earlierAnchor.current && messages.current)
+      restoreEarlierHistoryAnchor(messages.current, earlierAnchor.current);
+    earlierAnchor.current = null;
+    previousEarlierMode.current = earlier.active;
+  }, [earlier]);
   const liveDisplay = useMemo(() => displayConversation(
     history ? { ...history, messages: withSubmittedAttachments(history.messages, submitted) } : null,
     transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
@@ -214,7 +275,7 @@ export default function Conversation({
     return groups;
   }, [questions]);
   const unplacedQuestions = useMemo(() => questions.filter(question => !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages]);
-  const pocketContent = useMemo(() => unplacedQuestions.length ? null : displayedPocketContent(transcript, shownMessages), [transcript, shownMessages, unplacedQuestions]);
+  const pocketContent = useMemo(() => earlier.active || unplacedQuestions.length ? null : displayedPocketContent(transcript, shownMessages), [transcript, shownMessages, unplacedQuestions, earlier.active]);
   const protectedProgressIds = useMemo(() => new Set([...questionsByMessage.keys(), ...(pocketContent?.messageId ? [pocketContent.messageId] : [])]), [questionsByMessage, pocketContent?.messageId]);
   const progress = useProgressMessages({ messages: shownMessages, protectedIds: protectedProgressIds,
     root: messages, nearBottom, away: awayFromLatest, cache: historyCache, threadId: thread.id,
@@ -281,6 +342,7 @@ export default function Conversation({
   }, [uploads, thread.id]);
   const load = useCallback(async () => { await Promise.all([feed.current?.refresh(), textFeed.current?.refresh()]); }, []);
   const returnToLatest = useCallback(() => {
+    earlierReader.leave();
     nearBottom.current = true;
     setAwayFromLatest(false);
     setHasNewContent(false);
@@ -289,7 +351,7 @@ export default function Conversation({
       element.focus({ preventScroll: true });
       element.scrollTop = element.scrollHeight;
     }
-  }, []);
+  }, [earlierReader]);
   const receiptRead = useRef<AbortController | null>(null);
   const checkingSubmissions = useRef(new Map<string, AbortController>());
   const connectionOpen = useRef<AbortController | null>(null);
@@ -364,10 +426,11 @@ export default function Conversation({
     return bindMessageScrollDismiss(root, {
       canDismiss: () => keyboardDismiss.current.canDismissKeyboard(),
       dismiss: () => {
-        nearBottom.current = false; setAwayFromLatest(true);
+        if (!earlierMode.current) { nearBottom.current = false; setAwayFromLatest(true); }
         keyboardDismiss.current.dismissKeyboard();
       },
       settled: () => {
+        if (earlierMode.current) return;
         const atBottom = root.scrollHeight - root.scrollTop - root.clientHeight <= 1;
         nearBottom.current = atBottom; setAwayFromLatest(!atBottom);
         if (atBottom) setHasNewContent(false);
@@ -494,7 +557,7 @@ export default function Conversation({
   }, [thread.id, drafts, historyCache, updateDraft, managementBlocked, feedbackTracker, showAcceptedFeedback, confirmAccepted, submissions, checkSubmissionReceipt, uploads]);
   useLayoutEffect(() => {
     const element = messages.current;
-    if (!element) return;
+    if (!element || earlier.active) return;
     const latest = shownMessages.at(-1), previous = previousLatest.current;
     if (nearBottom.current && !progress.readingProtected()) {
       element.scrollTop = element.scrollHeight;
@@ -506,14 +569,14 @@ export default function Conversation({
     }
     previousLatest.current = latest ? { id: latest.id, text: latest.text } : null;
     restoreScroll.current = null;
-  }, [shownMessages, visibleSubmissions, shownOutbox, queryTargets, progress.entries, progress.readingProtected]);
+  }, [shownMessages, visibleSubmissions, shownOutbox, queryTargets, progress.entries, progress.readingProtected, earlier.active]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
     // Composer growth and the software keyboard resize the reading area even
     // when no message changes. Follow only while the reader is already at bottom.
     const observer = new ResizeObserver(() => {
-      if (nearBottom.current && !progress.readingProtected()) element.scrollTop = element.scrollHeight;
+      if (!earlierMode.current && nearBottom.current && !progress.readingProtected()) element.scrollTop = element.scrollHeight;
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -557,6 +620,7 @@ export default function Conversation({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sending || (!draft.requestId && ((!draft.text.trim() && !attachments.length) || !readyAttachments(attachments)))) return;
+    earlierReader.leave();
     const release = holdReload();
     setSending(true);
     setError("");
@@ -704,6 +768,7 @@ export default function Conversation({
         tabIndex={0}
         ref={messages}
         onScroll={() => {
+          if (earlierMode.current) return;
           const el = messages.current;
           if (el) {
             nearBottom.current =
@@ -718,13 +783,16 @@ export default function Conversation({
           }
         }}
       >
-        {hasEarlierMessages && (
-          <p className="history-boundary">
-            {online && (loading || transcriptLoading)
-              ? "正在读取更早的消息…"
-              : "还有更早的消息未显示"}
-          </p>
-        )}
+        {(hasEarlierMessages || earlier.active || earlier.loading || earlier.error || earlier.ready) && <div className="earlier-history-boundary">
+          {earlier.active && <span>正在查看较早消息</span>}
+          {earlier.error && <p role="status">{earlier.error}</p>}
+          {earlier.ready && <p role="status">{earlier.ready === "newer" ? "较新消息已载入，可在下方查看。" : "消息已载入，当前阅读位置保持不变。"}</p>}
+          {earlier.expired ? <button type="button" disabled={!online || earlier.loading} onClick={() => void earlierReader.restart()}>{earlier.loading ? "正在重新核对…" : "重新核对"}</button>
+            : !earlier.active || earlier.hasOlder || earlier.ready && earlier.ready !== "newer" ? <button type="button" disabled={!online || earlier.loading}
+              onClick={() => earlier.ready && earlier.ready !== "newer" ? applyEarlier() : loadEarlier()}>{earlier.loading ? "正在加载消息…" : earlier.ready && earlier.ready !== "newer" ? "查看已加载的消息" : earlier.error ? "重试加载更早消息" : "加载更早消息"}</button>
+            : <span>已到最早消息</span>}
+        </div>}
+        <div className="conversation-live" hidden={earlier.active}>
         {emptyReadState === "loading" && <div className="conversation-read-loading" role="status">
           <LoaderCircle size={16} className="composer-connection-spinner" aria-hidden="true" />
           <span>正在读取消息…</span>
@@ -766,12 +834,21 @@ export default function Conversation({
         }), ...timeline.tail.map(renderQuery)]}
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
-        <SubmittedQueryCards items={visibleSubmissions} inlineTargets={queryTargets} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
+        <SubmittedQueryCards items={visibleSubmissions} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
           disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} />
+        </div>
+        {earlier.active && <div className="earlier-history-messages">
+          {earlier.messages.map(message => <EarlierHistoryMessage key={message.id} threadId={thread.id} message={message} />)}
+          {earlier.hasNewer && <div className="earlier-history-boundary earlier-history-newer">
+            <span>较新消息未显示</span>
+            {earlier.canLoadNewer && <button type="button" disabled={!online || earlier.loading || earlier.expired}
+              onClick={() => earlier.ready === "newer" ? earlierReader.applyReady() : void earlierReader.newer()}>{earlier.loading ? "正在加载…" : earlier.ready === "newer" ? "查看已加载的较新消息" : "查看较新消息"}</button>}
+          </div>}
+        </div>}
       </div>
-      {awayFromLatest && <button type="button" className="conversation-latest" onClick={returnToLatest}>
+      {(awayFromLatest || earlier.active) && <button type="button" className="conversation-latest" onClick={returnToLatest}>
         <ArrowDown size={14} aria-hidden="true" />
-        {hasNewContent ? "有新内容 · 返回最新" : "返回最新消息"}
+        {!earlier.active && hasNewContent ? "有新内容 · 返回最新" : "返回最新消息"}
       </button>}
       </div>
       <div className="conversation-status">
@@ -784,7 +861,7 @@ export default function Conversation({
         </div>}
       </div>
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
-      <Outbox threadId={thread.id} suppressNetworkErrors={!!historyError || connectionFailed || !online} items={shownOutbox} inlineTargets={queryTargets} focusRoot={messages} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
+      <Outbox threadId={thread.id} suppressNetworkErrors={!!historyError || connectionFailed || !online} items={shownOutbox} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} focusRoot={messages} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
         onAccepted={receipt => confirmAccepted(receipt, "queue")} onAttachmentRecovery={(recovered, error) => {
           setAttachmentRecoveryError(error ? readableRequestError(error, "附件暂未同步，请重试。") : ""); setAttachmentRecoveryNeeded(!!error);
           setNotice(error ? "待发消息已删除，附件可重新载入草稿。" : recovered ? "待发消息已删除，附件已放回草稿。" : "待发消息已删除。");

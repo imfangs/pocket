@@ -44,6 +44,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 列表、来源导入、元数据恢复、阅读缓存 | [数据与接口](docs/ARCHITECTURE.md)、[桌面列表范围](docs/design/2026-10-14-desktop-list-scope.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
 | IndexedDB、缓存数量设置、恢复/清理、跨标签失效、304/204与读取流量 | [分层阅读缓存](docs/design/2026-10-28-reading-cache.md)：客户端条数偏好、认证后展示、纯阅读投影、来源/epoch与容量边界、条件响应及旧接口兼容；[选型](docs/research/2026-10-28-cache-components.md) |
 | 阅读后清除未读、跨端重复未读、运行中排除未读、内容版本与缓存 | [阅读状态与已读合并](docs/design/2026-10-22-pocket-read-state.md)：有效运行状态仅抑制列表未读；本地水位、真实可见阅读与精确版本桌面提示保持，原生写回仅旧客户端兼容 |
+| 加载更早消息、历史分页、压缩jsonl.zst与翻页位置 | [历史分页](docs/design/2026-10-28-history-pagination.md)：只读worker、签名游标、独立历史视窗/返回最新、锚点与资源边界；旧页不授控制或阅读凭据 |
 | 用户引用批注、列表刷新反馈、顶部筛选/排序选中态 | [本轮契约](docs/design/2026-10-23-annotations-refresh-controls.md)：问题优先、引用披露、请求反馈互斥与轻量选中表面 |
 | 新提问选项、回答/忽略与重复显示 | [可选提问](docs/design/2026-10-10-optional-question-prompts.md)：新题选项直接展示、精确投影去重、草稿与未知回答保护 |
 | 最终回复后的过程折叠、展开状态与选区保护 | [过程折叠](docs/design/2026-10-11-completed-progress.md)：明确轮次、当前问题、缓存和布局后标读 |

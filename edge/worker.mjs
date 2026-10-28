@@ -173,6 +173,7 @@ export default {
       const target = new URL(pathname + url.search, upstream.origin);
       const uploading = request.method === "PUT" &&
         /^\/api\/tasks\/[a-f0-9-]{36}\/attachments\/[a-f0-9-]{36}$/i.test(pathname);
+      const readingHistoryPage = request.method === "GET" && /^\/api\/tasks\/[a-f0-9-]{36}\/transcript-page$/i.test(pathname);
       // Once fetch starts, a lost reply cannot prove the Mac did not execute.
       forwarded = true;
       const response = await fetch(target, {
@@ -182,7 +183,7 @@ export default {
           ? undefined
           : request.body,
         redirect: "manual",
-        signal: AbortSignal.timeout(uploading ? 180000 : 20000),
+        signal: AbortSignal.timeout(uploading ? 180000 : readingHistoryPage ? 45000 : 20000),
       });
       const upstreamMachine = response.headers.get("X-Pocket-Machine");
       if (upstreamMachine !== machineId && (machineId !== defaultMachine || upstreamMachine !== null))

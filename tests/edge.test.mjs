@@ -188,3 +188,21 @@ test('gateway keeps conditional reads isolated from writes, receipt lookups, red
     assert.equal((await worker.fetch(new Request('https://x.fangs.cc/api/catalog'), env)).status, 503);
   } finally { globalThis.fetch = original; }
 });
+
+test('history page reads preserve the opaque cursor and get a bounded longer read timeout', async t => {
+  let seen, timeout;
+  t.mock.method(AbortSignal, 'timeout', value => { timeout = value; return new AbortController().signal; });
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    seen = { url: String(url), method: options.method, cookie: options.headers.get('Cookie') };
+    return new Response(JSON.stringify({ source: 'rollout', messages: [], hasMore: false, nextCursor: null, page: { kind: 'older' } }), {
+      headers: { 'Content-Type': 'application/json', 'X-Pocket-Machine': 'ged' },
+    });
+  });
+  const response = await worker.fetch(new Request('https://x.fangs.cc/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/transcript-page?before=signed_opaque.cursor&limit=40', {
+    headers: { Cookie: 'navigator_session=page-test' },
+  }), env);
+  assert.equal(response.status, 200);
+  assert.equal(seen.url, 'https://sample.trycloudflare.com/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/transcript-page?before=signed_opaque.cursor&limit=40');
+  assert.equal(seen.method, 'GET'); assert.equal(seen.cookie, 'navigator_session=page-test');
+  assert.equal(timeout, 45000);
+});

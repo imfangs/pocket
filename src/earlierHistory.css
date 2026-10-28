@@ -1,0 +1,6 @@
+.earlier-history-boundary { display:flex; flex-direction:column; align-items:center; gap:4px; margin:0 0 12px; color:var(--muted); font-size:12px; }
+.earlier-history-boundary button { min-height:44px; padding:8px 14px; border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface); color:var(--ink); font:inherit; cursor:pointer; }
+.earlier-history-boundary button:disabled { cursor:default; opacity:.6; }
+.earlier-history-boundary p { margin:0; }
+.earlier-history-newer { margin:16px 0 0; padding-bottom:44px; }
+.conversation-live[hidden] { display:none; }

@@ -11,7 +11,8 @@ import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
 import { DesktopService } from "./desktop.mjs";
 import { ReadStateService } from "./read-state.mjs";
-import { PocketContentService } from "./pocket-content.mjs";
+import { PocketContentService, POCKET_CONTENT } from "./pocket-content.mjs";
+import { HistoryPageReader } from "./history.mjs";
 import { ThreadAutomations } from "./thread-automations.mjs";
 import { LifecycleService } from "./lifecycle.mjs";
 import { RenameService } from "./rename.mjs";
@@ -65,6 +66,7 @@ export function makeApp(options = {}) {
   );
   const readState = new ReadStateService(store, codexHome, options.readState);
   const pocketContent = new PocketContentService(store, codexHome, options.pocketContent);
+  const historyPages = options.historyPages || new HistoryPageReader(options.historyPageOptions);
   const automations = new ThreadAutomations(codexHome, options.automations);
   const catalog = () => automations.enrich(pocketContent.catalog(store.catalog()));
   const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
@@ -361,12 +363,42 @@ export function makeApp(options = {}) {
         const thread = store.thread(history[1]);
         return sendCatalog(res, files.attach(thread, images.attach(thread, data)), req.headers["accept-encoding"], { path, method, machineId, headers: req.headers });
       }
+      const historyPage = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/transcript-page$/i);
+      if (historyPage && method === "GET") {
+        const start = performance.now(), id = historyPage[1];
+        const thread = store.thread(id);
+        if ([...url.searchParams.keys()].some(key => !["before", "limit"].includes(key)) ||
+            url.searchParams.getAll("before").length > 1 || url.searchParams.getAll("limit").length > 1)
+          throw new AppError("历史分页参数无效", 400);
+        const rawLimit = url.searchParams.get("limit");
+        if (rawLimit !== null && !/^(?:[1-9]|[1-7]\d|80)$/.test(rawLimit)) throw new AppError("历史分页条数无效", 400);
+        const data = await historyPages.read(codexHome, id, {
+          before: url.searchParams.get("before"), limit: rawLimit === null ? 80 : Number(rawLimit),
+        });
+        res.setHeader("Server-Timing", `history_page;dur=${(performance.now() - start).toFixed(1)}`);
+        // Historical pages are display-only. Do not mint read observations or
+        // pass these messages into the live history/receipt controllers.
+        return sendCatalog(res, files.attach(thread, images.attach(thread, data)), req.headers["accept-encoding"]);
+      }
       const transcript = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/transcript$/i);
       if (transcript && method === "GET") {
         const start = performance.now();
         const thread = store.thread(transcript[1]);
-        const data = files.attach(thread, images.attach(thread,
-          readState.observeTranscript(transcript[1], () => pocketContent.transcript(transcript[1], desktop.transcript(transcript[1])))));
+        let observed;
+        try {
+          observed = readState.observeTranscript(transcript[1], () => pocketContent.transcript(transcript[1], desktop.transcript(transcript[1])));
+        }
+        catch (error) {
+          if (error.code !== "ENOENT") throw error;
+          const recent = await historyPages.recent(codexHome, transcript[1]);
+          const saved = desktop.attachments.enrich(transcript[1], { source: "rollout", messages: recent.messages,
+            hasMore: !!recent.hasMore, turnTiming: recent.turnTiming || null, checkedAt: Date.now(),
+            [POCKET_CONTENT]: recent[POCKET_CONTENT] });
+          // This source was read asynchronously. A later native before/after
+          // pair cannot authorize marking a newer desktop snapshot as read.
+          observed = { ...pocketContent.transcript(transcript[1], saved), readObservation: null };
+        }
+        const data = files.attach(thread, images.attach(thread, observed));
         res.setHeader("Server-Timing", `transcript;dur=${(performance.now() - start).toFixed(1)}`);
         return sendCatalog(res, data, req.headers["accept-encoding"], { path, method, machineId, headers: req.headers });
       }
@@ -505,6 +537,7 @@ export function makeApp(options = {}) {
     desktop.models.stop();
     notifications.stop();
     desktop.stopQueue();
+    historyPages.close?.();
     store.close();
   };
   server.on("listening", () => { desktop.startQueue(); notifications.start(); lifecycle.start(); });

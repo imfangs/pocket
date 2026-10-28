@@ -18,9 +18,13 @@ const injectedKinds = new Set([
   "multi_agent.role_instructions", "multi_agent.mode_instructions",
 ]);
 
-function visibleContent(item) {
+export function visibleContent(item) {
   const content = Array.isArray(item.content) ? item.content : [];
   const kinds = item.internal_chat_message_metadata_passthrough?.content_item_kinds;
+  // A broken mixed-provenance list cannot safely identify which item contains
+  // authored text. Do not promote an injected item merely because lengths differ.
+  if (Array.isArray(kinds) && kinds.length !== content.length && kinds.some(kind => injectedKinds.has(kind)))
+    return { text: '', hasMedia: false };
   const visible = content.filter((c, index) => c &&
       !(Array.isArray(kinds) && kinds.length === content.length && injectedKinds.has(kinds[index])));
   const value = visible
@@ -100,7 +104,7 @@ export function parseHistory(text, startOffset = 0) {
         record.type === "response_item" &&
         item?.type === "message" &&
         ["user", "assistant"].includes(item.role) &&
-        item.phase !== "analysis"
+        item.phase !== "analysis" && item.channel !== "analysis"
       ) {
         const { text: value, hasMedia } = visibleContent(item);
         if (value || hasMedia) {
@@ -161,7 +165,7 @@ export function parseHistory(text, startOffset = 0) {
     messageId: lastReadableAssistant.id, readable: target?.id === lastReadableAssistant.id && !target.truncated }
     : startOffset === 0 ? { known: true, version: EMPTY_CONTENT_VERSION, messageId: null, readable: false }
       : { known: false };
-  return { messages: visible, lastMessageAt, [POCKET_CONTENT]: content,
+  return { messages: visible, hasMore: textMessages.length > visible.length, lastMessageAt, [POCKET_CONTENT]: content,
     turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
 }
 
@@ -240,7 +244,7 @@ export function readPersistedHistory(codexHome, threadId) {
       source: "rollout",
       ...parsed,
       [POCKET_CONTENT]: content,
-      hasMore: start > 0,
+      hasMore: start > 0 || parsed.hasMore,
       runtime: "unavailable",
       canSend: false,
       hint: "历史已载入，连接后可发送。",
@@ -249,3 +253,5 @@ export function readPersistedHistory(codexHome, threadId) {
     closeSync(fd);
   }
 }
+
+export { HistoryPageReader, readPersistedHistoryPage, readPersistedHistoryRecent } from './history-pages.mjs';
