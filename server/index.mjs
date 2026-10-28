@@ -246,7 +246,7 @@ export function makeApp(options = {}) {
       if (method === "GET" && path === "/api/connection")
         return json(res, 200, connection);
       if (method === "GET" && path === "/api/catalog")
-        return sendCatalog(res, { ...catalog(), csrfToken: csrf }, req.headers["accept-encoding"]);
+        return sendCatalog(res, { ...catalog(), csrfToken: csrf }, req.headers["accept-encoding"], { path, method, machineId, headers: req.headers });
       if (method === "GET" && path === "/api/task-statuses")
         return json(res, 200, await taskStatuses.snapshot({ priorityThreadIds: url.searchParams.get("priorityThreadIds") }));
       if (method === "GET" && path === "/api/tasks/create-options")
@@ -295,7 +295,7 @@ export function makeApp(options = {}) {
         return json(res, 200, notifications.subscriptionState((await body(req, 4096)).endpoint));
       if (method === "POST" && path === "/api/sync") {
         await syncForClient();
-        return sendCatalog(res, catalog(), req.headers["accept-encoding"]);
+        return sendCatalog(res, catalog(), req.headers["accept-encoding"], { path, method, machineId, headers: req.headers });
       }
       if (method === "GET" && path === "/api/export") {
         res.setHeader(
@@ -359,7 +359,7 @@ export function makeApp(options = {}) {
         notifications.watch(history[1], data);
         res.setHeader("Server-Timing", `desktop_history;dur=${(performance.now() - start).toFixed(1)}`);
         const thread = store.thread(history[1]);
-        return json(res, 200, files.attach(thread, images.attach(thread, data)));
+        return sendCatalog(res, files.attach(thread, images.attach(thread, data)), req.headers["accept-encoding"], { path, method, machineId, headers: req.headers });
       }
       const transcript = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/transcript$/i);
       if (transcript && method === "GET") {
@@ -368,7 +368,7 @@ export function makeApp(options = {}) {
         const data = files.attach(thread, images.attach(thread,
           readState.observeTranscript(transcript[1], () => pocketContent.transcript(transcript[1], desktop.transcript(transcript[1])))));
         res.setHeader("Server-Timing", `transcript;dur=${(performance.now() - start).toFixed(1)}`);
-        return sendCatalog(res, data, req.headers["accept-encoding"]);
+        return sendCatalog(res, data, req.headers["accept-encoding"], { path, method, machineId, headers: req.headers });
       }
       const markRead = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/read$/i);
       if (markRead && method === "POST") {

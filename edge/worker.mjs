@@ -153,10 +153,17 @@ export default {
       )
         return error(503, "Mac 接入地址不可用");
       const headers = new Headers();
+      // The deployed Worker is a standalone copied file. Keep this narrow
+      // route allowlist aligned with shared/read-response.mjs (covered by QA).
+      const conditionalRead = request.method === "GET" && (pathname === "/api/catalog" ||
+        /^\/api\/tasks\/[a-f0-9-]{36}\/(?:transcript|history)$/i.test(pathname));
+      const conditionalSync = request.method === "POST" && pathname === "/api/sync";
       for (const key of [
         "Content-Type",
         "X-Navigator-Token",
         "Accept",
+        ...(conditionalRead ? ["If-None-Match"] : []),
+        ...(conditionalSync ? ["X-Pocket-Read-Version"] : []),
       ])
         if (request.headers.has(key))
           headers.set(key, request.headers.get(key));
@@ -182,7 +189,7 @@ export default {
         return error(503, "Mac 连接身份不匹配，请重新连接", "relay_unavailable");
       if (
         response.status >= 500 ||
-        (response.status >= 300 && response.status < 400)
+        (response.status >= 300 && response.status < 400 && !(conditionalRead && response.status === 304))
       )
         return error(503, "Mac 暂时不可达，请稍后重试", "relay_unavailable");
       return new Response(response.body, { status: response.status, statusText: response.statusText,

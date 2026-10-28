@@ -113,8 +113,8 @@ test("repeated refreshes coalesce; leaving cancels reads and late results", asyn
 
 test("history and transcript cache preserve reading position and progress display choices within the same eviction boundary", () => {
   const cache = new Map();
-  for (let i = 0; i < 12; i++) rememberHistory(cache, String(i), history());
-  assert.equal(cache.size, 10);
+  for (let i = 0; i < 22; i++) rememberHistory(cache, String(i), history());
+  assert.equal(cache.size, 20);
   assert.equal(cache.has("0"), false);
   cache.get("5").scrollTop = 420;
   cache.get("5").nearBottom = false;
@@ -136,11 +136,11 @@ test("history and transcript cache preserve reading position and progress displa
   assert.equal(cache.get("5").transcript, transcript);
   assert.equal(cache.get("5").scrollTop, 420);
   assert.equal(cache.get("5").nearBottom, false);
-  for (let i = 12; i < 22; i++) {
+  for (let i = 22; i < 42; i++) {
     if (i % 2) rememberHistory(cache, String(i), history());
     else rememberTranscript(cache, String(i), transcript);
   }
-  assert.equal(cache.size, 10);
+  assert.equal(cache.size, 20);
   assert.equal(cache.has("5"), false);
   rememberHistory(cache, "5", history());
   assert.equal(cache.get("5").progressView, undefined, "evicted presentation state does not outlive its history entry");
@@ -159,4 +159,13 @@ test("transcript reads use recorded activity only for pacing and stop while hidd
   status='completed';f.visibility.visibilityState='visible';f.visibility.dispatchEvent(new Event('visibilitychange'));
   await f.advance(7999);assert.equal(calls,3);await f.advance(1);assert.equal(calls,4);
   assert.ok(f.data.every(d=>d.canSend===undefined));f.feed.stop();assert.equal(f.tasks.size,0);
+});
+
+test('history cache evicts older large bodies before its byte budget is exceeded', () => {
+  const cache = new Map();
+  for (let i = 0; i < 5; i++) rememberHistory(cache, String(i), { ...history(), messages: [{ id: String(i), role: 'assistant', text: 'x'.repeat(1024 * 1024) }] });
+  assert.ok(cache.size < 5);
+  assert.equal(cache.has('0'), false);
+  assert.equal(cache.has('4'), true);
+  assert.ok([...cache.values()].reduce((bytes, entry) => bytes + entry.payloadBytes, 0) <= 8 * 1024 * 1024);
 });

@@ -37,6 +37,8 @@ import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATT
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 import { useReadingComposer } from "./useReadingComposer";
 import { bindMessageScrollDismiss } from "./messageScrollDismiss";
+import type { ReadingCache } from "./readingCache";
+import { currentMachineId } from "./machineScope";
 import "./reading-composer.css";
 import { queryTimeline, type TimelineQuery } from "./queryTimeline";
 import { useDeferredQueryEcho } from "./useDeferredQueryEcho";
@@ -60,6 +62,8 @@ export default function Conversation({
   thread,
   drafts,
   historyCache,
+  readingCache,
+  readingScope,
   submissions: providedSubmissions,
   onConnect,
   onRestore,
@@ -70,6 +74,8 @@ export default function Conversation({
   thread: Thread;
   drafts: Map<string, QueryDraft>;
   historyCache: HistoryCache;
+  readingCache?: ReadingCache | null;
+  readingScope?: string;
   submissions?: SubmittedQueryStore;
   onConnect: (options?: ConnectOptions) => Promise<OpenThreadResult>;
   onRestore?: () => Promise<void>;
@@ -112,6 +118,18 @@ export default function Conversation({
     [awayFromLatest, setAwayFromLatest] = useState(() => historyCache.get(thread.id)?.nearBottom === false),
     [hasNewContent, setHasNewContent] = useState(false);
   const [feedbackTracker] = useState(createSubmissionFeedbackTracker);
+  const [cachedPreview, setCachedPreview] = useState<SavedTranscript | null>(null);
+  const receivedHistory = useRef(!!history), receivedTranscript = useRef(!!transcript);
+  const receivedContent = useRef(!!history?.messages.length || !!transcript?.messages.length);
+  const networkObserved = useRef({ history: false, transcript: false });
+  useEffect(() => {
+    const machine = currentMachineId(); let active = true;
+    if (!machine || !readingScope || !readingCache) return;
+    void readingCache.loadTranscript(machine, readingScope, thread.id).then(snapshot => {
+      if (active && snapshot && !receivedContent.current && !(receivedHistory.current && receivedTranscript.current)) setCachedPreview(snapshot.value);
+    });
+    return () => { active = false; };
+  }, [readingCache, readingScope, thread.id]);
   const [recentAccepted, setRecentAccepted] = useState(new Map<string, number>());
   const showAcceptedFeedback = useCallback((feedback: AcceptedFeedback) => {
     setRecentAccepted(previous => new Map(previous).set(feedback.requestId, feedback.expiresAt));
@@ -138,18 +156,35 @@ export default function Conversation({
     previousLatest = useRef<{ id: string; text: string } | null>(null),
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
-  const { messages: shownMessages, hasMore: hasEarlierMessages } = useMemo(() => displayConversation(
+  const liveDisplay = useMemo(() => displayConversation(
     history ? { ...history, messages: withSubmittedAttachments(history.messages, submitted) } : null,
     transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
   ), [history, transcript, submitted]);
+  const showingDiskPreview = !!cachedPreview && !liveDisplay.messages.length && !(receivedHistory.current && receivedTranscript.current);
+  const shownMessages = showingDiskPreview ? cachedPreview.messages : liveDisplay.messages;
+  const hasEarlierMessages = showingDiskPreview ? cachedPreview.hasMore : liveDisplay.hasMore;
+  useEffect(() => {
+    const machine = currentMachineId();
+    if (!machine || !readingScope || !readingCache) return;
+    const observedHistory = networkObserved.current.history ? history : null;
+    const observedTranscript = networkObserved.current.transcript ? transcript : null;
+    if (!observedHistory && !observedTranscript) return;
+    const observedDisplay = displayConversation(observedHistory, observedTranscript);
+    if (!observedDisplay.messages.length && !(networkObserved.current.history && networkObserved.current.transcript)) return;
+    readingCache.rememberTranscript(machine, readingScope, thread.id, {
+      source: "rollout", messages: observedDisplay.messages, hasMore: observedDisplay.hasMore,
+      checkedAt: Math.max(observedHistory?.checkedAt ?? 0, observedTranscript?.checkedAt ?? 0),
+      pocketContent: displayedPocketContent(observedTranscript, observedDisplay.messages),
+    });
+  }, [readingCache, readingScope, thread.id, liveDisplay, history, transcript]);
   useUsageConversation(thread.id, conversationRoot, shownMessages, submitted, !!draft.text || attachments.length > 0);
   const toolbarTiming = history?.turnTiming && history.runtime !== "active" && history.turnTiming.status !== "inProgress" && history.turnTiming.turnId &&
     shownMessages.some(message => message.role === "assistant" && message.turnId === history.turnTiming!.turnId &&
       ["final", "final_answer"].includes(message.phase || "") && message.turnDurationMs != null) ? null : history?.turnTiming;
-  const shownOutbox = useMemo(() => submittedOutbox(submitted, shownMessages, history?.outbox ?? []), [submitted, shownMessages, history?.outbox]);
-  const visibleSubmissions = useMemo(() => visibleSubmittedQueries(submitted, shownMessages, shownOutbox), [submitted, shownMessages, shownOutbox]);
-  const deferredQueries = useDeferredQueryEcho(shownMessages, submitted,
-    { disabled: !online || !!historyError, refresh: () => feed.current?.refresh() });
+  const shownOutbox = useMemo(() => submittedOutbox(submitted, liveDisplay.messages, history?.outbox ?? []), [submitted, liveDisplay.messages, history?.outbox]);
+  const visibleSubmissions = useMemo(() => visibleSubmittedQueries(submitted, liveDisplay.messages, shownOutbox), [submitted, liveDisplay.messages, shownOutbox]);
+  const deferredQueries = useDeferredQueryEcho(liveDisplay.messages, submitted,
+    { disabled: showingDiskPreview || !online || !!historyError, refresh: () => feed.current?.refresh() });
   const timeline = useMemo(() => queryTimeline(shownMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries),
     [shownMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries]);
   const [queryTargets, setQueryTargets] = useState<ReadonlyMap<string, HTMLElement>>(() => new Map());
@@ -168,7 +203,7 @@ export default function Conversation({
     return ref;
   };
   useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
-  useEffect(() => { submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted]);
+  useEffect(() => { if (!showingDiskPreview) submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted, showingDiskPreview]);
   const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
   const [questionStore] = useState(questionPresentationStore);
   const questionsByMessage = useMemo(() => {
@@ -386,6 +421,10 @@ export default function Conversation({
     const subscription = startTranscriptFeed({
       request: signal => api<SavedTranscript>(`/api/tasks/${thread.id}/transcript`, "GET", undefined, { signal }),
       onData(data) {
+        networkObserved.current.transcript = true;
+        receivedTranscript.current = true;
+        receivedContent.current ||= data.messages.length > 0;
+        if (data.messages.length || receivedHistory.current) setCachedPreview(null);
         rememberTranscript(historyCache, thread.id, data);
         setTranscript(data);
         setTranscriptLoading(false);
@@ -404,6 +443,10 @@ export default function Conversation({
     const subscription = startConversationFeed({
       request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
       onData(data) {
+        networkObserved.current.history = true;
+        receivedHistory.current = true;
+        receivedContent.current ||= data.messages.length > 0;
+        if (data.messages.length || receivedTranscript.current) setCachedPreview(null);
         feedbackTracker.observeHistory(data).forEach(showAcceptedFeedback);
         const cancelledRequests = new Set(submissions.getThread(thread.id).filter(item => item.status === "cancelled").map(item => item.requestId));
         uploads.claim(thread.id, [...(data.outbox ?? []).filter(item => !cancelledRequests.has(item.id)).flatMap(item => item.attachments?.map(file => file.id) ?? []), ...data.messages.flatMap(message => message.attachments?.map(file => file.id) ?? [])]);

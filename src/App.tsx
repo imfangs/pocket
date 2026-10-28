@@ -22,7 +22,7 @@ import BootSplash from "./BootSplash";
 import type { HistoryCache } from "./conversationFeed";
 import type { OpenThreadResult } from "./threadConnection";
 import { SettingsDialog } from "./Dialogs";
-import { api, setToken } from "./api";
+import { api, setToken, clearReadResponses } from "./api";
 import { CatalogSourceError, createCatalogReader } from "./catalogReader";
 import { startRecentThreadCatalogSync } from "./recentThreadCatalog";
 import { useReloadGuard } from "./updateSafety";
@@ -51,7 +51,8 @@ import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
 import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
 import { focusInspectorEntry, inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
-import { machineStorageKey } from "./machineScope";
+import { machineStorageKey, currentMachineId } from "./machineScope";
+import { createReadingCache, readingCatalogScope, type ReadingCache } from "./readingCache";
 import { changeNavigation, navigationActivityCounts, navigationTitle, normalizeNavigationPrefs, type NavigationChange } from "./navigationModel";
 import "./task-operations.css";
 function readPrefs() {
@@ -156,6 +157,22 @@ export default function App({
   useReloadGuard(() => hasUpdateBlockingDraft(conversationDrafts.current, conversationHistory.current)
     ? "还有未完成的输入，请处理后再更新。" : busy ? "操作尚未完成，请稍后更新。" : null);
   const listPanel = useRef<HTMLElement>(null);
+  const cacheRef = useRef<ReadingCache | null>(null), catalogFresh = useRef(false), catalogScope = useRef<string | null>(null);
+  const [readingCache, setReadingCache] = useState<ReadingCache | null>(null);
+  const [catalogFromDisk, setCatalogFromDisk] = useState(false);
+  useEffect(() => {
+    const machine = currentMachineId();
+    if (!machine) return;
+    const cache = createReadingCache(); let active = true;
+    cacheRef.current = cache; setReadingCache(cache);
+    void cache.loadCatalog(machine).then(snapshot => {
+      if (!active || !snapshot || catalogFresh.current) return;
+      catalogScope.current = snapshot.scope;
+      setCatalogState(current => current.sourceInfo || current.threads.length ? current : snapshot.value);
+      setCatalogFromDisk(true); setCatalogLoaded(true);
+    });
+    return () => { active = false; if (cacheRef.current === cache) cacheRef.current = null; cache.dispose(); };
+  }, []);
   const restoreScroll = useRef<number | null>(null);
   const openSearch = useCallback(() => {
     // Focus during the tap so iOS opens the keyboard on the first interaction.
@@ -178,7 +195,20 @@ export default function App({
   const [catalogReader] = useState(() => createCatalogReader({
     request: sync => api<Catalog>(sync ? "/api/sync" : "/api/catalog", sync ? "POST" : "GET",
       undefined, { signal: AbortSignal.timeout(15000) }),
-    onData(c) { if (c.csrfToken) setToken(c.csrfToken); setCatalog(c); if (!c.sourceError) setCatalogLoaded(true); },
+    onData(c) {
+      if (c.csrfToken) setToken(c.csrfToken);
+      const scope = readingCatalogScope(c);
+      if (scope && catalogScope.current && scope !== catalogScope.current) {
+        conversationHistory.current = new Map();
+        const machine = currentMachineId(); if (machine) clearReadResponses(machine);
+        setCatalogState(c);
+      } else setCatalog(c);
+      catalogScope.current = scope; catalogFresh.current = true; setCatalogFromDisk(false);
+      if (!c.sourceError) {
+        setCatalogLoaded(true);
+        const machine = currentMachineId(); if (machine) cacheRef.current?.rememberCatalog(machine, c);
+      }
+    },
     onPendingChange(pending) { setCatalogReading(pending); if (pending) setReadError(""); },
     onSettled(error) { setLoading(false); setReadError(error ? catalogError(error) : ""); },
   }));
@@ -412,7 +442,7 @@ export default function App({
   }, [navigation]);
   const readRevision = useSyncExternalStore(pocketReadState.subscribe, pocketReadState.getSnapshot, pocketReadState.getSnapshot);
   const pocketReadScope = catalog.sourceInfo?.pocketRead?.scope;
-  useLayoutEffect(() => { pocketReadState.observeCatalog(catalog.threads, pocketReadScope); }, [catalog.threads, pocketReadScope]);
+  useLayoutEffect(() => { if (!catalogFromDisk) pocketReadState.observeCatalog(catalog.threads, pocketReadScope); }, [catalog.threads, pocketReadScope, catalogFromDisk]);
   const displayCatalog = useMemo(() => ({ ...catalog, threads: catalog.threads.map(thread => {
     const unread = pocketReadState.unread(thread);
     if (typeof unread === "boolean") return { ...thread, pocketUnread: unread };
@@ -558,7 +588,7 @@ export default function App({
       ? { ...item, ...priorityFields(result) } : item) }));
     void refresh().catch(() => {});
   };
-  if (loading) return <BootSplash />;
+  if (loading && !hasCatalog) return <BootSplash />;
   return (
     <div className="app-shell">
       <Sidebar
@@ -759,13 +789,14 @@ export default function App({
           </TaskListPanel>
           {current ? (
             <Inspector
-              key={current.id}
+              key={`${pocketReadScope ?? ""}:${current.id}`}
               animateEntry={animateSelection}
               entryOrigin={entryOrigin}
               thread={current}
               queryDrafts={conversationDrafts.current}
               submissions={submissions}
               historyCache={conversationHistory.current}
+              readingCache={readingCache} readingScope={pocketReadScope}
               onRenamed={thread => {
                 catalogReader.invalidate();
                 setCatalog(c => ({ ...c, threads: c.threads.map(old => old.id === thread.id

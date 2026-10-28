@@ -34,6 +34,8 @@
 
 ## 阅读缓存与传输
 
+2026-10-28方案已落地，当前契约见[分层阅读缓存](design/2026-10-28-reading-cache.md)：20会话有界内存、IndexedDB近期阅读投影、条件响应与跨标签撤销。下文保留实施前的盘点和成本判断；实际发布状态以CURRENT为准。
+
 2026-10-28核对：会话目录保存在App内存；`conversationFeed.ts`维护最多10个最近会话的正文、阅读位置与展开状态，切回先展示再核对。刷新/退出后这些正文缓存不保留。浏览器持久存储的是机器隔离的阅读摘要、偏好及恢复ID；Service Worker仅缓存公开壳。
 
 Mac侧`source_threads`保存目录快照；`DesktopService.history`合并在途请求并使用短时内存缓存，运行中750ms、其它3000ms、最多10项。活跃状态预取另复用8秒缓存，详见[状态预取](design/2026-10-22-active-thread-prefetch.md)。`catalog/sync/transcript`已有gzip传输路径；API仍为no-store，目前没有按正文版本返回304或增量消息的协议。

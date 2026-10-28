@@ -74,6 +74,7 @@ export type HistoryCache = Map<string, {
   expandedQueries?: string[];
   scrollTop: number;
   nearBottom: boolean;
+  payloadBytes?: number;
 }>;
 export type SavedTranscript = {
   source: "rollout";
@@ -85,20 +86,30 @@ export type SavedTranscript = {
   pocketContent?: PocketContent | null;
 };
 
+export const historyCacheLimits = { entries: 20, bytes: 8 * 1024 * 1024 } as const;
+function trimHistoryCache(cache: HistoryCache, id: string) {
+  const entry = cache.get(id)!;
+  entry.payloadBytes = (JSON.stringify(entry.history ?? null).length + JSON.stringify(entry.transcript ?? null).length) * 2;
+  let bytes = [...cache.values()].reduce((total, value) => total + (value.payloadBytes ?? 0), 0);
+  while (cache.size > historyCacheLimits.entries || bytes > historyCacheLimits.bytes) {
+    const oldest = cache.keys().next().value!;
+    bytes -= cache.get(oldest)?.payloadBytes ?? 0; cache.delete(oldest);
+  }
+}
 export function rememberHistory(cache: HistoryCache, id: string, history: History) {
   const previous = cache.get(id);
   cache.delete(id);
   cache.set(id, { history, transcript: previous?.transcript, progressView: previous?.progressView,
     expandedQueries: previous?.expandedQueries,
     scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
-  if (cache.size > 10) cache.delete(cache.keys().next().value!);
+  trimHistoryCache(cache, id);
 }
 export function rememberTranscript(cache: HistoryCache, id: string, transcript: SavedTranscript) {
   const previous = cache.get(id);
   cache.delete(id);
   cache.set(id, { ...previous, transcript, progressView: previous?.progressView,
     scrollTop: previous?.scrollTop ?? 0, nearBottom: previous?.nearBottom ?? true });
-  if (cache.size > 10) cache.delete(cache.keys().next().value!);
+  trimHistoryCache(cache, id);
 }
 
 type FeedOptions<T> = {

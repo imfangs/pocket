@@ -10,11 +10,12 @@ import {
   EyeOff,
   Settings2,
 } from "lucide-react";
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import PwaInstall, { usePwaInstallController } from "./PwaInstall";
 import ThemeSwitch from "./ThemeSwitch";
 import BootSplash from "./BootSplash";
-import { api } from "./api";
+import { api, clearReadResponses } from "./api";
+import { clearReadingCache, subscribeReadingCacheInvalidation } from "./readingCache";
 import { createAccessCheck } from "./accessCheck";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { SettingsDialog } from "./Dialogs";
@@ -55,6 +56,13 @@ export default function AccessGate() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const installController = usePwaInstallController();
+  const cachePurge = useRef<ReturnType<typeof clearReadingCache> | null>(null);
+  const purgeCache = () => {
+    if (machine) clearReadResponses(machine);
+    const pending = clearReadingCache(machine ?? undefined);
+    cachePurge.current = pending;
+    return pending;
+  };
   useEffect(() => bindMachineUnloadGuard(), []);
   useReloadGuard(() => busy ? "登录操作尚未完成，请稍后更新。"
     : passphrase ? "访问口令尚未提交，请登录或清空后再更新。" : null);
@@ -63,7 +71,10 @@ export default function AccessGate() {
       const d = await api<{ authenticated: boolean }>("/api/auth/status", "GET", undefined, { signal: AbortSignal.timeout(12000) });
       return d.authenticated === true;
     },
-    onResult(authenticated) { setState(authenticated ? "authenticated" : "locked"); },
+    onResult(authenticated) {
+      if (!authenticated && machine) void purgeCache();
+      setState(authenticated ? "authenticated" : "locked");
+    },
     onFailure() {
       setState((old) => (old === "authenticated" ? old : "offline"));
     },
@@ -85,11 +96,17 @@ export default function AccessGate() {
       const source = (event as CustomEvent<{ machine?: string }>).detail?.machine;
       if (source && source !== machine) return;
       checks.invalidate();
+      if (machine) void purgeCache();
       setState("locked");
       setError("登录已过期，请重新输入口令。");
     };
     const online = () => void check();
     window.addEventListener("navigator-auth-expired", expired);
+    const unsubscribeCache = subscribeReadingCacheInvalidation(event => {
+      if (event.machine && event.machine !== machine) return;
+      if (machine) clearReadResponses(machine);
+      checks.invalidate(); setState("locked");
+    });
     window.addEventListener("online", online);
     const visible = () => {
       if (document.visibilityState === "visible") void check();
@@ -98,6 +115,7 @@ export default function AccessGate() {
     return () => {
       checks.pause();
       window.removeEventListener("navigator-auth-expired", expired);
+      unsubscribeCache();
       window.removeEventListener("online", online);
       document.removeEventListener("visibilitychange", visible);
     };
@@ -112,6 +130,7 @@ export default function AccessGate() {
     try {
       const result = await api<{ authenticated: boolean }>("/api/auth/login", "POST", { passphrase });
       if (!result.authenticated) throw new Error("登录未完成");
+      await cachePurge.current;
       setPassphrase("");
       setState("authenticated");
     } catch (e) {
@@ -136,8 +155,9 @@ export default function AccessGate() {
         }
       }
       await api("/api/auth/logout", "POST", {});
+      const cleared = await purgeCache();
       setState("locked");
-      setError("");
+      setError(cleared.invalidated ? "" : "已退出登录，但本地缓存未能清理，请清除本站数据。");
       setPassphrase("");
     } catch {
       setError("退出未完成，请检查连接后重试。");

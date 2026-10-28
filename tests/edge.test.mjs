@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "../edge/worker.mjs";
+import { readResponseKind } from '../shared/read-response.mjs';
 const env = {
   NAVIGATOR_CONNECTION: {
     get: async () => ({
@@ -126,5 +127,64 @@ test("gateway distinguishes requests it never forwarded from ambiguous upstream 
     const lost = await worker.fetch(request(), env);
     assert.equal((await lost.json()).code, "relay_unavailable");
     assert.equal(calls, 2);
+  } finally { globalThis.fetch = original; }
+});
+
+test('conditional read headers and bodyless responses survive the public gateway on the four allowed routes', async () => {
+  const original = globalThis.fetch, calls = [], id = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+  const etag = `W/"pocket-read-v1-${'a'.repeat(64)}"`;
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url: String(url), options });
+    return new Response(null, { status: options.method === 'POST' ? 204 : 304,
+      headers: { ETag: etag, 'X-Pocket-Machine': 'ged', 'X-Pocket-Checked-At': '1234',
+        'X-Pocket-Source-Synced-At': '1233', 'X-Pocket-Turn-Observed-At': '1232',
+        'Server-Timing': 'desktop_history;dur=1.1', Vary: 'Accept-Encoding' } });
+  };
+  try {
+    for (const [method, path] of [['GET', '/api/catalog'], ['POST', '/api/sync'],
+      ['GET', `/api/tasks/${id}/transcript`], ['GET', `/api/tasks/${id}/history`]]) {
+      assert.ok(readResponseKind(path, method), 'standalone Worker allowlist agrees with the shared protocol');
+      const response = await worker.fetch(new Request(`https://x.fangs.cc${path}`, { method,
+        headers: { Origin: 'https://x.fangs.cc', Cookie: 'navigator_session=fixture',
+          'If-None-Match': etag, 'X-Pocket-Read-Version': etag, 'X-Navigator-Token': 'csrf' } }), env);
+      assert.equal(response.status, method === 'POST' ? 204 : 304);
+      assert.equal(await response.text(), '');
+      assert.equal(response.headers.get('ETag'), etag);
+      assert.equal(response.headers.get('X-Pocket-Machine'), 'ged');
+      assert.equal(response.headers.get('Cache-Control'), 'no-store');
+      assert.equal(response.headers.get('X-Pocket-Checked-At'), '1234');
+      assert.equal(response.headers.get('X-Pocket-Source-Synced-At'), '1233');
+      assert.equal(response.headers.get('X-Pocket-Turn-Observed-At'), '1232');
+      assert.equal(response.headers.get('Server-Timing'), 'desktop_history;dur=1.1');
+      const forwarded = calls.at(-1).options.headers;
+      assert.equal(forwarded.get('If-None-Match'), method === 'GET' ? etag : null);
+      assert.equal(forwarded.get('X-Pocket-Read-Version'), method === 'POST' ? etag : null);
+      assert.equal(forwarded.get('X-Navigator-Token'), 'csrf');
+      assert.equal(forwarded.get('Cookie'), 'navigator_session=fixture');
+    }
+  } finally { globalThis.fetch = original; }
+});
+
+test('gateway keeps conditional reads isolated from writes, receipt lookups, redirects and other machines', async () => {
+  const original = globalThis.fetch, calls = [], id = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+  const etag = `W/"pocket-read-v1-${'b'.repeat(64)}"`;
+  let status = 304, machine = 'ged';
+  globalThis.fetch = async (_url, options) => {
+    calls.push(options);
+    return new Response(null, { status, headers: { ETag: etag, 'X-Pocket-Machine': machine } });
+  };
+  try {
+    for (const [method, path] of [['POST', '/api/tasks'], ['GET', `/api/tasks/${id}/messages/${id}`],
+      ['GET', `/api/tasks/${id}/attachments`], ['GET', '/api/sync']]) {
+      const response = await worker.fetch(new Request(`https://x.fangs.cc${path}`, { method,
+        headers: { Origin: 'https://x.fangs.cc', 'If-None-Match': etag, 'X-Pocket-Read-Version': etag } }), env);
+      assert.equal(response.status, 503);
+      assert.equal(calls.at(-1).headers.get('If-None-Match'), null);
+      assert.equal(calls.at(-1).headers.get('X-Pocket-Read-Version'), null);
+    }
+    status = 302;
+    assert.equal((await worker.fetch(new Request('https://x.fangs.cc/api/catalog'), env)).status, 503);
+    status = 304; machine = 'wandou';
+    assert.equal((await worker.fetch(new Request('https://x.fangs.cc/api/catalog'), env)).status, 503);
   } finally { globalThis.fetch = original; }
 });

@@ -34,7 +34,7 @@ test('transcript caching preserves reading position without inventing live permi
   const cache=new Map();rememberTranscript(cache,'task',saved([msg('one')]));assert.equal(cache.get('task').history,undefined);
   cache.get('task').scrollTop=321;cache.get('task').nearBottom=false;rememberHistory(cache,'task',live([msg('one')]));
   assert.equal(cache.get('task').transcript.messages[0].id,'one');assert.equal(cache.get('task').scrollTop,321);
-  for(let i=0;i<12;i++)rememberTranscript(cache,String(i),saved([]));assert.equal(cache.size,10);
+  for(let i=0;i<22;i++)rememberTranscript(cache,String(i),saved([]));assert.equal(cache.size,20);
   const result=displayMessages(live([msg('anchor')]),saved([msg('anchor'),...Array.from({length:100},(_,i)=>msg(String(i),'x'.repeat(3000)))]));
   assert.ok(result.length<=80);assert.ok(result.reduce((sum,m)=>sum+m.text.length,0)<=160000);
 });

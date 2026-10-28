@@ -22,11 +22,14 @@ import { machineTaskUrl } from "./machineScope";
 import ThreadModelSettings from "./ThreadModelSettings";
 import ThreadAutomations from "./ThreadAutomations";
 import UsageFeedback from "./UsageFeedback";
+import type { ReadingCache } from "./readingCache";
 
 interface Props {
   queryDrafts: Map<string, QueryDraft>;
   submissions?: SubmittedQueryStore;
   historyCache: HistoryCache;
+  readingCache?: ReadingCache | null;
+  readingScope?: string;
   thread: Thread;
   onOpen: (t: Thread, options?: ConnectOptions) => Promise<OpenThreadResult>;
   operation?: TaskOperation;
@@ -91,6 +94,7 @@ export default function Inspector(p: Props) {
         {!infoOpen && operationStatus}
         <Conversation key={p.thread.id} thread={p.thread} drafts={p.queryDrafts} submissions={p.submissions}
           historyCache={p.historyCache} onActivity={p.onActivity} managementBlocked={managementBlocked}
+          readingCache={p.readingCache} readingScope={p.readingScope}
           managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
           onConnect={options => p.onOpen(p.thread, options)} onRestore={() => p.onArchive(p.thread, false)} />
       </div>
