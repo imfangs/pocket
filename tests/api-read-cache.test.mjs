@@ -213,6 +213,138 @@ test('clearing during pending 304 forces a full read and neither late response r
   assert.equal((await client.api('/api/catalog')).threads[0].title, 'Next current request'); assertUnconditional(calls[3]);
 });
 
+test('a previous session 401 cannot expire a successful login or clear its new read responses', async () => {
+  const pending = deferred(), { client, calls, expired } = fixture([
+    () => pending.promise, reply({ authenticated: true }, { version: null }), reply(catalog('New session'), { version: versionB }),
+    unchanged({ 'X-Pocket-Source-Synced-At': '2000' }, { version: versionB }),
+    reply({ error: 'current session expired' }, { status: 401, version: null }),
+  ]);
+  const old = client.api('/api/catalog');
+  await client.api('/api/auth/login', 'POST', { passphrase: 'fixture' });
+  await client.api('/api/catalog');
+  pending.resolve(reply({ error: 'previous session expired' }, { status: 401, version: null }));
+  await assert.rejects(old, error => error.status === 401);
+  assert.deepEqual(expired, []);
+  assert.equal((await client.api('/api/catalog')).threads[0].title, 'New session');
+  assert.equal(calls[3].headers.get('If-None-Match'), versionB);
+  await assert.rejects(client.api('/api/catalog'), /current session expired/);
+  assert.deepEqual(expired, ['ged']);
+});
+
+test('late 401 responses do not repeat an already completed logout or explicit auth invalidation', async () => {
+  for (const action of ['logout', 'invalidate']) {
+    const pending = deferred(), { client, expired } = fixture([
+      () => pending.promise, ...(action === 'logout' ? [reply({ authenticated: false }, { version: null })] : []),
+    ]);
+    const old = client.api('/api/catalog');
+    if (action === 'logout') await client.api('/api/auth/logout', 'POST', {});
+    else client.invalidateAuthentication('ged');
+    pending.resolve(reply({ error: 'previous session expired' }, { status: 401, version: null }));
+    await assert.rejects(old, error => error.status === 401);
+    assert.deepEqual(expired, [], action);
+  }
+});
+
+test('an old 403 is not replayed with a newly logged in session', async () => {
+  const pending = deferred(), { client, calls, expired } = fixture([
+    () => pending.promise, reply({ authenticated: true }, { version: null }),
+  ]);
+  const old = client.api(`/api/tasks/${id}/messages`, 'POST', { requestId: id, text: 'fixture' });
+  await client.api('/api/auth/login', 'POST', { passphrase: 'fixture' });
+  pending.resolve(reply({ error: '请求已过期，请刷新页面' }, { status: 403, version: null }));
+  await assert.rejects(old, error => error.status === 403);
+  assert.equal(calls.length, 2, 'stale mutation must not refresh credentials or retry');
+  assert.deepEqual(expired, []);
+});
+
+test('login and logout revoke preceding requests before their response bodies finish', async () => {
+  for (const action of ['login', 'logout']) for (const status of [401, 403]) {
+    const pending = deferred(), bodyStarted = deferred(), body = deferred();
+    const authResponse = reply(null, { version: null });
+    authResponse.json = () => { bodyStarted.resolve(); return body.promise; };
+    const { client, calls, expired } = fixture([() => pending.promise, authResponse]);
+    const old = client.api(`/api/tasks/${id}/messages`, 'POST', { requestId: id, text: 'fixture' });
+    const changing = client.api(`/api/auth/${action}`, 'POST', { passphrase: 'fixture' });
+    await bodyStarted.promise;
+    // Fetch already exposed the headers, so Set-Cookie can have taken effect
+    // while the authentication response body is still being transferred.
+    pending.resolve(reply({ error: status === 403 ? '请求已过期，请刷新页面' : 'old session expired' }, { status, version: null }));
+    await assert.rejects(old, error => error.status === status);
+    assert.equal(calls.length, 2, `${action}: do not refresh or replay the old mutation`);
+    assert.deepEqual(expired, [], `${action}: old 401 must not expire the auth action in progress`);
+    body.resolve({ authenticated: action === 'login' });
+    assert.equal((await changing).authenticated, action === 'login');
+  }
+});
+
+test('failed authentication actions do not reactivate preceding requests or suppress current expiry', async () => {
+  for (const [action, status] of [['login', 401], ['logout', 503]]) {
+    const pending = deferred(), { client, expired } = fixture([
+      () => pending.promise, reply({ error: 'auth action failed' }, { status, version: null }),
+      reply({ error: 'current session expired' }, { status: 401, version: null }),
+    ]);
+    const old = client.api('/api/catalog');
+    await assert.rejects(client.api(`/api/auth/${action}`, 'POST', { passphrase: 'fixture' }), error => error.status === status);
+    const failures = status === 401 ? ['ged'] : [];
+    assert.deepEqual(expired, failures);
+    pending.resolve(reply({ error: 'old session expired' }, { status: 401, version: null }));
+    await assert.rejects(old, error => error.status === 401);
+    assert.deepEqual(expired, failures, 'the earlier request remains superseded after failure');
+    await assert.rejects(client.api('/api/catalog'), /current session expired/);
+    assert.deepEqual(expired, [...failures, 'ged']);
+  }
+});
+
+test('authentication changes preserve successful prior results without restoring their cached bodies', async () => {
+  for (const [path, method, result] of [['/api/catalog', 'GET', catalog('Old session')],
+    [`/api/tasks/${id}/messages`, 'POST', { requestId: id, status: 'accepted' }]]) {
+    const pending = deferred(), { client, calls, expired } = fixture([
+      () => pending.promise, reply({ authenticated: true }, { version: null }), reply(catalog('New session'), { version: versionB }),
+    ]);
+    const old = client.api(path, method);
+    await client.api('/api/auth/login', 'POST', { passphrase: 'fixture' });
+    pending.resolve(reply(result));
+    assert.deepEqual(await old, result, 'already dispatched work still returns its actual result');
+    assert.deepEqual(expired, []);
+    await client.api('/api/catalog'); assertUnconditional(calls[2]);
+  }
+});
+
+test('a late CSRF refresh cannot expire a new session, replace its token or replay the old mutation', async () => {
+  for (const status of [200, 401]) {
+    const refreshStarted = deferred(), refresh = deferred();
+    const { client, calls, expired } = fixture([
+      reply({ error: '请求已过期，请刷新页面' }, { status: 403, version: null }),
+      () => { refreshStarted.resolve(); return refresh.promise; },
+      reply({ authenticated: true }, { version: null }), reply({ status: 'accepted' }, { version: null }),
+    ]);
+    client.setToken('old-token');
+    const old = client.api(`/api/tasks/${id}/messages`, 'POST', { requestId: id, text: 'fixture' });
+    await refreshStarted.promise;
+    await client.api('/api/auth/login', 'POST', { passphrase: 'fixture' });
+    client.setToken('new-token');
+    refresh.resolve(reply(status === 200 ? { csrfToken: 'late-old-token' } : { error: 'old session expired' }, { status, version: null }));
+    await assert.rejects(old, error => error.status === 403);
+    assert.deepEqual(expired, []);
+    await client.api(`/api/tasks/${id}/messages`, 'POST', { requestId: 'new-request', text: 'next' });
+    assert.equal(calls.length, 4, 'only the new mutation may use the current session');
+    assert.equal(calls[3].headers.get('X-Navigator-Token'), 'new-token');
+  }
+});
+
+test('authentication generations are machine scoped and independent of read-cache invalidation', async () => {
+  let machine = 'ged';
+  const pending = deferred(), { client, expired } = fixture([
+    () => pending.promise, reply({ authenticated: true }, { machine: 'wandou', version: null }),
+  ], () => machine);
+  const ged = client.api('/api/catalog');
+  machine = 'wandou'; await client.api('/api/auth/login', 'POST', { passphrase: 'fixture' });
+  client.clearReadResponses('ged');
+  pending.resolve(reply({ error: 'ged session expired' }, { status: 401, version: null }));
+  await assert.rejects(ged, error => error.status === 401);
+  assert.deepEqual(expired, ['ged']);
+});
+
 test('mutating either a full or hydrated returned object cannot corrupt the saved body', async () => {
   const { client } = fixture([
     reply(history()), unchanged({ 'X-Pocket-Checked-At': '2000', 'X-Pocket-Turn-Observed-At': '2000' }),

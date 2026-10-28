@@ -18,6 +18,27 @@ test('Markdown grants only actual local image nodes, including reference images 
   assert.deepEqual(referencedImages(text), ['/workspace/a.png', '/workspace/a b.jpg', '/workspace/c.webp']);
 });
 
+test('duplicate Markdown definitions use the first target, matching the visible renderer', () => {
+  assert.deepEqual(referencedImages('![image][plot]\n\n[plot]: /workspace/visible.png\n\n[plot]: /workspace/hidden.png'),
+    ['/workspace/visible.png']);
+});
+
+test('image grants parse complete Markdown and reject truncated or oversized messages', () => {
+  const service = new MessageImages(), thread = { id: a, cwd: '/workspace/project' };
+  const path = '/workspace/project/example.png', reference = `![example](${path})`;
+  const messages = [
+    { text: '`' + reference + 'x'.repeat(24000) + '`' },
+    { text: reference, truncated: true },
+    { text: reference + 'x'.repeat(128 * 1024) },
+    { text: 'x'.repeat(24000) + '\n\n' + reference },
+  ];
+  const original = structuredClone(messages);
+  const result = service.attach(thread, { messages });
+  assert.deepEqual(result.messages.slice(0, 3).map(message => message.images), [{}, {}, {}]);
+  assert.deepEqual(Object.keys(result.messages[3].images), [path], 'complete long messages retain their actual image');
+  assert.deepEqual(messages, original, 'granting a capability never rewrites the source history');
+});
+
 async function fixture(t) {
   const baseDir = mkdtempSync(join(tmpdir(), 'pocket-image-test-')), cwd = join(baseDir, 'project');
   mkdirSync(cwd);

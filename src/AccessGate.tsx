@@ -14,7 +14,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import PwaInstall, { usePwaInstallController } from "./PwaInstall";
 import ThemeSwitch from "./ThemeSwitch";
 import BootSplash from "./BootSplash";
-import { api, clearReadResponses } from "./api";
+import { api, invalidateAuthentication } from "./api";
 import { clearReadingCache, subscribeReadingCacheInvalidation } from "./readingCache";
 import { createAccessCheck } from "./accessCheck";
 import { holdReload, useReloadGuard } from "./updateSafety";
@@ -58,7 +58,7 @@ export default function AccessGate() {
   const installController = usePwaInstallController();
   const cachePurge = useRef<ReturnType<typeof clearReadingCache> | null>(null);
   const purgeCache = () => {
-    if (machine) clearReadResponses(machine);
+    if (machine) invalidateAuthentication(machine);
     const pending = clearReadingCache(machine ?? undefined);
     cachePurge.current = pending;
     return pending;
@@ -104,7 +104,7 @@ export default function AccessGate() {
     window.addEventListener("navigator-auth-expired", expired);
     const unsubscribeCache = subscribeReadingCacheInvalidation(event => {
       if (event.machine && event.machine !== machine) return;
-      if (machine) clearReadResponses(machine);
+      if (machine) invalidateAuthentication(machine);
       checks.invalidate(); setState("locked");
     });
     window.addEventListener("online", online);

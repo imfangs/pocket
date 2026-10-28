@@ -184,7 +184,9 @@ export default function Conversation({
   const shownOutbox = useMemo(() => submittedOutbox(submitted, liveDisplay.messages, history?.outbox ?? []), [submitted, liveDisplay.messages, history?.outbox]);
   const visibleSubmissions = useMemo(() => visibleSubmittedQueries(submitted, liveDisplay.messages, shownOutbox), [submitted, liveDisplay.messages, shownOutbox]);
   const deferredQueries = useDeferredQueryEcho(liveDisplay.messages, submitted,
-    { disabled: showingDiskPreview || !online || !!historyError, refresh: () => feed.current?.refresh() });
+    { disabled: showingDiskPreview || !online || !!historyError,
+      baselineReady: networkObserved.current.history && networkObserved.current.transcript,
+      refresh: () => feed.current?.refresh() });
   const timeline = useMemo(() => queryTimeline(shownMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries),
     [shownMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries]);
   const [queryTargets, setQueryTargets] = useState<ReadonlyMap<string, HTMLElement>>(() => new Map());

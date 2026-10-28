@@ -13,6 +13,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 认证迟到响应、历史缓存上限、首批同文Query或图片引用CR | [代码质量修复](docs/design/2026-10-28-code-quality.md)：认证代次与缓存epoch独立、双路首读基线、统一缓存写入、完整Markdown权限解析；提交正文回收仍是候选 |
 | 查反馈、PostHog、采集无数据或体验复盘 | 先读私有台账 `.local/feedback-ledger.json` 按反馈ID对照，再按[反馈接续](docs/design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)查询和补记，区分已发布与效果确认；[专项验收](docs/QUALITY.md#使用反馈验收)覆盖正式CSP与入库回读。工具版本/认证与事件口径留在使用反馈文档，上线状态回CURRENT |
 | 整体视觉、Radix Themes、基础控件/色阶/样式归属 | [整体视觉重整](docs/design/2026-10-19-visual-system.md)：整屏对照、tokens/结构/视觉分工、native行为保护；[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md)：variant几何、错误恢复按钮组合 |
 | Impeccable精修、首次必填披露、空白错误恢复与首字丢失 | [10-28设计审查](docs/design/2026-10-28-impeccable-polish.md)：两路独立评审、局部几何与提示对比、原生input后置预连接；已记忆选择和阅读空间保持 |

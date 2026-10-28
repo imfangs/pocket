@@ -130,7 +130,7 @@ export class DesktopService {
         entry.state.checkedAt = Date.now();
         if (result.ok && result.source === "desktop" && result.resumeState === "resumed") {
           const data = { ...result, checkedAt: entry.state.checkedAt };
-          this.cache.set(id, { at: Date.now(), promise: Promise.resolve(data), pending: false, runtime: data.runtime });
+          this.cacheHistory(id, { at: Date.now(), promise: Promise.resolve(data), pending: false, runtime: data.runtime });
           entry.state.status = "connected";
           // An explicit connection/submission has made this owner ready. Do not
           // wait behind unrelated slow owners in the background queue scan.
@@ -168,6 +168,12 @@ export class DesktopService {
     return !!this.openThread && result.sent === false &&
       ["desktop_unavailable", "desktop_preflight_timeout"].includes(result.code);
   }
+  cacheHistory(id, entry) {
+    // Connection recovery and ordinary reads share one bounded snapshot cache.
+    this.cache.delete(id);
+    this.cache.set(id, entry);
+    while (this.cache.size > 10) this.cache.delete(this.cache.keys().next().value);
+  }
   async history(id) {
     this.store.thread(id);
     if (this.isLifecycleBlocked(id)) {
@@ -182,8 +188,7 @@ export class DesktopService {
       return this.withActions(id, await cached.promise);
     const promise = this.loadHistory(id);
     const entry = { at: Date.now(), promise, pending: true, runtime: null };
-    this.cache.set(id, entry);
-    if (this.cache.size > 10) this.cache.delete(this.cache.keys().next().value);
+    this.cacheHistory(id, entry);
     try {
       const data = await promise;
       entry.at = Date.now();

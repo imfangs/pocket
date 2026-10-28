@@ -6,6 +6,7 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { createDeferredQueryEcho, QUERY_ECHO_WAIT_MS } from '../src/useDeferredQueryEcho.ts';
 import { sameAttachments } from '../src/attachments.ts';
+import { queryTimeline } from '../src/queryTimeline.ts';
 
 const query = Object.freeze({ threadId: 'thread', requestId: 'request', text: 'A new query', status: 'unknown', createdAt: 100 });
 const saved = Object.freeze({ id: 'rollout:100', role: 'user', text: query.text, turnId: 'turn' });
@@ -38,6 +39,47 @@ test('initially visible and previously shown same-text records never disappear l
   const laterQuery = setup([], []);
   laterQuery.controller.observe([saved], [], false);
   assert.deepEqual(ids(laterQuery.controller.view([saved], [query], false)), []);
+});
+
+test('delayed initial reads establish a baseline before a matching local query can reserve a row', () => {
+  const controller = createDeferredQueryEcho(() => 0);
+  const pending = { ...query, text: 'continue', createdAt: 2000 };
+  const oldUser = { id: 'old-user', role: 'user', text: 'continue', timestamp: 1000 };
+  const oldReply = { id: 'old-reply', role: 'assistant', text: 'An earlier answer', timestamp: 1100 };
+  controller.observe([], [pending], false, false);
+  // One source can finish empty while the other still holds the old history.
+  controller.observe([], [pending], false, false);
+  const messages = [oldUser, oldReply];
+  const deferred = controller.view(messages, [pending], false, true);
+  assert.deepEqual(ids(deferred), []);
+  const timeline = queryTimeline(messages, [pending], [pending], [], deferred);
+  assert.equal(timeline.byMessage.has(oldUser.id), false);
+  assert.deepEqual(timeline.tail.map(row => row.requestId), [pending.requestId]);
+  controller.observe(messages, [pending], false, true);
+  assert.deepEqual(ids(controller.view(messages, [pending], false, true)), []);
+  assert.equal(pending.status, 'unknown');
+});
+
+test('both source orders and skewed clocks preserve initial history while later echoes still wait', () => {
+  for (const earlierTimestamp of [1, 9999999999999]) {
+    const controller = createDeferredQueryEcho(() => 0);
+    const first = { ...saved, id: 'first-source', timestamp: earlierTimestamp };
+    const second = { ...saved, id: 'second-source', timestamp: earlierTimestamp };
+    controller.observe([], [query], false, false);
+    assert.deepEqual(ids(controller.view([first], [query], false, false)), []);
+    controller.observe([first], [query], false, false);
+    assert.deepEqual(ids(controller.view([first, second], [query], false, true)), []);
+    controller.observe([first, second], [query], false, true);
+    const newEcho = { ...saved, id: 'new-echo', timestamp: earlierTimestamp };
+    assert.deepEqual(ids(controller.view([first, second, newEcho], [query], false, true)), [newEcho.id]);
+  }
+});
+
+test('a successfully read empty conversation can defer its first new echo', () => {
+  const controller = createDeferredQueryEcho(() => 0);
+  controller.observe([], [], false, false);
+  controller.observe([], [], false, true);
+  assert.deepEqual(ids(controller.view([saved], [query], false, true)), [saved.id]);
 });
 
 test('explicit identity, truncation, other content and attachment mismatches are never deferred', () => {
@@ -111,9 +153,9 @@ test('independent same-text records have individual deadlines and a failed earli
 
 // Exercise the real hook's scheduling and refresh integration with a controlled
 // render/effect clock; real DOM/reading geometry remains in browser verification.
-function mount(refresh) {
+function mount(refresh, baselineReady = true) {
   let now = 0, cursor = 0, dirty = false, sequence = 0, closed = false, lateUpdates = 0, output;
-  let props = { messages: [], entries: [query], options: { disabled: false, refresh } };
+  let props = { messages: [], entries: [query], options: { disabled: false, baselineReady, refresh } };
   const slots = [], effects = [], timers = new Map(), browser = new EventTarget(), document = new EventTarget();
   Object.assign(browser, { setTimeout(fn, delay) { timers.set(++sequence, { fn, at: now + delay }); return sequence; },
     clearTimeout(id) { timers.delete(id); } });
@@ -175,6 +217,28 @@ test('the hook wakes one shared read and releases at its fixed deadline across s
     await ui.advance(1); assert.deepEqual(ids(ui.output), []); assert.equal(ui.timers.size, 0);
     ui.browser.dispatchEvent(new Event('pageshow')); await ui.flush(); assert.equal(calls, 1);
   } finally { ui.close(); }
+});
+
+test('the hook does not hide either initial source and defers new records after their combined baseline', async () => {
+  for (const firstSourceEmpty of [true, false]) {
+    let calls = 0;
+    const refresh = async () => { calls++; };
+    const ui = mount(refresh, false);
+    const first = { ...saved, id: 'first-source' }, second = { ...saved, id: 'second-source' };
+    const firstMessages = firstSourceEmpty ? [] : [first];
+    try {
+      assert.deepEqual(ids(ui.render({ messages: firstMessages })), []);
+      await ui.flush(); assert.equal(calls, 0);
+      const baseline = [...firstMessages, second];
+      assert.deepEqual(ids(ui.render({ messages: baseline, options: { disabled: false, baselineReady: true, refresh } })), []);
+      await ui.flush(); assert.equal(calls, 0); assert.equal(ui.timers.size, 0);
+      const echo = { ...saved, id: 'new-echo' };
+      assert.deepEqual(ids(ui.render({ messages: [...baseline, echo] })), [echo.id]);
+      await ui.flush(); assert.equal(calls, 1);
+      await ui.advance(QUERY_ECHO_WAIT_MS);
+      assert.deepEqual(ids(ui.output), []); assert.equal(ui.timers.size, 0);
+    } finally { ui.close(); }
+  }
 });
 
 test('the hook falls back after a failed read and clears timers without cancelling shared work on unmount', async () => {

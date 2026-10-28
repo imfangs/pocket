@@ -18,9 +18,9 @@ export function createDeferredQueryEcho(now: () => number = () => performance.no
   let initialized = false;
   const shown = new Set<string>();
   const deadlines = new Map<string, number>();
-  const view = (messages: readonly Message[], entries: readonly SubmittedQuery[], disabled: boolean) => {
+  const view = (messages: readonly Message[], entries: readonly SubmittedQuery[], disabled: boolean, baselineReady = true) => {
     const hidden = new Set<string>(), time = now();
-    if (!initialized || disabled) return hidden;
+    if (!initialized || disabled || !baselineReady) return hidden;
     for (const message of messages) {
       if (!shown.has(message.id) && (deadlines.get(message.id) ?? Infinity) > time && candidate(message, entries))
         hidden.add(message.id);
@@ -38,8 +38,8 @@ export function createDeferredQueryEcho(now: () => number = () => performance.no
   return {
     view,
     release,
-    observe(messages: readonly Message[], entries: readonly SubmittedQuery[], disabled: boolean) {
-      const hidden = view(messages, entries, disabled), fresh: string[] = [], time = now();
+    observe(messages: readonly Message[], entries: readonly SubmittedQuery[], disabled: boolean, baselineReady = true) {
+      const hidden = view(messages, entries, disabled, baselineReady), fresh: string[] = [], time = now();
       const present = new Set(messages.map(message => message.id));
       for (const id of deadlines.keys()) if (!present.has(id) || !hidden.has(id)) release([id]);
       for (const message of messages) {
@@ -49,7 +49,10 @@ export function createDeferredQueryEcho(now: () => number = () => performance.no
           fresh.push(message.id);
         }
       }
-      initialized = true;
+      // A rendered empty array is not a history baseline. Both sources must
+      // finish their first successful read before later records can be new
+      // echoes; show that first combined snapshot without claiming its rows.
+      initialized = baselineReady;
       const deadline = deadlines.size ? Math.min(...deadlines.values()) : null;
       return { hidden, fresh, remainingMs: deadline === null ? null : Math.max(0, deadline - now()) };
     },
@@ -61,12 +64,12 @@ function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>) {
 }
 
 export function useDeferredQueryEcho(messages: readonly Message[], entries: readonly SubmittedQuery[],
-  options: { disabled: boolean; refresh: () => void | Promise<unknown> }): ReadonlySet<string> {
+  options: { disabled: boolean; baselineReady: boolean; refresh: () => void | Promise<unknown> }): ReadonlySet<string> {
   const [controller] = useState(createDeferredQueryEcho);
   const [revision, setRevision] = useState(0);
   const mounted = useRef(false), refresh = useRef(options.refresh);
   refresh.current = options.refresh;
-  const hidden = controller.view(messages, entries, options.disabled);
+  const hidden = controller.view(messages, entries, options.disabled, options.baselineReady);
   useLayoutEffect(() => {
     mounted.current = true;
     // Suspended timers cannot extend the wait when a tab returns to foreground.
@@ -80,7 +83,7 @@ export function useDeferredQueryEcho(messages: readonly Message[], entries: read
     };
   }, []);
   useLayoutEffect(() => {
-    const observation = controller.observe(messages, entries, options.disabled);
+    const observation = controller.observe(messages, entries, options.disabled, options.baselineReady);
     // A deadline may pass between render and commit. Do not leave that last
     // hidden render on screen after the observer has already released it.
     if (!sameIds(hidden, observation.hidden)) setRevision(value => value + 1);
@@ -93,6 +96,6 @@ export function useDeferredQueryEcho(messages: readonly Message[], entries: read
       if (mounted.current) setRevision(value => value + 1);
     }, Math.max(1, observation.remainingMs));
     return () => window.clearTimeout(timer);
-  }, [controller, messages, entries, options.disabled, revision]);
+  }, [controller, messages, entries, options.disabled, options.baselineReady, revision]);
   return hidden;
 }

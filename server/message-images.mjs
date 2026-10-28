@@ -7,6 +7,7 @@ import { AppError } from './store.mjs';
 
 const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
 const MAX_BYTES = 8 * 1024 * 1024;
+const MAX_TEXT_CHARS = 128 * 1024;
 const inside = (root, path) => root !== sep && path.startsWith(root + sep);
 
 function localPath(value) {
@@ -21,7 +22,9 @@ export function referencedImages(text) {
   if (!text.includes('![')) return [];
   const tree = fromMarkdown(text), definitions = new Map(), images = [];
   const walk = (node, visit) => { visit(node); for (const child of node.children ?? []) walk(child, visit); };
-  walk(tree, node => { if (node.type === 'definition') definitions.set(node.identifier, node.url); });
+  walk(tree, node => {
+    if (node.type === 'definition' && !definitions.has(node.identifier)) definitions.set(node.identifier, node.url);
+  });
   walk(tree, node => {
     const value = node.type === 'image' ? node.url : node.type === 'imageReference' ? definitions.get(node.identifier) : null;
     const path = localPath(value);
@@ -50,8 +53,11 @@ export class MessageImages {
     let count = 0;
     return { ...history, messages: (history.messages || []).map(message => {
       const images = {};
-      if (root && root !== sep && count < 32 && typeof message.text === 'string') {
-        const text = message.text.slice(0, 24000), hash = createHash('sha256').update(text).digest('hex');
+      if (root && root !== sep && count < 32 && !message.truncated
+          && typeof message.text === 'string' && message.text.length <= MAX_TEXT_CHARS) {
+        // Cutting Markdown can remove a closing code delimiter and turn an
+        // example into a file capability. Parse complete bounded messages only.
+        const text = message.text, hash = createHash('sha256').update(text).digest('hex');
         let paths = this.parsed.get(hash);
         if (!paths) {
           paths = referencedImages(text);this.parsed.set(hash, paths);

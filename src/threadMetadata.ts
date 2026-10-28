@@ -1,4 +1,4 @@
-import type { Catalog, Thread } from "./types";
+import type { Catalog } from "./types";
 import { hasPriorityState, priorityFields } from "./priority.ts";
 
 const version = (value: number | undefined) => Number.isSafeInteger(value) && value! >= 0 ? value! : 0;
