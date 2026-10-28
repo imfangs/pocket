@@ -32,7 +32,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 新建回列表、行内进度、弱网恢复、确认延迟 | [列表确认](docs/design/2026-10-09-creation-and-send-feedback.md#2026-10-28提交后回列表行内确认)：立即返回、蓝转绿、失败输入恢复与后台核对；[确认延迟](docs/design/2026-10-25-create-confirmation-latency.md)保留原生耗时及同ID单飞依据 |
 | 新建首Query卡在待发、自动标题滞后 | [首条消息与标题同步](docs/design/2026-10-26-create-delivery-and-title.md)：连接就绪唤醒本会话队列、停止代次保护、近期详情有界目录快刷；连接耗时与轮询延迟分开验证 |
 | 新建剪贴板预填、Paste许可、读取失败恢复 | [Query与剪贴板](docs/design/2026-10-09-startup-and-query-entry.md)：默认点击内读取、保留系统许可、主动恢复与迟到结果保护；浏览器替身不能证明iPhone许可链路 |
-| 手机阅读态输入区收放、列表时间/状态位置 | [阅读与列表收敛](docs/design/2026-10-13-reading-composer-and-row-state.md)：同一输入节点、焦点/IME/附件/待处理保护与固定状态槽 |
+| 手机阅读态输入区收放、滑动正文收键盘、列表状态位置 | [阅读与列表收敛](docs/design/2026-10-13-reading-composer-and-row-state.md)：主动纵向触摸与自动scroll分离、同一输入节点、焦点/IME/阅读位置保护 |
 | 压缩提示重复、等待状态撑高输入区、状态完成时弹层与焦点 | [状态与阅读空间](docs/design/2026-10-26-status-reading-space.md)：精确说明去重、紧凑压缩控件、accepted与unknown区分、可见锚点及焦点归还 |
 | 全局toast、消息身份标签、底部时间/复制与发送确认 | [轻量反馈与消息footer](docs/design/2026-10-12-light-feedback-and-message-footer.md)：统一Sonner样式、消息语义与待处理状态边界 |
 | 操作类产品的顺手标准、功能取舍、UI 复盘或跨项目借鉴 | [迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)：整体脉络、可观察标准、反例与验证办法；按目标项目重新判断适用性 |

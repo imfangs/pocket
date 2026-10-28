@@ -66,12 +66,23 @@ export function useReadingComposer(content: Pick<ComposerState, "hasContent" | "
     };
   }, []);
   const canCollapse = mobile && content.hasContent && !content.hasAttachments && !content.pending && !content.feedback && !composing && !picking;
+  const canDismissKeyboard = () => mobile && !interaction.current.composing && !interaction.current.picking &&
+    !!ref.current && document.activeElement === ref.current.querySelector("textarea");
+  const dismissKeyboard = () => {
+    if (!canDismissKeyboard()) return;
+    const input = ref.current?.querySelector("textarea");
+    ref.current?.closest(".conversation")?.querySelector<HTMLElement>(".conversation-messages")?.focus({ preventScroll: true });
+    if (document.activeElement === input) input?.blur();
+    setFocused(false);
+  };
   const collapse = () => {
     if (!canCollapse) return;
     const body = ref.current?.closest(".conversation")?.querySelector<HTMLElement>(".conversation-messages");
     body?.focus({ preventScroll: true });
     setFocused(false);
   };
-  return { ref, compact: compactComposer({ ...content, mobile, focused, composing, picking, keyboardOpen }), canCollapse, collapse, expand: () => setFocused(true),
-    composing, setPicking, onCompositionStart: () => setComposing(true), onCompositionEnd: () => setComposing(false) };
+  return { ref, compact: compactComposer({ ...content, mobile, focused, composing, picking, keyboardOpen }), canCollapse, collapse,
+    canDismissKeyboard, dismissKeyboard, expand: () => setFocused(true), composing, setPicking,
+    onCompositionStart: () => { interaction.current.composing = true; setComposing(true); },
+    onCompositionEnd: () => { interaction.current.composing = false; setComposing(false); } };
 }

@@ -36,6 +36,7 @@ import type { SubmittedQuery, SubmittedQueryStore, SubmittedQueryReceipt } from 
 import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATTACHMENTS, readyAttachments, sameAttachments, type DraftAttachment } from "./attachments";
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 import { useReadingComposer } from "./useReadingComposer";
+import { bindMessageScrollDismiss } from "./messageScrollDismiss";
 import "./reading-composer.css";
 import { queryTimeline, type TimelineQuery } from "./queryTimeline";
 import { useDeferredQueryEcho } from "./useDeferredQueryEcho";
@@ -318,6 +319,26 @@ export default function Conversation({
       ["pending", "accepted", "unknown"].includes(history?.stopRequest?.status ?? ""),
     // Archived history still has an actionable unarchive button with no draft.
     feedback: !!(thread.archived || error || compatibilityCode) });
+  const keyboardDismiss = useRef(composer);
+  keyboardDismiss.current = composer;
+  useEffect(() => {
+    const root = messages.current;
+    if (!root) return;
+    return bindMessageScrollDismiss(root, {
+      canDismiss: () => keyboardDismiss.current.canDismissKeyboard(),
+      dismiss: () => {
+        nearBottom.current = false; setAwayFromLatest(true);
+        keyboardDismiss.current.dismissKeyboard();
+      },
+      settled: () => {
+        const atBottom = root.scrollHeight - root.scrollTop - root.clientHeight <= 1;
+        nearBottom.current = atBottom; setAwayFromLatest(!atBottom);
+        if (atBottom) setHasNewContent(false);
+        const saved = historyCache.get(thread.id);
+        if (saved) { saved.scrollTop = root.scrollTop; saved.nearBottom = atBottom; }
+      },
+    });
+  }, [thread.id, historyCache]);
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
