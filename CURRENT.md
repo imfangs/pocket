@@ -88,9 +88,11 @@
 
 ## 运行维护与恢复入口
 
+- **2026-10-28 KV续约降频已上线并回读**：同址续约10分钟、KV/回执30分钟；60秒检查/失败重试和换址登记保持。网关源 `3b42e1f` / Pages `d56d7385-69ef-4e9b-9c7f-d0f238145600`，从已发布 `2804dbd` 的代码隔离构建，前端build仍为 `de9b820e…`，未夹带并行缓存开发。1482项全测、构建、30/30公开资源及功能检查通过。格得连接器PID12894实测654.228秒续约；豌豆5分钟不重复写，首次定时提交遇既有网络错误，下一分钟自动重试成功，实际721.807秒；保留失败与恢复，未记成无故障首续约。两机新租约均1800秒，公网health/身份与匿名catalog401通过，API/Codex未重启。三路全天写量下降仍为估计。契约见[手机链路](docs/MOBILE.md)，完整版本/时间与原始证据见[续约验收](.local/qa/kv-renewal-2026-10-28/README.md)；其它前端发布条目按各自事实源接续。
+
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；用项目的 `config/local-service.json`、`config/pages-site.json` 和FBT既有服务/发布工具。前端样式修改只发布网页。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。10-25 `.local/current`、私有服务配置working_directory和launchd实际命令均指向 `1d6da5c…` release；机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 豌豆 `node_modules` 仍引用 `2f42176f35494c57212f9424d113f0437fae3d5d` release；连接器仍使用 `19d91ed4776d79fce17a79ed88ed3b79622197e7`。清理前核对依赖和launchd真实指向，不按旧日期删除。
+- 豌豆 `node_modules` 仍引用 `2f42176f35494c57212f9424d113f0437fae3d5d` release；连接器10-28已切到独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`，仅原 `19d91ed4776d79fce17a79ed88ed3b79622197e7` 的10分钟常量变更，旧release与私有配置备份保留回退，API/.local/current保持。清理前核对依赖和launchd真实指向，不按旧日期删除。
 - Pages预检401先用配置中的Wrangler `whoami`续期，核对是否上传；已上传但验证未过使用原部署 `resume --resume-verification`。本轮发布和豌豆切换均完成，不重复提交。
 - 临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当前、回退 `0dbdf39…`、依赖与连接器release保留；清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。
