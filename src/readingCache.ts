@@ -5,7 +5,7 @@ import {
   subscribeReadingCacheInvalidation, type ReadingCacheRecord, type ReadingCacheStorage,
 } from "./readingCacheStorage.ts";
 
-export { clearReadingCache, readingCacheLimits, subscribeReadingCacheInvalidation } from "./readingCacheStorage.ts";
+export { clearReadingCache, readingCacheLimits, subscribeReadingCacheInvalidation, trimReadingCache } from "./readingCacheStorage.ts";
 export type ReadingSnapshot<T> = { value: T; scope: string; savedAt: number };
 const string = (value: unknown): value is string => typeof value === "string";
 const identity = (value: unknown): value is string => string(value) && value.length > 0 && value.length <= 512;

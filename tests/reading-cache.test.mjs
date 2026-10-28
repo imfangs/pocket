@@ -4,6 +4,7 @@ import 'fake-indexeddb/auto';
 import { openDB, deleteDB } from 'idb';
 import { createReadingCache, clearReadingCache, readingCacheLimits, subscribeReadingCacheInvalidation } from '../src/readingCache.ts';
 import { createReadingCacheStorage, readingCacheFence, readingCacheKey, READING_CACHE_DATABASE } from '../src/readingCacheStorage.ts';
+import { defaultReadingCacheLimit } from '../src/readingCachePreference.ts';
 
 const baseTime = 1_790_000_000_000;
 class LocalStorage {
@@ -143,7 +144,7 @@ test('disk count and byte bounds evict older entries within one committed transa
   await storage.write(Array.from({ length: 35 }, (_, index) => makeRecord(String(index + 100), 1024 * 1024)), baseTime);
   const remaining = await records();
   assert.ok(remaining.reduce((sum, value) => sum + value.bytes, 0) <= readingCacheLimits.diskBytes);
-  assert.ok(remaining.length <= readingCacheLimits.diskTranscripts);
+  assert.ok(remaining.length <= defaultReadingCacheLimit);
   storage.close();
 });
 

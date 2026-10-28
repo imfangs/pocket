@@ -1,4 +1,5 @@
-import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from "idb";
+import { readReadingCacheLimit, subscribeReadingCacheLimit } from "./readingCachePreference.ts";
 
 export const READING_CACHE_DATABASE = "pocket-reading-cache-v1";
 const fencePrefix = "pocket.reading-cache.epoch.v1.";
@@ -26,7 +27,7 @@ export type ReadingCacheStorage = {
 };
 export const readingCacheLimits = Object.freeze({
   memoryBytes: 8 * 1024 * 1024, diskBytes: 30 * 1024 * 1024,
-  memoryTranscripts: 20, diskTranscripts: 50, catalogs: 8,
+  memoryTranscripts: 20, catalogs: 8,
   ttlMs: 7 * 24 * 60 * 60 * 1000, writeDelayMs: 2000, validationRefreshMs: 60_000,
 });
 const listeners = new Set<(event: ReadingCacheInvalidation) => void>();
@@ -121,6 +122,43 @@ async function openReadingDatabase(name: string): Promise<IDBPDatabase<ReadingDa
   try { return await Promise.race([pending, deadline]); } finally { clearTimeout(timer!); }
 }
 
+async function pruneReadingEntries(tx: IDBPTransaction<ReadingDatabase, ("entries" | "epochs")[], "readwrite">, now: number) {
+  const entries = tx.objectStore("entries");
+  // Keep only eviction metadata in memory, never a second full disk cache.
+  const metadata: { key: string; kind: string; bytes: number; accessedAt: number }[] = [];
+  let cursor = await entries.openCursor();
+  while (cursor) {
+    const record = cursor.value;
+    if (record.schema !== 1 || expired(record, now) || record.fence !== readingCacheFence(record.machine) ||
+        typeof record.json !== "string" || !Number.isSafeInteger(record.bytes) || record.bytes < record.json.length ||
+        record.bytes > readingCacheLimits.diskBytes || !["catalog", "transcript"].includes(record.kind))
+      await cursor.delete();
+    else metadata.push({ key: record.key, kind: record.kind, bytes: record.bytes, accessedAt: record.accessedAt });
+    cursor = await cursor.continue();
+  }
+  metadata.sort((a, b) => b.accessedAt - a.accessedAt);
+  let bytes = 0, transcripts = 0, catalogs = 0;
+  for (const record of metadata) {
+    const countFits = record.kind === "transcript" ? transcripts < readReadingCacheLimit() : catalogs < readingCacheLimits.catalogs;
+    if (!countFits || bytes + record.bytes > readingCacheLimits.diskBytes) await entries.delete(record.key);
+    else { bytes += record.bytes; if (record.kind === "transcript") transcripts++; else catalogs++; }
+  }
+}
+
+// Changing a size preference is not an authentication/cache invalidation. This
+// prunes only old reading entries, leaving epochs, fences and live views intact.
+export async function trimReadingCache(now = Date.now(), databaseName = READING_CACHE_DATABASE) {
+  let db: IDBPDatabase<ReadingDatabase> | undefined;
+  try {
+    db = await openReadingDatabase(databaseName);
+    const tx = db.transaction(["entries", "epochs"], "readwrite");
+    void tx.done.catch(() => {});
+    await pruneReadingEntries(tx, now); await tx.done;
+    return { trimmed: true };
+  } catch { return { trimmed: false }; }
+  finally { db?.close(); }
+}
+
 export function createReadingCacheStorage({ databaseName = READING_CACHE_DATABASE }: { databaseName?: string } = {}): ReadingCacheStorage {
   let closed = false;
   // Capture the authenticated instance's epochs before any read/write. A clear
@@ -156,6 +194,20 @@ export function createReadingCacheStorage({ databaseName = READING_CACHE_DATABAS
       record.globalEpoch === globalEpoch && record.machineEpoch === machineEpoch &&
       record.fence === readingCacheFence(machine)).sort((a, b) => b.savedAt - a.savedAt)[0] ?? null;
   };
+  let lastLimit = readReadingCacheLimit();
+  const unsubscribePreference = subscribeReadingCacheLimit(() => {
+    const limit = readReadingCacheLimit(), reduced = limit < lastLimit;
+    lastLimit = limit;
+    if (!reduced || closed) return;
+    // Queue immediately behind any in-flight write, outside its transaction.
+    // The queued trim reads the current setting again, not this captured limit.
+    void connection.then(async ({ db }) => {
+      if (closed) return;
+      const tx = db.transaction(["entries", "epochs"], "readwrite");
+      void tx.done.catch(() => {});
+      await pruneReadingEntries(tx, Date.now()); await tx.done;
+    }).catch(() => {});
+  });
   return {
     async isCurrent(machine) {
       const { db, epochs } = await connection;
@@ -203,29 +255,10 @@ export function createReadingCacheStorage({ databaseName = READING_CACHE_DATABAS
         }
         await entries.put({ ...record, globalEpoch, machineEpoch });
       }
-      // Scan one payload at a time; retain only small eviction metadata. This
-      // avoids loading the full 30 MiB disk allowance into the 8 MiB L1 cache.
-      const metadata: { key: string; kind: string; bytes: number; accessedAt: number }[] = [];
-      let cursor = await entries.openCursor();
-      while (cursor) {
-        const record = cursor.value;
-        if (record.schema !== 1 || expired(record, now) || record.fence !== readingCacheFence(record.machine) ||
-            typeof record.json !== "string" || !Number.isSafeInteger(record.bytes) || record.bytes < record.json.length ||
-            record.bytes > readingCacheLimits.diskBytes || !["catalog", "transcript"].includes(record.kind))
-          await cursor.delete();
-        else metadata.push({ key: record.key, kind: record.kind, bytes: record.bytes, accessedAt: record.accessedAt });
-        cursor = await cursor.continue();
-      }
-      metadata.sort((a, b) => b.accessedAt - a.accessedAt);
-      let bytes = 0, transcripts = 0, catalogs = 0;
-      for (const record of metadata) {
-        const countFits = record.kind === "transcript" ? transcripts < readingCacheLimits.diskTranscripts : catalogs < readingCacheLimits.catalogs;
-        if (!countFits || bytes + record.bytes > readingCacheLimits.diskBytes) await entries.delete(record.key);
-        else { bytes += record.bytes; if (record.kind === "transcript") transcripts++; else catalogs++; }
-      }
+      await pruneReadingEntries(tx, now);
       await tx.done;
     },
-    close() { closed = true; void connection.then(({ db }) => db.close(), () => {}); },
+    close() { closed = true; unsubscribePreference(); void connection.then(({ db }) => db.close(), () => {}); },
   };
 }
 
