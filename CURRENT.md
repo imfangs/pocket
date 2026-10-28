@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-28。本轮新建回列表、弱网确认、文本预览与输入滚动修复已实现，正在做统一发布验收；最近已上线版本仍以下表为准。剪贴板继续先观察。
+维护日期：2026-10-28。本轮新建回列表、弱网确认、文本预览与输入滚动修复已发布并回读；顶部提示改为实色。剪贴板继续先观察。
 
 ## 下一次先看
 
-- **本轮待发布：新建、阅读与弱网连续性。** [创建确认](docs/design/2026-10-09-creation-and-send-feedback.md#2026-10-28提交后回列表行内确认)：提交立即回列表，蓝色进度在首Query明确accepted后转绿，仅异常额外提示；保留失败输入/原ID，后台核对和新建标题预取，首次读取失败自动退避重试。[输入滚动](docs/design/2026-10-25-send-ui-continuity.md#2026-10-28输入测量期间保持阅读位置)修复WebKit测量输入高度导致的93px反复跳动。[文本文件](docs/design/2026-10-22-message-components.md)支持MD/TXT等页内预览，关闭恢复、原件下载及同次预览字节复用；顶部toast半透明/blur已撤下。1475项完整回归、统一构建、创建178项/预览92项/输入48项双浏览器验收与独立CR通过，网页发布仍在本轮收尾；没有新增持久正文缓存或缓存库，缓存现状与后续测量点见[架构](docs/ARCHITECTURE.md#阅读缓存与传输)。
+- **最近已上线：新建、阅读与弱网连续性。** [创建确认](docs/design/2026-10-09-creation-and-send-feedback.md#2026-10-28提交后回列表行内确认)：提交立即回列表，蓝色进度在首Query明确accepted后转绿，仅异常额外提示；保留失败输入/原ID，后台核对和新建标题预取，首次读取失败自动退避重试。[输入滚动](docs/design/2026-10-25-send-ui-continuity.md#2026-10-28输入测量期间保持阅读位置)修复WebKit测量输入高度导致的93px反复跳动。[文本文件](docs/design/2026-10-22-message-components.md)支持MD/TXT等页内预览，关闭恢复、原件下载及同次预览字节复用；顶部toast半透明/blur已撤下。1475项完整回归、创建178项/预览92项/输入48项双浏览器验收、统一包34项冒烟与独立CR通过，30/30公网资源及功能回读通过；没有新增持久正文缓存或缓存库，缓存现状与后续测量点见[架构](docs/ARCHITECTURE.md#阅读缓存与传输)。
 
 - **最近已上线：首开加载反馈。** [反馈复核](docs/design/2026-10-28-feedback-loading.md)。真实首开到内容可见约13.3秒，正文区无状态；现在无缓存首读显示明确读取提示，单路先空不提前进入空态。1442项全测、38项双浏览器、独立CR及30个公网文件/功能回读通过。读取总耗时原因未定位，本轮不宣称提速。另一条标题反馈已确认当时Pocket正确回读了原生保存的Query摘要，当前名称也与Codex一致；未改同步或重放命名。
 
@@ -52,13 +52,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `a09f8c13a692bedc3074dfccd575874af5fced44`，首开读取提示与双路空态判断；此前Impeccable、首字输入保护、定时消息、Query稳定行及标题快刷保持 |
+| 前端/网关源码 | `3fa1be3deb26156e017114a2584735e4fe8dd7b2`，新建列表确认/弱网重试、文本预览、输入测量稳定与实色toast；原Query稳定行及阅读规则保持 |
 | 两机API源码 | 上次10-26核对：格得 `499da54198e0f87a5574de3822c740abcf58e991` / PID89511；豌豆 `1d6da5cb0a29229fa9db6c2a144cc72e77f95895` / PID73421，尚无队列唤醒修复。本轮只更新网页，PID仍是历史快照 |
-| 前端build | 公网与格得内置网页 `0572f0e9dbf99e2a67789f2a90cca929247adfdde730e90800dcfe975f0f0713`；豌豆内置网页上次核对为 `7cd2cf2e…`，公网共享页面已更新 |
-| Pages部署 | `5e4b977b-4f6f-4240-9d8e-da7fa6330d93`；10-28 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，实际上传一次 |
-| 最近验证 | 首读：1442项全测、38项双浏览器、独立CR；真实访问事件和回放确认原问题，修复用双路延迟/缓存/空/失败/Query保护检验。实体iPhone新版本未直接复验；此前设计与输入证据保持 |
-| 证据 | 最新 `.local/qa/feedback-review-2026-10-28/` 的原始反馈、两组回放/结论、`tests-final.log`、`loading/acceptance-green/`、`pages-deploy.json`、`local-public-build.json` 和 `release-verdict.json`；旧证据留原QA目录 |
-| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本轮只读反馈、回放、目标元信息与当前目录；修复验收全部隔离合成。没有真实发送、改名、队列/定时任务操作或服务重启；上次后台数据核验见[首条消息与标题](docs/design/2026-10-26-create-delivery-and-title.md#发布结果) |
+| 前端build | 公网与格得内置网页 `63ff7b0163f536fb8a3faff3c9828ad674b914de93f17e450b5341fd577f2949`；豌豆内置网页上次核对为 `7cd2cf2e…`，公网共享页面已更新 |
+| Pages部署 | `58d57df2-3c78-4d04-98ab-50bf6d32e16b`；10-28 ready=true，30/30文件与匿名访问/manifest/CSP功能检查通过，实际上传一次 |
+| 最近验证 | 1475项全测、创建178项/预览92项/输入48项双浏览器、统一包34项冒烟及独立CR；弱网重试、取消/归档晚到、输入保护、文本权限与关闭恢复已验。实体iPhone与原生IME尚未直接复验 |
+| 证据 | 最新 `.local/qa/background-create-2026-10-28/`：`tests-integrated.log`、`browser/acceptance-summary.json`、`browser/unified-smoke/verdict.json`、`pages-deploy.json`及`release-versions.json`；文本与滚动证据分别在 `.local/qa/text-file-preview-2026-10-28/`、`.local/qa/composer-scroll-2026-10-28/` |
+| 数据与运行 | `~/Library/Application Support/CodexNavigator/`；本轮验收全部隔离合成；只更新共享网页及本机公开构建。没有真实发送、改名、队列/定时任务操作或服务重启；上次后台数据核验见[首条消息与标题](docs/design/2026-10-26-create-delivery-and-title.md#发布结果) |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
