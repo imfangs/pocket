@@ -108,16 +108,32 @@ test('malformed, oversized and non-advancing pages fail without granting a displ
   assert.equal('canSend' in data, false); assert.equal('outbox' in data, false); assert.equal('pocketContent' in data, false);
 });
 
-test('empty or complete recent pages never replace the live conversation with a partial history view', async () => {
-  for (const messages of [[], [message('only-recent')]]) {
-    let calls = 0;
-    const reader = createEarlierHistoryReader({ read: async () => { calls++; return page(messages, null, 'recent'); } });
-    await reader.older();
-    assert.equal(reader.getSnapshot().active, false);
-    assert.equal(reader.getSnapshot().messages.length, 0);
-    assert.equal(reader.getSnapshot().error, '暂未找到更早消息。');
-    assert.equal(calls, 1);
-  }
+test('an empty recent page keeps the live conversation available', async () => {
+  let calls = 0;
+  const reader = createEarlierHistoryReader({ read: async () => { calls++; return page([], null, 'recent'); } });
+  await reader.older();
+  assert.equal(reader.getSnapshot().active, false);
+  assert.equal(reader.getSnapshot().messages.length, 0);
+  assert.equal(reader.getSnapshot().error, '暂未找到更早消息。');
+  assert.equal(calls, 1);
+});
+
+test('a complete 55-message page still exposes older content missing from a 12-message live tail', async () => {
+  const persisted = Array.from({ length: 55 }, (_, index) => message(`rollout-${index}`, { text: `message-${index}` }));
+  const liveTail = persisted.slice(-12).map(item => ({ ...item, id: item.id.replace('rollout-', 'native-') }));
+  let calls = 0;
+  const reader = createEarlierHistoryReader({ read: async before => {
+    calls++; assert.equal(before, null);
+    return page(persisted, null, 'recent');
+  } });
+  await reader.older();
+  assert.equal(reader.getSnapshot().active, true);
+  assert.equal(reader.getSnapshot().messages.length, 55);
+  assert.equal(reader.getSnapshot().messages.length - liveTail.length, 43);
+  assert.deepEqual(reader.getSnapshot().messages.map(item => item.id), persisted.map(item => item.id));
+  assert.equal(reader.getSnapshot().hasOlder, false);
+  assert.equal(reader.getSnapshot().hasNewer, false);
+  assert.equal(calls, 1, 'a complete first page needs no older-page request');
 });
 
 test('a finite deadline releases loading, aborts the read and ignores its late body', async () => {

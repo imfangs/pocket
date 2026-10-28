@@ -13,7 +13,9 @@ function bounded(messages: Message[], hasMore = false) {
 // Merge only display text, never runtime/capability fields. Shared IDs establish
 // order; divergent branches keep the canonical desktop result.
 export function displayConversation(history: History | null, transcript: SavedTranscript | null): { messages: Message[]; hasMore: boolean } {
-  const live = history?.messages || [], saved = transcript?.messages || [];
+  const live = history?.messages || [];
+  const saved = (transcript?.messages || []).filter(message => message.origin !== "codex_delegation" ||
+    !message.turnId || !live.some(native => native.role === "user" && native.turnId === message.turnId && native.id !== message.id));
   const nativeView = { messages: live, hasMore: !!history?.hasMore };
   const savedView = { messages: saved, hasMore: !!transcript?.hasMore };
   if (!saved.length) return nativeView;
@@ -25,8 +27,12 @@ export function displayConversation(history: History | null, transcript: SavedTr
       !live.some(message => message.turnId === a.turnId && isFinal(message))) {
     // Native and recorded user messages can have different IDs. A recorded final
     // for the same completed turn is positive evidence, not a text-based guess.
+    const completed = saved.filter(message => message.turnId === b.turnId);
+    const hasDelegatedInput = transcript?.messages.some(message => message.origin === "codex_delegation" && message.turnId === b.turnId);
+    const nativeInput = hasDelegatedInput && !completed.some(message => message.role === "user")
+      ? live.filter(message => message.turnId === a.turnId && message.role === "user") : [];
     return bounded([...live.filter(message => message.turnId !== a.turnId),
-      ...saved.filter(message => message.turnId === b.turnId)], !!history.hasMore);
+      ...nativeInput, ...completed], !!history.hasMore);
   }
   const index = new Map(live.map((message, i) => [message.id, i]));
   let anchor = saved.length - 1;
@@ -45,7 +51,16 @@ export function displayConversation(history: History | null, transcript: SavedTr
       attachments: next.attachments?.length ? next.attachments : message.attachments };
   });
   if (index.get(saved[anchor].id) === live.length - 1) merged.push(...saved.slice(anchor + 1));
-  return bounded(merged, !!history?.hasMore);
+  // Codex-created chats can expose the opening request only in their saved
+  // create_thread envelope. Admit that explicitly projected prefix only when
+  // its immediate assistant anchor is the same first native item and turn.
+  // Never infer the Query from matching text or duplicate a native user item.
+  const opening = saved[0], first = live[0], following = saved[1];
+  const delegatedPrefix = opening?.origin === "codex_delegation" && opening.role === "user" && !!opening.turnId &&
+    following?.role === "assistant" && first?.role === "assistant" && following.id === first.id &&
+    opening.turnId === first.turnId && following.turnId === first.turnId && !index.has(opening.id) &&
+    !live.some(message => message.role === "user" && message.turnId === opening.turnId) ? [opening] : [];
+  return bounded([...delegatedPrefix, ...merged], !!history?.hasMore);
 }
 
 // Existing callers that only need display text keep the same merge result.

@@ -1,0 +1,8 @@
+.conversation-message.message-notification { margin: 6px 0; padding: 4px 12px 2px; border-inline-start: 2px solid var(--line-strong); }
+.subagent-notification-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.subagent-notification-heading > span { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+.subagent-notification-heading > span svg { flex-shrink: 0; }
+.subagent-notification-heading > button { display: inline-flex; align-items: center; flex-shrink: 0; gap: 4px; min-height: 44px; border: 0; padding: 4px 0; background: none; color: var(--accent); font-size: 12px; }
+.subagent-notification-body:not([hidden]) { margin-top: 4px; }
+.subagent-notification[data-status="completed"] .subagent-notification-heading > span svg { color: var(--positive); }
+.subagent-notification[data-status="errored"] .subagent-notification-heading > span svg { color: var(--danger); }

@@ -10,6 +10,7 @@ import { join, isAbsolute, sep } from "node:path";
 import { createHash } from "node:crypto";
 import { AppError } from "./store.mjs";
 import { POCKET_CONTENT, EMPTY_CONTENT_VERSION, assistantContentVersion, contentFileVersion, contentEvidence } from './pocket-content.mjs';
+import { historyMessageProjection } from './history-message.mjs';
 
 const injectedKinds = new Set([
   "agents_md.instructions", "environments.environment_context", "hooks.additional_context",
@@ -100,28 +101,26 @@ export function parseHistory(text, startOffset = 0) {
           turns.set(id, turn);
         }
       }
-      if (
-        record.type === "response_item" &&
-        item?.type === "message" &&
-        ["user", "assistant"].includes(item.role) &&
-        item.phase !== "analysis" && item.channel !== "analysis"
-      ) {
-        const { text: value, hasMedia } = visibleContent(item);
+      const projected = historyMessageProjection(record), displayItem = projected?.item;
+      if (displayItem && ["user", "assistant"].includes(displayItem.role) &&
+        displayItem.phase !== "analysis" && displayItem.channel !== "analysis") {
+        const { text: value, hasMedia } = visibleContent(displayItem);
         if (value || hasMedia) {
-          const id = item.id || `rollout:${offset}`;
+          const id = displayItem.id || `rollout:${offset}`;
           const message = {
             id,
-            role: item.role,
-            turnId: item.internal_chat_message_metadata_passthrough?.turn_id || currentTurnId,
+            role: displayItem.role,
+            turnId: displayItem.internal_chat_message_metadata_passthrough?.turn_id || currentTurnId,
             text: value.slice(0, 24000),
-            phase: item.phase,
+            phase: displayItem.phase,
             timestamp: Number.isFinite(timestamp) ? timestamp : null,
             truncated: value.length > 24000,
+            ...(projected.origin ? { origin: projected.origin } : {}),
           };
           messages.push(message);
-          if (item.role === "assistant" && value)
-            contentVersions.set(message, assistantContentVersion(id, value, item.phase));
-          if (item.role === "assistant") lastAssistant = { id, fullText: value };
+          if (displayItem.role === "assistant" && value)
+            contentVersions.set(message, assistantContentVersion(id, value, displayItem.phase));
+          if (displayItem.role === "assistant") lastAssistant = { id, fullText: value };
         }
       }
     } catch {

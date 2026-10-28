@@ -76,6 +76,7 @@ function sanitizeTranscript(value: unknown, scope: string): SavedTranscript | nu
       ...(typeof item.timestamp === "number" ? { timestamp: finite(item.timestamp) } : {}),
       ...(typeof item.turnDurationMs === "number" ? { turnDurationMs: finite(item.turnDurationMs) } : {}),
       ...(identity(item.clientMessageId) ? { clientMessageId: item.clientMessageId } : {}),
+      ...(item.role === "user" && item.origin === "codex_delegation" ? { origin: "codex_delegation" as const } : {}),
     });
   }
   return { source: "rollout", messages, hasMore: value.hasMore === true, checkedAt: finite(value.checkedAt),

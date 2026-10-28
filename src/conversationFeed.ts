@@ -16,6 +16,7 @@ export type Message = {
   timestamp?: number;
   truncated?: boolean;
   clientMessageId?: string;
+  origin?: "codex_delegation";
   turnDurationMs?: number;
   images?: Record<string, string>;
   files?: MessageFiles;

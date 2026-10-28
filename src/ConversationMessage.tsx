@@ -10,6 +10,8 @@ import { useMemo, type Ref, type ReactNode } from "react";
 import AttachmentList from "./AttachmentList";
 import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
 import HeartbeatTrigger from "./HeartbeatTrigger";
+import SubagentNotificationMessage from "./SubagentNotificationMessage";
+import { subagentNotification } from "./subagentNotification";
 import MessageTimestamp from "./MessageTimestamp";
 import { validMessageTimestamp } from "./messageTime";
 import "./message-footer.css";
@@ -18,19 +20,21 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
   message: Message; threadId?: string; recentlySent?: boolean; queryDisclosure?: QueryDisclosure; readMarker?: Ref<HTMLDivElement>; changeLayout?: AnnotationLayoutChange;
   queryDelivery?: { requestId: string; state?: string; controls: ReactNode; hasControls: boolean };
 }) {
+  const notification = useMemo(() => subagentNotification(message.text), [message.text]);
   const presentation = useMemo(() => {
+    if (notification) return { text: notification.text, copyText: [notification.label, notification.text].filter(Boolean).join("\n\n"), annotations: [] };
     if (message.role === "user") return presentUserMessage(message.text);
     const text = readableCodexMarkdown(message.text);
     return { text, copyText: text, annotations: [], automationInstructions: undefined };
-  }, [message.role, message.text]);
+  }, [message.role, message.text, notification]);
   const displayText = presentation.text;
   const progress =
     message.role === "assistant" && message.phase === "commentary";
   const final = message.phase === "final_answer" || message.phase === "final";
   const kind =
-    message.role === "user" ? "user" : progress ? "progress" : "answer";
+    notification ? "notification" : message.role === "user" ? "user" : progress ? "progress" : "answer";
   const label =
-    kind === "user"
+    notification ? notification.label : kind === "user"
       ? "你"
       : message.isQuestion
         ? "Codex · 问题"
@@ -53,7 +57,7 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
       tabIndex={queryDelivery ? -1 : undefined}
       aria-label={label}
     >
-      {presentation.automationInstructions ? <HeartbeatTrigger instructions={presentation.automationInstructions} changeLayout={changeLayout} /> : displayText.trim() && (kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
+      {notification ? <SubagentNotificationMessage notification={notification} changeLayout={changeLayout} readMarker={readMarker} /> : presentation.automationInstructions ? <HeartbeatTrigger instructions={presentation.automationInstructions} changeLayout={changeLayout} /> : displayText.trim() && (kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
         images={message.images}
         files={message.role === "assistant" && !message.truncated ? message.files : undefined}
         threadId={threadId}
@@ -68,9 +72,9 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
         {confirmed && !queryDelivery?.hasControls && <span className="message-send-confirmed"><Check size={13} aria-hidden="true" />已发送</span>}
         {duration && <span className="message-duration">总用时 <time>{duration}</time></span>}
         {hasTimestamp && <MessageTimestamp timestamp={timestamp} />}
-        {copyable && <CopyButton text={presentation.copyText} label={kind === "user" ? "复制这条消息" : progress ? "复制过程" : "复制回复"} />}
+        {copyable && <CopyButton text={presentation.copyText} label={notification ? "复制子任务结果" : kind === "user" ? "复制这条消息" : progress ? "复制过程" : "复制回复"} />}
       </footer>}
-      {readMarker && <div ref={readMarker} data-pocket-read-marker="" aria-hidden="true" style={{ height: 1 }} />}
+      {readMarker && !notification?.text && <div ref={readMarker} data-pocket-read-marker="" aria-hidden="true" style={{ height: 1 }} />}
     </article>
   );
 }

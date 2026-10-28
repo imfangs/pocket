@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { visibleContent, parseHistory } from './history.mjs';
+import { historyMessageProjection } from './history-message.mjs';
 import { resolveHistorySource, iterateHistoryChunks, readHistoryRanges } from './history-source.mjs';
 import { AppError } from './store.mjs';
 import { POCKET_CONTENT } from './pocket-content.mjs';
@@ -111,20 +112,21 @@ async function indexSource(source, prefixEnd = null) {
         remember(turns, id, turn);
       }
     }
-    if (value.type === 'response_item' && item?.type === 'message' &&
-      ['user', 'assistant'].includes(item.role) && item.phase !== 'analysis' && item.channel !== 'analysis') {
-      const { text, hasMedia } = visibleContent(item);
+    const projected = historyMessageProjection(value), displayItem = projected?.item;
+    if (displayItem && ['user', 'assistant'].includes(displayItem.role) && displayItem.phase !== 'analysis' && displayItem.channel !== 'analysis') {
+      const { text, hasMedia } = visibleContent(displayItem);
       if (text || hasMedia) {
         const row = { offset: start, length: end - start,
-          id: validId(item.id) && item.id ? item.id : `rollout:${start}`, role: item.role,
-          turnId: validId(item.internal_chat_message_metadata_passthrough?.turn_id)
-            ? item.internal_chat_message_metadata_passthrough.turn_id : currentTurn,
-          phase: validId(item.phase) ? item.phase : undefined,
-          timestamp: Number.isFinite(timestamp) ? timestamp : null, textLength: Math.min(text.length, 24000) };
+          id: validId(displayItem.id) && displayItem.id ? displayItem.id : `rollout:${start}`, role: displayItem.role,
+          turnId: validId(displayItem.internal_chat_message_metadata_passthrough?.turn_id)
+            ? displayItem.internal_chat_message_metadata_passthrough.turn_id : currentTurn,
+          phase: validId(displayItem.phase) ? displayItem.phase : undefined,
+          timestamp: Number.isFinite(timestamp) ? timestamp : null, textLength: Math.min(text.length, 24000),
+          ...(projected.origin ? { origin: projected.origin } : {}) };
         indexBytes += Buffer.byteLength(JSON.stringify(row)) + 128;
         if (rows.length >= limits.maxMessages || indexBytes > limits.maxIndexBytes) throw exceeded();
         rows.push(row);
-        if (item.role === 'assistant') lastAssistant = { row, text };
+        if (displayItem.role === 'assistant') lastAssistant = { row, text };
       }
     }
     if (indexBytes > limits.maxIndexBytes || responses.size + nativeIds.size + turns.size + summaries.size > limits.maxReferences)
@@ -196,7 +198,9 @@ async function page({ codexHome, threadId, before: token, limit }) {
     let record;
     try { record = JSON.parse(buffers[index].toString('utf8')); }
     catch { throw changed(); }
-    const { text } = visibleContent(record.payload);
+    const projected = historyMessageProjection(record);
+    if (!projected) throw changed();
+    const { text } = visibleContent(projected.item);
     const { offset: _offset, length: _length, textLength: _textLength, ...message } = row;
     return { ...message, text: text.slice(0, 24000), truncated: text.length > 24000 };
   });

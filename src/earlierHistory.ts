@@ -109,7 +109,7 @@ export function createEarlierHistoryReader({ read, canApply = () => true, timeou
         if (!state.active || direction === "restart") {
           const recent = await page(null);
           if (ticket !== generation || current.signal.aborted) return;
-          if (!recent.messages.length || !recent.hasMore) {
+          if (!recent.messages.length) {
             publish({ loading: false, ready: null, expired: state.active,
               error: state.active ? "历史已更新，可返回最新查看。" : "暂未找到更早消息。" });
             return;

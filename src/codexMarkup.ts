@@ -1,6 +1,7 @@
 import { directiveAttributes, directivePattern, directiveIsEscaped, incompleteDirectivePattern, localFileReference, protectedMarkdownRanges } from "../shared/codex-directives.mjs";
 import { currentMachineId, isMachineId, machineTaskUrl, type MachineId } from "./machineScope.ts";
 import { readableHeartbeatMessage } from "./heartbeatMessage.ts";
+import { readableSubagentNotification } from "./subagentNotification.ts";
 
 const taskId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export function pocketTaskTarget(value: string, current: MachineId | null = currentMachineId()): { threadId: string; machine: MachineId } | null {
@@ -28,6 +29,7 @@ const quote = (text: string) => "\n\n" + plain(text).split("\n").map(line => `> 
 // These are display adapters, never executable directives. Work on original
 // offsets and protect Markdown code/examples and link destinations from edits.
 export function readableCodexMarkdown(source: string): string {
+  source = readableSubagentNotification(source);
   source = readableHeartbeatMessage(source);
   if (!/<(?:oai-mem-citation|citation_entries|rollout_ids)|&lt;|:(?:created-thread|code-comment|codex-|inbox-item|archive-thread|automation)|/.test(source)) return source;
   const protectedRanges = protectedMarkdownRanges(source);

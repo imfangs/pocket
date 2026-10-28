@@ -7,7 +7,7 @@ export const QUERY_ECHO_WAIT_MS = 18000;
 const awaitingEcho = new Set(["submitting", "connecting", "pending", "queued", "accepted", "unknown"]);
 
 function candidate(message: Message, entries: readonly SubmittedQuery[]) {
-  if (message.role !== "user" || message.clientMessageId || message.truncated) return false;
+  if (message.role !== "user" || message.origin === "codex_delegation" || message.clientMessageId || message.truncated) return false;
   return entries.some(entry => !entry.echoed && !entry.dismissed && awaitingEcho.has(entry.status)
     && message.text.trim() === entry.text.trim() && sameAttachments(message.attachments, entry.attachments));
 }

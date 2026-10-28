@@ -82,6 +82,22 @@ test('a successfully read empty conversation can defer its first new echo', () =
   assert.deepEqual(ids(controller.view([saved], [query], false, true)), [saved.id]);
 });
 
+test('a late delegated opening Query cannot be reserved by a same-text pending request', () => {
+  const reply = { id: 'existing-answer', role: 'assistant', text: 'Existing answer', turnId: 'old-turn' };
+  const delegated = { id: 'fco_start', role: 'user', text: query.text, turnId: 'old-turn', origin: 'codex_delegation' };
+  const f = setup([reply], []);
+  const messages = [delegated, reply];
+  const deferred = f.controller.view(messages, [query], false, true);
+  assert.deepEqual(ids(deferred), []);
+  const observation = f.controller.observe(messages, [query], false, true);
+  assert.deepEqual(observation.fresh, []); assert.equal(observation.remainingMs, null);
+  const timeline = queryTimeline(messages, [query], [query], [], deferred);
+  assert.equal(timeline.byMessage.has(delegated.id), false);
+  assert.equal(timeline.hiddenMessages.has(delegated.id), false);
+  assert.deepEqual(timeline.tail.map(row => row.requestId), [query.requestId]);
+  assert.equal(query.status, 'unknown');
+});
+
 test('explicit identity, truncation, other content and attachment mismatches are never deferred', () => {
   const attachment = { id: 'file', sha256: 'abc', name: 'file.txt', kind: 'file' };
   for (const [message, entry] of [
