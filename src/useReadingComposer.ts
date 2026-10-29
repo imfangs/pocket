@@ -4,12 +4,13 @@ const mobileQuery = "(max-width: 760px) and (hover: none) and (pointer: coarse)"
 export type ComposerState = {
   mobile: boolean; hasContent: boolean; hasDraft: boolean; hasAttachments: boolean;
   focused: boolean; composing: boolean; picking: boolean; keyboardOpen: boolean;
+  keyboardOwnedElsewhere?: boolean;
   pending: boolean; feedback: boolean;
 };
 
 export function compactComposer(state: ComposerState) {
   return state.mobile && state.hasContent && !state.hasAttachments &&
-    !state.focused && !state.composing && !state.picking && !state.keyboardOpen &&
+    !state.focused && !state.composing && !state.picking && (!state.keyboardOpen || !!state.keyboardOwnedElsewhere) &&
     !state.pending && !state.feedback;
 }
 
@@ -17,22 +18,32 @@ export function useReadingComposer(content: Pick<ComposerState, "hasContent" | "
   const ref = useRef<HTMLFormElement>(null);
   const [mobile, setMobile] = useState(() => typeof window !== "undefined" && window.matchMedia(mobileQuery).matches);
   const [focused, setFocused] = useState(false), [composing, setComposing] = useState(false);
+  const [keyboardOwnedElsewhere, setKeyboardOwnedElsewhere] = useState(false);
   const [picking, setPicking] = useState(false), [keyboardOpen, setKeyboardOpen] = useState(false);
   const interaction = useRef({ composing, picking });
   interaction.current = { composing, picking };
   useLayoutEffect(() => {
     const form = ref.current, panel = form?.closest(".inspector"), media = window.matchMedia(mobileQuery);
     if (!form) return;
+    const editor = (active: Element | null) => !!active?.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
     const updateFocus = () => {
       const active = document.activeElement;
       // Stopping is available in either layout. Taking focus must not move
       // that pressed control before its native touch click can arrive.
       if (form.contains(active) && active?.closest("[data-composer-reading-control]")) return;
+      // Keep the external editor's ownership as focus moves to its actions.
+      // Clearing it on an answer/queue button would expand the main composer
+      // beneath the pointer. Main input focus or keyboard dismissal releases it.
+      if (form.contains(active)) setKeyboardOwnedElsewhere(false);
+      else if (editor(active)) setKeyboardOwnedElsewhere(true);
+      else if (!panel?.hasAttribute("data-keyboard-open")) setKeyboardOwnedElsewhere(false);
       setFocused(form.contains(active));
     };
     let hadKeyboard = !!panel?.hasAttribute("data-keyboard-open");
     const updateKeyboard = () => {
       const open = !!panel?.hasAttribute("data-keyboard-open");
+      if (!open) setKeyboardOwnedElsewhere(false);
+      else if (editor(document.activeElement)) setKeyboardOwnedElsewhere(!form.contains(document.activeElement));
       // iOS can dismiss its keyboard while leaving the textarea focused.
       // This changes presentation only; the input node, value and caret survive.
       if (hadKeyboard && !open && document.visibilityState === "visible" &&
@@ -50,7 +61,8 @@ export function useReadingComposer(content: Pick<ComposerState, "hasContent" | "
       if (event instanceof KeyboardEvent && ["Tab", "Shift", "Control", "Alt", "Meta", "Escape"].includes(event.key)) return;
       if (event.target === form.querySelector("textarea")) setFocused(true);
     };
-    form.addEventListener("focusin", updateFocus); form.addEventListener("focusout", blur);
+    form.addEventListener("focusin", updateFocus);
+    document.addEventListener("focusin", blur); document.addEventListener("focusout", blur);
     form.addEventListener("click", resumeEditing); form.addEventListener("input", resumeEditing);
     // Grow only after a tap has chosen its native target, not in pointerdown.
     form.addEventListener("keydown", resumeEditing); form.addEventListener("contextmenu", resumeEditing);
@@ -60,7 +72,8 @@ export function useReadingComposer(content: Pick<ComposerState, "hasContent" | "
     updateFocus(); updateKeyboard(); updateMobile();
     return () => {
       cancelAnimationFrame(frame); observer.disconnect(); media.removeEventListener("change", updateMobile);
-      form.removeEventListener("focusin", updateFocus); form.removeEventListener("focusout", blur);
+      form.removeEventListener("focusin", updateFocus);
+      document.removeEventListener("focusin", blur); document.removeEventListener("focusout", blur);
       form.removeEventListener("click", resumeEditing); form.removeEventListener("input", resumeEditing);
       form.removeEventListener("keydown", resumeEditing); form.removeEventListener("contextmenu", resumeEditing);
     };
@@ -81,7 +94,7 @@ export function useReadingComposer(content: Pick<ComposerState, "hasContent" | "
     body?.focus({ preventScroll: true });
     setFocused(false);
   };
-  return { ref, compact: compactComposer({ ...content, mobile, focused, composing, picking, keyboardOpen }), canCollapse, collapse,
+  return { ref, compact: compactComposer({ ...content, mobile, focused, composing, picking, keyboardOpen, keyboardOwnedElsewhere }), canCollapse, collapse,
     canDismissKeyboard, dismissKeyboard, expand: () => setFocused(true), composing, setPicking,
     onCompositionStart: () => { interaction.current.composing = true; setComposing(true); },
     onCompositionEnd: () => { interaction.current.composing = false; setComposing(false); } };

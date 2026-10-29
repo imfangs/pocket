@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Switch } from "@radix-ui/themes/components/switch";
 import { LoaderCircle, MessageSquareWarning } from "lucide-react";
 import { Modal } from "./Dialogs";
 import { Button } from "./ui/Button";
@@ -18,6 +19,7 @@ const shakePreferred = () => { try { return localStorage.getItem(shakeKey) === "
 type Session = { scope: string; baseScope: string; context: FeedbackContext; image?: FeedbackCapture };
 
 export function usePocketFeedback({ readingScope, threadId, title }: { readingScope?: string; threadId?: string; title?: string }) {
+  const shakeId = useId();
   const machine = currentMachineId(), baseScope = `pocket:${machine}:${readingScope || "pending"}`;
   const [enabled, setEnabled] = useState(false), [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null), [preparing, setPreparing] = useState(false);
@@ -92,8 +94,14 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
     enabled, ready, open,
     settings: enabled ? <section className="pocket-feedback-settings" aria-label="使用反馈">
       <h3>使用反馈</h3>
-      <label><span>摇一摇反馈</span><input type="checkbox" checked={shakeEnabled} onChange={() => void toggleShake()} /></label>
-      <small>{shakeHint || "启用后，摇动手机可打开截图反馈。"}</small>
+      <div className="pocket-feedback-setting-row">
+        <label htmlFor={shakeId}>摇一摇反馈</label>
+        <span className="pocket-feedback-setting-control">
+          <Switch id={shakeId} type="button" size="3" checked={shakeEnabled}
+            aria-describedby={`${shakeId}-help`} onCheckedChange={() => void toggleShake()} />
+        </span>
+      </div>
+      <p id={`${shakeId}-help`} className="field-help" role={shakeHint ? "status" : undefined}>{shakeHint || "启用后，摇动手机可打开截图反馈。"}</p>
     </section> : null,
     element: <>
       {preparing && <div className="feedback-capture-progress" data-feedback-ignore="" data-reading-overlay="" role="status">

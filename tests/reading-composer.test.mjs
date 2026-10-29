@@ -21,3 +21,16 @@ test('focus, composition, a native picker or a closing keyboard prevents a colla
   assert.equal(compactComposer({ ...reading, focused: true, composing: false }), false);
   assert.equal(compactComposer({ ...reading, keyboardOpen: true, focused: false }), false);
 });
+
+test('a question editor keyboard does not expand an inactive main composer', () => {
+  assert.equal(compactComposer({ ...reading, keyboardOpen: true, keyboardOwnedElsewhere: true }), true);
+  assert.equal(compactComposer({ ...reading, keyboardOpen: true, keyboardOwnedElsewhere: true, hasDraft: true }), true,
+    'the retained main draft can use its existing compact preview');
+});
+
+test('external editing does not override main input or unfinished-action protection', () => {
+  for (const field of ['focused', 'composing', 'picking', 'hasAttachments', 'pending', 'feedback'])
+    assert.equal(compactComposer({ ...reading, keyboardOpen: true, keyboardOwnedElsewhere: true, [field]: true }), false, field);
+  assert.equal(compactComposer({ ...reading, mobile: false, keyboardOwnedElsewhere: true }), false);
+  assert.equal(compactComposer({ ...reading, hasContent: false, keyboardOwnedElsewhere: true }), false);
+});

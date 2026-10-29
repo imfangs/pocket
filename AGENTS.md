@@ -13,6 +13,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 共用弹窗/嵌套Escape、点击命中区、问题键盘归属、媒体切换首点与控件一致性 | [10-29全路径精修](docs/design/2026-10-29-impeccable-sweep.md)：固定header/单一body、顶层关闭归属、真实点击范围、外部键盘归属及焦点交接保护；与原消息/回执策略分离 |
 | 截图圈注反馈、摇一摇、反馈草稿与自动投递到开发会话 | [反馈基础设施](docs/design/2026-10-29-feedback-infrastructure.md)、[通用模块](packages/feedback-kit/AGENTS.md)：通用模块不依赖Pocket，认证记录/签名回调/固定目标/幂等回执分层；新反馈与旧标记查询分开，发布启用状态回CURRENT |
 | 认证迟到响应、历史缓存上限、首批同文Query或图片引用CR | [代码质量修复](docs/design/2026-10-28-code-quality.md)：认证代次与缓存epoch独立、双路首读基线、统一缓存写入、完整Markdown权限解析；提交正文回收仍是候选 |
 | 查反馈、PostHog、采集无数据或体验复盘 | 先读私有台账 `.local/feedback-ledger.json` 按反馈ID对照，再按[反馈接续](docs/design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)查询和补记，区分已发布与效果确认；[专项验收](docs/QUALITY.md#使用反馈验收)覆盖正式CSP与入库回读。工具版本/认证与事件口径留在使用反馈文档，上线状态回CURRENT |

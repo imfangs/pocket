@@ -9,6 +9,19 @@ import ReadingCacheSettings from "./ReadingCacheSettings";
 import { modalCloseDecision } from "./modalInteraction";
 import { bindInspectorViewport } from "./mobileInspector";
 import { MOTION_EASE, MOTION_MS, holdReadingMotion, prefersReducedMotion } from "./motion";
+
+// Native top-layer order follows showModal(), not the dialogs' DOM order.
+const openedModals = new WeakMap<Document, HTMLDialogElement[]>();
+function trackModal(dialog: HTMLDialogElement) {
+  const document = dialog.ownerDocument;
+  openedModals.set(document, [...(openedModals.get(document) ?? []).filter(item => item !== dialog), dialog]);
+  return () => {
+    const remaining = (openedModals.get(document) ?? []).filter(item => item !== dialog);
+    if (remaining.length) openedModals.set(document, remaining);
+    else openedModals.delete(document);
+  };
+}
+
 export function Modal({
   title,
   onClose,
@@ -67,6 +80,7 @@ export function Modal({
     mounted.current = true; closing.current = false;
     if (dialog) { dialog.inert = false; dialog.removeAttribute("data-modal-closing"); }
     dialog?.showModal();
+    const releaseModal = dialog ? trackModal(dialog) : () => {};
     dialog?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     // Reuse the same focus/blur and Safari recovery rules as the conversation.
     // A bottom sheet must follow the visual viewport, not the covered layout viewport.
@@ -83,6 +97,7 @@ export function Modal({
     return () => {
       mounted.current = false; stopMotion(false); releaseViewport();
       dialog?.close();
+      releaseModal();
       stopMotion();
       queueMicrotask(() => {
         window.dispatchEvent(new Event("pocket-reading-visibility-change"));
@@ -108,13 +123,40 @@ export function Modal({
     if (decision === "confirm") setConfirmClose(true);
     else if (decision === "close") beginClose(animate);
   };
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog || !(busy || dirty)) return;
+    const document = dialog.ownerDocument;
+    const protectEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+      const stack = openedModals.get(document) ?? [];
+      if (stack.filter(item => item.open && item.isConnected).at(-1) !== dialog) return;
+      const targetDialog = event.target instanceof Element ? event.target.closest("dialog") : null;
+      if (targetDialog !== dialog) {
+        if (event.target !== document.body && event.target !== document.documentElement && event.target !== document) return;
+        // Image/file viewers own their native Escape, including their BODY focus.
+        if ([...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].some(item => !stack.includes(item))) return;
+      }
+      // A disabled/replaced control can leave focus on BODY. Catch its bubbling
+      // keydown before repeated native cancel events become non-cancelable.
+      event.preventDefault();
+      event.stopPropagation();
+      requestClose(false, false);
+    };
+    document.addEventListener("keydown", protectEscape);
+    return () => document.removeEventListener("keydown", protectEscape);
+  }, [busy, dirty]);
   return (
     <dialog
       data-feedback-ignore={captureIgnore ? "" : undefined}
       ref={ref}
       className={["pocket-dialog", className].filter(Boolean).join(" ")}
       onCancel={(e) => {
+        // React propagates cancel through nested dialogs. Escape belongs only
+        // to the native dialog that received it, not its settings parent.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
+        e.stopPropagation();
         requestClose(false, false);
       }}
       onClick={(e) => {
@@ -134,15 +176,17 @@ export function Modal({
           <X size={19} />
         </IconButton>
       </header>
-      {confirmClose && <div className="modal-close-confirm" role="alert">
-        <p>还有未提交的内容。</p>
-        <Button ref={continueEditing} type="button" className="secondary" variant="soft" color="gray" disabled={busy} onClick={() => {
-          setConfirmClose(false);
-          ref.current?.querySelector<HTMLElement>("[data-autofocus], input:not([type='hidden']), textarea, select")?.focus();
-        }}>继续编辑</Button>
-        <Button type="button" className="danger-button" variant="soft" color="red" disabled={busy} onClick={event => beginClose(event.detail !== 0)}>放弃并关闭</Button>
-      </div>}
-      {children}
+      <div className="pocket-dialog-body">
+        {confirmClose && <div className="modal-close-confirm" role="alert">
+          <p>还有未提交的内容。</p>
+          <Button ref={continueEditing} type="button" className="secondary" variant="soft" color="gray" disabled={busy} onClick={() => {
+            setConfirmClose(false);
+            ref.current?.querySelector<HTMLElement>("[data-autofocus], input:not([type='hidden']), textarea, select")?.focus();
+          }}>继续编辑</Button>
+          <Button type="button" className="danger-button" variant="soft" color="red" disabled={busy} onClick={event => beginClose(event.detail !== 0)}>放弃并关闭</Button>
+        </div>}
+        {children}
+      </div>
     </dialog>
   );
 }

@@ -5,36 +5,35 @@
   max-height:calc(var(--inspector-viewport-height,100dvh) - 24px);
   overflow:hidden;
 }
-.feedback-dialog[open] { display:flex; flex-direction:column; }
 .pocket-dialog.feedback-dialog > header {
-  flex:none;
   padding-inline-start:var(--feedback-gutter);
   padding-inline-end:calc(var(--feedback-gutter) - var(--space-1));
 }
-.feedback-dialog > .feedback-kit-panel {
+.feedback-dialog .feedback-kit-panel {
   --feedback-accent:var(--accent);
   --feedback-surface:var(--surface);
   --feedback-line:var(--line);
   --feedback-ink:var(--ink);
   --feedback-muted:var(--muted);
-  min-height:0;
-  overflow-y:auto;
-  overscroll-behavior:contain;
+}
+.feedback-dialog > .pocket-dialog-body {
   padding:var(--space-2) var(--feedback-gutter) max(var(--feedback-gutter),env(safe-area-inset-bottom));
-  scroll-padding-block:var(--space-4);
 }
 .feedback-dialog .feedback-kit-picture {
   max-height:min(40dvh,calc(var(--inspector-viewport-height,100dvh) * .4),400px);
 }
 .feedback-capture-progress { position:fixed; z-index:1200; bottom:calc(env(safe-area-inset-bottom) + 20px); left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface-raised); color:var(--ink); font-size:13px; box-shadow:var(--shadow-soft); }
 .feedback-capture-progress button { min-height:36px; border:0; color:var(--accent); background:none; padding:0 6px; }
-.pocket-feedback-settings label { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; }
-.pocket-feedback-settings input { width:20px; height:20px; accent-color:var(--accent); }
-.pocket-feedback-settings small { display:block; color:var(--muted); font-size:12px; line-height:1.6; }
+.pocket-feedback-setting-row { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); min-height:44px; }
+.pocket-feedback-setting-row > label { flex:1; padding-block:var(--space-3); color:var(--ink); font-size:var(--font-size-label); font-weight:600; cursor:pointer; }
+.pocket-feedback-setting-control { display:flex; align-items:center; min-height:44px; }
+.pocket-feedback-setting-control .rt-SwitchRoot { min-width:44px; min-height:44px; }
+.pocket-feedback-settings .field-help { margin:0 0 var(--space-3); }
 @media(max-width:760px) {
   .pocket-dialog.feedback-dialog {
     --feedback-gutter:var(--space-5);
     width:100%;
+    max-width:none;
     max-height:calc(var(--inspector-viewport-height,100dvh) - max(24px,env(safe-area-inset-top)));
     border-radius:var(--radius-sheet) var(--radius-sheet) 0 0;
     margin:auto 0 0;

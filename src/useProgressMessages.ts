@@ -61,6 +61,7 @@ export function useProgressMessages({ messages, protectedIds, root, nearBottom, 
     if (!element) return;
     let protectedBefore = readingProtected(), selectedBefore = hasMessageSelection(element), alive = true;
     let movingBefore = !!element.ownerDocument.querySelector("[data-reading-motion]");
+    let focusFrame: number | undefined;
     const check = () => {
       if (!alive) return;
       const moving = !!element.ownerDocument.querySelector("[data-reading-motion]");
@@ -83,13 +84,21 @@ export function useProgressMessages({ messages, protectedIds, root, nearBottom, 
         setReadingRevision(value => value + 1);
       }
     };
-    const afterFocus = () => queueMicrotask(check);
+    const afterFocus = () => {
+      // A browser may run microtasks between focusout and focusin while its
+      // activeElement is temporarily body. Publishing that gap would let the
+      // parent follow the bottom and move the next control before pointerup.
+      // Observe the settled focus once, without intercepting native activation.
+      if (focusFrame !== undefined) cancelAnimationFrame(focusFrame);
+      focusFrame = requestAnimationFrame(() => { focusFrame = undefined; check(); });
+    };
     element.ownerDocument.addEventListener("selectionchange", check);
     element.ownerDocument.defaultView?.addEventListener("pocket-reading-visibility-change", check);
     element.addEventListener("focusin", afterFocus);
     element.addEventListener("focusout", afterFocus);
     return () => {
       alive = false;
+      if (focusFrame !== undefined) cancelAnimationFrame(focusFrame);
       element.ownerDocument.removeEventListener("selectionchange", check);
       element.ownerDocument.defaultView?.removeEventListener("pocket-reading-visibility-change", check);
       element.removeEventListener("focusin", afterFocus);

@@ -73,6 +73,7 @@ textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 .search-box:focus-within { border-color:var(--accent); background:var(--surface); box-shadow:var(--focus-ring); }
 .search-box input { border:0; outline:none; background:none; font-size:14px; }
 .expanded-search { width:100%; min-width:0; height:44px; margin:12px 0 8px; }
+.expanded-search input { height:100%; }
 .search-scope { margin:0; color:var(--muted); font-size:12px; }
 .content { display:grid; grid-template-columns:minmax(290px,.82fr) minmax(0,1.6fr); }
 .list-panel { min-width:0; width:auto; max-width:none; background:var(--surface); }
@@ -91,7 +92,7 @@ textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 .pin-icon { width:13px; color:var(--codex-pin); }
 .pin-icon[data-pin-source='pocket'] { color:var(--pin-highlight); }
 .task-state-badge { padding:2px 6px; border-radius:var(--radius-small); color:var(--warning); background:var(--warning-soft); font-size:12px; font-weight:500; line-height:1.4; }
-.task-state-badge[data-state='unread'] { color:var(--accent); background:var(--accent-soft); }
+.task-state-badge[data-state='unread'] { padding:0; color:var(--accent); background:none; }
 .task-state-badge[data-state='archived'], .task-state-badge[data-state='unknown'] { color:var(--muted); background:var(--soft); }
 .task-state-badge[data-state='running'] { display:inline-flex; align-items:center; gap:5px; color:var(--positive); background:var(--positive-soft); }
 .task-state-badge[data-state='running']::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; }
@@ -203,6 +204,10 @@ textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 
 /* Native dialogs retain their close/focus/draft lifecycle. */
 dialog { color:var(--ink); background:var(--surface-raised); border:1px solid var(--line); border-radius:var(--radius-sheet); box-shadow:var(--shadow); }
+.pocket-dialog { max-width:calc(100vw - 24px); }
+.pocket-dialog[open] { display:flex; flex-direction:column; overflow:hidden; }
+.pocket-dialog > header { flex:none; }
+.pocket-dialog-body { min-width:0; min-height:0; overflow-y:auto; overscroll-behavior:contain; scroll-padding-block:var(--space-4); }
 dialog::backdrop { background:#0b142e55; backdrop-filter:blur(4px); }
 dialog > header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px 12px 24px; border:0; }
 dialog h2 { margin:0; color:var(--ink); font-size:20px; font-weight:650; line-height:1.4; }
@@ -226,6 +231,7 @@ dialog footer button { min-height:var(--control-height); }
 .new-conversation-settings-body { display:grid; gap:var(--space-5); padding:12px 0 0; }
 .new-conversation-location-fields { display:grid; gap:var(--space-4); }
 .new-conversation-field { display:grid; gap:var(--space-2); min-width:0; }
+.new-conversation-dialog select { height:44px; }
 .new-conversation-field > .field-label, .new-conversation-field > .field-help, .new-conversation-field > .inline-error { margin:0; }
 .new-conversation-field .new-directory-heading { margin-bottom:0; }
 .new-conversation-form > footer { margin:0; flex-wrap:wrap; }
@@ -271,7 +277,7 @@ dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(
 .question-prompts > strong { display:block; margin-bottom:8px; color:var(--muted); font-size:12px; font-weight:500; }
 .question-card[data-question-state='compact'], .question-card[data-question-state='ignored'] { padding:4px 0; border:0; background:none; }
 .question-presentation-actions { display:flex; align-items:center; flex-wrap:wrap; gap:4px 12px; }
-.question-presentation-actions button { min-height:44px; padding:0; color:var(--accent); font-size:13px; background:none; }
+.question-presentation-actions button { min-width:44px; min-height:44px; padding:0; color:var(--accent); font-size:13px; background:none; }
 .question-presentation-actions button:last-child, .question-presentation-actions small, .question-ignored-label { color:var(--muted); }
 .question-title { color:var(--ink); font-weight:600; line-height:1.7; }
 .question-fields { border:0; padding:0; margin:0; min-width:0; }
@@ -282,6 +288,7 @@ dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(
 .question-option:has(input:checked) { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
 .question-option input { accent-color:var(--accent); }
 .question-custom, .outbox-actions button { color:var(--accent); }
+.question-custom { min-height:44px; }
 .approval-kind { display:block; color:var(--warning); font-size:12px; margin-bottom:8px; }
 .inspector .approval-text-answer { width:100%; min-height:64px; max-height:160px; padding:12px; resize:none; font-size:16px; }
 .approval-card { color:var(--ink); background:var(--warning-soft); border:1px solid var(--line); border-radius:var(--radius-card); }
@@ -310,9 +317,11 @@ dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(
 .access-card h1 { margin:0 0 12px; color:var(--ink); font-size:28px; font-weight:650; line-height:1.45; letter-spacing:0; }
 .access-intro { margin-bottom:24px; color:var(--muted); font-size:14px; line-height:1.8; }
 .access-card form > label { color:var(--text-secondary); font-size:13px; }
-.passphrase-input { background:var(--surface-soft); border:1px solid var(--line-strong); border-radius:var(--radius-control); }
+.passphrase-input { gap:8px; padding-inline:12px 2px; background:var(--surface-soft); border:1px solid var(--line-strong); border-radius:var(--radius-control); }
 .passphrase-input:focus-within { border-color:var(--accent); box-shadow:var(--focus-ring); }
-.passphrase-input input { background:none; border:0; font-size:16px; }
+.passphrase-input > svg { flex:none; }
+.passphrase-input input { flex:1; height:100%; background:none; border:0; font-size:16px; }
+.passphrase-input button { flex:none; align-items:center; justify-content:center; width:44px; height:44px; padding:0; border-radius:var(--radius-control); }
 .passphrase-input input:focus { outline:none; box-shadow:none; }
 .access-submit { width:100%; margin-top:16px; border-radius:var(--radius-control); font-size:14px; }
 .access-session-note, .access-privacy, .access-status, .access-offline, .install-guide, .install-guide small { color:var(--muted); font-size:12px; line-height:1.8; }
@@ -375,10 +384,11 @@ dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(
   .conversation-composer { margin-bottom:max(12px,env(safe-area-inset-bottom)); padding:6px; border-radius:18px; }
   .inspector[data-keyboard-open] .conversation-composer { margin-bottom:6px; padding:4px; }
   .inspector[data-keyboard-open] .conversation-composer textarea { min-height:48px; }
-  .pocket-dialog { width:calc(100% - 24px); top:var(--inspector-viewport-top,0px); bottom:calc(100dvh - var(--inspector-viewport-height,100dvh) - var(--inspector-viewport-top,0px)); max-height:calc(var(--inspector-viewport-height,100dvh) - 24px); margin:auto 12px 12px; border-radius:var(--radius-sheet); }
+  .pocket-dialog { width:calc(100% - 24px); top:var(--inspector-viewport-top,0px); bottom:calc(100dvh - var(--inspector-viewport-height,100dvh) - var(--inspector-viewport-top,0px)); max-height:calc(var(--inspector-viewport-height,100dvh) - 12px - max(12px,env(safe-area-inset-top))); margin:auto 12px 12px; border-radius:var(--radius-sheet); }
   .pocket-dialog > header { padding:12px 16px 8px 20px; }
   dialog form, .settings-content { padding:12px 20px 20px; }
   .conversation-info { padding:8px 20px 20px; }
+  .pocket-dialog-body > :is(form,.settings-content,.conversation-info,.install-guide) { padding-bottom:max(20px,env(safe-area-inset-bottom)); }
   .modal-close-confirm { margin:8px 20px 16px; }
   .access-screen { padding-inline:20px; }
   .access-card { padding:28px 24px; }
