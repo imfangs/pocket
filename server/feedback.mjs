@@ -144,7 +144,7 @@ export function createPocketFeedback({ store, desktop, machineId, config: suppli
       });
       if (!response.ok) fail('反馈记录正在等待同步', response.status, 'feedback_publish_failed');
       const result = await response.json();
-      if (result.status !== 1) fail('反馈记录尚未确认', 503, 'feedback_publish_unconfirmed');
+      if (result?.status !== 1 && result?.status !== 'Ok') fail('反馈记录尚未确认', 503, 'feedback_publish_unconfirmed');
     }, deliver, inspectDelivery,
     relay: (payload, { signal }) => relayRequest(payload, payload, false, signal),
     inspectRelay: (record, { signal }) => relayRequest(record, { id: record.id, appId: record.appId, digest: record.digest }, true, signal),

@@ -84,6 +84,20 @@ test('webhook authentication does not accept browser origin, expired signatures,
   assert.equal(f.app.store.db.prepare('SELECT COUNT(*) AS n FROM dispatches').get().n, 0);
 });
 
+test('publisher accepts the current PostHog Ok acknowledgment and retains retries for unrecognized replies', async t => {
+  for (const [body, expectedCode] of [[{ status: 'Ok' }, undefined], [{ status: 'unexpected' }, 'feedback_publish_unconfirmed']]) {
+    let calls = 0;
+    const f = await fixture(t, { request: async () => { calls++; return Response.json(body); } });
+    await f.app.feedback.core.submit(input({ images: [] }));
+    for (let i = 0; i < 3 && !calls; i++) await f.app.feedback.core.tick();
+    assert.equal(calls, 1);
+    const result = f.app.feedback.core.receipt(id);
+    assert.equal(result.code, expectedCode);
+    if (!expectedCode) assert.equal(result.status, 'waiting_webhook');
+    assert.equal(f.calls.some(call => call.operation === 'send'), false);
+  }
+});
+
 test('a wrong machine or incomplete relay receipt cannot report a delivered feedback', async t => {
   for (const machine of ['unexpected', 'ged']) {
     let relayCalls = 0;
