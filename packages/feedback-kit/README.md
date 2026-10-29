@@ -21,7 +21,7 @@ Use the browser and server entry points separately. The browser bundle must not 
 ## Add a host
 
 1. Capture a fixed page context and its visible image before showing the feedback dialog. Abort that operation when its authentication, source, or page changes. A capture failure may fall back to a selected screenshot or text-only feedback.
-2. Load `FeedbackPanel` on demand inside the host's accessible dialog. Catch a failed dynamic import in a local loader so a weak-network failure does not unmount the conversation. Preserve the dialog's close action and show a local recovery control; a full-page refresh must first check unfinished input and submission blockers. `Suspense` alone is not an import-error boundary. The host owns modality, close handling, focus restoration, and scroll restoration. Exclude the entire dialog from recapture using `data-feedback-ignore`; password values and explicitly ignored page content must not enter the image.
+2. Render `FeedbackPanel` inside the host's accessible dialog. Pocket loads the capture and panel code with its authenticated App so an already opened page can offer feedback offline. Another host may choose a local lazy loader, but must handle load failure without unmounting its page; `Suspense` alone is not an error boundary, and WebKit can cache a failed module across normal reloads. The host owns modality, close handling, focus and scroll restoration. Exclude the entire dialog from recapture using `data-feedback-ignore`.
 3. Supply a shared draft store and a scope containing app, tenant/machine, authentication scope, and source page. On logout or an expired authenticated session, call `clearPrefix()` for that tenant, or `clearAll()` for complete logout. Keep another authenticated tenant's draft intact.
 4. Implement authenticated `submit`, `status`, and optionally `retry` endpoints. Persist the canonical feedback before returning a receipt. For a missing feedback ID, return `null` from the client status adapter only after authenticated, authoritative not-found; a failed request is an error, not absence.
 5. Configure a notification adapter and processing target on the server. Verify the provider signature before confirming a registered ID/digest. The delivery adapter must use the exact stable request ID with a durable deduplicating queue. Connect the service timer to the host's existing lifecycle and call `stop()` before closing its database.
@@ -33,7 +33,7 @@ import { createFeedbackDraftStore } from "./packages/feedback-kit/browser/drafts
 
 const feedbackDrafts = createFeedbackDraftStore();
 
-// The host's local loader has completed successfully. It owns loading/error UI.
+// The host has loaded FeedbackPanel and captured the page before opening its dialog.
 const FeedbackPanel: ComponentType<FeedbackPanelProps> = loadedPanel;
 // Render inside the host dialog after captureContext and initialCapture settle.
 <FeedbackPanel

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircle, MessageSquareWarning } from "lucide-react";
 import { Modal } from "./Dialogs";
 import { Button } from "./ui/Button";
@@ -7,43 +7,12 @@ import { currentMachineId } from "./machineScope";
 import { feedbackDrafts } from "./feedbackClient";
 import { feedbackReplayContext } from "./usageAnalytics";
 import { readAutoDirectPreference } from "./sendingPreference";
-import { createAppUpdate } from "./appUpdate";
-import { getReloadBlocker } from "./updateSafety";
 import { captureFeedback, type FeedbackCapture } from "../packages/feedback-kit/browser/capture.ts";
 import { bindShakeFeedback, requestShakePermission } from "../packages/feedback-kit/browser/shake.ts";
 import type { FeedbackContext, FeedbackInput, FeedbackReceipt } from "../packages/feedback-kit/contracts.ts";
-import type { FeedbackPanelProps } from "../packages/feedback-kit/react/FeedbackPanel.tsx";
+import FeedbackPanel from "../packages/feedback-kit/react/FeedbackPanel.tsx";
 import "./pocket-feedback.css";
 
-function FeedbackPanelLoader(props: FeedbackPanelProps) {
-  const [Panel, setPanel] = useState<ComponentType<FeedbackPanelProps> | null>(null);
-  const [failed, setFailed] = useState(false), [busy, setBusy] = useState(false), [hint, setHint] = useState("");
-  const [recovery] = useState(() => createAppUpdate({
-    currentId: typeof __POCKET_BUILD_ID__ === "string" ? __POCKET_BUILD_ID__ : "development",
-    request: (input, init) => fetch(input, init), blocker: getReloadBlocker, onAvailable() {},
-    entryUrl: () => location.pathname + location.search,
-    reload: () => location.reload(),
-  }));
-  useEffect(() => {
-    let active = true;
-    recovery.resume();
-    // Loading an optional tool must not unmount the conversation on weak networks.
-    void import("../packages/feedback-kit/react/FeedbackPanel.tsx")
-      .then(module => { if (active) setPanel(() => module.default); })
-      .catch(() => { if (active) setFailed(true); });
-    return () => { active = false; recovery.stop(); };
-  }, [recovery]);
-  if (Panel) return <Panel {...props} />;
-  return failed ? <section className="feedback-load-failure" role="alert">
-    <p>反馈组件未能载入，请联网后重新加载 Pocket。</p>
-    {hint && <p role="status">{hint}</p>}
-    <Button type="button" variant="soft" disabled={busy} onClick={async () => {
-      setBusy(true); setHint("");
-      const result = await recovery.apply({ reloadCurrent: true });
-      if (result.status !== "updated") { setBusy(false); setHint(result.reason || "暂时无法重新加载，请稍后再试。"); }
-    }}>{busy ? "检查中…" : "重新加载 Pocket"}</Button>
-  </section> : <p role="status">正在打开反馈…</p>;
-}
 const shakeKey = "pocket.feedback-shake-v1";
 const shakePreferred = () => { try { return localStorage.getItem(shakeKey) === "on"; } catch { return false; } };
 type Session = { scope: string; baseScope: string; context: FeedbackContext; image?: FeedbackCapture };
@@ -132,7 +101,7 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
         <button type="button" onClick={() => { operation.current?.abort(); operation.current = null; setPreparing(false); }}>取消</button>
       </div>}
       {session && <Modal title="使用反馈" className="feedback-dialog" captureIgnore onClose={() => setSession(null)}>
-          <FeedbackPanelLoader key={session.scope} appId="pocket" scope={session.scope} context={session.context} initialCapture={session.image}
+          <FeedbackPanel key={session.scope} appId="pocket" scope={session.scope} context={session.context} initialCapture={session.image}
             capture={signal => captureFeedback(document.body, { signal })} draftStore={feedbackDrafts}
             submit={submit} status={status} retry={retry} onClose={() => setSession(null)} autoDirect={readAutoDirectPreference()} />
       </Modal>}

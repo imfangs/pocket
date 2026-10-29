@@ -21,6 +21,28 @@ function store(t, options = {}) {
   return { value, name };
 }
 
+for (const clearing of ['clearScope', 'clearPrefix', 'clearAll']) {
+  test(`another store's ${clearing} invalidates a pending image open before it can recreate a logged-out draft`, async t => {
+    const name = `feedback-cross-store-${id()}`;
+    const first = createFeedbackDraftStore({ name }), second = createFeedbackDraftStore({ name });
+    t.after(async () => { await first.dispose(); await second.dispose(); await deleteDB(name); });
+    const delayed = deferred(), started = deferred();
+    const blob = new Blob(['old private capture'], { type: 'image/png' });
+    Object.defineProperty(blob, 'arrayBuffer', { value: () => { started.resolve(); return delayed.promise; } });
+    const scope = 'pocket:ged:login:thread';
+    const pending = first.open(scope, initial({ image: { id: id(), blob, mime: 'image/png', width: 1, height: 1 } }));
+    const rejected = assert.rejects(pending, /登录状态已变化/);
+    await started.promise;
+    if (clearing === 'clearAll') await second.clearAll();
+    else await second[clearing](clearing === 'clearPrefix' ? 'pocket:ged:' : scope);
+    const newer = await second.open(scope, initial({ note: 'new authenticated draft' }));
+    delayed.resolve(new TextEncoder().encode('old private capture').buffer); await rejected;
+    const restored = await second.open(scope, initial());
+    assert.equal(restored.draft.id, newer.draft.id); assert.equal(restored.draft.note, 'new authenticated draft');
+    const db = await openDB(name, 1); assert.equal(await db.count('images'), 0); assert.equal(await db.count('entries'), 1); db.close();
+  });
+}
+
 test('draft storage preserves the image once, isolates scopes and ignores older revisions', async t => {
   const { value, name } = store(t);
   const image = { id: id(), blob: new Blob(['synthetic'], { type: 'image/png' }), mime: 'image/png', width: 20, height: 30 };

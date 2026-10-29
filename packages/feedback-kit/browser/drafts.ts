@@ -66,7 +66,7 @@ export function createFeedbackDraftStore(options: { name?: string; maxScopes?: n
       const ticket = { scope, valid: true }; pendingOpens.add(ticket);
       try {
         const database = await db();
-        let image: StoredImage | undefined, prepared = !initial.image;
+        let image: StoredImage | undefined, prepared = !initial.image, openingEpoch: string | undefined;
         // Restore first. A new capture can be unreadable while WebKit is
         // offline, and is irrelevant when this scope already has a draft.
         for (;;) {
@@ -75,6 +75,14 @@ export function createFeedbackDraftStore(options: { name?: string; maxScopes?: n
           try {
             const entries = tx.objectStore("entries"), scopes = tx.objectStore("scopes"), images = tx.objectStore("images");
             let meta = await scopes.get(scope) as Meta | undefined;
+            // Another tab can clear this scope while Blob bytes are being
+            // prepared. Only the epoch registered by this opener may continue.
+            if (openingEpoch !== undefined && meta?.epoch !== openingEpoch) throw new Error("反馈登录状态已变化");
+            if (!meta) {
+              meta = { scope, epoch: crypto.randomUUID(), bytes: 0 };
+              await scopes.put(meta);
+            }
+            openingEpoch ??= meta.epoch;
             const existing = await entries.get(scope) as Stored | undefined;
             if (existing && meta?.id === existing.id) {
               const savedImage = existing.imageKey ? await images.get(existing.imageKey) as StoredImage | undefined : undefined;

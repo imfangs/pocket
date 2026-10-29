@@ -1,6 +1,6 @@
 # React feedback panel
 
-`FeedbackPanel` renders content inside the host's dialog. It does not own authentication, page capture entry, platform configuration, or the processing target. Load it lazily so annotation code does not affect ordinary page startup.
+`FeedbackPanel` renders content inside the host's dialog. It does not own authentication, page capture entry, platform configuration, or the processing target. Pocket loads it with the authenticated App to keep feedback available after the page is opened, including offline. Other hosts choose their own loading policy and must handle module-load failures locally.
 
 Required props: `appId`, `scope`, immutable capture `context`, `submit(input, signal)`, `status(id, signal)`, and `onClose`. Optional: `initialCapture`, `capture(signal)`, `autoDirect`, `draftStore`, `retry(id, signal)`. A scope must distinguish application, machine/tenant, authenticated state and source page/chat. The component remounts when appId/scope changes; a restored draft retains its original context and image.
 

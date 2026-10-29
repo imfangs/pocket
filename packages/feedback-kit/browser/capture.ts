@@ -224,7 +224,7 @@ export async function captureFeedback(root: HTMLElement, options: {
   const controller = new AbortController();
   const abort = () => controller.abort(); options.signal?.addEventListener("abort", abort, { once: true });
   if (options.signal?.aborted) controller.abort();
-  let timedOut = false, context: Awaited<ReturnType<typeof import("modern-screenshot")["createContext"]>> | undefined;
+  let timedOut = false, context: Awaited<ReturnType<typeof createContext>> | undefined;
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 8000);
   let resourceCount = 0, resourceBytes = 0, failedResource = false;
   const resources = new Map<string, Promise<string>>();
@@ -233,7 +233,6 @@ export async function captureFeedback(root: HTMLElement, options: {
   const cloneFrames: CloneFrame[] = [{ original: root, childIndex: 0, images: [] }];
   try {
     checkSignal(controller.signal);
-    const { createContext, domToCanvas, destroyContext } = await import("modern-screenshot");
     checkSignal(controller.signal);
     const originalRect = root.getBoundingClientRect();
     const background = browser.getComputedStyle(root).backgroundColor;
@@ -390,6 +389,7 @@ export async function captureFeedback(root: HTMLElement, options: {
   } finally {
     clearTimeout(timer); options.signal?.removeEventListener("abort", abort);
     controller.abort();
-    if (context) { const { destroyContext } = await import("modern-screenshot"); destroyContext(context); }
+    if (context) destroyContext(context);
   }
 }
+import { createContext, domToCanvas, destroyContext } from "modern-screenshot";

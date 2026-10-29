@@ -26,14 +26,6 @@ test('explicit update checks all assets and the manifest again before reloading 
  assert.equal(state.requests.filter(r=>r.method==='HEAD').length,2);assert.equal(state.requests.filter(r=>r.path==='/pocket-version.json').length,2);
  assert.ok(state.requests.every(r=>['GET','HEAD'].includes(r.method)));
 });
-test('explicit module recovery can reload the current build but retains draft and asset readiness guards',async()=>{
- const {state,update}=fixture();state.version={...version,id:oldId};state.entryId=oldId;
- assert.equal((await update.apply()).status,'current');assert.equal(state.reloads,0);
- state.blocker='unsent draft';assert.equal((await update.apply({reloadCurrent:true})).status,'blocked');assert.equal(state.reloads,0);
- state.blocker=null;state.headType='text/html';assert.equal((await update.apply({reloadCurrent:true})).status,'unavailable');assert.equal(state.reloads,0);
- state.headType=null;state.beforeHead=()=>{state.blocker='new draft';};assert.equal((await update.apply({reloadCurrent:true})).status,'blocked');assert.equal(state.reloads,0);
- state.beforeHead=null;state.blocker=null;assert.equal((await update.apply({reloadCurrent:true})).status,'updated');assert.equal(state.reloads,1);
-});
 test('unfinished input blocks before any request and is checked again after network waiting',async()=>{
  const {state,update}=fixture();state.blocker='unsent draft';assert.equal((await update.apply()).status,'blocked');assert.equal(state.requests.length,0);
  state.blocker=null;state.beforeHead=()=>{state.blocker='new draft during checks';};assert.equal((await update.apply()).status,'blocked');assert.equal(state.reloads,0);
