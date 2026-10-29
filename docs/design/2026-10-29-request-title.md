@@ -31,3 +31,7 @@
 独立像素复核固定在1500ms静止段，记录`ink-before.json`与`ink-final.json`。详情标题其余差异仅为1–2/255抗锯齿微差；合成长标题里的📎在活动态采用标题色，未丢失字形。此次保留统一字形扫光，不另加emoji分词/副本层；若真实使用反馈重着色造成辨识问题再调整。自动浏览器与像素检查不等于实体iPhone目视/体感验收。
 
 最终构建`7fba7018171bde264dcb4d1d866d4472f22fdd50c40d89b7adf2988a444f702e`与源码匹配，390px Chromium/WebKit和1280px Chromium的33项完整入口检查通过：实际下拉/按钮刷新、失败保留错误、重试、读取与合成发送重叠、分别结束和标题信息入口；没有导入开发源码或真实发送。WebKit对fixture人工304的两条history/transcript请求没有产生response/finished，回读确认route.fulfill失败；保留`dist-smoke-webkit-304.json`，该UI验收改用200响应，未修改产品条件协议。304/204逻辑仍由观察层与原缓存回归独立覆盖。
+
+## 发布
+
+源码`a467e3d1d06bafd0d0e26088bd4fc13e767e74cf`已发布到[x.fangs.cc](https://x.fangs.cc)，Pages部署`e4cec5ff-2d02-4b01-a493-4886746c3f19`。2026-10-29回读ready=true，32/32公开文件哈希及项目功能检查通过；上传一次。网页build与上述最终验收一致。仅更新共享网页，两机API、内置网页、Codex和连接器均未重启或更新；无真实发送、队列或配置变更。临时测试浏览器/服务已关闭，必要证据留在私有QA目录。
