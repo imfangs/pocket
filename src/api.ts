@@ -2,9 +2,11 @@ import { holdReload, isReloadBlockingRequest } from "./updateSafety.ts";
 import { checkMachineResponse, currentMachineId, machineApiPath, requireMachine, type MachineId } from "./machineScope.ts";
 import { hydrateReadResponse, isReadVersion, readResponseKind, READ_VERSION_HEADER } from "../shared/read-response.mjs";
 import { createReadResponseCache } from "./readResponseCache.ts";
+import { requestActivity, type RequestActivity } from "./requestActivity.ts";
 
 export function createApiClient(scope: () => MachineId | null = currentMachineId, request: typeof fetch = (...args) => fetch(...args),
-  expire: (machine: MachineId) => void = machine => window.dispatchEvent(new CustomEvent("navigator-auth-expired", { detail: { machine } }))) {
+  expire: (machine: MachineId) => void = machine => window.dispatchEvent(new CustomEvent("navigator-auth-expired", { detail: { machine } })),
+  activity: Pick<RequestActivity, "begin" | "clearMachine"> = requestActivity) {
   const tokens = new Map<MachineId, string>();
   const authenticationEpochs = new Map<MachineId, number>();
   const reads = createReadResponseCache();
@@ -15,6 +17,7 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
     authenticationEpochs.set(machine, authenticationEpoch(machine) + 1);
     tokens.delete(machine);
     clearReadResponses(machine);
+    try { activity.clearMachine(machine); } catch { /* An observer must not change authentication. */ }
   };
   return {
     clearReadResponses,
@@ -36,7 +39,10 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
       };
       let cached = kind ? reads.get(key) : undefined;
       const release = isReloadBlockingRequest(path, method) ? holdReload() : () => {};
+      let finishActivity = () => {};
       try {
+        try { finishActivity = activity.begin({ machine, path, method }); }
+        catch { /* Activity is optional observation, never a request precondition. */ }
         const send = () => request(url, { method, signal: options.signal, cache: "no-store",
             headers: { "Content-Type": options.contentType || "application/json", ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
               ...(cached ? { [method === "GET" ? "If-None-Match" : READ_VERSION_HEADER]: cached.version } : {}) },
@@ -77,7 +83,10 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
         const version = kind ? response.headers?.get("ETag") : undefined;
         if (kind && epoch === readEpoch && isReadVersion(version)) reads.put(key, version!, data);
         return data;
-      } finally { release(); }
+      } finally {
+        release();
+        try { finishActivity(); } catch { /* Preserve the actual response/error if an observer fails. */ }
+      }
     },
   };
 }

@@ -28,6 +28,7 @@ import { startRecentThreadCatalogSync } from "./recentThreadCatalog";
 import { useReloadGuard } from "./updateSafety";
 import { hasUpdateBlockingDraft, protectedDraftThreadIds } from "./updateDrafts";
 import PocketUpdate from "./PocketUpdate";
+import NetworkTitle from "./NetworkTitle";
 import { usePocketFeedback } from "./PocketFeedback";
 import { filterThreads, preserveOpenThread } from "./model";
 import { UNASSIGNED_PROJECT } from "./projectNavigation";
@@ -618,7 +619,7 @@ export default function App({
             </IconButton>
             <div className="heading">
               <h1 title={title}>
-                <span className="workspace-title">{title}</span>
+                <NetworkTitle className="workspace-title" machine={currentMachineId()}>{title}</NetworkTitle>
                 <span className="workspace-count">{!hasCatalog || activity === "unread" && !unreadKnown || activity === "running" && !runtimeKnown ? "—" : listThreads.length + pendingCreationRows.length}</span>
               </h1>
             </div>

@@ -1,0 +1,52 @@
+.network-title {
+  --network-title-glint:color-mix(in srgb,currentColor 75%,var(--surface-raised,#fff));
+}
+html[data-theme="dark"] .network-title, .radix-themes.dark .network-title {
+  --network-title-glint:color-mix(in srgb,currentColor 25%,#fff);
+}
+.network-title[data-network-active] {
+  text-decoration-line:underline;
+  text-decoration-style:dotted;
+  text-decoration-thickness:1px;
+  text-underline-offset:.18em;
+}
+@supports ((background-clip:text) or (-webkit-background-clip:text)) and (-webkit-text-fill-color:transparent) and (color:color-mix(in srgb,#000 50%,#fff)) {
+  .network-title[data-network-active] {
+    text-decoration:none;
+    background-color:currentColor;
+    background-image:linear-gradient(105deg,currentColor 0%,currentColor 43%,var(--network-title-glint) 48%,currentColor 53%,currentColor 100%);
+    background-repeat:no-repeat;
+    background-size:200% 100%;
+    background-clip:text;
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    animation:network-title-sweep calc(var(--motion-content,180ms) * 10) linear infinite;
+  }
+}
+@keyframes network-title-sweep {
+  0% { background-position:90% 0; }
+  70%,100% { background-position:-20% 0; }
+}
+[inert] .network-title[data-network-active] { animation-play-state:paused; }
+@media (prefers-reduced-motion:reduce) {
+  .network-title[data-network-active] {
+    animation:none;
+    background:none;
+    -webkit-text-fill-color:currentColor;
+    text-decoration-line:underline;
+    text-decoration-style:dotted;
+    text-decoration-thickness:1px;
+    text-underline-offset:.18em;
+  }
+}
+@media (forced-colors:active) {
+  .network-title[data-network-active] {
+    animation:none;
+    background:none;
+    color:CanvasText;
+    -webkit-text-fill-color:CanvasText;
+    text-decoration:underline dotted CanvasText;
+    text-decoration-thickness:1px;
+    text-underline-offset:.18em;
+  }
+}

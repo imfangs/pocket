@@ -18,11 +18,12 @@ import { isMacBrowser } from "./browserPlatform";
 import "./navigation-motion.css";
 import ImagePreviewProvider from "./ImagePreviewProvider";
 import { focusInspectorEntry, type InspectorEntryOrigin } from "./inspectorFocus";
-import { machineTaskUrl } from "./machineScope";
+import { currentMachineId, machineTaskUrl } from "./machineScope";
 import ThreadModelSettings from "./ThreadModelSettings";
 import ThreadAutomations from "./ThreadAutomations";
 import UsageFeedback from "./UsageFeedback";
 import type { ReadingCache } from "./readingCache";
+import NetworkTitle from "./NetworkTitle";
 
 interface Props {
   feedback?: { ready: boolean; enabled: boolean; open: (threadId?: string) => Promise<void> };
@@ -82,7 +83,7 @@ export default function Inspector(p: Props) {
         <h2 className="inspector-title" title={p.thread.title}>
           <button type="button" className="inspector-title-trigger" aria-label={`会话信息：${p.thread.title}`}
             aria-haspopup="dialog" aria-expanded={infoOpen} onClick={() => { setError(""); setCopied(false); setInfoOpen(true); }}>
-            <span>{p.thread.separator ? "分隔符会话" : p.thread.title}</span>
+            <NetworkTitle machine={currentMachineId()} threadId={p.thread.id}>{p.thread.separator ? "分隔符会话" : p.thread.title}</NetworkTitle>
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </h2>
