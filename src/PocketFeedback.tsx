@@ -54,7 +54,7 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
       await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       if (!valid()) return;
       let image: FeedbackCapture | undefined;
-      try { image = await captureFeedback(document.body, { signal: controller.signal }); }
+      try { if (navigator.onLine !== false) image = await captureFeedback(document.body, { signal: controller.signal }); }
       catch { /* Text and manual screenshot feedback remain available. */ }
       if (valid()) setSession({ baseScope: state.baseScope, scope: `${state.baseScope}:${sourceThreadId || "list"}`, context, image });
     } finally { if (valid()) { setPreparing(false); operation.current = null; } }
