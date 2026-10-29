@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-29。Impeccable全路径精修已发布：共用弹窗、输入命中、键盘归属、阅读焦点及控件一致性已修复；截图圈注反馈与两机投递保持。历史分页、压缩来源、通知呈现、派生Query、键盘手势和缓存默认128保持；剪贴板继续先观察。
+维护日期：2026-10-29。本地视频内联播放与Range流已上线，并在正式会话验证播放/seek；Impeccable精修、截图反馈及两机投递保持。历史分页、压缩来源、通知呈现、派生Query、键盘手势和缓存默认128保持；剪贴板继续先观察。
 
 ## 下一次先看
+
+- **最近已上线：会话视频播放。** [视频契约](docs/design/2026-10-29-message-video.md)：助手回复的本地MP4/M4V/MOV/WebM（含图片语法引用）使用原生内联播放器、进度控制和下载；按需Range传输，512MiB/16路/64KiB背压，普通文件20MiB边界保持。1,831全测、60项原生HTTP、24项固定包、独立CR与32/32公网文件通过。给定真实H.264样本已在正常Chrome/WebKit入口播放并seek；同一节点保持，公网这次完整传输约22–26秒，初始探针过短超时已校准，未为此改播放器。两机API/网页均已更新，Codex与连接器未重启，无发送/改名/归档。实体iPhone全屏未直接验收；证据`.local/qa/message-video-2026-10-29/`。
 
 - **最近已上线：Impeccable全路径精修。** [本轮契约](docs/design/2026-10-29-impeccable-sweep.md)：共用固定header/滚动body和顶层Escape保护；搜索/口令完整点击范围、44px目录及显隐控件；问题/队列编辑不再误撑开主composer，图片转文档首点不再被滚动抢走；设置开关统一、未读去重复底色。1,792项全测、此前全路径检查、最终包24+72项受影响复验、独立视觉/CR及32/32公网文件通过。07b5候选发现BODY-focus busy缺口后未发布，修复后的8da9才上线。本次仅网页，无Mac服务重启或真实会话操作；物理iPhone仍待使用。证据`.local/qa/impeccable-sweep-2026-10-29/`。
 
@@ -78,13 +80,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `09059df669593bdbaaaa41c1aff1c8baa5e8f8f9`；本轮仅前端与接续文档，API仍为08a7 |
-| 两机API源码 | `08a7ba03855fe3e22a103b614de245e824941572`；格得PID10259、豌豆PID68389，后续运维需重查 |
-| 前端build | 公网与格得内置网页为`8da9c032e3952a1650e7437831d894b3a2f4e76b43f92e5e7878aa93583cc096`；豌豆随API保留的内置静态包仍为5f715f14，手机正常入口统一加载公网新版 |
-| Pages部署 | `12ca6436-a05b-4fec-b2dc-1b4ef391abcd`；10-29 ready=true，32/32公开文件及项目功能通过，实际上传一次 |
-| 最近验证 | 本轮1,792项全测、最终包24项主路径冒烟＋72项Modal/设置/查看器复验、独立视觉与CR通过。先前广覆盖结果及07b5失败记录保留；本轮无真实发送，物理iPhone未直接复验 |
-| 证据 | 最新`.local/qa/impeccable-sweep-2026-10-29/`：`final-cr.md`、`visual-final-review.md`、`tests-final.log`、`technical/final-acceptance.md`、`navigation/final-8da/summary.json`、`pages-deploy.json`；两机API/投递事实仍在`.local/qa/visual-feedback-2026-10-29/` |
-| 数据与运行 | 本轮只更新共享网页与格得本地静态产物，未重启API/Codex/连接器。反馈持久化、两机签名转发和原队列行为保持；前轮两条合成验收已记为test_record |
+| 前端/网关源码 | `a5b3a43e832df5beee259a379fa3fef1663fb183`；视频解析/原生播放器及专用流式转发 |
+| 两机API源码 | `a5b3a43e832df5beee259a379fa3fef1663fb183`；格得PID51599、豌豆PID45933，后续运维需重查 |
+| 前端build | 公网及两机内置网页均`659e105801ce05ddc10701080030e0221c89e70b59e64d7d712088adce0a28c4` |
+| Pages部署 | `415c9dde-6802-4980-a573-c65975b6e6c2`；10-29 ready=true，32/32公开文件与项目功能通过，上传一次 |
+| 最近验证 | 本轮1,831全测、60项原生HTTP、24项固定包及三路独立CR，豌豆64项专项通过。正式Chrome/WebKit播放/seek、同节点、原文件字节与权限回读通过；实体iPhone未直接复验 |
+| 证据 | 最新`.local/qa/message-video-2026-10-29/`：`tests-final.log`、`fixed-pocket-summary.json`、`live-node-probe-focused.json`、`live-chrome-settled.json`、`api-local-readback.json`、`pages-deploy.json`及`release/README.md`；初始超时证据保留 |
+| 数据与运行 | 两机API与共享网页已更新；Codex/连接器未重启，凭据、scope、反馈配置、队列/回执及策略核对保持。只读验证真实视频，无发送/改名/归档；文件未上传到公共资产目录 |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
@@ -121,7 +123,7 @@
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；用项目的 `config/local-service.json`、`config/pages-site.json` 和FBT既有服务/发布工具。前端样式修改只发布网页。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 豌豆08a7 API引用本轮新装的`6b15fabc04a012729c456fbea8e1c16a8f3f281e/node_modules`。根锁文件保留旧镜像URL，远端用私有安装锁映射公开npm源并保留完整integrity；原锁字节不改。6b15依赖目录、5b12 API回退及它引用的0b5依赖都须保留；连接器10-28已切到独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`，仅原 `19d91ed4776d79fce17a79ed88ed3b79622197e7` 的10分钟常量变更，旧release与私有配置备份保留回退；该次连接器调整未改API，API当前版本见上表。清理前核对依赖和launchd真实指向，不按旧日期删除。
+- 豌豆a5b3 API继续引用已验证的`6b15fabc04a012729c456fbea8e1c16a8f3f281e/node_modules`。根锁文件保留旧镜像URL，远端用私有安装锁映射公开npm源并保留完整integrity；原锁字节不改。6b15依赖目录、08a7 API回退及仍被旧回退引用的0b5依赖须按实际引用保留；连接器10-28已切到独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`，仅原 `19d91ed4776d79fce17a79ed88ed3b79622197e7` 的10分钟常量变更，旧release与私有配置备份保留回退；该次连接器调整未改API，API当前版本见上表。清理前核对依赖和launchd真实指向，不按旧日期删除。
 - Pages预检401先用配置中的Wrangler `whoami`续期，核对是否上传；已上传但验证未过使用原部署 `resume --resume-verification`。本轮发布和豌豆切换均完成，不重复提交。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。
