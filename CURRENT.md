@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-29。反馈弹窗的留白、安全区与滚动已精修并发布；截图圈注反馈及两机投递保持。历史分页、压缩来源、通知呈现、派生Query、键盘手势和缓存默认128保持；剪贴板继续先观察。
+维护日期：2026-10-29。Impeccable全路径精修已发布：共用弹窗、输入命中、键盘归属、阅读焦点及控件一致性已修复；截图圈注反馈与两机投递保持。历史分页、压缩来源、通知呈现、派生Query、键盘手势和缓存默认128保持；剪贴板继续先观察。
 
 ## 下一次先看
+
+- **最近已上线：Impeccable全路径精修。** [本轮契约](docs/design/2026-10-29-impeccable-sweep.md)：共用固定header/滚动body和顶层Escape保护；搜索/口令完整点击范围、44px目录及显隐控件；问题/队列编辑不再误撑开主composer，图片转文档首点不再被滚动抢走；设置开关统一、未读去重复底色。1,792项全测、此前全路径检查、最终包24+72项受影响复验、独立视觉/CR及32/32公网文件通过。07b5候选发现BODY-focus busy缺口后未发布，修复后的8da9才上线。本次仅网页，无Mac服务重启或真实会话操作；物理iPhone仍待使用。证据`.local/qa/impeccable-sweep-2026-10-29/`。
 
 - **最近已上线：反馈弹窗留白。** [同日精修](docs/design/2026-10-29-feedback-infrastructure.md#同日反馈弹窗的留白与滚动修正)：修复section漏接内容padding，手机/窄屏/桌面分别20/16/24px，与标题对齐；补底部安全区，固定关闭入口，正文与截图分别滚动，沿用键盘visualViewport。1,786项全测、150项尺寸/状态/键盘检查、独立CSS与视觉复核通过；公网32/32文件与功能检查通过。只更新共享网页，无API/连接器/Codex重启或真实发送。实体iPhone仍待使用；证据`.local/qa/feedback-spacing-2026-10-29/`。
 
@@ -76,12 +78,12 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `e94cf417f9dd9b63a858e26ae6bd3dfa672267d8`；本轮仅反馈样式与接入文档，API仍为08a7 |
+| 前端/网关源码 | `09059df669593bdbaaaa41c1aff1c8baa5e8f8f9`；本轮仅前端与接续文档，API仍为08a7 |
 | 两机API源码 | `08a7ba03855fe3e22a103b614de245e824941572`；格得PID10259、豌豆PID68389，后续运维需重查 |
-| 前端build | 公网与格得内置网页为`7f6e307b80a35626789a561312ec00fd6a8ae5e36d42ee3d474952fb1ac2d372`；豌豆随API保留的内置静态包仍为5f715f14，手机正常入口统一加载公网新版 |
-| Pages部署 | `506e6e01-93f8-468c-af82-b7f7e97b89c9`；10-29 ready=true，32/32公开文件及项目功能通过。上传前401经Wrangler刷新恢复，实际上传一次 |
-| 最近验证 | 本轮1,786项全测、150项布局/状态/键盘检查、独立视觉/CSS复核及机械检查通过；前轮两机真实反馈各一次的证据保留。本轮无真实发送，物理iPhone未直接复验 |
-| 证据 | 最新`.local/qa/feedback-spacing-2026-10-29/`：`after-report.md`、`visual-review.md`、`tests.log`、`pages-deploy.json`；两机API/投递事实仍在`.local/qa/visual-feedback-2026-10-29/` |
+| 前端build | 公网与格得内置网页为`8da9c032e3952a1650e7437831d894b3a2f4e76b43f92e5e7878aa93583cc096`；豌豆随API保留的内置静态包仍为5f715f14，手机正常入口统一加载公网新版 |
+| Pages部署 | `12ca6436-a05b-4fec-b2dc-1b4ef391abcd`；10-29 ready=true，32/32公开文件及项目功能通过，实际上传一次 |
+| 最近验证 | 本轮1,792项全测、最终包24项主路径冒烟＋72项Modal/设置/查看器复验、独立视觉与CR通过。先前广覆盖结果及07b5失败记录保留；本轮无真实发送，物理iPhone未直接复验 |
+| 证据 | 最新`.local/qa/impeccable-sweep-2026-10-29/`：`final-cr.md`、`visual-final-review.md`、`tests-final.log`、`technical/final-acceptance.md`、`navigation/final-8da/summary.json`、`pages-deploy.json`；两机API/投递事实仍在`.local/qa/visual-feedback-2026-10-29/` |
 | 数据与运行 | 本轮只更新共享网页与格得本地静态产物，未重启API/Codex/连接器。反馈持久化、两机签名转发和原队列行为保持；前轮两条合成验收已记为test_record |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
