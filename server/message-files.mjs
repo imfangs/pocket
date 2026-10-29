@@ -4,6 +4,7 @@ import { open, realpath, stat } from 'node:fs/promises';
 import { basename, isAbsolute, resolve, sep } from 'node:path';
 import { referencedMessageFiles } from '../shared/codex-directives.mjs';
 import { AppError } from './store.mjs';
+import { MAX_MESSAGE_VIDEO_BYTES, openMessageVideoStream } from './message-video-stream.mjs';
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_CHARS = 128 * 1024;
@@ -22,6 +23,7 @@ export class MessageFiles {
     this.secret = randomBytes(32);
     this.entries = new Map();
     this.parsed = new Map();
+    this.activeVideoStreams = 0;
   }
   attach(thread, history) {
     const root = typeof thread?.cwd === 'string' && isAbsolute(thread.cwd) ? resolve(thread.cwd) : null;
@@ -57,11 +59,45 @@ export class MessageFiles {
       return { ...message, files };
     }) };
   }
-  async read(thread, key) {
+  reference(thread, key) {
     const entry = this.entries.get(key), at = this.now();
     if (!entry || entry.threadId !== thread?.id || typeof thread?.cwd !== 'string' || !isAbsolute(thread.cwd) || resolve(thread.cwd) !== entry.root
         || at - entry.at >= REFERENCE_LIFETIME_MS || at < entry.at)
       throw new AppError('文件引用已过期，请刷新会话', 404);
+    return entry;
+  }
+  async openVideo(thread, key, options = {}) {
+    const entry = this.reference(thread, key);
+    let file, transferred = false;
+    try {
+      const root = await realpath(entry.root), path = await realpath(entry.path);
+      if (!inside(root, path)) throw new AppError('文件不在会话目录内', 403);
+      file = await this.openFile(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      const before = await file.stat({ bigint: true });
+      if (!before.isFile()) throw new AppError('暂不支持播放此文件', 415);
+      if (before.size > BigInt(MAX_MESSAGE_VIDEO_BYTES) || before.size < 0n)
+        throw new AppError('视频超过 512 MiB，暂不支持播放', 413);
+      const verify = async () => {
+        try {
+          if (!sameFile(before, await file.stat({ bigint: true })) || await realpath(entry.root) !== root ||
+              await realpath(entry.path) !== path || !sameFile(before, await stat(path, { bigint: true }))) throw changed();
+        } catch { throw changed(); }
+      };
+      await verify();
+      // The stream owns the FD even when its construction or sniffing fails.
+      transferred = true;
+      return await openMessageVideoStream({ ...options, file, before, name: basename(entry.path), verify, reserve: () => {
+        if (this.activeVideoStreams >= 16) throw new AppError('同时播放的视频过多，请稍后重试', 503);
+        this.activeVideoStreams++;
+        return () => { this.activeVideoStreams--; };
+      } });
+    } catch (error) {
+      if (error instanceof AppError || error?.name === 'AbortError') throw error;
+      throw new AppError('视频暂时无法读取', 404);
+    } finally { if (!transferred) await file?.close().catch(() => {}); }
+  }
+  async read(thread, key) {
+    const entry = this.reference(thread, key);
     let file;
     try {
       const root = await realpath(entry.root), path = await realpath(entry.path);

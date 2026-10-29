@@ -1,32 +1,17 @@
 import { Download, FileText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { localFileReference } from "../shared/codex-directives.mjs";
-import type { MessageFileReference, MessageFiles } from "./conversationFeed";
+import { isMessageVideo } from "../shared/message-media.mjs";
+import type { MessageFileReference } from "./conversationFeed";
 import { checkMachineResponse, currentMachineId, machineApiPath, requireMachine, type MachineId } from "./machineScope";
 import TextFilePreview from "./TextFilePreview";
 import { messageFileTextFormat, textFileTooLarge } from "./messageFileText";
+import { safeMessageFile } from "./messageFileReference";
+import MessageVideo from "./MessageVideo";
 import "./message-file.css";
 
-const fileRoute = /^\/api\/tasks\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\/files\/[a-f0-9]{64}$/i;
+export { safeMessageFile, registeredMessageFile } from "./messageFileReference";
 export const maxMessageFileBytes = 20 * 1024 * 1024;
 const tooLarge = "文件超过20 MiB，请在电脑上查看。";
-
-export function safeMessageFile(value: unknown, threadId?: string): MessageFileReference | null {
-  if (!value || typeof value !== "object" || typeof threadId !== "string") return null;
-  const file = value as Partial<MessageFileReference>;
-  const match = typeof file.url === "string" && fileRoute.exec(file.url);
-  if (!match || match[1].toLowerCase() !== threadId.toLowerCase() || typeof file.name !== "string" ||
-      !file.name.trim() || /[\u0000-\u001f\u007f/\\]/.test(file.name)) return null;
-  return { url: file.url!, name: file.name };
-}
-
-export function registeredMessageFile(value: string, files?: MessageFiles, threadId?: string): MessageFileReference | null {
-  if (!files) return null;
-  for (const source of [localFileReference(value), localFileReference(value, true)]) {
-    if (source && Object.hasOwn(files, source)) return safeMessageFile(files[source], threadId);
-  }
-  return null;
-}
 
 export async function fetchMessageFile(file: MessageFileReference, threadId: string, options: {
   machine?: MachineId | null; signal?: AbortSignal; request?: typeof fetch; maxBytes?: number;
@@ -91,7 +76,14 @@ export function saveMessageFile(blob: Blob, name: string) {
   }
 }
 
-export default function MessageFile({ file, threadId }: { file: MessageFileReference; threadId: string }) {
+export default function MessageFile({ file, threadId, label }: { file: MessageFileReference; threadId: string; label?: string }) {
+  const registered = safeMessageFile(file, threadId);
+  if (!registered) return <span className="message-file-fallback">{file.name}<small>文件保存在电脑上</small></span>;
+  return isMessageVideo(registered.name) ? <MessageVideo file={registered} threadId={threadId} label={label} />
+    : <MessageDocument file={registered} threadId={threadId} />;
+}
+
+function MessageDocument({ file, threadId }: { file: MessageFileReference; threadId: string }) {
   const [pending, setPending] = useState(false), [error, setError] = useState("");
   const [preview, setPreview] = useState<{ opener: HTMLElement; machine: MachineId } | null>(null);
   const active = useRef<AbortController | null>(null);
@@ -99,8 +91,7 @@ export default function MessageFile({ file, threadId }: { file: MessageFileRefer
     setPending(false); setError(""); setPreview(null);
     return () => { active.current?.abort(); active.current = null; };
   }, [file.url, threadId]);
-  const registered = safeMessageFile(file, threadId);
-  if (!registered) return <span className="message-file-fallback">{file.name}<small>文件保存在电脑上</small></span>;
+  const registered = file;
   const textPreview = messageFileTextFormat(registered.name) !== null;
   const download = async (previewBlob?: Blob) => {
     if (active.current) return;

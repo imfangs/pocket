@@ -57,6 +57,41 @@ function responseHeaders(response, machineId) {
   headers.delete("Access-Control-Allow-Origin");
   return headers;
 }
+async function fetchVideo(target, options, clientSignal) {
+  const controller = new AbortController();
+  const abort = () => controller.abort(clientSignal?.reason);
+  const deadline = setTimeout(() => controller.abort(), 20000);
+  clientSignal?.addEventListener("abort", abort, { once: true });
+  if (clientSignal?.aborted) abort();
+  const cleanup = () => { clearTimeout(deadline); clientSignal?.removeEventListener("abort", abort); };
+  let response;
+  try { response = await fetch(target, { ...options, signal: controller.signal }); }
+  catch (error) { cleanup(); throw error; }
+  // Bound connection/header waiting, not playback duration. A timeout left
+  // attached to fetch would also cut off a healthy long-running video body.
+  clearTimeout(deadline);
+  if (!response.body) { cleanup(); return response; }
+  const reader = response.body.getReader();
+  let finished = false;
+  const release = () => { cleanup(); try { reader.releaseLock(); } catch {} };
+  const body = new ReadableStream({
+    async pull(output) {
+      try {
+        const { value, done } = await reader.read();
+        if (finished) return;
+        if (done) { finished = true; release(); output.close(); }
+        else output.enqueue(value);
+      } catch (error) {
+        if (!finished) { finished = true; controller.abort(); release(); output.error(error); }
+      }
+    },
+    async cancel(reason) {
+      finished = true; controller.abort(reason);
+      try { await reader.cancel(reason); } finally { release(); }
+    },
+  });
+  return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+}
 async function registerConnection(request, env, url) {
   // Each credential renews only its own Mac route, never another machine or a user session.
   if (request.method !== "POST") return json(405, { error: "不支持的方法" });
@@ -161,12 +196,15 @@ export default {
       const conditionalRead = request.method === "GET" && (pathname === "/api/catalog" ||
         /^\/api\/tasks\/[a-f0-9-]{36}\/(?:transcript|history)$/i.test(pathname));
       const conditionalSync = request.method === "POST" && pathname === "/api/sync";
+      const videoRead = ["GET", "HEAD"].includes(request.method) && url.searchParams.get("video") === "1" &&
+        /^\/api\/tasks\/[a-f0-9-]{36}\/files\/[a-f0-9]{64}$/i.test(pathname);
       for (const key of [
         "Content-Type",
         ...(feedbackHook ? ["webhook-id", "webhook-timestamp", "webhook-signature"] : ["X-Navigator-Token"]),
         "Accept",
         ...(conditionalRead ? ["If-None-Match"] : []),
         ...(conditionalSync ? ["X-Pocket-Read-Version"] : []),
+        ...(videoRead ? ["Range", "If-Range"] : []),
       ])
         if (request.headers.has(key))
           headers.set(key, request.headers.get(key));
@@ -179,23 +217,28 @@ export default {
       const readingHistoryPage = request.method === "GET" && /^\/api\/tasks\/[a-f0-9-]{36}\/transcript-page$/i.test(pathname);
       // Once fetch starts, a lost reply cannot prove the Mac did not execute.
       forwarded = true;
-      const response = await fetch(target, {
+      const upstreamOptions = {
         method: request.method,
         headers,
         body: ["GET", "HEAD"].includes(request.method)
           ? undefined
           : request.body,
         redirect: "manual",
-        signal: AbortSignal.timeout(uploading ? 180000 : readingHistoryPage ? 45000 : 20000),
-      });
+        ...(videoRead ? {} : { signal: AbortSignal.timeout(uploading ? 180000 : readingHistoryPage ? 45000 : 20000) }),
+      };
+      const response = videoRead ? await fetchVideo(target, upstreamOptions, request.signal) : await fetch(target, upstreamOptions);
       const upstreamMachine = response.headers.get("X-Pocket-Machine");
-      if (upstreamMachine !== machineId && (machineId !== defaultMachine || upstreamMachine !== null))
+      if (upstreamMachine !== machineId && (machineId !== defaultMachine || upstreamMachine !== null)) {
+        if (videoRead) await response.body?.cancel().catch(() => {});
         return error(503, "Mac 连接身份不匹配，请重新连接", "relay_unavailable");
+      }
       if (
         response.status >= 500 ||
         (response.status >= 300 && response.status < 400 && !(conditionalRead && response.status === 304))
-      )
+      ) {
+        if (videoRead) await response.body?.cancel().catch(() => {});
         return error(503, "Mac 暂时不可达，请稍后重试", "relay_unavailable");
+      }
       return new Response(response.body, { status: response.status, statusText: response.statusText,
         headers: responseHeaders(response, machineId) });
     } catch {

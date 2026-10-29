@@ -1,4 +1,5 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
+import { isMessageVideo } from './message-media.mjs';
 
 export const directivePattern = /:{1,2}(created-thread|code-comment|codex-[a-z][a-z0-9-]*|inbox-item|archive-thread|automation-update|automation)\s*(?:\[((?:\\.|[^\]\\])*)\])?\{((?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^{}"'])*)\}/g;
 
@@ -56,22 +57,52 @@ export function referencedMessageFiles(source) {
   if (typeof source !== 'string') return [];
   const paths = [], add = path => { if (path && !paths.includes(path)) paths.push(path); };
   const protectedRanges = protectedMarkdownRanges(source, true);
+  const codeProtectedRanges = protectedMarkdownRanges(source);
+  // These display-only spans are removed/escaped by readableCodexMarkdown.
+  // A blank line inside them can still create an image/link AST node.
+  const hiddenRanges = [
+    ...[...source.matchAll(/<(oai-mem-citation|citation_entries|rollout_ids)>[\s\S]*?(?:<\/\1>|$)/g),
+      ...source.matchAll(/&lt;(oai-mem-citation|citation_entries|rollout_ids)&gt;[\s\S]*?(?:&lt;\/\1&gt;|$)/g)]
+      .filter(match => !codeProtectedRanges.some(([a,b]) => match.index >= a && match.index < b)),
+    ...[...source.matchAll(/(cite|filecite|filenavlist|entity|image_group|i)([\s\S]*?)/g)]
+      .filter(match => {
+        if (protectedRanges.some(([a,b]) => match.index >= a && match.index < b)) return false;
+        if (match[1] !== 'entity') return true;
+        // Invalid entities stay as ordinary Markdown in the renderer.
+        try { const data = JSON.parse(match[2]); return Array.isArray(data) && typeof data[1] === 'string'; }
+        catch { return false; }
+      }),
+  ].map(match => [match.index, match.index + match[0].length]);
   const directives = [...source.matchAll(directivePattern)];
   const componentRanges = [...directives, ...source.matchAll(incompleteDirectivePattern)]
     .map(match => [match.index, match.index + match[0].length]);
-  const insideComponent = node => node.position && componentRanges.some(([a,b]) => node.position.start.offset >= a && node.position.start.offset < b);
+  const excludedRanges = [...componentRanges, ...hiddenRanges];
+  const insideExcluded = node => node.position && excludedRanges.some(([a,b]) => node.position.start.offset >= a && node.position.start.offset < b);
   for (const match of directives) {
-    if (match[1] !== 'codex-file-citation' || directiveIsEscaped(source, match.index) || protectedRanges.some(([a,b]) => match.index >= a && match.index < b)) continue;
+    if (match[1] !== 'codex-file-citation' || directiveIsEscaped(source, match.index) || [...protectedRanges, ...hiddenRanges].some(([a,b]) => match.index >= a && match.index < b)) continue;
     const attrs = directiveAttributes(match[3]);
     if (attrs) add(localFileReference(attrs.path));
   }
   const tree = fromMarkdown(source), definitions = new Map();
   const walk = (node, visit) => { visit(node); for (const child of node.children ?? []) walk(child, visit); };
-  walk(tree, node => { if (node.type === 'definition' && !insideComponent(node)) definitions.set(node.identifier, node.url); });
   walk(tree, node => {
-    if (insideComponent(node)) return;
-    if (node.type === 'link') add(localFileReference(node.url, true));
-    else if (node.type === 'linkReference') add(localFileReference(definitions.get(node.identifier), true));
+    // Match Markdown's first definition, never a shadowed later destination.
+    if (node.type === 'definition' && !insideExcluded(node) && !definitions.has(node.identifier)) definitions.set(node.identifier, node.url);
   });
+  const visitReferences = (node, insideLink = false) => {
+    const excluded = insideExcluded(node);
+    const isLink = node.type === 'link' || node.type === 'linkReference';
+    const link = excluded ? null : node.type === 'link' ? localFileReference(node.url, true)
+      : node.type === 'linkReference' ? localFileReference(definitions.get(node.identifier), true) : null;
+    add(link);
+    if (!excluded && !insideLink && (node.type === 'image' || node.type === 'imageReference')) {
+      const path = localFileReference(node.type === 'image' ? node.url : definitions.get(node.identifier), true);
+      if (isMessageVideo(path)) add(path);
+    }
+    // A video inside an anchor remains label text, never nested media controls.
+    // Local file cards can replace that label entirely.
+    for (const child of node.children ?? []) visitReferences(child, insideLink || isLink);
+  };
+  visitReferences(tree);
   return paths;
 }

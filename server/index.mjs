@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { pipeline } from "node:stream/promises";
 import { NavigatorStore, AppError } from "./store.mjs";
 import { readCodexSource } from "./source.mjs";
 import { AccessControl, readConnection } from "./auth.mjs";
@@ -75,6 +76,9 @@ export function makeApp(options = {}) {
   const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
   const images = new MessageImages();
   const files = new MessageFiles();
+  const videoRequests = new Set();
+  let acceptingVideos = true;
+  const stopVideoStreams = () => { acceptingVideos = false; for (const controller of videoRequests) controller.abort(); };
   desktop.onAccepted = (id, turnId) => {
     try { notifications.followSubmission(id, turnId); }
     catch { /* Notification bookkeeping must not change an accepted send receipt. */ }
@@ -165,7 +169,7 @@ export function makeApp(options = {}) {
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     );
     try {
       const host = req.headers.host;
@@ -454,6 +458,39 @@ export function makeApp(options = {}) {
         return res.end(data.bytes);
       }
       const messageFile = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/files\/([a-f0-9]{64})$/i);
+      if (messageFile && ["GET", "HEAD"].includes(method) && url.searchParams.has("video")) {
+        if (!acceptingVideos) throw new AppError("视频服务正在重启，请稍后重试", 503);
+        if (url.searchParams.getAll("video").length !== 1 || url.searchParams.get("video") !== "1" ||
+            [...url.searchParams.keys()].some(key => !["video", "download"].includes(key)) ||
+            url.searchParams.has("download") && (url.searchParams.getAll("download").length !== 1 || url.searchParams.get("download") !== "1"))
+          throw new AppError("视频参数无效", 400);
+        const controller = new AbortController();
+        videoRequests.add(controller);
+        const cancel = () => controller.abort();
+        req.once("aborted", cancel); res.once("close", cancel);
+        let video;
+        try {
+          video = await files.openVideo(store.thread(messageFile[1]), messageFile[2], {
+            method, range: req.headers.range, ifRange: req.headers["if-range"], signal: controller.signal,
+          });
+          if (controller.signal.aborted || res.destroyed) { res.destroy(); return; }
+          const headers = { ...video.headers, "Cross-Origin-Resource-Policy": "same-origin",
+            "Content-Security-Policy": "default-src 'none'; sandbox" };
+          if (url.searchParams.get("download") === "1" && headers["Content-Disposition"])
+            headers["Content-Disposition"] = headers["Content-Disposition"].replace(/^inline\b/, "attachment");
+          res.writeHead(video.status, headers);
+          if (video.stream) await pipeline(video.stream, res, { signal: controller.signal });
+          else res.end();
+        } catch (error) {
+          if (res.headersSent || controller.signal.aborted || res.destroyed) { res.destroy(); return; }
+          throw error;
+        } finally {
+          videoRequests.delete(controller);
+          req.removeListener("aborted", cancel); res.removeListener("close", cancel);
+          await video?.close();
+        }
+        return;
+      }
       if (messageFile && method === "GET") {
         const data = await files.read(store.thread(messageFile[1]), messageFile[2]);
         res.writeHead(200, {
@@ -584,17 +621,17 @@ export function makeApp(options = {}) {
   };
   server.on("listening", () => { desktop.startQueue(); notifications.start(); lifecycle.start(); feedback?.start(); });
   server.on("close", close);
-  return { server, store, sync, auth, lifecycle, rename, feedback };
+  return { server, store, sync, auth, lifecycle, rename, feedback, stopVideoStreams };
 }
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  const { server } = makeApp();
+  const { server, stopVideoStreams } = makeApp();
   const port = Number(process.env.PORT || 4397);
   server.listen(port, "127.0.0.1", () =>
     console.log(`Pocket ready on loopback port ${port}`),
   );
   for (const signal of ["SIGTERM", "SIGINT"])
-    process.on(signal, () => server.close(() => process.exit(0)));
+    process.on(signal, () => { stopVideoStreams(); server.close(() => process.exit(0)); });
 }
