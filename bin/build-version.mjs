@@ -7,16 +7,21 @@ import { join } from 'node:path';
 export function frontendVersion(root) {
   const hash = createHash('sha256');
   const add = path => { hash.update(path + '\0');hash.update(readFileSync(join(root, path)));hash.update('\0'); };
-  const walk = dir => {
+  const walk = (dir, include = () => true) => {
     for (const entry of readdirSync(join(root, dir), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       if (entry.name.startsWith('.')) continue;
       const path = `${dir}/${entry.name}`;
-      if (entry.isDirectory()) walk(path);
-      else if (entry.isFile()) add(path);
+      if (entry.isDirectory()) walk(path, include);
+      else if (entry.isFile() && include(path)) add(path);
     }
   };
   walk('src');walk('public');
   if (existsSync(join(root, 'shared'))) walk('shared');
+  if (existsSync(join(root, 'packages/feedback-kit/contracts.ts'))) add('packages/feedback-kit/contracts.ts');
+  for (const part of ['browser', 'react'])
+    if (existsSync(join(root, `packages/feedback-kit/${part}`))) walk(`packages/feedback-kit/${part}`, path => /\.(?:ts|tsx|css)$/.test(path));
+  if (existsSync(join(root, 'packages/feedback-kit/THIRD_PARTY_NOTICES.md'))) add('packages/feedback-kit/THIRD_PARTY_NOTICES.md');
+  if (existsSync(join(root, 'packages/feedback-kit/licenses'))) walk('packages/feedback-kit/licenses');
   for (const path of ['index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'bin/build-version.mjs']) add(path);
   if (existsSync(join(root, 'config/usage-analytics.json'))) add('config/usage-analytics.json');
   return hash.digest('hex');

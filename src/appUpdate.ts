@@ -44,7 +44,7 @@ export function createAppUpdate(options: Options) {
       if (!checking) checking = manifest().then(publish).catch(() => {}).finally(() => { checking = null; });
       return checking;
     },
-    async apply(): Promise<Result> {
+    async apply({ reloadCurrent = false }: { reloadCurrent?: boolean } = {}): Promise<Result> {
       if (stopped || applying) return { status: "unavailable" };
       const blocked = options.blocker();
       if (blocked) return { status: "blocked", reason: blocked };
@@ -52,7 +52,7 @@ export function createAppUpdate(options: Options) {
       try {
         const version = await manifest();
         publish(version);
-        if (version.id === options.currentId) return { status: "current" };
+        if (version.id === options.currentId && !reloadCurrent) return { status: "current" };
         // Pages may briefly serve its HTML fallback for a new chunk during a
         // deployment. Do not reload until every JS/CSS asset is actually ready.
         await Promise.all(version.assets.map(async path => {

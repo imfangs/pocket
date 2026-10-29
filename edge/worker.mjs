@@ -125,13 +125,16 @@ export default {
     const config = machineConfig(env, machineId);
     if (config.error) return error(config.status, config.error);
     const pathname = explicit ? `/api${route[2]}` : url.pathname;
+    const feedbackHook = request.method === "POST" && /^\/api\/feedback\/(?:webhook|relay\/[a-z][a-z0-9-]{0,31}|relay-status\/[a-z][a-z0-9-]{0,31})$/.test(pathname);
     const origin = request.headers.get("Origin");
     if (
       (origin && origin !== url.origin) ||
       request.headers.get("Sec-Fetch-Site") === "cross-site"
     )
       return error(403, "拒绝跨站请求");
-    if (!["GET", "HEAD"].includes(request.method) && origin !== url.origin)
+    if (feedbackHook && (origin || !["webhook-id", "webhook-timestamp", "webhook-signature"].every(key => request.headers.get(key)?.length > 0)))
+      return error(401, "反馈签名缺失");
+    if (!feedbackHook && !["GET", "HEAD"].includes(request.method) && origin !== url.origin)
       return error(403, "缺少同源请求信息");
     let forwarded = false;
     try {
@@ -160,14 +163,14 @@ export default {
       const conditionalSync = request.method === "POST" && pathname === "/api/sync";
       for (const key of [
         "Content-Type",
-        "X-Navigator-Token",
+        ...(feedbackHook ? ["webhook-id", "webhook-timestamp", "webhook-signature"] : ["X-Navigator-Token"]),
         "Accept",
         ...(conditionalRead ? ["If-None-Match"] : []),
         ...(conditionalSync ? ["X-Pocket-Read-Version"] : []),
       ])
         if (request.headers.has(key))
           headers.set(key, request.headers.get(key));
-      const cookie = selectedCookie(request, machineId);
+      const cookie = feedbackHook ? null : selectedCookie(request, machineId);
       if (cookie !== null) headers.set("Cookie", cookie);
       if (origin) headers.set("Origin", upstream.origin);
       const target = new URL(pathname + url.search, upstream.origin);

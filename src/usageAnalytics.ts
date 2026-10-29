@@ -22,6 +22,12 @@ function capture(event: string, properties: UsageProperties): boolean {
 }
 export const usage = createUsageJournal({ capture });
 
+export function feedbackReplayContext(): { distinctId?: string; sessionId?: string; replayUrl?: string } {
+  if (!sdk || !active) return {};
+  try { return { distinctId: sdk.get_distinct_id(), sessionId: sdk.get_session_id(), replayUrl: sdk.get_session_replay_url({ withTimestamp: true }) }; }
+  catch { return {}; }
+}
+
 /** Only the authenticated application owns this lifecycle. Loading/blocked SDKs cannot block Pocket. */
 export function startUsageAnalytics() {
   if (!usageConfigured()) return () => {};

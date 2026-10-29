@@ -6,9 +6,12 @@ import type { FeedbackReason } from "./usageJournal";
 import "./usage-feedback.css";
 
 const reasons: [FeedbackReason, string][] = [["slow", "慢"], ["unresponsive", "没反应"], ["position", "跳位置"], ["hard_to_find", "没找到"], ["other", "其他"]];
-export default function UsageFeedback({ threadId }: { threadId: string }) {
+export default function UsageFeedback({ threadId, onStart, pending = false }: { threadId: string; onStart?: () => void; pending?: boolean }) {
   const [feedbackId, setFeedbackId] = useState<string | null>(null), [reason, setReason] = useState<FeedbackReason>("unspecified");
   const [note, setNote] = useState(""), [sent, setSent] = useState(false), [error, setError] = useState("");
+  if (onStart || pending) return <section className="usage-feedback" aria-label="使用反馈"><Button variant="soft" color="gray" disabled={pending} onClick={onStart}>
+    <MessageSquareWarning size={14} aria-hidden="true" />刚才不顺
+  </Button></section>;
   if (!usageConfigured()) return null;
   return <section className="usage-feedback" aria-label="使用反馈">
     {!feedbackId ? <Button variant="soft" color="gray" onClick={() => {

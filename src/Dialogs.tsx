@@ -17,6 +17,7 @@ export function Modal({
   dirty = false,
   closeRequested = false,
   className,
+  captureIgnore = false,
 }: {
   title: string;
   onClose: () => void;
@@ -25,6 +26,7 @@ export function Modal({
   dirty?: boolean;
   closeRequested?: boolean;
   className?: string;
+  captureIgnore?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [opener] = useState(() => typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null);
@@ -108,6 +110,7 @@ export function Modal({
   };
   return (
     <dialog
+      data-feedback-ignore={captureIgnore ? "" : undefined}
       ref={ref}
       className={["pocket-dialog", className].filter(Boolean).join(" ")}
       onCancel={(e) => {
@@ -147,6 +150,7 @@ export function SettingsDialog(p: {
   appearanceActions?: React.ReactNode;
   logoutAction?: React.ReactNode;
   notificationsAvailable?: boolean;
+  feedbackActions?: React.ReactNode;
   onClose: () => void;
 }) {
   return (
@@ -160,6 +164,7 @@ export function SettingsDialog(p: {
         <ReadingCacheSettings />
         <SendingSettings />
         {p.notificationsAvailable !== false && <NotificationSettings />}
+        {p.feedbackActions}
         {p.logoutAction && <div className="settings-logout">{p.logoutAction}</div>}
       </div>
     </Modal>

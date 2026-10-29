@@ -26,6 +26,14 @@ test('explicit update checks all assets and the manifest again before reloading 
  assert.equal(state.requests.filter(r=>r.method==='HEAD').length,2);assert.equal(state.requests.filter(r=>r.path==='/pocket-version.json').length,2);
  assert.ok(state.requests.every(r=>['GET','HEAD'].includes(r.method)));
 });
+test('explicit module recovery can reload the current build but retains draft and asset readiness guards',async()=>{
+ const {state,update}=fixture();state.version={...version,id:oldId};state.entryId=oldId;
+ assert.equal((await update.apply()).status,'current');assert.equal(state.reloads,0);
+ state.blocker='unsent draft';assert.equal((await update.apply({reloadCurrent:true})).status,'blocked');assert.equal(state.reloads,0);
+ state.blocker=null;state.headType='text/html';assert.equal((await update.apply({reloadCurrent:true})).status,'unavailable');assert.equal(state.reloads,0);
+ state.headType=null;state.beforeHead=()=>{state.blocker='new draft';};assert.equal((await update.apply({reloadCurrent:true})).status,'blocked');assert.equal(state.reloads,0);
+ state.beforeHead=null;state.blocker=null;assert.equal((await update.apply({reloadCurrent:true})).status,'updated');assert.equal(state.reloads,1);
+});
 test('unfinished input blocks before any request and is checked again after network waiting',async()=>{
  const {state,update}=fixture();state.blocker='unsent draft';assert.equal((await update.apply()).status,'blocked');assert.equal(state.requests.length,0);
  state.blocker=null;state.beforeHead=()=>{state.blocker='new draft during checks';};assert.equal((await update.apply()).status,'blocked');assert.equal(state.reloads,0);
@@ -58,5 +66,8 @@ test('build metadata contains only build IDs and emitted frontend asset paths',(
  try{for(const dir of ['src','public','bin','.local'])mkdirSync(join(root,dir));for(const file of ['src/a.ts','public/icon.svg','index.html','package.json','package-lock.json','vite.config.ts','bin/build-version.mjs'])writeFileSync(join(root,file),'original');
  const a=frontendVersion(root);writeFileSync(join(root,'.local/private.txt'),'must not enter metadata');assert.equal(frontendVersion(root),a);writeFileSync(join(root,'src/a.ts'),'changed');assert.notEqual(frontendVersion(root),a);
  const b=frontendVersion(root);mkdirSync(join(root,'shared'));writeFileSync(join(root,'shared/directives.mjs'),'public parser');assert.notEqual(frontendVersion(root),b);const c=frontendVersion(root);writeFileSync(join(root,'shared/directives.mjs'),'updated parser');assert.notEqual(frontendVersion(root),c);
+ mkdirSync(join(root,'packages/feedback-kit/browser'),{recursive:true});writeFileSync(join(root,'packages/feedback-kit/browser/capture.ts'),'capture');const d=frontendVersion(root);
+ writeFileSync(join(root,'packages/feedback-kit/browser/README.md'),'private implementation notes');assert.equal(frontendVersion(root),d);
+ writeFileSync(join(root,'packages/feedback-kit/browser/capture.ts'),'new capture');assert.notEqual(frontendVersion(root),d);
  }finally{rmSync(root,{recursive:true,force:true});}
 });

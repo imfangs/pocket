@@ -13,6 +13,7 @@ import { DesktopService } from "./desktop.mjs";
 import { ReadStateService } from "./read-state.mjs";
 import { PocketContentService, POCKET_CONTENT } from "./pocket-content.mjs";
 import { HistoryPageReader } from "./history.mjs";
+import { createPocketFeedback, isFeedbackMachineRoute } from "./feedback.mjs";
 import { ThreadAutomations } from "./thread-automations.mjs";
 import { LifecycleService } from "./lifecycle.mjs";
 import { RenameService } from "./rename.mjs";
@@ -67,6 +68,8 @@ export function makeApp(options = {}) {
   const readState = new ReadStateService(store, codexHome, options.readState);
   const pocketContent = new PocketContentService(store, codexHome, options.pocketContent);
   const historyPages = options.historyPages || new HistoryPageReader(options.historyPageOptions);
+  const feedback = createPocketFeedback({ store, desktop, machineId, config: options.feedbackConfig,
+    ...(options.feedbackOptions || {}) });
   const automations = new ThreadAutomations(codexHome, options.automations);
   const catalog = () => automations.enrich(pocketContent.catalog(store.catalog()));
   const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
@@ -162,7 +165,7 @@ export function makeApp(options = {}) {
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     );
     try {
       const host = req.headers.host;
@@ -192,6 +195,10 @@ export function makeApp(options = {}) {
         throw new AppError("拒绝跨站请求", 403);
       const path = url.pathname,
         method = req.method;
+      if (isFeedbackMachineRoute(path, method)) {
+        if (!feedback) throw new AppError("反馈服务尚未配置", 503);
+        return json(res, 200, await feedback.machineRequest(req, path));
+      }
       const authAction =
         path === "/api/auth/login" || path === "/api/auth/logout";
       if (!["GET", "HEAD"].includes(method)) {
@@ -246,6 +253,28 @@ export function makeApp(options = {}) {
         !auth.authenticate(req, localBearerAllowed)
       )
         throw new AppError("请先输入口令", 401);
+      if (method === "GET" && path === "/api/feedback/config")
+        return json(res, 200, feedback?.configuration() || { enabled: false });
+      if (path === "/api/feedback" && method === "POST") {
+        if (!feedback) throw new AppError("反馈服务尚未配置", 503);
+        return json(res, 200, await feedback.core.submit(await body(req, 6 * 1024 * 1024)));
+      }
+      const feedbackItem = path.match(/^\/api\/feedback\/([a-f0-9-]{36})(?:\/(retry|image\/(original|annotated)))?$/i);
+      if (feedbackItem) {
+        if (!feedback) throw new AppError("反馈服务尚未配置", 503);
+        if (method === "POST" && feedbackItem[2] === "retry") {
+          await body(req, 1024, true);
+          return json(res, 200, await feedback.core.retry(feedbackItem[1]));
+        }
+        if (method === "GET" && feedbackItem[3]) {
+          const asset = await feedback.core.readImage(feedbackItem[1], feedbackItem[3]);
+          res.writeHead(200, { "Content-Type": asset.mime, "Content-Length": asset.bytes.length,
+            "Content-Disposition": `inline; filename="feedback.${asset.mime === "image/png" ? "png" : "jpg"}"`, "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff", "Cross-Origin-Resource-Policy": "same-origin" });
+          return res.end(asset.bytes);
+        }
+        if (method === "GET" && !feedbackItem[2]) return json(res, 200, feedback.core.receipt(feedbackItem[1]));
+      }
       if (method === "GET" && path === "/api/connection")
         return json(res, 200, connection);
       if (method === "GET" && path === "/api/catalog")
@@ -550,11 +579,12 @@ export function makeApp(options = {}) {
     notifications.stop();
     desktop.stopQueue();
     historyPages.close?.();
+    feedback?.stop();
     store.close();
   };
-  server.on("listening", () => { desktop.startQueue(); notifications.start(); lifecycle.start(); });
+  server.on("listening", () => { desktop.startQueue(); notifications.start(); lifecycle.start(); feedback?.start(); });
   server.on("close", close);
-  return { server, store, sync, auth, lifecycle, rename };
+  return { server, store, sync, auth, lifecycle, rename, feedback };
 }
 if (
   process.argv[1] &&

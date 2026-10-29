@@ -1,0 +1,19 @@
+# React feedback panel
+
+`FeedbackPanel` renders content inside the host's dialog. It does not own authentication, page capture entry, platform configuration, or the processing target. Load it lazily so annotation code does not affect ordinary page startup.
+
+Required props: `appId`, `scope`, immutable capture `context`, `submit(input, signal)`, `status(id, signal)`, and `onClose`. Optional: `initialCapture`, `capture(signal)`, `autoDirect`, `draftStore`, `retry(id, signal)`. A scope must distinguish application, machine/tenant, authenticated state and source page/chat. The component remounts when appId/scope changes; a restored draft retains its original context and image.
+
+The host should supply one `createFeedbackDraftStore()` instance, importing it directly from `browser/drafts.ts`. Call `clearPrefix()` for machine/tenant logout (for example `pocket:ged:`), or `clearAll()` for a complete logout. Do not clear another still-authenticated machine's drafts. Dispose the store only when no consumers remain.
+
+Each React effect setup owns a new controller; cleanup permanently disposes that instance. Do not retain a disposed controller in component state and reuse it after StrictMode's effect replay. Abandoned initialization checks its lifetime before opening storage, and late work cannot publish into the next controller. A store owned by the panel is closed only after its final draft write and any already-started POST settle.
+
+The controller persists an immutable submission before POST. A lost response locks edits and checks the same feedback ID. Only a confirmed not-found response enables an explicit retry of the original payload. An acknowledged feedback clears its local journal because the authenticated server then owns storage and delivery retries. Delivery recovery reuses the same ID; a lost recovery response must be checked before another recovery POST. Submit, query and recovery waits have finite deadlines. Closing does not fabricate failure or create another report.
+
+Images are stored as `ArrayBuffer` in IndexedDB and reconstructed as Blob for display. WebKit rejected direct Blob storage in the actual browser fixture. Image bytes are read/written only when the image ID changes; annotation/text saves are coalesced. Restoring an existing draft also skips reading an unused new capture. This matters offline: WebKit can throw `NotReadableError` while rereading a cloned Blob even though IndexedDB metadata remains writable. New image preparation occurs outside the write transaction, then the lease/revision/image reference is checked again. Failed reads may be retried; equal revisions can only acknowledge identical content. Leases/revisions prevent old writes from restoring a completed or cleared draft. The store currently bounds pending drafts to 20 scopes / 64 MiB and does not silently evict uncertain submissions.
+
+Annotorious owns rectangle editing; the panel owns numbered marks, comments and visible undo. It uses the public `initialHistory` option to supply an empty baseline: in 3.9.5 a first mutation within 250 ms otherwise tries to merge into a nonexistent undo item. `feedback-panel-annotation.test.mjs` exercises the actual library at that timing. Do not replace this with arbitrary delayed interaction or mutate vendor files; revisit the adapter when upgrading.
+
+Normal browsing is single-finger scrolling inside the screenshot. “框选位置” enables drawing for one mark, then returns to browsing. Screenshot replacement removes the old marks. Unknown/acknowledged submissions cannot be edited. `data-feedback-ignore` excludes the panel from capture; the host must also apply that attribute to its entire dialog when recapturing the underlying page.
+
+Verification is synthetic: Chrome/WebKit light/dark flows, real Chromium touch drawing and scrolling, IndexedDB restoration, exact retry payloads and receipt progression. Physical iPhone keyboard, permission and shaking remain separate host-level checks.

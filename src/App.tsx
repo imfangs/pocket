@@ -28,6 +28,7 @@ import { startRecentThreadCatalogSync } from "./recentThreadCatalog";
 import { useReloadGuard } from "./updateSafety";
 import { hasUpdateBlockingDraft, protectedDraftThreadIds } from "./updateDrafts";
 import PocketUpdate from "./PocketUpdate";
+import { usePocketFeedback } from "./PocketFeedback";
 import { filterThreads, preserveOpenThread } from "./model";
 import { UNASSIGNED_PROJECT } from "./projectNavigation";
 import { readPocketActivity, recordPocketVisit, rememberPocketCreations, savePocketActivity } from "./pocketActivity";
@@ -501,6 +502,7 @@ export default function App({
   const operationNotices = taskOperations.notices.filter(operation => operation.operation !== "create" ||
     creationNeedsAttention(operation, taskOperations.errors[operation.requestId]) && !hiddenCreationNotices.has(creationNoticeKey(operation)));
   const current = displayCatalog.threads.find((t) => t.id === selected);
+  const feedback = usePocketFeedback({ readingScope: pocketReadScope, threadId: current?.id, title: current?.title });
   const protectedDraftIds = protectedDraftThreadIds(conversationDrafts.current, conversationHistory.current);
   const retainedInputThreads = catalog.threads.filter(thread => thread.sourceExcluded &&
     (protectedDraftIds.has(thread.id) || visibleSubmittedQueries(submissions.getThread(thread.id), [], []).length > 0));
@@ -791,6 +793,7 @@ export default function App({
           </TaskListPanel>
           {current ? (
             <Inspector
+              feedback={feedback}
               key={`${pocketReadScope ?? ""}:${current.id}`}
               animateEntry={animateSelection}
               entryOrigin={entryOrigin}
@@ -831,6 +834,7 @@ export default function App({
           )}
         </div>
       </main>
+      {feedback.element}
       {newConversationOpen && <NewConversationDialog preferredCwd={current?.cwd || catalog.projects.find(item => item.id === project)?.paths[0]}
         closeRequested={newConversationClosing}
         initialQuery={newConversationDraft?.text} clipboardRead={newConversationDraft?.clipboardRead}
@@ -854,6 +858,7 @@ export default function App({
         <SettingsDialog
           appearanceActions={appearanceActions}
           logoutAction={logoutAction}
+          feedbackActions={<>{feedback.settings}{feedback.enabled && feedback.button(() => { setSettings(false); void feedback.open(current?.id); })}</>}
           onClose={() => setSettings(false)}
         />
       )}

@@ -11,11 +11,14 @@
     "test": "node --import ./tests/helpers/block-native-open.mjs --test --test-concurrency=4 tests/*.test.mjs"
   },
   "dependencies": {
+    "@annotorious/annotorious": "3.9.5",
+    "@annotorious/react": "3.9.5",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/themes": "3.3.0",
     "idb": "8.0.4",
     "lucide-react": "^0.468.0",
     "mdast-util-from-markdown": "2.0.3",
+    "modern-screenshot": "4.7.0",
     "pele": "file:vendor/pele/pele-1.6.0-pocket.44da152.tgz",
     "posthog-js": "1.438.21",
     "react": "^19.1.0",
@@ -23,6 +26,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
+    "standardwebhooks": "1.1.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

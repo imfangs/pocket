@@ -16,6 +16,7 @@ import ThemeSwitch from "./ThemeSwitch";
 import BootSplash from "./BootSplash";
 import { api, invalidateAuthentication } from "./api";
 import { clearReadingCache, subscribeReadingCacheInvalidation } from "./readingCache";
+import { clearFeedbackDrafts } from "./feedbackClient";
 import { createAccessCheck } from "./accessCheck";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { SettingsDialog } from "./Dialogs";
@@ -59,7 +60,8 @@ export default function AccessGate() {
   const cachePurge = useRef<ReturnType<typeof clearReadingCache> | null>(null);
   const purgeCache = () => {
     if (machine) invalidateAuthentication(machine);
-    const pending = clearReadingCache(machine ?? undefined);
+    const pending = Promise.all([clearReadingCache(machine ?? undefined), clearFeedbackDrafts(machine ?? undefined)])
+      .then(([reading, feedbackCleared]) => ({ ...reading, invalidated: reading.invalidated && feedbackCleared }));
     cachePurge.current = pending;
     return pending;
   };
