@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-29。截图圈注反馈已上线，两机合成验收反馈都已进入本开发会话；独立模块、弱网草稿、签名转发与去重均已验证。历史分页、压缩来源、通知呈现、派生Query、键盘手势和缓存默认128保持；剪贴板继续先观察。
+维护日期：2026-10-29。反馈弹窗的留白、安全区与滚动已精修并发布；截图圈注反馈及两机投递保持。历史分页、压缩来源、通知呈现、派生Query、键盘手势和缓存默认128保持；剪贴板继续先观察。
 
 ## 下一次先看
+
+- **最近已上线：反馈弹窗留白。** [同日精修](docs/design/2026-10-29-feedback-infrastructure.md#同日反馈弹窗的留白与滚动修正)：修复section漏接内容padding，手机/窄屏/桌面分别20/16/24px，与标题对齐；补底部安全区，固定关闭入口，正文与截图分别滚动，沿用键盘visualViewport。1,786项全测、150项尺寸/状态/键盘检查、独立CSS与视觉复核通过；公网32/32文件与功能检查通过。只更新共享网页，无API/连接器/Codex重启或真实发送。实体iPhone仍待使用；证据`.local/qa/feedback-spacing-2026-10-29/`。
 
 - **最近已上线：可复用截图圈注反馈。** [实现与验证](docs/design/2026-10-29-feedback-infrastructure.md)、[Feedback Kit](packages/feedback-kit/README.md)。设置「反馈问题」及详情「刚才不顺」可截图、框选并写说明；摇一摇默认关闭，需明确开启。离线先记文字，联网补图；独立草稿、认证持久记录、PostHog签名回调、跨机转发与固定requestId复用现有队列，未知不重放。1,786项全测、88项最终包双浏览器、168项远端＋最终7项宿主测试和独立CR通过。两机各一条合成反馈已经送达本开发会话，四个图片文件与提交字节一致，重复回调后各只有一条原生用户消息。PostHog两条目标已启用；这是链路验证，不代表实体iPhone摇动与长期弱网体验已验收。证据`.local/qa/visual-feedback-2026-10-29/`及`.local/qa/feedback-host-2026-10-29/final-summary.json`；不要重复提交验收反馈。
 
@@ -74,13 +76,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `6b15fabc04a012729c456fbea8e1c16a8f3f281e`；后续08a7仅兼容PostHog服务端成功回执，前端产物不变 |
+| 前端/网关源码 | `e94cf417f9dd9b63a858e26ae6bd3dfa672267d8`；本轮仅反馈样式与接入文档，API仍为08a7 |
 | 两机API源码 | `08a7ba03855fe3e22a103b614de245e824941572`；格得PID10259、豌豆PID68389，后续运维需重查 |
-| 前端build | 公网、格得及豌豆内置网页均`5f715f1481ae09688ac8f0b04c8c886130d23aa2398238d64322eb9c0943f3d7` |
-| Pages部署 | `6d311cd8-2aa5-4a81-a95c-15f4586dbf6d`；10-29 ready=true，32/32公开文件与项目功能检查通过。早期候选06f96426被本部署替代，不重复上传 |
-| 最近验证 | 1,786项全测、最终包双浏览器88项、远端168项＋最终host7项和独立CR通过；两机真实签名回调、图片转发与原生消息各一次。物理iPhone未直接复验 |
-| 证据 | `.local/qa/visual-feedback-2026-10-29/`：`tests-final.log`、`native-final-readback.json`、`duplicate-hook-*.json`、`release/pages-deploy.json`及`release/final-08a7ba0/`；浏览器报告在相邻`feedback-host-2026-10-29` |
-| 数据与运行 | 两机API与共享网页已更新，凭据、scope、用户元数据及原队列保留；Codex和连接器未重启。新反馈由PostHog通知后按固定ID进入本开发会话；两条合成验收已记为test_record |
+| 前端build | 公网与格得内置网页为`7f6e307b80a35626789a561312ec00fd6a8ae5e36d42ee3d474952fb1ac2d372`；豌豆随API保留的内置静态包仍为5f715f14，手机正常入口统一加载公网新版 |
+| Pages部署 | `506e6e01-93f8-468c-af82-b7f7e97b89c9`；10-29 ready=true，32/32公开文件及项目功能通过。上传前401经Wrangler刷新恢复，实际上传一次 |
+| 最近验证 | 本轮1,786项全测、150项布局/状态/键盘检查、独立视觉/CSS复核及机械检查通过；前轮两机真实反馈各一次的证据保留。本轮无真实发送，物理iPhone未直接复验 |
+| 证据 | 最新`.local/qa/feedback-spacing-2026-10-29/`：`after-report.md`、`visual-review.md`、`tests.log`、`pages-deploy.json`；两机API/投递事实仍在`.local/qa/visual-feedback-2026-10-29/` |
+| 数据与运行 | 本轮只更新共享网页与格得本地静态产物，未重启API/Codex/连接器。反馈持久化、两机签名转发和原队列行为保持；前轮两条合成验收已记为test_record |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 

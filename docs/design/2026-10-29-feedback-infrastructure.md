@@ -70,3 +70,6 @@ UI用Chromium/WebKit移动尺寸验证截图、框选/编号、输入法、关�
 候选`7f6e307b…d372`的12组实测正文边距为21/17/25px（含1px边框），34px安全区下主按钮距底35px；窄屏标题与关闭按钮滚动前后不移出视口。8标注和长说明的坐标、草稿恢复及合成提交保持；全套1,786项测试、独立CSS复核和Impeccable机械检查通过。独立隔离视觉回读认可留白、分组与主次在亮暗主题下均有改善；保留键盘焦点环。实体iPhone仍未直接复验，发布状态回CURRENT。
 
 本轮证据在`.local/qa/feedback-spacing-2026-10-29/`：`baseline-report.md`、`after.json`、安全区/键盘/状态回归、`visual-comparison.jpg`与`visual-review.md`。复用组件的宿主留白契约已写回模块React README，视觉验收盲点写回QUALITY。
+
+
+本次样式已发布：源码`e94cf417f9dd9b63a858e26ae6bd3dfa672267d8`、build`7f6e307b80a35626789a561312ec00fd6a8ae5e36d42ee3d474952fb1ac2d372`、Pages`506e6e01-93f8-468c-af82-b7f7e97b89c9`。150项界面检查、32/32公网文件与功能回读通过；初次401发生在上传前，刷新CLI认证后实际上传一次。只发布网页，无Mac服务重启或真实发送。
