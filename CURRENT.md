@@ -4,6 +4,8 @@
 
 ## 下一次先看
 
+- **关闭按钮初始高亮已修，待发布。** 设置与会话信息弹窗仅在初开聚焦中性标题，Tab和关闭归还焦点保持，新建/改名输入聚焦不变。40组页面、22项交互边界、1,938全测通过，候选d8d0b9adcf98；见[焦点记录](docs/design/2026-10-30-compact-settings-and-controls.md#2026-10-31-初始焦点)。Cloudflare登录恢复已回流FBT d3b5d37，正式helper已完成本次发布所需续期与目标HTTP200验证。
+
 - **本轮UI已上线并回读。** [设置与控件](docs/design/2026-10-30-compact-settings-and-controls.md)：设置与会话信息更紧凑、字段对齐，修复嵌套Modal标题margin；创建加号/排序默认透明。过程消息取消整条复制，一小时后移除时间页脚，普通回复/子任务结果/代码复制保持。1,887项全测、58组布局/边界检查、消息动态/阅读锚点检查与独立CR通过；统一build `b2fe8f9db218…`，其中已保留并回读手机实色sticky顶边。Cloudflare登录已恢复、目标项目已核对；Pages `f00227d4…`只上传一次，32/32公开资源通过。Node功能探针遇网络超时后，保留原四项断言改用实际curl请求完成核验，最终ready=true。
 
 - **后台正文预取已上线并回读。** [契约](docs/design/2026-10-31-transcript-prefetch.md)：复用原rank、有效未读加200，当前交互优先；状态32项，正文固定8候选/1并发，前台同ID接管、已有版本跳过、不标读或制造点击。网络退避与全局抢占冷却保持弱网节制；1,938全测、独立CR、真实App慢网/接管/容量和hook边界通过。build `11e85a69a43d…`已发布至Pages `3edca700…`，32/32文件及原功能检查通过，只上传一次。连接保留已确认的详情5秒/输入策略，本轮不新增后台打开未点开的会话。
@@ -140,6 +142,6 @@
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；用项目的 `config/local-service.json`、`config/pages-site.json` 和FBT既有服务/发布工具。前端样式修改只发布网页。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
 - 豌豆b896 API继续引用已验证的`6b15fabc04a012729c456fbea8e1c16a8f3f281e/node_modules`，本次a5b3保留为直接回退；更早08a7/0b5只按实际引用处理。根锁文件与依赖manifest未变，本次未安装依赖。连接器10-28的独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`仍保持，PID16387未重启。旧release与私有配置备份按实际引用保留，不能按旧日期删除。
-- Pages预检401先用配置中的Wrangler `whoami`续期，核对是否上传；已上传但验证未过使用原部署 `resume --resume-verification`。本轮发布和豌豆切换均完成，不重复提交。
+- Pages认证失败先按[FBT认证恢复](/Users/fangs/workspace/fbt/workflows/pages-site/docs/auth-recovery.md)识别生效来源与未决记录，恢复后核对上传阶段；已上传但验证未过使用原部署 `resume --resume-verification`。不要用可能隐式续期的whoami试探未知refresh。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。

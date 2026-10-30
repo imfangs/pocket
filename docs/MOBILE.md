@@ -10,7 +10,7 @@
 
 Cloudflare KV 只保存接入地址、连接标记和时间，不保存任务、备注、口令或会话 Cookie。API 响应经 Cloudflare 转发到手机；持久任务数据与口令校验留在 Mac。Pages Worker 检查客户端 Origin，删除远程 Authorization 头，再向已验证的 HTTPS Tunnel 地址转发必要 Cookie/CSRF/JSON。关闭上游重定向跟随，API 始终 no-store。
 
-Mac 的 `bin/tunnel.mjs` 由 FBT local 常驻。启动前匿名探测目录必须为 401 才开放隧道；连接后通过 `POST /api/relay/register` 把地址登记到独立 KV。每五分钟续登记，失败时每分钟重试，记录十五分钟过期，避免 Mac 停止后永久保留旧地址。KV 传播可能有短暂延迟；本阶段仍依赖开发用途的 Quick Tunnel，不承诺生产 SLA。即使底层地址更新，主屏幕入口保持 x.fangs.cc。
+Mac 的 `bin/tunnel.mjs` 由 FBT local 常驻。启动前匿名探测目录必须为 401 才开放隧道；连接后通过 `POST /api/relay/register` 把地址登记到独立 KV。按当前配置定期续登记，失败重试，租约过期后停止使用旧地址；当前参数和已验证结果以 CURRENT.md 与连接器配置为准。KV 传播可能有短暂延迟；本阶段仍依赖开发用途的 Quick Tunnel，不承诺生产 SLA。即使底层地址更新，主屏幕入口保持 x.fangs.cc。
 
 2026-09-28 修复：后台登记不再调用 Wrangler，不依赖人的 Cloudflare OAuth 登录。专用 256-bit 随机 token 存本机私有 `relay-registration.json`（0600），云端只配置其 SHA-256 校验值 `NAVIGATOR_REGISTRATION_SHA256`。登记接口不接受浏览器 Origin/Cookie 作为授权，只允许此 key 更新固定 `origin` 记录；不提供任务读取权限，不接收口令或任务内容。URL 必须是无路径、无凭据、无查询参数的 HTTPS Quick Tunnel 地址，请求体最多 2 KiB。
 
@@ -34,11 +34,11 @@ node bin/navigator.mjs connection --json
 
 manifest、192/512px 图标、maskable 图标、Apple touch icon、standalone、安全区及触控输入适配已加入。iPhone 使用 Safari 的共享菜单添加到主屏幕；Android 使用浏览器安装菜单。首次主屏幕登录可能与浏览器分开。
 
-Service Worker 只预缓存公开离线提示、manifest 和图标；私人 API 永远走网络。网页不持久缓存会话目录或说明；仅按电脑/来源/会话保存有界阅读摘要与水位，不包含正文，见[阅读状态与已读合并](design/2026-10-22-pocket-read-state.md)。浏览器中的安装条件、离线代码测试和真机安装体验必须分别记录，不能用桌面模拟代替用户手机。
+Service Worker 只预缓存公开离线提示、manifest 和图标；私人 API 永远走网络。已认证后，客户端按电脑/来源保存有界目录、正文阅读投影与水位；容量、淘汰及隔离规则见[分层阅读缓存](design/2026-10-28-reading-cache.md)和[已读合并](design/2026-10-22-pocket-read-state.md)。浏览器中的安装条件、离线代码测试和真机安装体验必须分别记录，不能用桌面模拟代替用户手机。
 
 ## 发布与恢复
 
-发布账号的Cloudflare登录与Pocket用户登录相互独立。2026-10-30曾因OAuth过期叠加CLI网络失败而阻塞发布：先按项目固定版本运行`wrangler whoami`；若仍是传输错误，可在核对该版本官方实现后，以另一HTTP传输完成同一RFC8628设备协议，保持原client ID/scopes、官方验证域名、轮询间隔/过期语义，并在授权成功后原子写回私有凭据。取得设备码或看到成功页都不等于项目可用，必须回读目标账号项目。本次curl路线、scope校验和实际HTTP200证据见`.local/qa/top-edge-2026-10-30/recovery-evening/`；这是一次恢复记录，不保证后续网络稳定。不要把未知refresh结果反复重放，也不要把未上传的新版本当作旧部署resume。
+发布账号的Cloudflare登录与Pocket用户登录相互独立。认证恢复已回流为[FBT统一流程](/Users/fangs/workspace/fbt/workflows/pages-site/docs/auth-recovery.md)：先inspect确认生效来源与未决状态，再选择单次refresh或官方授权，随后verify目标账号/项目。后续直接复用该工具与SOP，不再从本项目私有QA里复制临时续期脚本。10-30的设备授权和10-31的正常续期证据仍分别保存在`.local/qa/top-edge-2026-10-30/recovery-evening/`与`.local/qa/transcript-prefetch-2026-10-30/`；FBT正式工具本次也完成了实际单次续期和HTTP200回读。
 
 2026-10-31：新凭据的正常refresh也已通过同一官方协议的curl传输续期，权限集合保持，目标账号项目再次HTTP200。公网验收现在由`bin/public-check-http.mjs`读取4个固定同源匿名GET，保留TLS、禁止重定向/URL展开、正文和头部大小限制；已知网络错误最多3次重试，HTTP拒绝及断言不重试。`bin/verify-public.mjs`继续核对完整CSP、PostHog连接许可、两个私有API的401及manifest的200/standalone。19项本地HTTP/TLS回归及一次真实公网调用通过；后续沿原配置运行，不需要使用早先`.local`中的临时fetch适配器。这只增强验收传输，不保证运营链路从此没有网络故障。
 

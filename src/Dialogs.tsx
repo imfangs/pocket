@@ -32,6 +32,7 @@ export function Modal({
   closeRequested = false,
   className,
   captureIgnore = false,
+  initialFocus = "auto",
 }: {
   title: string;
   onClose: () => void;
@@ -41,8 +42,13 @@ export function Modal({
   closeRequested?: boolean;
   className?: string;
   captureIgnore?: boolean;
+  initialFocus?: "auto" | "title";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  // Entry policy is stable for this mount; later content/busy updates must not
+  // move focus away from a control the reader has chosen.
+  const entryFocus = useRef(initialFocus).current;
   const [opener] = useState(() => typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const [confirmClose, setConfirmClose] = useState(false);
   const continueEditing = useRef<HTMLButtonElement>(null);
@@ -82,7 +88,8 @@ export function Modal({
     if (dialog) { dialog.inert = false; dialog.removeAttribute("data-modal-closing"); }
     dialog?.showModal();
     const releaseModal = dialog ? trackModal(dialog) : () => {};
-    dialog?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    if (entryFocus === "title") titleRef.current?.focus({ preventScroll: true });
+    else dialog?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     // Reuse the same focus/blur and Safari recovery rules as the conversation.
     // A bottom sheet must follow the visual viewport, not the covered layout viewport.
     const releaseViewport = dialog ? bindInspectorViewport(dialog) : () => {};
@@ -106,7 +113,7 @@ export function Modal({
             (document.activeElement === document.body || !!dialog?.contains(document.activeElement))) opener.focus({ preventScroll: true });
       });
     };
-  }, [opener]);
+  }, [opener, entryFocus]);
   useEffect(() => { if (closeRequested) beginClose(); }, [closeRequested]);
   useEffect(() => {
     const reduce = matchMedia("(prefers-reduced-motion: reduce)");
@@ -167,7 +174,8 @@ export function Modal({
       aria-busy={busy || undefined}
     >
       <header>
-        <h2>{title}</h2>
+        <h2 ref={titleRef} tabIndex={entryFocus === "title" ? -1 : undefined}
+          style={entryFocus === "title" ? { outline: "none" } : undefined}>{title}</h2>
         <IconButton
           className="icon-button"
           onClick={event => requestClose(false, event.detail !== 0)}
@@ -199,7 +207,7 @@ export function SettingsDialog(p: {
   onClose: () => void;
 }) {
   return (
-    <Modal title="设置" className="settings-dialog" onClose={p.onClose}>
+    <Modal title="设置" className="settings-dialog" onClose={p.onClose} initialFocus="title">
       <div className="settings-content">
         <section className="settings-connection" aria-label="电脑">
           <h3>连接电脑</h3>

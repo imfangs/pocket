@@ -103,7 +103,7 @@ export default function Inspector(p: Props) {
           managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
           onConnect={options => p.onOpen(p.thread, options)} onRestore={() => p.onArchive(p.thread, false)} />
       </div>
-      {infoOpen && <Modal title="会话信息" onClose={() => setInfoOpen(false)} busy={actionBusy || modelBusy}>
+      {infoOpen && <Modal title="会话信息" onClose={() => setInfoOpen(false)} busy={actionBusy || modelBusy} initialFocus="title">
         <div className="conversation-info">
           <p className="conversation-info-title">{p.thread.title}</p>
           <ThreadModelSettings thread={p.thread} disabled={actionBusy || managementBlocked}
