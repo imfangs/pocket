@@ -32,6 +32,8 @@ UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-eleme
 
 ## 已建立的验收基线
 
+- **iOS主屏幕原生渲染**：系统scroll edge effect不属于网页CSS，桌面WebKit的`filter:none`不能排除它。用simctl等原生截图覆盖实际PWA，并确认`navigator.standalone`；以已知清晰状态对照，避免启动时就已异常却因前后相同而误判。10-30已用新的document做A→B→A，再以无注入最终包复验新建关闭和详情返回，见[顶部模糊修复](design/2026-10-30-ios-header-scroll-edge.md)。截图前核对弹窗/详情确实关闭，不能把系统键盘动画中漏点的遮罩帧当成渲染差异。
+
 - 使用分析与其他外联能力按下方[使用反馈验收](#使用反馈验收)核对正式入口约束及数据入库；资源哈希通过不能代替采集成功。
 
 - 合成测试通过 `npm test` 运行，入口会阻断真实原生 opener；定向测试使用 `node --import ./tests/helpers/block-native-open.mjs --test tests/<name>.test.mjs`。`makeApp` fixture 显式注入 `openThread`，需要已恢复 owner 时返回 `source: 'desktop', resumeState: 'resumed'`；不能让假 thread ID 打开用户桌面。来源与覆盖边界见[10-18恢复报错排查](research/2026-10-18-codex-rollout-test-isolation.md)。
