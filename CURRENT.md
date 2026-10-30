@@ -92,13 +92,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 前端/网关源码 | `f54e6002d663228b0a81a904b696ec76fcce2e87`；背景滤镜清理，网关行为保持 |
+| 上次公网前端/网关源码 | `f54e6002d663228b0a81a904b696ec76fcce2e87`；背景滤镜清理，网关行为保持。本次sticky源码提交`d3c7f97`尚未发布 |
 | 两机API源码 | `b8964ffda2dd56cc1fa4c24a530cafa6ff4a291f`；格得PID69936、豌豆PID2392，后续运维需重查 |
 | 前端build | 上次公网已核对`6cc465b4fcf2034db23e62e366004413ddb985cee11d9a66c0c3e042aaed71b4`；本轮公网回读连接超时且无上传。本机已回读待发布候选`92f5211694d0cc136a603a6ccdb58fac9079e954454d53ea6509c565be8ee483`。豌豆内置网页本轮未更新，上次核对为`576d57fb9c6f…` |
-| Pages部署 | `9e08a4fc-9089-4819-a51a-2f2fe9031be9`；10-30 ready=true，32/32公开文件与项目功能通过，上传一次 |
-| 最近验证 | 背景滤镜清理1,882全测、构建、28组双浏览器样本（含12次详情返回循环）与独立CR通过；原CLI两机及XML验证沿上方对应记录，不把浏览器检查视为真机残留复现 |
-| 证据 | `.local/qa/opaque-top-2026-10-30/`：`before.json`、`after.json`、`tests-final.log`、`validation-summary.json`、`pages-resume-retry.json`及`public-integrity-curl.json`。此前XML及CLI证据沿各自条目；真实正文只在私有QA中 |
-| 数据与运行 | 本轮仅网页上传一次，没有Mac API、Codex或连接器重启，也没有真实发送/归档。登录恢复沿用原账号与权限；首次预检401未上传，最终版资源超时通过resume回读，无待续外部动作。所有临时浏览器和fixture已清理 |
+| 上次Pages部署 | `9e08a4fc-9089-4819-a51a-2f2fe9031be9`；10-30当次ready=true，32/32公开文件与项目功能通过，上传一次。本次没有新部署 |
+| 本次验证 | sticky修复1,882全测、构建、12组布局对照、28组双浏览器与独立CR通过；iOS27模拟器主屏幕PWA原生A→B→A及无注入最终包两条关闭路径像素断言通过。实体iPhone更新后效果待反馈 |
+| 本次证据 | `.local/qa/top-edge-2026-10-30/`：`tests.log`、`after.json`、`auth-final-attempt-summary.json`；`.local/qa/top-blur-native-2026-10-30/`：`README.md`、`pixel-comparison.json`、`final-run.json`及`cleanup.json`。上次滤镜尝试、XML及CLI证据沿各自条目 |
+| 本次数据与运行 | 没有新上传，没有Mac API、Codex或连接器重启，也没有真实发送/归档。Cloudflare认证未恢复，原凭据/scope未改；临时登录页、登录进程、模拟器和fixture已清理。后续需恢复认证并首次发布sticky修复 |
 
 表中`9e08a4fc…`旧发布已回读完成，不重复上传该版本；本轮sticky修复仍待首次发布，见页首阻塞。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
