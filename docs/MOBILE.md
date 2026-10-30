@@ -40,6 +40,8 @@ Service Worker 只预缓存公开离线提示、manifest 和图标；私人 API 
 
 发布账号的Cloudflare登录与Pocket用户登录相互独立。2026-10-30曾因OAuth过期叠加CLI网络失败而阻塞发布：先按项目固定版本运行`wrangler whoami`；若仍是传输错误，可在核对该版本官方实现后，以另一HTTP传输完成同一RFC8628设备协议，保持原client ID/scopes、官方验证域名、轮询间隔/过期语义，并在授权成功后原子写回私有凭据。取得设备码或看到成功页都不等于项目可用，必须回读目标账号项目。本次curl路线、scope校验和实际HTTP200证据见`.local/qa/top-edge-2026-10-30/recovery-evening/`；这是一次恢复记录，不保证后续网络稳定。不要把未知refresh结果反复重放，也不要把未上传的新版本当作旧部署resume。
 
+2026-10-31：新凭据的正常refresh也已通过同一官方协议的curl传输续期，权限集合保持，目标账号项目再次HTTP200。公网验收现在由`bin/public-check-http.mjs`读取4个固定同源匿名GET，保留TLS、禁止重定向/URL展开、正文和头部大小限制；已知网络错误最多3次重试，HTTP拒绝及断言不重试。`bin/verify-public.mjs`继续核对完整CSP、PostHog连接许可、两个私有API的401及manifest的200/standalone。19项本地HTTP/TLS回归及一次真实公网调用通过；后续沿原配置运行，不需要使用早先`.local`中的临时fetch适配器。这只增强验收传输，不保证运营链路从此没有网络故障。
+
 `npm run build:pages` 生成静态资源与 `_worker.js`；`wrangler.jsonc` 绑定独立 KV。发布复用 FBT pages-site，配置在 `config/pages-site.json`。DNS 只新增 x 的 CNAME，不变更 fangs.cc 的 nameserver。
 
 本机服务和连接器分别由 `config/local-service.json`、`config/tunnel-service.json` 管理。只重启 Node 不会改变隧道地址；连接器重启会生成新地址并重新登记。网页壳可打开不代表 Mac 在线，API 会返回明确的连接错误。

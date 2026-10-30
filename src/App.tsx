@@ -55,6 +55,8 @@ import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
 import { focusInspectorEntry, inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
 import { machineStorageKey, currentMachineId } from "./machineScope";
 import { createReadingCache, readingCatalogScope, type ReadingCache } from "./readingCache";
+import useTranscriptPrefetch from "./useTranscriptPrefetch";
+import type { TranscriptReader } from "./transcriptReader";
 import { changeNavigation, navigationActivityCounts, navigationTitle, normalizeNavigationPrefs, type NavigationChange } from "./navigationModel";
 import "./task-operations.css";
 function readPrefs() {
@@ -123,8 +125,20 @@ export default function App({
     [newConversationOpen, setNewConversationOpen] = useState(false),
     [newConversationDraft, setNewConversationDraft] = useState<{ text: string; name?: string; selection?: CreationPreference; clipboardRead?: Promise<CreationClipboard> } | null>(null),
     [createRequestId, setCreateRequestId] = useState<string | null>(null);
-  const taskStatuses = useTaskStatuses({ threads: catalog.threads, activity: pocketActivity,
-    selectedId: selected, excludedThreadIds: catalog.excludedThreadIds });
+  const readRevision = useSyncExternalStore(pocketReadState.subscribe, pocketReadState.getSnapshot, pocketReadState.getSnapshot);
+  const pocketReadScope = catalog.sourceInfo?.pocketRead?.scope;
+  const displayCatalog = useMemo(() => ({ ...catalog, threads: catalog.threads.map(thread => {
+    const unread = pocketReadState.unread(thread);
+    if (typeof unread === "boolean") return { ...thread, pocketUnread: unread };
+    if (Object.hasOwn(thread, "pocketUnread")) {
+      const { pocketUnread: _ignored, ...original } = thread;
+      return original;
+    }
+    return thread;
+  }) }), [catalog, readRevision]);
+  const draftIds = useMemo(() => draftThreadIds(conversationDrafts.current), [conversationDrafts, draftIndicatorRevision]);
+  const taskStatuses = useTaskStatuses({ threads: displayCatalog.threads, activity: pocketActivity,
+    selectedId: selected, excludedThreadIds: catalog.excludedThreadIds, draftIds });
   const selectedRef = useRef(selected);
   const [animateSelection, setAnimateSelection] = useState(false);
   const [entryOrigin, setEntryOrigin] = useState<InspectorEntryOrigin>("programmatic");
@@ -160,6 +174,7 @@ export default function App({
     ? "还有未完成的输入，请处理后再更新。" : busy ? "操作尚未完成，请稍后更新。" : null);
   const listPanel = useRef<HTMLElement>(null);
   const cacheRef = useRef<ReadingCache | null>(null), catalogFresh = useRef(false), catalogScope = useRef<string | null>(null);
+  const transcriptReader = useRef<TranscriptReader | null>(null), prefetchCatalogAt = useRef(0);
   const [readingCache, setReadingCache] = useState<ReadingCache | null>(null);
   const [catalogFromDisk, setCatalogFromDisk] = useState(false);
   useEffect(() => {
@@ -200,6 +215,8 @@ export default function App({
     onData(c) {
       if (c.csrfToken) setToken(c.csrfToken);
       const scope = readingCatalogScope(c);
+      if (scope !== catalogScope.current) { transcriptReader.current?.stop(); transcriptReader.current = null; }
+      prefetchCatalogAt.current = scope && !c.sourceError ? Date.now() : 0;
       if (scope && catalogScope.current && scope !== catalogScope.current) {
         conversationHistory.current = new Map();
         const machine = currentMachineId(); if (machine) clearReadResponses(machine);
@@ -212,7 +229,10 @@ export default function App({
       }
     },
     onPendingChange(pending) { setCatalogReading(pending); if (pending) setReadError(""); },
-    onSettled(error) { setLoading(false); setReadError(error ? catalogError(error) : ""); },
+    onSettled(error) {
+      if (error) { prefetchCatalogAt.current = 0; transcriptReader.current?.wake(true); }
+      setLoading(false); setReadError(error ? catalogError(error) : "");
+    },
   }));
   const refresh = useCallback((sync = false) => catalogReader.read(sync), [catalogReader]);
   const syncTasks = useCallback((silent = false) => {
@@ -442,21 +462,23 @@ export default function App({
       );
     } catch {}
   }, [navigation]);
-  const readRevision = useSyncExternalStore(pocketReadState.subscribe, pocketReadState.getSnapshot, pocketReadState.getSnapshot);
-  const pocketReadScope = catalog.sourceInfo?.pocketRead?.scope;
   useLayoutEffect(() => { if (!catalogFromDisk) pocketReadState.observeCatalog(catalog.threads, pocketReadScope); }, [catalog.threads, pocketReadScope, catalogFromDisk]);
-  const displayCatalog = useMemo(() => ({ ...catalog, threads: catalog.threads.map(thread => {
-    const unread = pocketReadState.unread(thread);
-    if (typeof unread === "boolean") return { ...thread, pocketUnread: unread };
-    if (Object.hasOwn(thread, "pocketUnread")) {
-      const { pocketUnread: _ignored, ...original } = thread;
-      return original;
-    }
-    return thread;
-  }) }), [catalog, readRevision]);
   const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
   const runtimeStates = runtimeKnown ? taskStatuses.runtimeStates : undefined;
-  const draftIds = useMemo(() => draftThreadIds(conversationDrafts.current), [conversationDrafts, draftIndicatorRevision]);
+  const prefetchExcluded = useMemo(() => {
+    const ids = new Set(catalog.excludedThreadIds);
+    for (const operation of taskOperations.operations) if (operation.threadId && activeOperation(operation)) ids.add(operation.threadId);
+    for (const [id, draft] of conversationDrafts.current) if (draft.requestId) ids.add(id);
+    for (const thread of catalog.threads) if (submissions.getThread(thread.id).some(item => !item.echoed && !item.dismissed &&
+      ["submitting", "connecting", "pending", "unknown", "editing"].includes(item.status))) ids.add(thread.id);
+    return [...ids];
+  }, [catalog.threads, catalog.excludedThreadIds, taskOperations.operations, draftIndicatorRevision, conversationDrafts, submissions]);
+  const prefetchPriority = useMemo(() => ({ now: Date.now(), selectedId: selected, runtimeStates, pocketActivity, draftIds,
+    excludedThreadIds: prefetchExcluded }), [selected, runtimeStates, pocketActivity, draftIds, prefetchExcluded]);
+  const { readTranscript, holdBackground } = useTranscriptPrefetch({ machine: currentMachineId(), scope: pocketReadScope, cache: readingCache,
+    readerRef: transcriptReader, threads: displayCatalog.threads, priority: prefetchPriority,
+    enabled: !loading && !catalogReading && !catalogFromDisk && !catalog.sourceError && !readError && !busy && !settings && !newConversationOpen && !mobile,
+    catalogFresh: () => prefetchCatalogAt.current > 0 && Date.now() >= prefetchCatalogAt.current && Date.now() - prefetchCatalogAt.current < 60000 });
   // Runtime polling must not make the clock itself a new ranking signal.
   const rankingTime = useMemo(() => Date.now(), [catalog, pocketActivity]);
   useEffect(() => {
@@ -802,7 +824,7 @@ export default function App({
               queryDrafts={conversationDrafts.current}
               submissions={submissions}
               historyCache={conversationHistory.current}
-              readingCache={readingCache} readingScope={pocketReadScope}
+              readingCache={readingCache} readingScope={pocketReadScope} readTranscript={readTranscript} holdPrefetch={holdBackground}
               onRenamed={thread => {
                 catalogReader.invalidate();
                 setCatalog(c => ({ ...c, threads: c.threads.map(old => old.id === thread.id

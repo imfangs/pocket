@@ -21,7 +21,7 @@ test('recent creation, genuine visit, active observation and the current detail 
   const hotset = createTaskHotset(() => epoch);
   hotset.update(context(threads, { activity, selectedId: id(5) }));
   hotset.observe(response(10000, [[id(6), 'waiting_approval']]));
-  assert.deepEqual(hotset.priorityThreadIds(), [id(5), id(6), id(1), id(2), id(3)]);
+  assert.deepEqual(hotset.priorityThreadIds(), [id(5), id(6), id(1), id(3), id(2)], 'shared rank weighs Pocket creation ahead of a similar native creation');
   assert.deepEqual({ threads, activity }, before, 'prefetch never rewrites ranking or catalog metadata');
   assert.deepEqual(Object.keys(hotset).sort(), ['observe', 'priorityThreadIds', 'update']);
 });
@@ -55,7 +55,7 @@ test('only fresh, valid observations may seed activity and server clock skew doe
   assert.deepEqual(hotset.priorityThreadIds(), []);
   hotset.observe(response(9000000000000, [[id(1), 'running'], [id(2), 'waiting_input'],
     [id(3), 'idle'], [id(4), 'running', 8999999970000], [id(5), 'running', 9000000005000]]));
-  assert.deepEqual(hotset.priorityThreadIds(), [id(1), id(2)]);
+  assert.deepEqual(hotset.priorityThreadIds(), [id(2), id(1)], 'waiting for input has the existing shared rank weight');
   now += taskHotsetLifetimeMs;
   assert.deepEqual(hotset.priorityThreadIds(), []);
 });
@@ -155,7 +155,7 @@ test('one poller reads current hints on the next collection and stops for hidden
   hotset.update(context(threads, { selectedId: id(2) }));
   await advance(9999); assert.equal(paths.length, 1);
   await advance(1); assert.equal(paths.length, 2);
-  assert.deepEqual(hint(paths[1]), [id(2), id(1), id(3)]);
+  assert.deepEqual(hint(paths[1]), [id(2), id(3), id(1)], 'the selected detail stays first, then running outranks native creation');
   for (const mode of ['hidden', 'offline']) {
     if (mode === 'hidden') { visibility.visibilityState = 'hidden'; visibility.dispatchEvent(new Event('visibilitychange')); }
     else { browser.navigator.onLine = false; browser.dispatchEvent(new Event('offline')); }

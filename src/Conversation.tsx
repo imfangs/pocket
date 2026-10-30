@@ -44,6 +44,7 @@ import { bindEarlierHistoryScroll } from "./earlierHistoryScroll";
 import EarlierHistoryMessage from "./earlierHistoryMessage";
 import "./earlierHistory.css";
 import type { ReadingCache } from "./readingCache";
+import type { HoldTranscriptPrefetch, TranscriptRead } from "./transcriptReader";
 import { currentMachineId } from "./machineScope";
 import "./reading-composer.css";
 import { queryTimeline, type TimelineQuery } from "./queryTimeline";
@@ -71,6 +72,8 @@ export default function Conversation({
   historyCache,
   readingCache,
   readingScope,
+  readTranscript,
+  holdPrefetch,
   submissions: providedSubmissions,
   onConnect,
   onRestore,
@@ -83,6 +86,8 @@ export default function Conversation({
   historyCache: HistoryCache;
   readingCache?: ReadingCache | null;
   readingScope?: string;
+  readTranscript?: TranscriptRead;
+  holdPrefetch?: HoldTranscriptPrefetch;
   submissions?: SubmittedQueryStore;
   onConnect: (options?: ConnectOptions) => Promise<OpenThreadResult>;
   onRestore?: () => Promise<void>;
@@ -318,6 +323,10 @@ export default function Conversation({
   }, [thread.id, transcript?.pocketContent]);
   const observedConnection = connectionFromHistory(connection, history);
   const connecting = opening || observedConnection.status === "connecting";
+  // Receipt polling has quiet gaps; keep speculative work paused throughout
+  // the current interaction, not only while an individual HTTP request exists.
+  useEffect(() => sending || restoring || connecting || retryingHistory ? holdPrefetch?.() : undefined,
+    [sending, restoring, connecting, retryingHistory, holdPrefetch]);
   useReloadGuard(() => sending || connecting || restoring ? "操作尚未完成，请稍后更新。"
     : draft.text || draft.requestId || attachments.length ? "还有未发送或待核对的消息，请处理后再更新。" : submissions.reloadBlocker());
   const updateDraft = useCallback(
@@ -538,7 +547,8 @@ export default function Conversation({
   }, [thread.id, connectingId, load, managementBlocked]);
   useEffect(() => {
     const subscription = startTranscriptFeed({
-      request: signal => api<SavedTranscript>(`/api/tasks/${thread.id}/transcript`, "GET", undefined, { signal }),
+      request: signal => readTranscript ? readTranscript(thread.id, signal)
+        : api<SavedTranscript>(`/api/tasks/${thread.id}/transcript`, "GET", undefined, { signal }),
       onData(data) {
         networkObserved.current.transcript = true;
         receivedTranscript.current = true;
@@ -556,7 +566,7 @@ export default function Conversation({
     });
     textFeed.current = subscription;
     return () => { subscription.stop(); if (textFeed.current === subscription) textFeed.current = null; };
-  }, [thread.id, historyCache]);
+  }, [thread.id, historyCache, readTranscript]);
   useEffect(() => {
     if (managementBlocked) { setLoading(false); return; }
     const subscription = startConversationFeed({
