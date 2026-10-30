@@ -1,5 +1,10 @@
 .network-title {
-  --network-title-glint:var(--accent,#3e63dd);
+  --network-title-sheen-edge:#535353;
+  --network-title-glint:#707070;
+}
+html[data-theme="dark"] .network-title, .radix-themes.dark .network-title {
+  --network-title-sheen-edge:#a0a0a0;
+  --network-title-glint:#ffffff;
 }
 .network-title[data-network-active] {
   text-decoration-line:underline;
@@ -11,7 +16,7 @@
   .network-title[data-network-active] {
     text-decoration:none;
     background-color:currentColor;
-    background-image:linear-gradient(105deg,currentColor 0%,currentColor 33%,var(--network-title-glint) 48%,currentColor 63%,currentColor 100%);
+    background-image:linear-gradient(105deg,currentColor 0%,currentColor 33%,var(--network-title-sheen-edge) 40%,var(--network-title-glint) 48%,var(--network-title-sheen-edge) 56%,currentColor 63%,currentColor 100%);
     background-repeat:no-repeat;
     background-size:200% 100%;
     background-clip:text;
