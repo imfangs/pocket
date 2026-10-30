@@ -44,7 +44,8 @@ textarea:focus, input:focus, select:focus { border-color:var(--accent); }
 .sidebar-bottom { border-top:1px solid var(--line); padding:12px 0; }
 .sidebar-bottom .nav-item { font-size:13px; }
 .sidebar-tools .sidebar-settings { margin:0; box-sizing:border-box; }
-.sidebar-backdrop.shown { background:#0b142e55; backdrop-filter:blur(3px); }
+/* Dim the page without blurring its title or controls behind an overlay. */
+.sidebar-backdrop.shown { background:#0b142e55; }
 .workspace { background:var(--canvas); }
 .workspace-header { padding:24px var(--page-gutter) 12px; background:var(--surface); border-bottom:1px solid var(--line); }
 .heading-line { gap:12px; align-items:center; }
@@ -208,7 +209,7 @@ dialog { color:var(--ink); background:var(--surface-raised); border:1px solid va
 .pocket-dialog[open] { display:flex; flex-direction:column; overflow:hidden; }
 .pocket-dialog > header { flex:none; }
 .pocket-dialog-body { min-width:0; min-height:0; overflow-y:auto; overscroll-behavior:contain; scroll-padding-block:var(--space-4); }
-dialog::backdrop { background:#0b142e55; backdrop-filter:blur(4px); }
+dialog::backdrop { background:#0b142e55; }
 dialog > header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px 12px 24px; border:0; }
 dialog h2 { margin:0; color:var(--ink); font-size:20px; font-weight:650; line-height:1.4; }
 dialog form, .settings-content { padding:12px 24px 24px; }
