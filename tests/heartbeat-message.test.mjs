@@ -13,6 +13,8 @@ const summary = '合成任务状态无变化，继续等待下一次检查。';
 const envelope = (body) => `<heartbeat>\n<automation_id>synthetic-check</automation_id>\n${body}\n</heartbeat>`;
 const trigger = envelope(`<current_time_iso>2026-10-28T05:00:00+08:00</current_time_iso>\n<instructions>${instructions}</instructions>`);
 const result = (decision = 'DONT_NOTIFY', body = summary) => envelope(`<decision>${decision}</decision>\n<message>${body}</message>`);
+const citationFooter = '<oai-mem-citation>\n<citation_entries>synthetic-private-entry</citation_entries>\n<rollout_ids>synthetic-private-id</rollout_ids>\n</oai-mem-citation>';
+const encodedFooter = citationFooter.replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
 const vite = await createServer({
   configFile: false, root: fileURLToPath(new URL('..', import.meta.url)),
@@ -160,4 +162,64 @@ test('heartbeat presentation never mutates the original message used by identity
   renderToStaticMarkup(createElement(ConversationMessage, { message }));
   assert.equal(JSON.stringify(message), before);
   assert.equal(message.text, result());
+});
+
+test('complete heartbeat envelopes accept only an external citation suffix, including encoded and streamed footers', () => {
+  for (const footer of [citationFooter, encodedFooter, '<citation_entries>synthetic-private-entry</citation_entries>',
+    '<rollout_ids>synthetic-private-id', '&lt;oai-mem-citation&gt;synthetic-private-entry',
+    `${citationFooter}\n\n${encodedFooter}\n<rollout_ids>synthetic-private-id</rollout_ids>`]) {
+    const body = '可读摘要。\n\n[参考文章](https://example.invalid/article)', source = result('DONT_NOTIFY', body) + '\n' + footer;
+    assert.deepEqual(heartbeatMessage(source), { kind: 'result', text: body });
+    assert.equal(readableCodexMarkdown(source), body);
+    const html = render('assistant', source);
+    assert.match(html, /href="https:\/\/example.invalid\/article"/);
+    assert.doesNotMatch(html, /synthetic-private|citation_entries|rollout_ids|&lt;heartbeat/);
+    const presentation = presentUserMessage(trigger + '\n' + footer);
+    assert.equal(presentation.automationInstructions, instructions);
+    assert.equal(presentation.copyText, `定时检查\n\n${instructions}`);
+  }
+});
+
+test('citation stripping never pre-cleans code or literal tags inside heartbeat fields', () => {
+  const bodies = ['内部示例：\n\n```xml\n<oai-mem-citation>literal-example</oai-mem-citation>\n```',
+    '内部行内示例 `<citation_entries>literal-example</citation_entries>` 保留。',
+    '<oai-mem-citation>literal-example</oai-mem-citation>',
+    '闭合标签代码 `</heartbeat>` 也保留。'];
+  for (const body of bodies) {
+    const source = result('DONT_NOTIFY', body) + '\n' + citationFooter;
+    assert.equal(heartbeatMessage(source)?.text, body);
+    assert.equal(heartbeatMessage(envelope(`<instructions>${body}</instructions>`) + '\n' + citationFooter)?.instructions, body);
+    assert.match(render('assistant', source), /literal-example|闭合标签代码/);
+    assert.doesNotMatch(render('assistant', source), /synthetic-private/);
+  }
+});
+
+test('ordinary trailing text or protected citation examples retain the original heartbeat fallback', () => {
+  for (const tail of ['\n后续普通文字', `\n\n\`\`\`xml\n${citationFooter}\n\`\`\``,
+    '\n`<oai-mem-citation>literal-example</oai-mem-citation>`',
+    '\n\n    <oai-mem-citation>literal-example</oai-mem-citation>', `${citationFooter}\n后续普通文字`]) {
+    const source = result() + tail;
+    assert.equal(heartbeatMessage(source), null);
+    assert.ok(heartbeatFallback(source).includes(source.trim()));
+  }
+});
+
+test('unknown heartbeat shapes remain inert while a safe external footer is removed from their fallback', () => {
+  for (const source of [envelope('<future>未知字段</future>'), envelope('<message>一</message><message>二</message>'),
+    '<heartbeat version="future"><message>未知格式</message></heartbeat>']) {
+    assert.equal(heartbeatMessage(source + '\n' + citationFooter), null);
+    assert.equal(heartbeatFallback(source + '\n' + citationFooter), heartbeatFallback(source));
+  }
+  const incomplete = result().replace('</heartbeat>', '');
+  assert.equal(heartbeatMessage(incomplete + citationFooter), null);
+  assert.ok(heartbeatFallback(incomplete + citationFooter).includes('synthetic-private-entry'));
+});
+
+test('whole fenced, indented and inline heartbeat examples stay unclassified even with a footer', () => {
+  for (const example of [`\`\`\`xml\n${result()}\n\`\`\``, result().split('\n').map(line => '    ' + line).join('\n'),
+    `\`${result().replaceAll('\n', ' ')}\``]) {
+    const source = example + '\n' + citationFooter;
+    assert.equal(heartbeatMessage(source), null); assert.equal(heartbeatFallback(source), null);
+    assert.equal(readableHeartbeatMessage(source), source);
+  }
 });

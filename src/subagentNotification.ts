@@ -1,4 +1,5 @@
 import { heartbeatFieldMarkdown } from "./heartbeatMessage.ts";
+import { stripEnvelopeCitationSuffix } from "./envelopeCitation.ts";
 
 export type SubagentNotification = {
   status: "completed" | "errored" | "running" | "pending_init" | "shutdown" | "not_found";
@@ -18,6 +19,7 @@ const plainObject = (value: unknown): value is Record<string, unknown> =>
 // inferred from its content. JSON parsing never evaluates the result text.
 export function subagentNotification(source: string): SubagentNotification | null {
   if (source.length > 262144 || !startsEnvelope.test(source)) return null;
+  source = stripEnvelopeCitationSuffix(source, "subagent_notification");
   const envelope = /^(?:[ \t]*\r?\n)* {0,3}<subagent_notification>([\s\S]*)<\/subagent_notification>[ \t\r\n]*$/.exec(source);
   if (!envelope) return null;
   try {
@@ -46,6 +48,7 @@ export function subagentNotification(source: string): SubagentNotification | nul
 
 export function subagentNotificationFallback(source: string): string | null {
   if (!startsEnvelope.test(source)) return null;
+  source = stripEnvelopeCitationSuffix(source, "subagent_notification");
   const fence = "`".repeat(Math.max(3, ...[...source.matchAll(/`+/g)].map(match => match[0].length + 1)));
   return `${fence}text\n${source.trim()}\n${fence}`;
 }

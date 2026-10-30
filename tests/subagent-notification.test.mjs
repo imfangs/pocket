@@ -11,6 +11,7 @@ import { readableCodexMarkdown } from '../src/codexMarkup.ts';
 const report = '独立验证完成。\n\n- **117 项：112 通过、5 失败**\n- 五个场景全部通过。';
 const wrap = (value) => `<subagent_notification>\n${typeof value === 'string' ? value : JSON.stringify(value)}\n</subagent_notification>`;
 const envelope = (status = { completed: report }) => wrap({ agent_path: '/root/synthetic-review', status });
+const citationFooter = '<oai-mem-citation><citation_entries>synthetic-private-entry</citation_entries><rollout_ids>synthetic-private-id</rollout_ids></oai-mem-citation>';
 const vite = await createServer({ configFile: false, root: fileURLToPath(new URL('..', import.meta.url)),
   esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true, include: [] },
   server: { middlewareMode: true, hmr: false }, appType: 'custom' });
@@ -150,4 +151,60 @@ test('a hidden result cannot expose a read marker while visible status-only and 
   assert.doesNotMatch(renderReadTarget(envelope()), /data-pocket-read-marker/);
   assert.match(renderReadTarget(envelope('running')), /data-pocket-read-marker/);
   assert.match(renderReadTarget('普通回复'), /data-pocket-read-marker/);
+});
+
+test('subagent notifications accept external raw, entity, multiple and truncated citation suffixes', () => {
+  const encoded = citationFooter.replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  for (const footer of [citationFooter, encoded, '<citation_entries>synthetic-private-entry',
+    '&lt;rollout_ids&gt;synthetic-private-id', citationFooter + '\n' + encoded]) {
+    const source = envelope() + '\n' + footer;
+    assert.deepEqual(subagentNotification(source), subagentNotification(envelope()));
+    assert.equal(readableCodexMarkdown(source), '子任务已完成\n\n' + report);
+    assert.equal(presentUserMessage(source).copyText, '子任务已完成\n\n' + report);
+    const html = render(source);
+    assert.match(html, /message-notification/); assert.doesNotMatch(html, /synthetic-private|agent_path|&lt;subagent_notification/);
+  }
+});
+
+test('subagent JSON and internal code remain exact even when they contain literal envelope closing tags', () => {
+  for (const text of ['JSON文字包含 </subagent_notification> 然后继续。',
+    '内部代码：\n\n```xml\n<oai-mem-citation>literal-example</oai-mem-citation>\n```',
+    '保留行内 `<rollout_ids>literal-example</rollout_ids>`。',
+    '字面JSON {"ending":"</subagent_notification>","note":"<citation_entries>literal-example</citation_entries>"}']) {
+    const source = envelope({ completed: text }) + '\n' + citationFooter;
+    assert.equal(subagentNotification(source)?.text, text);
+    assert.match(render(source), /JSON|literal-example/); assert.doesNotMatch(render(source), /synthetic-private/);
+  }
+});
+
+test('protected or ordinary trailing content does not become a removable subagent citation suffix', () => {
+  for (const tail of ['\n普通后文', `\n\n\`\`\`xml\n${citationFooter}\n\`\`\``,
+    `\n\`${citationFooter}\``, `\n\n    ${citationFooter}`, citationFooter + '\n普通后文']) {
+    const source = envelope() + tail;
+    assert.equal(subagentNotification(source), null);
+    assert.ok(subagentNotificationFallback(source).includes(source.trim()));
+  }
+});
+
+test('external citations do not relax unknown/duplicate shapes or the original source length bound', () => {
+  for (const source of [envelope('future_status'), wrap({ agent_path: 'agent', status: 'running', future: 'unknown' }),
+    wrap('{"agent_path":"one","agent_path":"two","status":"running"}')]) {
+    assert.equal(subagentNotification(source + '\n' + citationFooter), null);
+    assert.equal(subagentNotificationFallback(source + '\n' + citationFooter), subagentNotificationFallback(source));
+  }
+  const oversized = envelope() + '\n<oai-mem-citation>' + 'x'.repeat(262144) + '</oai-mem-citation>';
+  assert.ok(oversized.length > 262144); assert.equal(subagentNotification(oversized), null);
+  assert.match(readableSubagentNotification(oversized), /^```text/);
+  const incomplete = envelope().replace(/<\/subagent_notification>$/, '');
+  assert.equal(subagentNotification(incomplete + citationFooter), null);
+  assert.ok(subagentNotificationFallback(incomplete + citationFooter).includes('synthetic-private-entry'));
+});
+
+test('whole subagent Markdown examples are never promoted when an external footer follows', () => {
+  for (const example of [`\`\`\`xml\n${envelope()}\n\`\`\``,
+    envelope().split('\n').map(line => '    ' + line).join('\n'), `\`${envelope().replaceAll('\n', ' ')}\``]) {
+    const source = example + '\n' + citationFooter;
+    assert.equal(subagentNotification(source), null); assert.equal(subagentNotificationFallback(source), null);
+    assert.equal(readableSubagentNotification(source), source);
+  }
 });

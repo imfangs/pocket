@@ -1,3 +1,5 @@
+import { stripEnvelopeCitationSuffix } from "./envelopeCitation.ts";
+
 type HeartbeatMessage =
   | { kind: "trigger"; text: string; instructions: string }
   | { kind: "result"; text: string };
@@ -6,6 +8,7 @@ type HeartbeatMessage =
 // complete known shape without an XML engine, entities or external resources.
 export function heartbeatMessage(source: string): HeartbeatMessage | null {
   if (!/^(?:[ \t]*\r?\n)* {0,3}<heartbeat>/.test(source)) return null;
+  source = stripEnvelopeCitationSuffix(source, "heartbeat");
   const envelope = /^(?:[ \t]*\r?\n)* {0,3}<heartbeat>([\s\S]*)<\/heartbeat>[ \t\r\n]*$/.exec(source);
   if (!envelope) return null;
   const fields = new Map<string, string>();
@@ -35,7 +38,7 @@ function literalMarkdown(source: string): string {
 
 export function heartbeatFallback(source: string): string | null {
   if (!/^(?:[ \t]*\r?\n)* {0,3}<heartbeat(?:\s|\/?>)/.test(source)) return null;
-  return literalMarkdown(source);
+  return literalMarkdown(stripEnvelopeCitationSuffix(source, "heartbeat"));
 }
 
 export function heartbeatFieldMarkdown(source: string): string {
