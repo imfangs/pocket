@@ -19,3 +19,5 @@
 受控预览已生成，但视觉工具被Safe Image View拒绝；没有绕过，也没有将几何/结构验收表述为新的目视审美验收。前后PNG、命中区与边界报告在`.local/qa/settings-info-2026-10-30/`。
 
 本轮与[过程页脚](2026-10-12-light-feedback-and-message-footer.md)、[iOS顶部滚动边缘修复](2026-10-30-ios-header-scroll-edge.md)统一构建。整仓1,887项回归通过，统一build为`b2fe8f9db218990a9273d0a26ffbabe647fc52c6e1eb1169a9fa890aa619ccd2`；发布回执与最终状态回CURRENT。后台消息预取优先级是后来追加的独立事项，不包含在此UI包中。
+
+已发布：源码`2e8cc5e73a540ae4ddd92512c53e1768a396e236`，Pages `f00227d4-91bf-46ad-b52a-d482f7582faa`。上传一次，32/32资源通过；原Node功能探针连续出现连接超时，保留`bin/verify-public.mjs`的原始四项断言，仅用有界、同源、匿名HTTPS的curl传输复验，首页/manifest必须200，两个私有API必须401。最终ready=true，回执`.local/qa/ui-compact-2026-10-30/pages-resume-curl-retry.json`。未重启任何Mac服务，未执行真实会话操作。
