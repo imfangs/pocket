@@ -22,6 +22,11 @@ export function messageTime(timestamp: unknown, now: number) {
   return { label, dateTime: date.toISOString(), absolute: fullDate.format(date) };
 }
 
+export function progressMessageTime(timestamp: unknown, now: number) {
+  if (validMessageTimestamp(timestamp) && now - timestamp >= hour) return null;
+  return messageTime(timestamp, now);
+}
+
 type MessageClockEnvironment = {
   now: () => number;
   document: Pick<Document, "hidden" | "addEventListener" | "removeEventListener">;

@@ -12,7 +12,7 @@ import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
 import HeartbeatTrigger from "./HeartbeatTrigger";
 import SubagentNotificationMessage from "./SubagentNotificationMessage";
 import { subagentNotification } from "./subagentNotification";
-import MessageTimestamp from "./MessageTimestamp";
+import MessageTimestamp, { ProgressMessageFooter } from "./MessageTimestamp";
 import { validMessageTimestamp } from "./messageTime";
 import "./message-footer.css";
 
@@ -44,7 +44,7 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
             ? "Codex · 最终回复"
             : "Codex · 回复";
   const confirmed = kind === "user" && recentlySent;
-  const copyable = !!presentation.copyText.trim();
+  const copyable = kind !== "progress" && !!presentation.copyText.trim();
   const timestamp = message.timestamp;
   const hasTimestamp = validMessageTimestamp(timestamp);
   const duration = final && message.turnDurationMs != null ? formatDuration(message.turnDurationMs) : null;
@@ -68,11 +68,11 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
       <AttachmentList attachments={message.attachments} />
       {message.truncated && <small>内容较长，此处已截取。</small>}
       {queryDelivery?.controls}
-      {(hasTimestamp || copyable || confirmed || duration) && <footer className="message-footer">
+      {kind === "progress" ? hasTimestamp && <ProgressMessageFooter timestamp={timestamp} /> : (hasTimestamp || copyable || confirmed || duration) && <footer className="message-footer">
         {confirmed && !queryDelivery?.hasControls && <span className="message-send-confirmed"><Check size={13} aria-hidden="true" />已发送</span>}
         {duration && <span className="message-duration">总用时 <time>{duration}</time></span>}
         {hasTimestamp && <MessageTimestamp timestamp={timestamp} />}
-        {copyable && <CopyButton text={presentation.copyText} label={notification ? "复制子任务结果" : kind === "user" ? "复制这条消息" : progress ? "复制过程" : "复制回复"} />}
+        {copyable && <CopyButton text={presentation.copyText} label={notification ? "复制子任务结果" : kind === "user" ? "复制这条消息" : "复制回复"} />}
       </footer>}
       {readMarker && !notification?.text && <div ref={readMarker} data-pocket-read-marker="" aria-hidden="true" style={{ height: 1 }} />}
     </article>

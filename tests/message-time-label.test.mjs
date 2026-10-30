@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMessageClock, messageTime, validMessageTimestamp } from '../src/messageTime.ts';
+import { createMessageClock, messageTime, progressMessageTime, validMessageTimestamp } from '../src/messageTime.ts';
 
 const minute = 60_000, hour = minute * 60, day = hour * 24;
 const now = new Date(2026, 9, 15, 12, 30, 45).getTime();
@@ -37,6 +37,13 @@ test('invalid or absent timestamps are not replaced by the current time', () => 
     assert.equal(messageTime(timestamp, now), null);
   }
   assert.equal(validMessageTimestamp(-1), true, 'keep existing valid pre-epoch timestamp handling');
+});
+
+test('process time expires at one hour while future and missing time retain their honest handling', () => {
+  assert.equal(progressMessageTime(now - hour + 1, now).label, '59分钟前');
+  for (const age of [hour, hour + 1, day]) assert.equal(progressMessageTime(now - age, now), null);
+  for (const timestamp of [undefined, null, 0, Number.NaN, Infinity]) assert.equal(progressMessageTime(timestamp, now), null);
+  assert.deepEqual(progressMessageTime(now + minute, now), messageTime(now + minute, now));
 });
 
 function clockFixture(hidden = false) {

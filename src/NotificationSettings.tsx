@@ -51,10 +51,12 @@ export default function NotificationSettings() {
     finally { release(); setBusy(false); }
   };
   return <section className="notification-setting" aria-label="任务通知">
-    <div><strong>任务通知</strong><p className="field-help">{supported ? '在 Pocket 打开或发送过的任务：完成、失败或需要处理时通知。' : '从手机主屏幕打开 Pocket 后可开启。'}</p></div>
-    {supported && <Button className="secondary" variant="soft" color="gray" disabled={busy || !key} onClick={() => void toggle()}>
-      {enabled ? <BellOff size={16}/> : <Bell size={16}/>}{busy ? '处理中…' : enabled ? '关闭通知' : '开启通知'}
-    </Button>}
+    <div className="notification-setting-row"><strong>任务通知</strong>
+      {supported && <Button className="secondary" variant="soft" color="gray" disabled={busy || !key} onClick={() => void toggle()}>
+        {enabled ? <BellOff size={16}/> : <Bell size={16}/>}{busy ? '处理中…' : enabled ? '关闭通知' : '开启通知'}
+      </Button>}
+    </div>
+    <p className="field-help">{supported ? '在 Pocket 打开或发送过的任务：完成、失败或需要处理时通知。' : '从手机主屏幕打开 Pocket 后可开启。'}</p>
     {error && <p className="inline-error" role="alert">{error}</p>}
   </section>;
 }

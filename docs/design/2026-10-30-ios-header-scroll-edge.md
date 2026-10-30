@@ -32,6 +32,8 @@
 
 ## 发布阻塞与接续
 
+同日晚间已恢复发布登录：按固定Wrangler 4.141的官方设备协议，仅更换HTTP传输为curl；第一次设备码确认过期后新开一次请求，最终授权和凭据写回成功。原28项权限不变，目标Cloudflare账号的`codex-navigator`项目已HTTP200回读；临时授权页及过期凭据备份已清理。证据在`.local/qa/top-edge-2026-10-30/recovery-evening/`，新令牌不进入这些公开文档或Git。当前与新增UI调整统一发布，以下保留先前阻塞的发生过程，不再表示认证仍未恢复。
+
 本轮没有调用deploy或上传新版。Cloudflare登录凭据过期后，CLI续期长时间未完成；官方device页面曾持续空白，官方refresh的单次curl尝试在TLS阶段超时，结果未确认而没有重放、没有写回配置。最后一次在浏览器页面恢复后，Wrangler仍在取得device code之前返回`fetch failed`。认证临时页面和进程均已清理，原scope保持；最终一次公网版本回读也在连接阶段超时，不把它记成线上验证通过。
 
 网络恢复后，沿 `.local/qa/top-edge-2026-10-30/login-publish-account.sh` 或同版本Wrangler的官方登录恢复现有账号，先核对账号/权限与当前Git状态，再使用项目pages-site配置**deploy这个新版本**，并完成资源及功能回读。不要resume上次`9e08a4fc…`部署来假称新版本已经上线。原生和代码验证已完成，无新代码或新反证时不重复创建模拟器。

@@ -13,6 +13,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 设置/会话信息紧凑布局、顶部创建/活动/加号默认透明 | [控件与信息减法](docs/design/2026-10-30-compact-settings-and-controls.md)：统一节奏、元数据两列、局部Modal标题margin、44px点击区和选中反馈保持 |
 | 新建/详情关闭后标题及加号上半部分模糊、菜单开关可恢复 | [iOS滚动边缘](docs/design/2026-10-30-ios-header-scroll-edge.md)：原生scroll edge effect与CSS blur不同；保持手机实色sticky顶边，原生A/B与新建/详情两路径已验证，不能只凭桌面filter:none判定修复 |
 | 客户端版本、请求诊断头、反馈原版本与设置版本显示 | [客户端版本](docs/design/2026-10-30-client-version.md)：构建哈希单一来源、请求头有界透传、旧反馈保持捕获时版本；不是连接/认证门槛 |
 | 列表/详情标题扫光、请求状态、并发与结束清理 | [标题请求状态](docs/design/2026-10-29-request-title.md)：被动观察业务API、按机器/线程归属、120/180ms视觉缓冲，空闲不代表已同步成功；媒体/模型运行各用原状态 |

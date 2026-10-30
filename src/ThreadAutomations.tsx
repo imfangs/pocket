@@ -59,15 +59,15 @@ export function ThreadAutomationsContent({ source, loading = false, error = "", 
   const needsRetry = !!error || !!source?.stale || (!!source && !source.available);
   const status = error || (source?.stale || unavailable ? automations.length > 0
     ? "暂时无法读取最新计划，以下为缓存内容。" : "暂时无法确认是否有关联的定时任务。" : "");
-  return <section className="thread-automations" aria-labelledby={headingId} aria-busy={loading}>
+  const empty = !loading && !status && source?.available && !source.stale && automations.length === 0;
+  return <section className="thread-automations" aria-labelledby={headingId} aria-busy={loading} data-empty={empty || undefined}>
     <div className="thread-automations-heading">
       <h3 id={headingId}><Clock size={14} aria-hidden="true" />定时任务{automations.length > 0 && <span>{automations.length}</span>}</h3>
       {needsRetry && <button type="button" className="text-button" disabled={loading} onClick={onRetry}>重新读取</button>}
     </div>
     {loading && <p className="thread-automations-notice" role="status">{source ? "正在刷新…" : "正在读取…"}</p>}
     {status && <p className="thread-automations-notice" role={error ? "alert" : "status"}>{status}{error && automations.length > 0 ? " 以下为缓存内容。" : ""}</p>}
-    {!loading && !status && source?.available && !source.stale && automations.length === 0
-      && <p className="thread-automations-notice">暂无关联的定时任务</p>}
+    {empty && <p className="thread-automations-notice">暂无关联的定时任务</p>}
     {automations.length > 0 && <ul className="thread-automations-list" data-stale={stale || undefined}>
       {automations.map(automation => <li key={automation.id} className="thread-automation">
         <div className="thread-automation-heading">

@@ -47,6 +47,12 @@ test('notification gets its own compact disclosure rather than a long user query
   }
 });
 
+test('a child notification carried as commentary retains its result copy and time', () => {
+  const html = render(envelope(), 'assistant', { phase: 'commentary' });
+  assert.match(html, /class="conversation-message assistant message-notification"/);
+  assert.match(html, /<footer class="message-footer">[\s\S]*message-timestamp[\s\S]*复制子任务结果/);
+});
+
 test('historical rows share the same projection without delivery or read credentials', () => {
   const html = renderToStaticMarkup(createElement(EarlierHistoryMessage, { threadId: 'fixture', message: {
     id: 'historic-notification', role: 'user', text: envelope(), clientMessageId: 'not-a-receipt',

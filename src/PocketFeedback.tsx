@@ -94,7 +94,6 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
   return {
     enabled, ready, open,
     settings: enabled ? <section className="pocket-feedback-settings" aria-label="使用反馈">
-      <h3>使用反馈</h3>
       <div className="pocket-feedback-setting-row">
         <label htmlFor={shakeId}>摇一摇反馈</label>
         <span className="pocket-feedback-setting-control">

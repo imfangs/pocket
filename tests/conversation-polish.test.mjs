@@ -143,7 +143,7 @@ test('messages keep accessible identities while time, duration and copy actions 
   const progress = renderToStaticMarkup(createElement(Message, { message: { id: 'process', role: 'assistant', phase: 'commentary', text: 'The process message' } }));
   assert.match(progress, /data-message-id="process" aria-label="Codex · 过程"/);
   assert.doesNotMatch(progress, /message-label|message-role|message-phase/);
-  assert.match(progress, /<footer[^>]*>[\s\S]*aria-label="复制过程"[\s\S]*<\/footer>/);
+  assert.doesNotMatch(progress, /message-footer|复制过程/);
 });
 
 test('observed compaction has one primary status instead of a duplicate connection notice', () => {
