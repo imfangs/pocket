@@ -14,8 +14,6 @@
   isolation: isolate;
   background: var(--send-green-bg);
   box-shadow: 0 0 0 1px var(--send-green-line), 0 5px 22px var(--send-green-glow);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
 }
 .message-send-confirmed { display: inline-flex; align-items: center; gap: 3px; color: var(--send-green); font-size: 11px; white-space: nowrap; }
 .outbox .outbox-item.queue-feedback { position: relative; isolation: isolate; }
