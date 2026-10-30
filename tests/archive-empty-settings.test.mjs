@@ -8,8 +8,9 @@ import { tmpdir } from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import { readBridgeConfig } from '../server/bridge-config.mjs';
 
-const config = JSON.parse(readFileSync(new URL('../config/desktop-bridge.json', import.meta.url), 'utf8'));
+const config = readBridgeConfig();
 const createScript = fileURLToPath(new URL('../bin/create-thread.py', import.meta.url));
 const archiveScript = fileURLToPath(new URL('../bin/archive-thread.py', import.meta.url));
 const sha = path => createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -67,9 +68,9 @@ function assertUnchangedModel(state, effort) {
   assert.equal(state.tokens_used, 0); assert.equal(state.has_user_event, 0);
 }
 
-async function resume(state, { hold = false } = {}) {
-  const source = `import importlib.util,json,sys\nfrom pathlib import Path\ns=importlib.util.spec_from_file_location('create_thread',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\nm.ALLOWED_METHODS.update({'thread/resume','thread/turns/list'})\nwith m.StdioServer(m.binary_for(Path(sys.argv[2])),Path(sys.argv[2]),Path(sys.argv[3])) as server:\n r=server.call('thread/resume',{'threadId':sys.argv[4],'excludeTurns':True})\n turns=server.call('thread/turns/list',{'threadId':sys.argv[4],'limit':10})\n print(json.dumps({'model':r['model'],'effort':r['reasoningEffort'],'turns':turns['data']}),flush=True)\n ${hold ? 'sys.stdin.read()' : 'pass'}`;
-  const args = ['-u', '-c', source, createScript, state.home, state.cwd, state.id];
+async function resume(state, { hold = false, settingsChanges = [] } = {}) {
+  const source = `import importlib.util,json,sys\nfrom pathlib import Path\ns=importlib.util.spec_from_file_location('create_thread',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\nm.ALLOWED_METHODS.update({'thread/resume','thread/turns/list'})\nwith m.StdioServer(m.binary_for(Path(sys.argv[2])),Path(sys.argv[2]),Path(sys.argv[3])) as server:\n r=server.call('thread/resume',{'threadId':sys.argv[4],'excludeTurns':True})\n for settings in json.loads(sys.argv[5]):server.call('thread/settings/update',{'threadId':sys.argv[4],**settings})\n turns=server.call('thread/turns/list',{'threadId':sys.argv[4],'limit':10})\n print(json.dumps({'model':r['model'],'effort':r['reasoningEffort'],'turns':turns['data']}),flush=True)\n ${hold ? 'sys.stdin.read()' : 'pass'}`;
+  const args = ['-u', '-c', source, createScript, state.home, state.cwd, state.id, JSON.stringify(settingsChanges)];
   if (!hold) return (await command(args)).result;
   const child = spawn(config.python, args, { stdio: ['pipe', 'pipe', 'pipe'] });
   const finished = once(child, 'close');
@@ -111,15 +112,23 @@ test('a newly created settings-only thread archives and restores through the off
 });
 
 test('multiple native settings metadata events and absent effort still describe an empty thread', async t => {
-  const state = await fixture(t, null);
-  for (let index = 0; index < 2; index++) {
-    const resumed = await resume(state);
-    assert.deepEqual(resumed.turns, []); assert.equal(resumed.effort, null);
-  }
+  const state = await fixture(t, null), originalCount = state.records().length;
+  // A no-op resume need not append settings (0.166 no longer does). Change
+  // metadata twice through the official RPC; effort:null cannot clear an
+  // existing value, so model changes preserve the absent-effort coverage.
+  const changed = await resume(state, { settingsChanges: [{ model: 'gpt-6-sol' }, { model: 'gpt-6-astra' }] });
+  assert.deepEqual(changed.turns, []);
+  const resumed = await resume(state);
+  assert.deepEqual(resumed.turns, []); assert.equal(resumed.model, 'gpt-6-astra'); assert.equal(resumed.effort, null);
+  assertUnchangedModel(state.state(), null);
   const records = state.records();
-  assert.ok(records.length >= 4);
+  assert.ok(records.length >= originalCount + 2);
   assert.ok(records.slice(1).every(record => record.type === 'event_msg'
     && record.payload.type === 'thread_settings_applied' && record.payload.thread_id === state.id));
+  const applied = records.slice(originalCount).map(record => record.payload.thread_settings);
+  assert.ok(applied.some(settings => settings.model === 'gpt-6-sol'));
+  assert.equal(applied.at(-1).model, 'gpt-6-astra');
+  assert.ok(applied.every(settings => settings.reasoning_effort == null));
   assert.equal((await state.snapshot()).lifecycle, 'empty');
   const before = (await state.run('inspect')).result, beforeSha = sha(state.state().rollout_path);
   assert.equal(before.status, 'ready');
@@ -204,8 +213,15 @@ test('a long metadata tail cannot hide earlier non-metadata history from the emp
 test('adding native settings after inspection invalidates the old archive fingerprint', async t => {
   const state = await fixture(t), before = (await state.run('inspect')).result;
   assert.equal(before.status, 'ready');
-  const originalSha = sha(state.state().rollout_path), resumed = await resume(state);
-  assert.deepEqual(resumed.turns, []); assert.notEqual(sha(state.state().rollout_path), originalSha);
+  const originalSha = sha(state.state().rollout_path), originalCount = state.records().length;
+  const changedSettings = await resume(state, { settingsChanges: [{ effort: 'high' }, { effort: 'ultra' }] });
+  assert.deepEqual(changedSettings.turns, []);
+  const applied = state.records().slice(originalCount).map(record => record.payload.thread_settings);
+  assert.ok(applied.some(settings => settings.reasoning_effort === 'high'));
+  assert.equal(applied.at(-1).reasoning_effort, 'ultra');
+  const resumed = await resume(state);
+  assert.deepEqual(resumed.turns, []); assert.equal(resumed.effort, 'ultra');
+  assert.notEqual(sha(state.state().rollout_path), originalSha);
   const fresh = (await state.run('inspect')).result;
   assert.equal(fresh.status, 'ready'); assert.notEqual(fresh.fingerprint, before.fingerprint);
   const changed = await state.run('archive', before.fingerprint);

@@ -62,7 +62,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | Markdown、定时消息正文空白/XML代码框、Codex专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)：heartbeat/子任务的纯引用尾段单独消解，内部代码与完整shape保护；原文从Pocket只读接口核对，Codex展示投影可能省略引用。图片边界见[图片契约](docs/IMAGES.md) |
 | Markdown/TXT等文件页内预览、下载与预览字节复用 | [消息文件](docs/design/2026-10-22-message-components.md)：受控文件权限、1MiB文本预览、关闭恢复、按当前预览下载；文件内容不继承会话组件权限 |
 | Pocket 前端更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
-| Codex 升级后连接失败、协议不兼容或内置 CLI 变化 | [桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)：App 发布号仅作诊断，IPC 契约与 CLI 语义分别检查 |
+| Codex 升级后连接失败、协议不兼容或内置 CLI 变化 | [桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)：App/CLI未验证版本仅作诊断告警，不作准入门槛；真实探针/RPC/归属/结果继续检查 |
 | 通知与用户确认 | [通知](docs/NOTIFICATIONS.md)、会话契约中的审批/阻塞问题章节 |
 | 新建、归档、恢复与等待取消 | [会话生命周期](docs/design/2026-10-05-thread-lifecycle.md)：官方空会话持久化、writer 等待与回执恢复；[归档owner路线](docs/research/2026-10-16-archive-owner-route.md)：启动适配器候选、原型与真实GUI验证边界 |
 | 改名、会话信息入口、旧分组/安排兼容 | [重命名与管理减法](docs/design/2026-10-11-rename-and-management.md)：官方 name/set、回执、并发与数据保留；当前入口见[品牌与界面收敛](docs/design/2026-10-11-brand-and-interface.md) |

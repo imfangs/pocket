@@ -1,8 +1,11 @@
 """Resolve Codex bundle identity and layouts independently of App releases."""
+import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import subprocess
+import sys
 from xml.parsers.expat import ExpatError
 
 
@@ -10,6 +13,7 @@ from xml.parsers.expat import ExpatError
 # materialization, and archive/unarchive semantics used by Pocket. They are
 # exercised by the isolated create/rename/archive protocol tests, not inferred
 # from an App release number or a syntactically valid CLI version string.
+# Membership records tested behavior; it is not a gate for newer valid CLIs.
 _VERIFIED_CLI_VERSIONS = frozenset({
     "codex-cli 0.153.4",
     "codex-cli 0.162.0-alpha.17.2",
@@ -17,6 +21,13 @@ _VERIFIED_CLI_VERSIONS = frozenset({
     "codex-cli 0.164.0-alpha.11.1",
 })
 _PACKAGED_LAYOUT = ("codex-cli/bin/codex", "codex-cli/CodexCLI.app/Contents/MacOS/codex")
+_NUMBER = r"(?:0|[1-9][0-9]*)"
+_PRERELEASE = rf"(?:{_NUMBER}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+_CLI_VERSION = re.compile(
+    rf"codex-cli {_NUMBER}\.{_NUMBER}\.{_NUMBER}"
+    rf"(?:-{_PRERELEASE}(?:\.{_PRERELEASE})*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
 
 
 class BundledCLIError(ValueError):
@@ -64,15 +75,29 @@ def bundled_cli(app, desktop_version=None):
 
 
 def verify_cli(binary, home, sqlite_home=None):
-    """Require an independently tested CLI contract before metadata dispatch."""
+    """Require a working Codex CLI probe; annotate unverified behavior contracts."""
     env = {**os.environ, "CODEX_HOME": str(home), "CODEX_SQLITE_HOME": str(sqlite_home or home)}
     env.pop("CODEX_THREAD_ID", None)
     try:
         result = subprocess.run([str(binary), "--version"], cwd=home, env=env,
                                 capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError) as error:
+    except (OSError, subprocess.SubprocessError, UnicodeError) as error:
         raise BundledCLIError("bundled_cli_unavailable") from error
     version = result.stdout.strip()
-    if result.returncode or version not in _VERIFIED_CLI_VERSIONS:
-        raise BundledCLIError("cli_version_changed")
+    if result.returncode or len(version) > 160 or not _CLI_VERSION.fullmatch(version):
+        raise BundledCLIError("bundled_cli_unavailable")
+    if version not in _VERIFIED_CLI_VERSIONS:
+        warning = "POCKET_BRIDGE_WARNING_V1 " + json.dumps(
+            {"code": "unverified_cli_version", "cliVersion": version}, separators=(",", ":")
+        )
+        # Bypass TextIO buffering: after a broken pipe, a caught print() failure
+        # can be flushed again at interpreter shutdown and force exit code 120.
+        # No usable stderr FD means no diagnostic, never a fallback to stdout.
+        try:
+            if sys.stderr is not None:
+                descriptor = sys.stderr.fileno()
+                if isinstance(descriptor, int) and descriptor >= 2:
+                    os.write(descriptor, (warning + "\n").encode("utf-8"))
+        except (AttributeError, OSError, ValueError):
+            pass
     return version

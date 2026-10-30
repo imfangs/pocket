@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process';
 
-export function runBridge(payload, { command, args, timeoutMs }) {
+export function runBridge(payload, { command, args, timeoutMs,
+  onWarning = warning => console.warn('POCKET_BRIDGE_WARNING_V1 ' + JSON.stringify(warning)) }) {
   return new Promise(resolve => {
     const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] });
     const chunks = [];
     let bytes = 0, settled = false, phase = null, tail = '', timedOut = false, started = false;
     let forceTimer, drainTimer;
+    const warnedVersions = new Set();
     const finish = result => {
       if (settled) return;
       settled = true;
@@ -31,6 +33,17 @@ export function runBridge(payload, { command, args, timeoutMs }) {
       for (const line of lines) {
         if (line === 'POCKET_BRIDGE_PHASE_V1 preflight' && phase === null) phase = 'preflight';
         if (line === 'POCKET_BRIDGE_PHASE_V1 dispatch') phase = 'dispatch';
+        if (line.startsWith('POCKET_BRIDGE_WARNING_V1 ') && line.length <= 256) {
+          try {
+            const warning = JSON.parse(line.slice('POCKET_BRIDGE_WARNING_V1 '.length));
+            const version = warning?.cliVersion;
+            if (warning?.code === 'unverified_cli_version' && typeof version === 'string' && version.length <= 160 &&
+                /^codex-cli [0-9A-Za-z.+-]+$/.test(version) && !warnedVersions.has(version) && warnedVersions.size < 4) {
+              warnedVersions.add(version);
+              onWarning({ code: 'unverified_cli_version', cliVersion: version });
+            }
+          } catch { /* Diagnostics must never change request execution or its result. */ }
+        }
       }
     });
     child.stderr.on('error', () => { phase = 'unknown'; });

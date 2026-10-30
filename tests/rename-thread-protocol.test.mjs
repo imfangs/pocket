@@ -181,22 +181,44 @@ test('invalid names, execution overrides and mutation-bearing inspections never 
   assert.equal(source(f.home, input.threadId).row.name, input.expectedName);
 });
 
-test('App releases do not gate rename while an unknown CLI contract stops before metadata dispatch', async t => {
+test('App releases and unverified CLI versions preserve rename dispatch while failed probes stop before it', async t => {
   const f = fixture(t), input = await create(f);
   const result = await python(f.home, `
 from unittest.mock import patch
 from types import SimpleNamespace
+from contextlib import redirect_stderr
+from io import StringIO
+from tempfile import TemporaryFile
 data=json.loads(${JSON.stringify(JSON.stringify(input))})
 with patch.object(r,'CONFIG',{**r.CONFIG,'supportedVersion':'unverified'}): inspected=r.execute({'operation':'inspect','threadId':data['threadId'],'codexHome':str(home)})
-with patch('bundled_cli.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout='codex-cli 99.0.0')): wrongCli=r.execute(data)
-with patch.object(r,'CONFIG',{**r.CONFIG,'supportedVersion':'unverified'}): renamed=r.execute(data)
-print(json.dumps({'app':renamed,'cli':wrongCli,'inspect':inspected}))
+with TemporaryFile(mode='w+',encoding='utf-8') as diagnostics:
+ with redirect_stderr(diagnostics), patch('bundled_cli.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout='codex-cli 99.0.0',stderr='')):
+  unverified=r.execute(data)
+  retry=r.execute(data)
+ diagnostics.flush();diagnostics.seek(0);diagnostics_text=diagnostics.read()
+next_data={**data,'expectedName':data['name'],'name':'App release rename'}
+failed_diagnostics=StringIO()
+with redirect_stderr(failed_diagnostics), patch('bundled_cli.subprocess.run',return_value=SimpleNamespace(returncode=1,stdout='codex-cli 99.0.0',stderr='synthetic failure')):
+ failed=r.execute(next_data)
+with patch.object(r,'CONFIG',{**r.CONFIG,'supportedVersion':'unverified'}): renamed=r.execute(next_data)
+print(json.dumps({'app':renamed,'cli':unverified,'retry':retry,'failed':failed,'inspect':inspected,'diagnostics':diagnostics_text,'failedDiagnostics':failed_diagnostics.getvalue()}))
 `);
   assert.equal(result.app.status, 'renamed'); assert.equal(result.app.verified, true);
-  assert.equal(result.cli.code, 'cli_version_changed'); assert.equal(result.cli.mutationAttempted, false);
+  assert.equal(result.cli.status, 'renamed'); assert.equal(result.cli.verified, true);
+  assert.equal(result.cli.mutationAttempted, true); assert.equal(result.cli.processStopped, true);
+  assert.deepEqual(result.cli.rpcMethods, ['initialize', 'thread/name/set']);
+  const warnings = result.diagnostics.split('\n').filter(line => line.startsWith('POCKET_BRIDGE_WARNING_V1 '));
+  assert.deepEqual(warnings.map(line => JSON.parse(line.slice('POCKET_BRIDGE_WARNING_V1 '.length))),
+    [{ code: 'unverified_cli_version', cliVersion: 'codex-cli 99.0.0' }]);
+  assert.equal(result.diagnostics.split('\n').filter(line => line === 'POCKET_BRIDGE_PHASE_V1 dispatch').length, 1);
+  assert.equal(result.retry.status, 'unchanged'); assert.equal(result.retry.mutationAttempted, false);
+  assert.deepEqual(result.retry.rpcMethods, []);
+  assert.equal(result.failed.status, 'unavailable'); assert.equal(result.failed.code, 'bundled_cli_unavailable');
+  assert.equal(result.failed.mutationAttempted, false); assert.deepEqual(result.failed.rpcMethods, []);
+  assert.doesNotMatch(result.failedDiagnostics, /POCKET_BRIDGE_PHASE_V1 dispatch/);
   assert.equal(result.inspect.status, 'unchanged'); assert.equal(result.inspect.verified, true);
   assert.equal(result.inspect.canRename, true);
-  assert.equal(source(f.home, input.threadId).row.name, input.name);
+  assert.equal(source(f.home, input.threadId).row.name, 'App release rename');
 });
 
 test('late source changes, lost replies and protected metadata changes have distinct outcomes', async t => {
