@@ -154,6 +154,10 @@ a[role="button"],
 }
 @media (max-width: 760px) {
   .workspace-header {
+    /* iOS samples fixed/sticky backgrounds for its native top scroll edge.
+       Keep that edge present when temporary dialogs or detail panels unmount. */
+    position: sticky;
+    top: 0;
     padding-top: calc(18px + env(safe-area-inset-top, 0px));
   }
   .brand {
