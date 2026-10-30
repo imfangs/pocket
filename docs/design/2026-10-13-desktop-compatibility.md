@@ -42,3 +42,9 @@ XML显示修复的全量检查读到`codex-cli 0.166.0-alpha.5.1`，旧门槛在
 执行与发布结果回CURRENT，证据在`.local/qa/cli-version-warning-2026-10-30/`。本次改变的是版本准入策略；真实权限、归属、指纹、响应和落盘核对保持。
 
 固定候选完整1,882项通过。独立复核覆盖未知版本只派发一次、重复请求不再次写入、不可用探针不进入dispatch，以及服务日志白名单/去重/上限和sink失败不改变真实结果。broken-pipe整进程回归已关闭exit120缺口；0.166下真实设置往返保留无模型轮次、原模型/强度与旧指纹拒绝的断言。两机发布完成后记录实际源码与PID，不能把本机隔离测试视为远端应用已更新。
+
+同日两机已应用源码`b8964ffda2dd56cc1fa4c24a530cafa6ff4a291f`：格得API PID69936、豌豆PID2392。Codex与连接器保持，凭据/bridge/反馈配置/read scope/发送策略及队列/操作记录核对一致；公网分别返回正常机器身份。前端仍为XML修复的576d构建，没有重复Pages上传。
+
+豌豆实际为0.164。首次10文件矩阵在420秒超时、内存stdout未落盘，不能计为通过；后续带文件日志的old/new隔离create均成功，新源码create→rename→archive→restore均verified、设置和rollout SHA保持、零模型轮次，另25项warn/auth/反馈回归通过。诊断发现仅本次临时home内有官方CLI启动的插件git克隆子进程，结合出站网络超时形成退出长尾；只清理本次测试组，不触碰真实Codex环境。发布按这份明确范围验收，700个包文件、vendor和固定依赖也已逐项验证。
+
+上线前还发现豌豆既有公网登记503/registration_network_error；为避免与API版本混淆，运维增加了严格限定的已知基线故障分支，但实际prestop前登记已自然恢复，该豁免未使用。最终publicConnectionReady=true，独立公网200。运维修正同时固定依赖canonical路径，post-up新在途工作只标核验pending，不再误触发健康服务回退。包、89个分片及本次临时进程均清理，当前/回退/共享依赖保留；证据`release/README.md`与`release/final-summary.json`。

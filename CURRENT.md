@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-10-30。XML结果后跟引用的代码框问题已在共享网页修复；用户要求未验证CLI版本改为warn，候选已通过完整回归，正在应用两机服务。顶部下拉、银色扫光、客户端版本、视频内联播放、Impeccable精修、截图反馈及两机投递保持；剪贴板继续先观察。
+维护日期：2026-10-30。XML结果后跟引用的代码框问题已修复；未验证CLI版本改为warn已应用到两机API，豌豆公网登记已恢复。顶部下拉、银色扫光、客户端版本、视频内联播放、Impeccable精修、截图反馈及两机投递保持；剪贴板继续先观察。
 
 ## 下一次先看
 
-- **当前推进：未验证CLI版本改为warn。** 用户明确要求取消仅因版本未列入清单而阻止操作。[新策略](docs/design/2026-10-13-desktop-compatibility.md#2026-10-30未验证cli只告警)：合法可运行版本继续真实RPC，stderr有界告警进服务日志；真实探针/权限/归属/结果与unknown保护保持。固定候选1,882项全测通过；当前0.166新建/改名/归档/恢复等隔离协议已过，no-op resume测试已改用真实设置变化。两机应用尚未完成，以后续发布回执为准，不重放旧操作。
+- **最近已上线：未验证CLI版本改为warn。** 用户明确取消仅因版本未列入清单而阻止操作。[新策略](docs/design/2026-10-13-desktop-compatibility.md#2026-10-30未验证cli只告警)：合法可运行版本继续真实RPC，stderr有界告警进服务日志；真实探针/权限/归属/结果与unknown保护保持。本机1,882项全测及0.166隔离协议通过；豌豆0.164的25项针对回归、旧/新create对照及新建→改名→归档→恢复关键链通过。两机API已切到b896，队列/操作记录、凭据、scope、反馈配置与发送策略核对保持，Codex和连接器未重启。豌豆初次10文件矩阵420秒超时不计通过：隔离CLI初始化会遗留插件git网络子进程，已清理仅本次测试组并保留诊断；后续采用有边界验证。公网登记异常在prestop前自然恢复，两机公网health已独立读回正常。证据`.local/qa/cli-version-warning-2026-10-30/`，不重复发布或切换。
 
 - **最近已上线：XML结果与引用尾段兼容。** [解析修复](docs/design/2026-09-30-codex-markup-and-current-questions.md#2026-10-30xml结果后跟引用信息时变成代码框)：只消解完整heartbeat/子任务包装之后的纯记忆引用尾段，正文中的代码/JSON及未知格式保护保持。截图原消息从486px代码框恢复到142px正常正文，文章链接与复制可用；55项相关回归、独立CR、最终包76项双浏览器及公网32/32文件/功能通过。初次全测受新版CLI前置阻挡38项，现已进入上条warn修正，不能把初次结果写成全量通过。仅网页，无真实发送/连接/归档；证据`.local/qa/heartbeat-citation-2026-10-30/`。
 
@@ -89,12 +89,12 @@
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
 | 前端/网关源码 | `1042df1e588968175af11adfa8352eed2e9dbf74`；XML结果的纯引用尾段兼容，网关行为保持 |
-| 两机API源码 | `a5b3a43e832df5beee259a379fa3fef1663fb183`；格得PID51599、豌豆PID45933，后续运维需重查 |
-| 前端build | 公网`576d57fb9c6f64ec397d023a3848d5fcc717b2f70ae9c9c36a7b0f7aa113b730`；设置显示`576d57fb9c6f`。两机API版本仍按下述服务回执核对 |
+| 两机API源码 | `b8964ffda2dd56cc1fa4c24a530cafa6ff4a291f`；格得PID69936、豌豆PID2392，后续运维需重查 |
+| 前端build | 公网及两机内置网页`576d57fb9c6f64ec397d023a3848d5fcc717b2f70ae9c9c36a7b0f7aa113b730`；设置显示`576d57fb9c6f` |
 | Pages部署 | `4f38452d-5c2a-4ab4-acbb-653071bd43b1`；10-30 ready=true，32/32公开文件与项目功能通过，上传一次 |
-| 最近验证 | XML专项55项/最终包76项与独立CR通过；最新CLI warn候选1,882项全测通过，但服务应用尚未完成。历史分页与银色的既有验证保留在各设计记录 |
-| 证据 | XML`.local/qa/heartbeat-citation-2026-10-30/`：原消息、SSR/browser前后、`browser-summary.json`及`pages-deploy.json`；CLI `.local/qa/cli-version-warning-2026-10-30/`保存初始与修正后全测、隔离协议及发布准备。真实正文只在私有QA中 |
-| 数据与运行 | 本轮仅更新共享网页，两机API与服务内置网页保持视频版；未重启Codex/API/连接器，无真实发送/改名/归档，也未修改凭据、反馈配置或队列数据 |
+| 最近验证 | XML专项55项/最终包76项与独立CR通过；CLI本机1,882全测，远端25项＋新旧create对照＋四步原生关键链、700包文件/vendor/依赖核验通过。远端初次10文件矩阵超时未算通过。两机服务与公网分别回读正常 |
+| 证据 | XML`.local/qa/heartbeat-citation-2026-10-30/`：原消息、SSR/browser前后、`browser-summary.json`及`pages-deploy.json`；CLI `.local/qa/cli-version-warning-2026-10-30/`：`tests-final-fixed.log`与`release/final-summary.json`、`local-upgrade.json`、`remote/upgrade.json`、`independent-readback.json`、`root-public-readback.json`。真实正文只在私有QA中 |
+| 数据与运行 | XML网页上传一次；warn策略仅重启两机Pocket API，未重启Codex或连接器。真实会话未由本轮创建/发送/改名/归档；原生操作只在隔离临时home。凭据、反馈配置、scope、队列与操作记录已核验，临时包及分片已清理 |
 
 以上发布已回读完成，接续时不重复上传；新功能改动仍按项目配置发布。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
@@ -131,7 +131,7 @@
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；用项目的 `config/local-service.json`、`config/pages-site.json` 和FBT既有服务/发布工具。前端样式修改只发布网页。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 豌豆a5b3 API继续引用已验证的`6b15fabc04a012729c456fbea8e1c16a8f3f281e/node_modules`。根锁文件保留旧镜像URL，远端用私有安装锁映射公开npm源并保留完整integrity；原锁字节不改。6b15依赖目录、08a7 API回退及仍被旧回退引用的0b5依赖须按实际引用保留；连接器10-28已切到独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`，仅原 `19d91ed4776d79fce17a79ed88ed3b79622197e7` 的10分钟常量变更，旧release与私有配置备份保留回退；该次连接器调整未改API，API当前版本见上表。清理前核对依赖和launchd真实指向，不按旧日期删除。
+- 豌豆b896 API继续引用已验证的`6b15fabc04a012729c456fbea8e1c16a8f3f281e/node_modules`，本次a5b3保留为直接回退；更早08a7/0b5只按实际引用处理。根锁文件与依赖manifest未变，本次未安装依赖。连接器10-28的独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`仍保持，PID16387未重启。旧release与私有配置备份按实际引用保留，不能按旧日期删除。
 - Pages预检401先用配置中的Wrangler `whoami`续期，核对是否上传；已上传但验证未过使用原部署 `resume --resume-verification`。本轮发布和豌豆切换均完成，不重复提交。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。
