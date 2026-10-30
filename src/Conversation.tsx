@@ -40,6 +40,7 @@ import { useReadingComposer } from "./useReadingComposer";
 import { bindMessageScrollDismiss } from "./messageScrollDismiss";
 import { createEarlierHistoryReader, type EarlierHistoryChange } from "./earlierHistory";
 import { captureEarlierHistoryAnchor, restoreEarlierHistoryAnchor, type EarlierHistoryAnchor } from "./earlierHistoryAnchor";
+import { bindEarlierHistoryScroll } from "./earlierHistoryScroll";
 import EarlierHistoryMessage from "./earlierHistoryMessage";
 import "./earlierHistory.css";
 import type { ReadingCache } from "./readingCache";
@@ -164,6 +165,8 @@ export default function Conversation({
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   const earlierMode = useRef(false), previousEarlierMode = useRef(false), earlierAnchor = useRef<EarlierHistoryAnchor | null>(null);
   const earlierStart = useRef<{ top: number; id: string | null } | null>(null);
+  const automaticEarlier = useRef<symbol | null>(null);
+  const earlierGesture = useRef<ReturnType<typeof bindEarlierHistoryScroll> | null>(null);
   const prepareEarlier = useRef<(next: Message[], change: EarlierHistoryChange, boundary: string | null) => boolean>(() => true);
   const earlierReader = useMemo(() => createEarlierHistoryReader({
     read: (before, signal) => api(`/api/tasks/${thread.id}/transcript-page${before ? `?before=${encodeURIComponent(before)}` : ""}`,
@@ -183,6 +186,9 @@ export default function Conversation({
     const focused = root.ownerDocument.activeElement;
     if (keyboardDismiss.current.composing || focused && conversationRoot.current?.contains(focused) &&
         focused.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return false;
+    // A background read must not switch the reader into a historical window
+    // after they have moved back into the conversation while it was loading.
+    if (automaticEarlier.current && root.scrollTop > 48) return false;
     const anchor = captureEarlierHistoryAnchor(root);
     const candidateIds = new Set(next.map(message => message.id));
     const keepsAnchor = !!anchor && candidateIds.has(anchor.id);
@@ -203,11 +209,13 @@ export default function Conversation({
     const root = messages.current;
     earlierStart.current = root ? { top: root.scrollTop, id: captureEarlierHistoryAnchor(root)?.id ?? null } : null;
   };
-  const loadEarlier = () => {
+  const loadEarlier = (automatic = false) => {
+    if (!automatic) earlierGesture.current?.cancel();
     if (!earlier.active && !earlier.loading) rememberEarlierStart();
-    void earlierReader.older();
+    return earlierReader.older();
   };
   const applyEarlier = () => {
+    earlierGesture.current?.cancel();
     if (!earlier.active) rememberEarlierStart();
     earlierReader.applyReady();
   };
@@ -343,6 +351,8 @@ export default function Conversation({
   }, [uploads, thread.id]);
   const load = useCallback(async () => { await Promise.all([feed.current?.refresh(), textFeed.current?.refresh()]); }, []);
   const returnToLatest = useCallback(() => {
+    earlierGesture.current?.cancel();
+    automaticEarlier.current = null;
     earlierReader.leave();
     nearBottom.current = true;
     setAwayFromLatest(false);
@@ -444,6 +454,43 @@ export default function Conversation({
       },
     });
   }, [thread.id, historyCache]);
+  const earlierScroll = useRef<{ canLoad: () => boolean; load: () => Promise<void> }>({ canLoad: () => false, load: async () => {} });
+  earlierScroll.current = {
+    canLoad: () => {
+      const root = messages.current;
+      const readyOlder = earlier.ready === "initial" || earlier.ready === "older";
+      return !!root && online && !earlier.loading && !earlier.expired && (!earlier.ready || readyOlder) &&
+        (readyOlder || (earlier.active ? earlier.hasOlder : !!hasEarlierMessages)) &&
+        !keyboardDismiss.current.composing && !hasMessageSelection(root) &&
+        !root.querySelector(".outbox-inline-actions textarea");
+    },
+    load: async () => {
+      const focused = messages.current?.ownerDocument.activeElement;
+      if (focused && conversationRoot.current?.contains(focused) &&
+          focused.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
+      const operation = Symbol();
+      automaticEarlier.current = operation;
+      // A short recent window can still be at its bottom when the user pulls
+      // for older content. Freeze live following before the first page read.
+      nearBottom.current = false; setAwayFromLatest(true);
+      try { await loadEarlier(true); } finally {
+        if (automaticEarlier.current === operation) automaticEarlier.current = null;
+      }
+    },
+  };
+  useEffect(() => {
+    const root = messages.current;
+    if (!root) return;
+    const binding = bindEarlierHistoryScroll(root, {
+      canLoad: () => earlierScroll.current.canLoad(),
+      load: () => earlierScroll.current.load(),
+    });
+    earlierGesture.current = binding;
+    return () => {
+      if (earlierGesture.current === binding) earlierGesture.current = null;
+      binding();
+    };
+  }, [thread.id, earlierReader]);
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
@@ -627,6 +674,8 @@ export default function Conversation({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sending || (!draft.requestId && ((!draft.text.trim() && !attachments.length) || !readyAttachments(attachments)))) return;
+    earlierGesture.current?.cancel();
+    automaticEarlier.current = null;
     earlierReader.leave();
     const release = holdReload();
     setSending(true);
@@ -801,7 +850,7 @@ export default function Conversation({
           const el = messages.current;
           if (el) {
             nearBottom.current =
-              el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+              !automaticEarlier.current && el.scrollHeight - el.scrollTop - el.clientHeight < 100;
             setAwayFromLatest(!nearBottom.current);
             if (nearBottom.current) setHasNewContent(false);
             const cached = historyCache.get(thread.id);
@@ -816,7 +865,7 @@ export default function Conversation({
           {earlier.active && <span>正在查看较早消息</span>}
           {earlier.error && <p role="status">{earlier.error}</p>}
           {earlier.ready && <p role="status">{earlier.ready === "newer" ? "较新消息已载入，可在下方查看。" : "消息已载入，当前阅读位置保持不变。"}</p>}
-          {earlier.expired ? <button type="button" disabled={!online || earlier.loading} onClick={() => void earlierReader.restart()}>{earlier.loading ? "正在重新核对…" : "重新核对"}</button>
+          {earlier.expired ? <button type="button" disabled={!online || earlier.loading} onClick={() => { earlierGesture.current?.cancel(); void earlierReader.restart(); }}>{earlier.loading ? "正在重新核对…" : "重新核对"}</button>
             : !earlier.active || earlier.hasOlder || earlier.ready && earlier.ready !== "newer" ? <button type="button" disabled={!online || earlier.loading}
               onClick={() => earlier.ready && earlier.ready !== "newer" ? applyEarlier() : loadEarlier()}>{earlier.loading ? "正在加载消息…" : earlier.ready && earlier.ready !== "newer" ? "查看已加载的消息" : earlier.error ? "重试加载更早消息" : "加载更早消息"}</button>
             : <span>已到最早消息</span>}
@@ -871,7 +920,7 @@ export default function Conversation({
           {earlier.hasNewer && <div className="earlier-history-boundary earlier-history-newer">
             <span>较新消息未显示</span>
             {earlier.canLoadNewer && <button type="button" disabled={!online || earlier.loading || earlier.expired}
-              onClick={() => earlier.ready === "newer" ? earlierReader.applyReady() : void earlierReader.newer()}>{earlier.loading ? "正在加载…" : earlier.ready === "newer" ? "查看已加载的较新消息" : "查看较新消息"}</button>}
+              onClick={() => { earlierGesture.current?.cancel(); if (earlier.ready === "newer") earlierReader.applyReady(); else void earlierReader.newer(); }}>{earlier.loading ? "正在加载…" : earlier.ready === "newer" ? "查看已加载的较新消息" : "查看较新消息"}</button>}
           </div>}
         </div>}
       </div>
