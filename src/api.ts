@@ -3,6 +3,7 @@ import { checkMachineResponse, currentMachineId, machineApiPath, requireMachine,
 import { hydrateReadResponse, isReadVersion, readResponseKind, READ_VERSION_HEADER } from "../shared/read-response.mjs";
 import { createReadResponseCache } from "./readResponseCache.ts";
 import { requestActivity, type RequestActivity } from "./requestActivity.ts";
+import { clientVersionHeaders } from "./clientVersion.ts";
 
 export function createApiClient(scope: () => MachineId | null = currentMachineId, request: typeof fetch = (...args) => fetch(...args),
   expire: (machine: MachineId) => void = machine => window.dispatchEvent(new CustomEvent("navigator-auth-expired", { detail: { machine } })),
@@ -44,7 +45,7 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
         try { finishActivity = activity.begin({ machine, path, method }); }
         catch { /* Activity is optional observation, never a request precondition. */ }
         const send = () => request(url, { method, signal: options.signal, cache: "no-store",
-            headers: { "Content-Type": options.contentType || "application/json", ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
+            headers: { ...clientVersionHeaders(), "Content-Type": options.contentType || "application/json", ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
               ...(cached ? { [method === "GET" ? "If-None-Match" : READ_VERSION_HEADER]: cached.version } : {}) },
             ...(body === undefined ? {} : { body: options.raw ? body as BodyInit : JSON.stringify(body) }) });
         let response = await send();
@@ -67,7 +68,7 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
         // A preceding session must neither expire a new login nor retry an old
         // mutation using its credentials. Cache/source invalidation is separate.
         if (response.status === 403 && data.error === "请求已过期，请刷新页面" && currentAuthentication()) {
-          const fresh = await request(machineApiPath("/api/catalog", machine), { cache: "no-store", signal: options.signal });
+          const fresh = await request(machineApiPath("/api/catalog", machine), { cache: "no-store", signal: options.signal, headers: clientVersionHeaders() });
           checkMachineResponse(fresh, machine);
           if (fresh.ok) {
             const catalog = await fresh.json();

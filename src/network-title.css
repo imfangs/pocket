@@ -1,8 +1,5 @@
 .network-title {
-  --network-title-glint:color-mix(in srgb,currentColor 75%,var(--surface-raised,#fff));
-}
-html[data-theme="dark"] .network-title, .radix-themes.dark .network-title {
-  --network-title-glint:color-mix(in srgb,currentColor 25%,#fff);
+  --network-title-glint:var(--accent,#3e63dd);
 }
 .network-title[data-network-active] {
   text-decoration-line:underline;
@@ -14,13 +11,13 @@ html[data-theme="dark"] .network-title, .radix-themes.dark .network-title {
   .network-title[data-network-active] {
     text-decoration:none;
     background-color:currentColor;
-    background-image:linear-gradient(105deg,currentColor 0%,currentColor 43%,var(--network-title-glint) 48%,currentColor 53%,currentColor 100%);
+    background-image:linear-gradient(105deg,currentColor 0%,currentColor 33%,var(--network-title-glint) 48%,currentColor 63%,currentColor 100%);
     background-repeat:no-repeat;
     background-size:200% 100%;
     background-clip:text;
     -webkit-background-clip:text;
     -webkit-text-fill-color:transparent;
-    animation:network-title-sweep calc(var(--motion-content,180ms) * 10) linear infinite;
+    animation:network-title-sweep calc(var(--motion-content,180ms) * 6) linear infinite;
   }
 }
 @keyframes network-title-sweep {

@@ -116,6 +116,7 @@ test('a user gesture download uses only the selected machine, no-store, credenti
     assert.equal(calls[0].url, machine === 'ged' ? file.url : '/api/machines/wandou' + file.url.slice(4));
     assert.equal(calls[0].options.cache, 'no-store'); assert.equal(calls[0].options.credentials, 'same-origin');
     assert.equal(calls[0].options.redirect, 'error'); assert.equal(calls[0].options.signal, controller.signal);
+    assert.equal(calls[0].options.headers['X-Pocket-Client-Version'], 'development');
   }
 });
 

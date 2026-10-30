@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { createAppUpdate, type AppVersion } from "./appUpdate";
 import { getReloadBlocker } from "./updateSafety";
+import { CLIENT_VERSION, clientVersionHeaders } from "./clientVersion";
 
 export default function PocketUpdate({ taskId }: { taskId: string | null }) {
   const [available, setAvailable] = useState<AppVersion | null>(null);
@@ -17,8 +18,12 @@ export default function PocketUpdate({ taskId }: { taskId: string | null }) {
     return url.pathname + url.search;
   };
   const [update] = useState(() => createAppUpdate({
-    currentId: typeof __POCKET_BUILD_ID__ === "string" ? __POCKET_BUILD_ID__ : "development",
-    request: (input, init) => fetch(input, init),
+    currentId: CLIENT_VERSION,
+    request: (input, init) => {
+      const headers = new Headers(init?.headers);
+      for (const [name, value] of Object.entries(clientVersionHeaders())) headers.set(name, value);
+      return fetch(input, { ...init, headers });
+    },
     blocker: getReloadBlocker,
     entryUrl,
     onAvailable: version => setAvailable(old => old?.id === version?.id ? old : version),

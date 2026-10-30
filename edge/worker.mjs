@@ -208,6 +208,10 @@ export default {
       ])
         if (request.headers.has(key))
           headers.set(key, request.headers.get(key));
+      // Optional diagnostic metadata, never an authentication or compatibility gate.
+      const clientVersion = request.headers.get("X-Pocket-Client-Version");
+      if (!feedbackHook && clientVersion && /^[A-Za-z0-9][A-Za-z0-9._+-]{0,159}$/.test(clientVersion))
+        headers.set("X-Pocket-Client-Version", clientVersion);
       const cookie = feedbackHook ? null : selectedCookie(request, machineId);
       if (cookie !== null) headers.set("Cookie", cookie);
       if (origin) headers.set("Origin", upstream.origin);

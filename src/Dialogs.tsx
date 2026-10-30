@@ -6,6 +6,7 @@ import NotificationSettings from "./NotificationSettings";
 import MachinePicker from "./MachinePicker";
 import SendingSettings from "./SendingSettings";
 import ReadingCacheSettings from "./ReadingCacheSettings";
+import { CLIENT_VERSION } from "./clientVersion";
 import { modalCloseDecision } from "./modalInteraction";
 import { bindInspectorViewport } from "./mobileInspector";
 import { MOTION_EASE, MOTION_MS, holdReadingMotion, prefersReducedMotion } from "./motion";
@@ -209,6 +210,7 @@ export function SettingsDialog(p: {
         <SendingSettings />
         {p.notificationsAvailable !== false && <NotificationSettings />}
         {p.feedbackActions}
+        <p className="settings-version" title={CLIENT_VERSION}>版本 {CLIENT_VERSION.slice(0, 12)}</p>
         {p.logoutAction && <div className="settings-logout">{p.logoutAction}</div>}
       </div>
     </Modal>

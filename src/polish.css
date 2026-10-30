@@ -261,6 +261,7 @@ dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(
 .settings-connection, .settings-appearance { padding:0 0 24px; margin:0 0 24px; border:0; border-bottom:1px solid var(--line); }
 .settings-appearance .access-actions { margin:0; padding:0; border:0; }
 .settings-logout { margin-top:24px; padding-top:16px; border-top:1px solid var(--line); }
+.settings-version { margin:24px 0 0; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; user-select:text; }
 .settings-logout-button { display:flex; align-items:center; gap:8px; width:100%; padding:0 12px; min-height:44px; color:var(--text-secondary); font-size:14px; border-radius:var(--radius-control); }
 .theme-switch { display:flex; gap:4px; padding:4px; margin:0 0 12px; background:var(--surface-soft); border-radius:var(--radius-control); }
 .theme-switch button { display:flex; flex:1 1 0; min-width:0; align-items:center; justify-content:center; gap:6px; min-height:var(--control-height); margin:0; padding:0 8px; box-sizing:border-box; font-size:13px; }

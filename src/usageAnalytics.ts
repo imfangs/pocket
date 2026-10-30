@@ -2,6 +2,7 @@ import config from "../config/usage-analytics.json";
 import { currentMachineId } from "./machineScope";
 import { createUsageJournal, type UsageProperties } from "./usageJournal";
 import type { PostHog } from "posthog-js";
+import { CLIENT_VERSION } from "./clientVersion";
 
 let active = false, initialized = false, generation = 0, sdk: PostHog | null = null;
 const pending: { event: string; properties: UsageProperties; timestamp: Date }[] = [];
@@ -13,7 +14,7 @@ function capture(event: string, properties: UsageProperties): boolean {
   if (!active) return false;
   const record = { event, properties: { ...properties, machine_id: currentMachineId(),
     environment: config.environment,
-    frontend_version: typeof __POCKET_BUILD_ID__ === "string" ? __POCKET_BUILD_ID__ : "development",
+    frontend_version: CLIENT_VERSION,
     display_mode: window.matchMedia("(display-mode: standalone)").matches ? "standalone" : "browser",
   }, timestamp: new Date() };
   if (sdk) sdk.capture(event, record.properties, { timestamp: record.timestamp });

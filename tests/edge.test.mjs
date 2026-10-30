@@ -10,6 +10,23 @@ const env = {
     }),
   },
 };
+test("client versions cross the gateway as optional bounded diagnostics, never as an access gate", async () => {
+  const original = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (_url, options) => {
+    seen.push(options.headers);
+    return new Response('{}', { headers: { 'X-Pocket-Machine': 'ged' } });
+  };
+  try {
+    for (const version of ['a'.repeat(64), '1.2.3+build.4', undefined, 'bad/version', 'a'.repeat(161)]) {
+      const response = await worker.fetch(new Request('https://x.fangs.cc/api/catalog', {
+        headers: version === undefined ? {} : { 'X-Pocket-Client-Version': version },
+      }), env);
+      assert.equal(response.status, 200);
+      assert.equal(seen.at(-1).get('X-Pocket-Client-Version'), version && /^[a-z0-9][a-z0-9._+-]{0,159}$/i.test(version) ? version : null);
+    }
+  } finally { globalThis.fetch = original; }
+});
 test("stable gateway forwards only approved API headers and never exposes local CLI credentials", async () => {
   const original = globalThis.fetch;
   let seen;

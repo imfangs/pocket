@@ -7,6 +7,7 @@ import TextFilePreview from "./TextFilePreview";
 import { messageFileTextFormat, textFileTooLarge } from "./messageFileText";
 import { safeMessageFile } from "./messageFileReference";
 import MessageVideo from "./MessageVideo";
+import { clientVersionHeaders } from "./clientVersion";
 import "./message-file.css";
 
 export { safeMessageFile, registeredMessageFile } from "./messageFileReference";
@@ -24,6 +25,7 @@ export async function fetchMessageFile(file: MessageFileReference, threadId: str
   const sizeError = limit < maxMessageFileBytes ? textFileTooLarge : tooLarge;
   const response = await (options.request ?? fetch)(machineApiPath(registered.url, machine), {
     method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal: options.signal,
+    headers: clientVersionHeaders(),
   });
   checkMachineResponse(response, machine);
   if (!response.ok) {

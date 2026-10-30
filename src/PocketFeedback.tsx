@@ -4,6 +4,7 @@ import { LoaderCircle, MessageSquareWarning } from "lucide-react";
 import { Modal } from "./Dialogs";
 import { Button } from "./ui/Button";
 import { api } from "./api";
+import { CLIENT_VERSION } from "./clientVersion";
 import { currentMachineId } from "./machineScope";
 import { feedbackDrafts } from "./feedbackClient";
 import { feedbackReplayContext } from "./usageAnalytics";
@@ -45,7 +46,7 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
       current.current.baseScope === state.baseScope && current.current.threadId === state.threadId;
     const visual = window.visualViewport;
     const context: FeedbackContext = { pageUrl: location.href, pageTitle: state.title || document.title,
-      frontendVersion: typeof __POCKET_BUILD_ID__ === "string" ? __POCKET_BUILD_ID__ : "development",
+      frontendVersion: CLIENT_VERSION,
       viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio,
         ...(visual ? { visualWidth: visual.width, visualHeight: visual.height, offsetTop: visual.offsetTop } : {}), scrollX, scrollY },
       ...(sourceThreadId ? { sourceThreadId } : {}), userAgent: navigator.userAgent.slice(0, 500), ...feedbackReplayContext() };
