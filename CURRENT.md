@@ -4,7 +4,7 @@
 
 ## 下一次先看
 
-- **关闭按钮初始高亮已修，待发布。** 设置与会话信息弹窗仅在初开聚焦中性标题，Tab和关闭归还焦点保持，新建/改名输入聚焦不变。40组页面、22项交互边界、1,938全测通过，候选d8d0b9adcf98；见[焦点记录](docs/design/2026-10-30-compact-settings-and-controls.md#2026-10-31-初始焦点)。Cloudflare登录恢复已回流FBT d3b5d37，正式helper已完成本次发布所需续期与目标HTTP200验证。
+- **关闭按钮初始高亮已修并上线。** 设置与会话信息弹窗仅在初开聚焦中性标题，Tab和关闭归还焦点保持，新建/改名输入聚焦不变。40组页面、22项交互边界、1,938全测通过，build `d8d0b9adcf98…`已发布至Pages `2445c9ea…`，32/32资源和功能检查通过；见[焦点记录](docs/design/2026-10-30-compact-settings-and-controls.md#2026-10-31-初始焦点)。Cloudflare登录恢复已回流FBT d3b5d37，正式helper已完成本次发布所需续期与目标HTTP200验证。
 
 - **本轮UI已上线并回读。** [设置与控件](docs/design/2026-10-30-compact-settings-and-controls.md)：设置与会话信息更紧凑、字段对齐，修复嵌套Modal标题margin；创建加号/排序默认透明。过程消息取消整条复制，一小时后移除时间页脚，普通回复/子任务结果/代码复制保持。1,887项全测、58组布局/边界检查、消息动态/阅读锚点检查与独立CR通过；统一build `b2fe8f9db218…`，其中已保留并回读手机实色sticky顶边。Cloudflare登录已恢复、目标项目已核对；Pages `f00227d4…`只上传一次，32/32公开资源通过。Node功能探针遇网络超时后，保留原四项断言改用实际curl请求完成核验，最终ready=true。
 
@@ -98,15 +98,15 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `66179f9bd7700ffe3a872b69fb760aa78906b467`；增加未读优先正文预取及前台接管，保留前一UI包；网关行为保持 |
+| 公网前端/网关源码 | `ad4c5f3a99e45c96205c65b91f40d83d0a06ea51`；设置/会话信息的初始焦点转到中性标题，保留之前UI与预取；网关行为保持 |
 | 两机API源码 | `b8964ffda2dd56cc1fa4c24a530cafa6ff4a291f`；格得PID69936、豌豆PID2392，后续运维需重查 |
-| 前端build | 公网及本机统一包`11e85a69a43ddb277ebbf7fdb4f864b3fa64aa4728bfba848d6fc545f952fe84`；豌豆内置网页本轮未更新，上次核对为`576d57fb9c6f…`，手机使用共享公网壳 |
-| Pages部署 | `3edca700-3c23-44e9-85f7-a63e582419ca`；10-31 ready=true，32/32公开文件及功能检查通过，只上传一次。前一UI发布为f00227d4 |
-| 本次验证 | 1,938全测、最终42项核心回归、独立CR通过；64会话固定8候选、慢网首段显示、前台同ID1次请求、版本/缓存失效均验证。P2抢占场景29→5次无效尝试、前台无额外等待；实体iPhone长期效果待反馈 |
-| 本次证据 | `.local/qa/transcript-prefetch-2026-10-30/`：`final-full-tests.log`、`source-hashes.json`、`browser.json`、`preemption-hook-browser.json`、`public-integrity.json`、`pages-resume.json`；UI与原生证据仍沿前述记录 |
+| 前端build | 公网及本机统一包`d8d0b9adcf9870d86ef6ca1663318db786b81591b6e1caea8c9ae004aecca0cd`；豌豆内置网页本轮未更新，上次核对为`576d57fb9c6f…`，手机使用共享公网壳 |
+| Pages部署 | `2445c9ea-7d33-48ab-a2da-a0e5c85d4dc7`；10-31 ready=true，32/32公开文件及功能检查通过，只上传一次。此前预取为3edca700 |
+| 本次验证 | 焦点修复1,938全测、40组页面、22项交互边界及独立CR通过；初开关闭按钮聚焦16→0，Tab/归还opener/新建改名输入保持；此前预取证据沿对应设计文档 |
+| 本次证据 | `.local/qa/dialog-focus-2026-10-31/`：`summary.json`、`full-tests.log`、`public-integrity.json`、`pages-deploy.json`；其他预取、UI与原生证据仍沿前述记录 |
 | 本次数据与运行 | 本次预取包仅网页上传一次，未重启Mac API/Codex/连接器，没有真实发送、标读或后台连接。认证正常续期并核对同账号/scope；测试环境与临时凭据备份已清理。当前无待续发布 |
 
-表中`3edca700…`发布已回读完成，不重复上传；前一UI包f00227d4也已完成。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
+表中`2445c9ea…`发布已回读完成，不重复上传；之前预取与UI包也已完成。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
 ## 必须保持的产品决定
 
