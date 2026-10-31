@@ -12,6 +12,7 @@ export type SubmittedQuery = Readonly<{
   queueRevision?: number;
   echoed?: boolean;
   dismissed?: boolean;
+  bodyReleased?: boolean;
   attachments?: readonly PublicAttachment[];
 }>;
 export type SubmittedQuerySeed = Pick<SubmittedQuery, "threadId" | "requestId" | "text" | "status" | "attachments"> & { createdAt?: number; code?: string };
@@ -19,12 +20,14 @@ export type SubmittedQueryReceipt = { requestId: string; status: SubmittedQueryS
 
 const empty: readonly SubmittedQuery[] = Object.freeze([]);
 const settled = new Set<SubmittedQueryStatus>(["accepted", "cancelled"]);
+const definite = new Set<SubmittedQueryStatus>(["accepted", "rejected", "not_found", "cancelled"]);
 const submissionKey = (threadId: string, requestId: string) => JSON.stringify([threadId, requestId]);
+export const submittedQueryTextLimits = { entries: 20, bytes: 256 * 1024 } as const;
 
 // Identity confirms which submission this is; exact complete text confirms the
 // visible history can replace its full local copy. Text alone confirms neither.
-export function completeSubmittedEcho(entry: Pick<SubmittedQuery, "requestId" | "text" | "status" | "attachments">, messages: readonly Message[]) {
-  return entry.status === "accepted" && messages.some(message => message.role === "user" && message.clientMessageId === entry.requestId
+export function completeSubmittedEcho(entry: Pick<SubmittedQuery, "requestId" | "text" | "status" | "attachments" | "bodyReleased">, messages: readonly Message[]) {
+  return !entry.bodyReleased && entry.status === "accepted" && messages.some(message => message.role === "user" && message.clientMessageId === entry.requestId
     && !message.truncated && message.text.trim() === entry.text.trim() && sameAttachments(entry.attachments, message.attachments));
 }
 
@@ -44,11 +47,44 @@ export function createSubmittedQueryStore() {
   const threads = new Map<string, readonly SubmittedQuery[]>();
   const listeners = new Set<() => void>();
   const activePosts = new Map<string, Set<symbol>>();
+  // Completion order belongs to retained text, not to requests still awaiting
+  // an outcome. Identity tombstones have no TTL: old queue snapshots can arrive
+  // after a conversation's reading cache has already been evicted.
+  const completed = new Map<string, { threadId: string; requestId: string }>();
   const getThread = (threadId: string) => threads.get(threadId) ?? empty;
+  const releasable = (entry: SubmittedQuery) => !entry.bodyReleased &&
+    (entry.status === "accepted" && entry.echoed || entry.dismissed && definite.has(entry.status));
+  const compact = () => {
+    const candidates: { key: string; threadId: string; requestId: string; bytes: number }[] = [];
+    for (const [key, identity] of completed) {
+      const entry = getThread(identity.threadId).find(value => value.requestId === identity.requestId);
+      if (!entry || !releasable(entry)) { completed.delete(key); continue; }
+      // A POST owns its captured body until every overlapping owner settles.
+      // It is not part of the bounded terminal-text cache until then.
+      if (!activePosts.has(key)) candidates.push({ key, ...identity, bytes: entry.text.length * 2 });
+    }
+    let count = 0, bytes = 0;
+    const released = new Map<string, Set<string>>();
+    for (const entry of candidates.reverse()) {
+      if (count < submittedQueryTextLimits.entries && bytes + entry.bytes <= submittedQueryTextLimits.bytes) {
+        count++; bytes += entry.bytes; continue;
+      }
+      const ids = released.get(entry.threadId) ?? new Set<string>();
+      ids.add(entry.requestId); released.set(entry.threadId, ids); completed.delete(entry.key);
+    }
+    for (const [threadId, ids] of released) threads.set(threadId, Object.freeze(getThread(threadId).map(entry =>
+      ids.has(entry.requestId) ? Object.freeze({ ...entry, text: "", bodyReleased: true }) : entry)));
+    return released.size > 0;
+  };
   const change = (threadId: string, update: (entries: readonly SubmittedQuery[]) => readonly SubmittedQuery[]) => {
     const previous = getThread(threadId), next = update(previous);
     if (next === previous) return;
     threads.set(threadId, Object.freeze(next));
+    for (const entry of next) {
+      const key = submissionKey(threadId, entry.requestId);
+      if (releasable(entry) && !completed.has(key)) completed.set(key, { threadId, requestId: entry.requestId });
+    }
+    compact();
     listeners.forEach(listener => listener());
   };
   const receipt = (threadId: string, result: SubmittedQueryReceipt) => change(threadId, entries => {
@@ -56,6 +92,9 @@ export function createSubmittedQueryStore() {
     if (index < 0) return entries;
     const entry = entries[index];
     if (result.status === "not_found" && activePosts.has(submissionKey(threadId, result.requestId))) result = { requestId: result.requestId, status: "unknown" };
+    // A dismissed definite outcome may receive a late acceptance, but stale
+    // queued/unknown snapshots cannot resurrect discarded text or controls.
+    if (entry.dismissed && !definite.has(result.status)) return entries;
     // An early native echo/acceptance wins over late HTTP or queue snapshots.
     if (settled.has(entry.status) && result.status !== entry.status) return entries;
     if (entry.status === result.status && entry.code === result.code) return entries;
@@ -67,7 +106,13 @@ export function createSubmittedQueryStore() {
       const key = submissionKey(threadId, requestId), token = Symbol();
       const posts = activePosts.get(key) ?? new Set<symbol>();
       posts.add(token); activePosts.set(key, posts);
-      return () => { posts.delete(token); if (!posts.size && activePosts.get(key) === posts) activePosts.delete(key); };
+      return () => {
+        posts.delete(token);
+        if (!posts.size && activePosts.get(key) === posts) {
+          activePosts.delete(key);
+          if (compact()) listeners.forEach(listener => listener());
+        }
+      };
     },
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     seed(input: SubmittedQuerySeed) {
@@ -86,7 +131,7 @@ export function createSubmittedQueryStore() {
             next = [...next, Object.freeze({ threadId, requestId: item.id, text: item.text, status: item.status, createdAt: item.createdAt, queueRevision: item.revision, attachments: item.attachments })];
             continue;
           }
-          if (entry.echoed || entry.status === "cancelled" || (entry.queueRevision ?? -1) > item.revision) continue;
+          if (entry.echoed || entry.dismissed || entry.bodyReleased || entry.status === "cancelled" || (entry.queueRevision ?? -1) > item.revision) continue;
           if (entry.status === "accepted") {
             // A saved edit can be acknowledged after auto-dispatch already
             // accepted it. Keep acceptance while adopting that newer revision.
@@ -131,7 +176,7 @@ export function createSubmittedQueryStore() {
         && (entry.queueRevision === undefined || ["accepted", "pending", "unknown"].includes(entry.status))))
         ? "还有已提交内容尚未同步或待核对，请处理后再更新。" : null;
     },
-    clear() { threads.clear(); activePosts.clear(); listeners.forEach(listener => listener()); },
+    clear() { threads.clear(); activePosts.clear(); completed.clear(); listeners.forEach(listener => listener()); },
   };
 }
 export type SubmittedQueryStore = ReturnType<typeof createSubmittedQueryStore>;
@@ -149,7 +194,7 @@ export function visibleSubmittedQueries(entries: readonly SubmittedQuery[], mess
 export function submittedOutbox(entries: readonly SubmittedQuery[], messages: readonly Message[], outbox: readonly QueuedMessage[]) {
   return outbox.flatMap(item => {
     const entry = entries.find(value => value.requestId === item.id);
-    if (entry?.echoed || entry?.status === "cancelled" || completeSubmittedEcho(entry ?? { requestId: item.id, text: item.text, status: item.status, attachments: item.attachments }, messages)) return [];
+    if (entry?.echoed || entry?.dismissed || entry?.status === "cancelled" || completeSubmittedEcho(entry ?? { requestId: item.id, text: item.text, status: item.status, attachments: item.attachments }, messages)) return [];
     if (!entry) return [item];
     if (entry.status === "accepted") return [{ ...item, text: entry.text, status: "accepted" as const, attachments: entry.attachments ? [...entry.attachments] : item.attachments }];
     if (entry.queueRevision !== undefined && entry.queueRevision >= item.revision && ["queued", "editing", "pending", "unknown", "rejected"].includes(entry.status))

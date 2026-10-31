@@ -1,47 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { receiptHandoffs, reconcileHandoffRows, animateReceiptHandoff } from '../src/receiptMotion.ts';
-
-const entry = { threadId: 'thread', requestId: 'query', text: 'Keep this complete query', status: 'accepted', createdAt: 1 };
-const message = { id: 'native', role: 'user', clientMessageId: 'query', text: entry.text };
-
-test('only exact complete accepted echoes authorize a receipt exit and target entrance', () => {
-  const match = receiptHandoffs([entry], [message], []);
-  assert.deepEqual([...match.submissions], ['query']);
-  assert.deepEqual([...match.outbox], ['query']);
-  assert.equal(match.messageIds.get('query'), 'native');
-  for (const status of ['unknown', 'pending', 'rejected', 'editing']) {
-    const result = receiptHandoffs([{ ...entry, status }], [message], []);
-    assert.equal(result.submissions.size, 0, status);
-    assert.equal(result.outbox.size, 0, status);
-    assert.equal(result.messageIds.size, 0, status);
-  }
-  for (const changed of [{ ...message, truncated: true }, { ...message, text: 'Keep' }, { ...message, clientMessageId: 'other' }, { ...message, role: 'assistant' }]) {
-    const result = receiptHandoffs([entry], [changed], []);
-    assert.equal(result.submissions.size, 0);
-    assert.equal(result.messageIds.size, 0);
-  }
-});
-
-test('queue takeover matches identity, full text and attachments without claiming delivery', () => {
-  const pending = { ...entry, status: 'pending' };
-  const queue = { id: entry.requestId, text: entry.text, status: 'pending', revision: 0, createdAt: 1 };
-  const result = receiptHandoffs([pending], [], [queue]);
-  assert.deepEqual([...result.submissions], ['query']);
-  assert.equal(result.outbox.size, 0);
-  assert.equal(result.messageIds.size, 0);
-  assert.equal(receiptHandoffs([pending], [], [{ ...queue, text: 'different edit' }]).submissions.size, 0);
-  assert.equal(receiptHandoffs([{ ...pending, attachments: [{ id: 'file' }] }], [], [queue]).submissions.size, 0);
-});
-
-test('explicit dismiss and confirmed cancellation authorize exits without manufacturing an echo', () => {
-  for (const changed of [{ ...entry, status: 'cancelled' }, { ...entry, status: 'rejected', dismissed: true }]) {
-    const result = receiptHandoffs([changed], [], []);
-    assert.deepEqual([...result.explicit], ['query']);
-    assert.deepEqual([...result.outbox], ['query']);
-    assert.equal(result.messageIds.size, 0);
-  }
-});
+import { reconcileHandoffRows, animateReceiptHandoff } from '../src/receiptMotion.ts';
 
 test('presentation retains authorized exiting rows in place and cancels their exit on re-entry', () => {
   const previous = ['a', 'b', 'c'].map(id => ({ id, item: { id }, leaving: false }));

@@ -1,32 +1,7 @@
-import type { Message, QueuedMessage } from "./conversationFeed";
-import { completeSubmittedEcho, type SubmittedQuery } from "./submittedQueries.ts";
-import { sameAttachments } from "./attachments.ts";
 import { holdReadingMotion, MOTION_EASE, MOTION_MS, prefersReducedMotion } from "./motion.ts";
 
 export type HandoffRow<T> = { id: string; item: T; leaving: boolean };
 const motionOwners = new WeakMap<HTMLElement, symbol>();
-
-// A disappearing snapshot is not evidence of delivery. These IDs only describe
-// transitions the existing receipt/echo rules have already authorized.
-export function receiptHandoffs(entries: readonly SubmittedQuery[], messages: readonly Message[], queue: readonly QueuedMessage[]) {
-  const submissions = new Set<string>(), outbox = new Set<string>(), explicit = new Set<string>();
-  const messageIds = new Map<string, string>();
-  for (const entry of entries) {
-    const echoed = completeSubmittedEcho(entry, messages);
-    if (entry.dismissed || entry.status === "cancelled") explicit.add(entry.requestId);
-    if (entry.dismissed || entry.status === "cancelled" || entry.echoed || echoed) {
-      submissions.add(entry.requestId); outbox.add(entry.requestId);
-    }
-    if (echoed) {
-      const message = messages.find(item => item.role === "user" && item.clientMessageId === entry.requestId && !item.truncated
-        && item.text.trim() === entry.text.trim() && sameAttachments(item.attachments, entry.attachments));
-      if (message) messageIds.set(entry.requestId, message.id);
-    }
-    if (queue.some(item => item.id === entry.requestId && item.text.trim() === entry.text.trim()
-      && sameAttachments(item.attachments, entry.attachments))) submissions.add(entry.requestId);
-  }
-  return { submissions, outbox, explicit, messageIds };
-}
 
 export function reconcileHandoffRows<T>(previous: readonly HandoffRow<T>[], items: readonly T[], key: (item: T) => string, exitIds: ReadonlySet<string>): HandoffRow<T>[] {
   const next = items.map(item => ({ id: key(item), item, leaving: false }));

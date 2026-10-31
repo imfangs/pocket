@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { animateReceiptHandoff, reconcileHandoffRows, type HandoffRow } from "./receiptMotion";
 
 export const NO_HANDOFF_IDS: ReadonlySet<string> = new Set();
@@ -27,36 +27,4 @@ export function useHandoffRows<T>(items: readonly T[], key: (item: T) => string,
   }, [rows, explicitIds]);
   useLayoutEffect(() => () => { for (const cancel of motions.current.values()) cancel(); motions.current.clear(); }, []);
   return { rows, bind };
-}
-
-// Only a source card visible in this mounted view can introduce a target. Old
-// history and every later feed snapshot remain still.
-export function useReceiptEntrances(root: RefObject<HTMLElement | null>, submissionIds: readonly string[], queueIds: readonly string[], messageIds: ReadonlyMap<string, string>) {
-  const previous = useRef<{ submissions: Set<string>; queue: Set<string> } | null>(null);
-  const seen = useRef(new Set<string>()), motions = useRef(new Map<() => void, { finished: boolean }>());
-  useLayoutEffect(() => {
-    for (const [cancel, state] of motions.current) if (state.finished) { cancel(); motions.current.delete(cancel); }
-    const before = previous.current;
-    previous.current = { submissions: new Set(submissionIds), queue: new Set(queueIds) };
-    if (!before || !root.current) return;
-    const incoming: HTMLElement[] = [];
-    for (const [requestId, messageId] of messageIds) {
-      if (seen.current.has(`message:${requestId}`) || !before.submissions.has(requestId) && !before.queue.has(requestId)) continue;
-      const target = [...root.current.querySelectorAll<HTMLElement>("[data-message-id]")].find(node => node.dataset.messageId === messageId);
-      if (target) { seen.current.add(`message:${requestId}`); incoming.push(target); }
-    }
-    for (const id of queueIds) {
-      if (seen.current.has(`queue:${id}`) || !before.submissions.has(id) || before.queue.has(id)) continue;
-      const target = [...root.current.querySelectorAll<HTMLElement>("[data-outbox-id]")].find(node => node.dataset.outboxId === id);
-      if (target) { seen.current.add(`queue:${id}`); incoming.push(target); }
-    }
-    for (const target of incoming) {
-      const bounds = target.getBoundingClientRect(), browser = target.ownerDocument.defaultView;
-      if (bounds.height <= 0 || bounds.bottom <= 0 || bounds.top >= (browser?.innerHeight ?? 0)) continue;
-      const state = { finished: false };
-      const cancel = animateReceiptHandoff(target, "enter", () => { state.finished = true; });
-      if (!state.finished) motions.current.set(cancel, state);
-    }
-  }, [root, submissionIds, queueIds, messageIds]);
-  useLayoutEffect(() => () => { for (const cancel of motions.current.keys()) cancel(); motions.current.clear(); }, []);
 }

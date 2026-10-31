@@ -13,7 +13,7 @@ import "./conversation-recovery.css";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
 import ProgressDisclosure from "./ProgressDisclosure";
-import { hasMessageSelection, useProgressMessages } from "./useProgressMessages";
+import { useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript, Message } from "./conversationFeed";
 import { displayConversation } from "./transcript";
@@ -38,9 +38,7 @@ import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATT
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 import { useReadingComposer } from "./useReadingComposer";
 import { bindMessageScrollDismiss } from "./messageScrollDismiss";
-import { createEarlierHistoryReader, type EarlierHistoryChange } from "./earlierHistory";
-import { captureEarlierHistoryAnchor, restoreEarlierHistoryAnchor, type EarlierHistoryAnchor } from "./earlierHistoryAnchor";
-import { bindEarlierHistoryScroll } from "./earlierHistoryScroll";
+import { useEarlierConversation } from "./useEarlierConversation";
 import EarlierHistoryMessage from "./earlierHistoryMessage";
 import "./earlierHistory.css";
 import type { ReadingCache } from "./readingCache";
@@ -168,69 +166,6 @@ export default function Conversation({
     previousLatest = useRef<{ id: string; text: string } | null>(null),
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
-  const earlierMode = useRef(false), previousEarlierMode = useRef(false), earlierAnchor = useRef<EarlierHistoryAnchor | null>(null);
-  const earlierStart = useRef<{ top: number; id: string | null } | null>(null);
-  const automaticEarlier = useRef<symbol | null>(null);
-  const earlierGesture = useRef<ReturnType<typeof bindEarlierHistoryScroll> | null>(null);
-  const prepareEarlier = useRef<(next: Message[], change: EarlierHistoryChange, boundary: string | null) => boolean>(() => true);
-  const earlierReader = useMemo(() => createEarlierHistoryReader({
-    read: (before, signal) => api(`/api/tasks/${thread.id}/transcript-page${before ? `?before=${encodeURIComponent(before)}` : ""}`,
-      "GET", undefined, { signal }),
-    canApply: (...args) => prepareEarlier.current(...args),
-  }), [thread.id]);
-  const subscribeEarlier = useCallback((listener: () => void) => earlierReader.subscribe(() => {
-    if (!earlierAnchor.current && messages.current) earlierAnchor.current = captureEarlierHistoryAnchor(messages.current);
-    listener();
-  }), [earlierReader]);
-  const earlier = useSyncExternalStore(subscribeEarlier, earlierReader.getSnapshot, earlierReader.getSnapshot);
-  earlierMode.current = earlier.active;
-  prepareEarlier.current = (next, change, boundary) => {
-    const root = messages.current;
-    if (!root || hasMessageSelection(root) || root.querySelector(".outbox-inline-actions textarea") ||
-        root.ownerDocument.querySelector("[data-reading-motion], [data-reading-overlay], dialog[open]")) return false;
-    const focused = root.ownerDocument.activeElement;
-    if (keyboardDismiss.current.composing || focused && conversationRoot.current?.contains(focused) &&
-        focused.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return false;
-    // A background read must not switch the reader into a historical window
-    // after they have moved back into the conversation while it was loading.
-    if (automaticEarlier.current && root.scrollTop > 48) return false;
-    const anchor = captureEarlierHistoryAnchor(root);
-    const candidateIds = new Set(next.map(message => message.id));
-    const keepsAnchor = !!anchor && candidateIds.has(anchor.id);
-    const sharedAnchor = captureEarlierHistoryAnchor(root, candidateIds);
-    // A reader may have scrolled into the page that would be evicted while the
-    // request was pending. Keep the current view until they return to the load
-    // control; the prepared result is bounded and needs no second HTTP read.
-    if (earlierMode.current && change !== "restart" && anchor && !keepsAnchor) return false;
-    if (!earlierMode.current && change === "initial" && !sharedAnchor && earlierStart.current &&
-        (Math.abs(root.scrollTop - earlierStart.current.top) > 2 || (anchor?.id ?? null) !== earlierStart.current.id)) return false;
-    // A native user ID can differ while the next visible assistant ID agrees.
-    // Use that exact shared identity before the explicit page-boundary fallback.
-    earlierAnchor.current = sharedAnchor ??
-      (boundary ? { id: boundary, offset: anchor?.offset ?? 0 } : null);
-    return true;
-  };
-  const rememberEarlierStart = () => {
-    const root = messages.current;
-    earlierStart.current = root ? { top: root.scrollTop, id: captureEarlierHistoryAnchor(root)?.id ?? null } : null;
-  };
-  const loadEarlier = (automatic = false) => {
-    if (!automatic) earlierGesture.current?.cancel();
-    if (!earlier.active && !earlier.loading) rememberEarlierStart();
-    return earlierReader.older();
-  };
-  const applyEarlier = () => {
-    earlierGesture.current?.cancel();
-    if (!earlier.active) rememberEarlierStart();
-    earlierReader.applyReady();
-  };
-  useEffect(() => () => earlierReader.stop(), [earlierReader]);
-  useLayoutEffect(() => {
-    if ((earlier.active || !previousEarlierMode.current) && earlierAnchor.current && messages.current)
-      restoreEarlierHistoryAnchor(messages.current, earlierAnchor.current);
-    earlierAnchor.current = null;
-    previousEarlierMode.current = earlier.active;
-  }, [earlier]);
   const liveDisplay = useMemo(() => displayConversation(
     history ? { ...history, messages: withSubmittedAttachments(history.messages, submitted) } : null,
     transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
@@ -238,6 +173,10 @@ export default function Conversation({
   const showingDiskPreview = !!cachedPreview && !liveDisplay.messages.length && !(receivedHistory.current && receivedTranscript.current);
   const shownMessages = showingDiskPreview ? cachedPreview.messages : liveDisplay.messages;
   const hasEarlierMessages = showingDiskPreview ? cachedPreview.hasMore : liveDisplay.hasMore;
+  const earlierWindow = useEarlierConversation({ threadId: thread.id, root: messages, conversationRoot, online, hasEarlierMessages,
+    isComposing: () => keyboardDismiss.current.composing,
+    onAutomaticStart: () => { nearBottom.current = false; setAwayFromLatest(true); } });
+  const earlier = earlierWindow.state;
   useEffect(() => {
     const machine = currentMachineId();
     if (!machine || !readingScope || !readingCache) return;
@@ -360,9 +299,7 @@ export default function Conversation({
   }, [uploads, thread.id]);
   const load = useCallback(async () => { await Promise.all([feed.current?.refresh(), textFeed.current?.refresh()]); }, []);
   const returnToLatest = useCallback(() => {
-    earlierGesture.current?.cancel();
-    automaticEarlier.current = null;
-    earlierReader.leave();
+    earlierWindow.leave();
     nearBottom.current = true;
     setAwayFromLatest(false);
     setHasNewContent(false);
@@ -371,7 +308,7 @@ export default function Conversation({
       element.focus({ preventScroll: true });
       element.scrollTop = element.scrollHeight;
     }
-  }, [earlierReader]);
+  }, [earlierWindow.leave]);
   const receiptRead = useRef<AbortController | null>(null);
   const checkingSubmissions = useRef(new Map<string, AbortController>());
   const connectionOpen = useRef<AbortController | null>(null);
@@ -450,11 +387,11 @@ export default function Conversation({
     return bindMessageScrollDismiss(root, {
       canDismiss: () => keyboardDismiss.current.canDismissKeyboard(),
       dismiss: () => {
-        if (!earlierMode.current) { nearBottom.current = false; setAwayFromLatest(true); }
+        if (!earlierWindow.isActive()) { nearBottom.current = false; setAwayFromLatest(true); }
         keyboardDismiss.current.dismissKeyboard();
       },
       settled: () => {
-        if (earlierMode.current) return;
+        if (earlierWindow.isActive()) return;
         const atBottom = root.scrollHeight - root.scrollTop - root.clientHeight <= 1;
         nearBottom.current = atBottom; setAwayFromLatest(!atBottom);
         if (atBottom) setHasNewContent(false);
@@ -463,43 +400,7 @@ export default function Conversation({
       },
     });
   }, [thread.id, historyCache]);
-  const earlierScroll = useRef<{ canLoad: () => boolean; load: () => Promise<void> }>({ canLoad: () => false, load: async () => {} });
-  earlierScroll.current = {
-    canLoad: () => {
-      const root = messages.current;
-      const readyOlder = earlier.ready === "initial" || earlier.ready === "older";
-      return !!root && online && !earlier.loading && !earlier.expired && (!earlier.ready || readyOlder) &&
-        (readyOlder || (earlier.active ? earlier.hasOlder : !!hasEarlierMessages)) &&
-        !keyboardDismiss.current.composing && !hasMessageSelection(root) &&
-        !root.querySelector(".outbox-inline-actions textarea");
-    },
-    load: async () => {
-      const focused = messages.current?.ownerDocument.activeElement;
-      if (focused && conversationRoot.current?.contains(focused) &&
-          focused.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
-      const operation = Symbol();
-      automaticEarlier.current = operation;
-      // A short recent window can still be at its bottom when the user pulls
-      // for older content. Freeze live following before the first page read.
-      nearBottom.current = false; setAwayFromLatest(true);
-      try { await loadEarlier(true); } finally {
-        if (automaticEarlier.current === operation) automaticEarlier.current = null;
-      }
-    },
-  };
-  useEffect(() => {
-    const root = messages.current;
-    if (!root) return;
-    const binding = bindEarlierHistoryScroll(root, {
-      canLoad: () => earlierScroll.current.canLoad(),
-      load: () => earlierScroll.current.load(),
-    });
-    earlierGesture.current = binding;
-    return () => {
-      if (earlierGesture.current === binding) earlierGesture.current = null;
-      binding();
-    };
-  }, [thread.id, earlierReader]);
+  useEffect(earlierWindow.bindScroll, [earlierWindow.bindScroll]);
   const checkSubmissionReceipt = useCallback(async (requestId: string) => {
     if (checkingSubmissions.current.has(requestId)) return;
     const controller = new AbortController();
@@ -640,7 +541,7 @@ export default function Conversation({
     // Composer growth and the software keyboard resize the reading area even
     // when no message changes. Follow only while the reader is already at bottom.
     const observer = new ResizeObserver(() => {
-      if (!earlierMode.current && nearBottom.current && !progress.readingProtected()) element.scrollTop = element.scrollHeight;
+      if (!earlierWindow.isActive() && nearBottom.current && !progress.readingProtected()) element.scrollTop = element.scrollHeight;
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -684,9 +585,7 @@ export default function Conversation({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sending || (!draft.requestId && ((!draft.text.trim() && !attachments.length) || !readyAttachments(attachments)))) return;
-    earlierGesture.current?.cancel();
-    automaticEarlier.current = null;
-    earlierReader.leave();
+    earlierWindow.leave();
     const release = holdReload();
     setSending(true);
     setError("");
@@ -856,11 +755,11 @@ export default function Conversation({
         tabIndex={0}
         ref={messages}
         onScroll={() => {
-          if (earlierMode.current) return;
+          if (earlierWindow.isActive()) return;
           const el = messages.current;
           if (el) {
             nearBottom.current =
-              !automaticEarlier.current && el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+              !earlierWindow.isAutomaticLoad() && el.scrollHeight - el.scrollTop - el.clientHeight < 100;
             setAwayFromLatest(!nearBottom.current);
             if (nearBottom.current) setHasNewContent(false);
             const cached = historyCache.get(thread.id);
@@ -875,9 +774,9 @@ export default function Conversation({
           {earlier.active && <span>正在查看较早消息</span>}
           {earlier.error && <p role="status">{earlier.error}</p>}
           {earlier.ready && <p role="status">{earlier.ready === "newer" ? "较新消息已载入，可在下方查看。" : "消息已载入，当前阅读位置保持不变。"}</p>}
-          {earlier.expired ? <button type="button" disabled={!online || earlier.loading} onClick={() => { earlierGesture.current?.cancel(); void earlierReader.restart(); }}>{earlier.loading ? "正在重新核对…" : "重新核对"}</button>
+          {earlier.expired ? <button type="button" disabled={!online || earlier.loading} onClick={() => { void earlierWindow.restart(); }}>{earlier.loading ? "正在重新核对…" : "重新核对"}</button>
             : !earlier.active || earlier.hasOlder || earlier.ready && earlier.ready !== "newer" ? <button type="button" disabled={!online || earlier.loading}
-              onClick={() => earlier.ready && earlier.ready !== "newer" ? applyEarlier() : loadEarlier()}>{earlier.loading ? "正在加载消息…" : earlier.ready && earlier.ready !== "newer" ? "查看已加载的消息" : earlier.error ? "重试加载更早消息" : "加载更早消息"}</button>
+              onClick={() => earlier.ready && earlier.ready !== "newer" ? earlierWindow.applyReady() : earlierWindow.older()}>{earlier.loading ? "正在加载消息…" : earlier.ready && earlier.ready !== "newer" ? "查看已加载的消息" : earlier.error ? "重试加载更早消息" : "加载更早消息"}</button>
             : <span>已到最早消息</span>}
         </div>}
         <div className="conversation-live" hidden={earlier.active}>
@@ -930,7 +829,7 @@ export default function Conversation({
           {earlier.hasNewer && <div className="earlier-history-boundary earlier-history-newer">
             <span>较新消息未显示</span>
             {earlier.canLoadNewer && <button type="button" disabled={!online || earlier.loading || earlier.expired}
-              onClick={() => { earlierGesture.current?.cancel(); if (earlier.ready === "newer") earlierReader.applyReady(); else void earlierReader.newer(); }}>{earlier.loading ? "正在加载…" : earlier.ready === "newer" ? "查看已加载的较新消息" : "查看较新消息"}</button>}
+              onClick={() => { void earlierWindow.newer(); }}>{earlier.loading ? "正在加载…" : earlier.ready === "newer" ? "查看已加载的较新消息" : "查看较新消息"}</button>}
           </div>}
         </div>}
       </div>
