@@ -9,6 +9,6 @@
 
 `server/thread-automations.mjs` 使用现有bridge配置的Python只读扫描，缓存15秒；失败保留进程内最近完整快照并标过期，首次失败返回不可用。reader限制文件/总字节数和耗时，校验软链、文件身份与读中变化，不把半写文件当删除。
 
-目录HTTP出口仅附计数，不含prompt。认证的 `GET /api/tasks/:id/automations` 先验证已知会话，再返回该ID的详情。关闭信息页、切会话取消请求且拒绝迟到结果；不授予执行权限。测试Codex home显式隔离，合成目录不读取真实计划。
+目录HTTP出口仅附计数，不含prompt。认证的 `GET /api/tasks/:id/automations` 先验证已知会话，再返回该ID的详情。关闭信息页、切会话取消请求且拒绝迟到结果；不授予执行权限。测试Codex home显式隔离，合成目录不读取真实计划。10-31新增[页面内信息缓存与稳定加载布局](2026-10-31-info-dialog-cache.md)，服务端15秒缓存保持。
 
 本机只读验证：12条计划精确关联12个会话，11启用、1暂停，现有规则全部可解释，文件hash/mtime未变。后端17项、HTTP认证/隐私、前端与异步浏览器证据在 `.local/qa/thread-automations-2026-10-22/`。这些检查不证明实际执行或下一次运行成功；最终两机与发布身份回 [CURRENT](../../CURRENT.md)。

@@ -4,12 +4,15 @@ import { api } from "./api";
 import type { Thread } from "./types";
 import type { OpenThreadResult } from "./threadConnection";
 import { useReloadGuard } from "./updateSafety";
+import { requireMachine } from "./machineScope";
+import { threadInfoCache, type ThreadInfoKey, type ThreadInfoTicket } from "./threadInfoCache";
 import {
   effortForModel, effortName, forgetModelRequest, mergeModelOperation, modelCanConnect, modelFailureStatus, modelName,
   modelOperationText, modelPresentation, modelSettingsRequest, modelSourceHint, modelUnresolved,
   readModelRequest, rememberModelRequest, sameModelRequest,
+  chooseModelSummary, modelSummaryPresentation, modelOperationSummary,
 } from "./threadModels";
-import type { ModelOperation, ModelRequestIdentity, ModelSettingsSource } from "./threadModels";
+import type { ModelOperation, ModelRequestIdentity, ModelSettingsSource, ModelSettingsSummary } from "./threadModels";
 import "./thread-model-settings.css";
 
 type Props = {
@@ -22,15 +25,25 @@ type Props = {
 
 export default function ThreadModelSettings(props: Props) {
   // Changing the inspected conversation also replaces all request ownership.
-  return <ModelSettingsSession key={props.thread.id} {...props} />;
+  return <ModelSettingsSession key={`${requireMachine()}:${props.thread.hostId}:${props.thread.id}`} {...props} />;
 }
 
+type CachedModelSummary = { summary: ModelSettingsSummary; savedFingerprint: string };
 function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity, onBusyChange }: Props) {
+  const cacheKey: ThreadInfoKey = { machine: requireMachine(), hostId: thread.hostId, threadId: thread.id, kind: "models" };
+  const savedFingerprint = JSON.stringify([thread.savedModelSettings?.model ?? null, thread.savedModelSettings?.effort ?? null]);
+  const [initialSummary] = useState(() => {
+    const snapshot = threadInfoCache.get<CachedModelSummary>(cacheKey);
+    if (snapshot && snapshot.value.savedFingerprint !== savedFingerprint) { threadInfoCache.remove(cacheKey); return null; }
+    return snapshot;
+  });
+  const [summary, setSummary] = useState(initialSummary?.value.summary ?? null);
+  const summaryRef = useRef<CachedModelSummary | null>(initialSummary?.value ?? null);
   const [source, setSource] = useState<ModelSettingsSource | null>(null);
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
   const [editing, setEditing] = useState(false);
-  const [loading, setLoading] = useState(!thread.missing);
+  const [loading, setLoading] = useState(!thread.missing && !initialSummary?.fresh);
   const [connecting, setConnecting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -42,12 +55,15 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
   const operationRef = useRef<ModelOperation | undefined>(undefined);
   const sourceRef = useRef<ModelSettingsSource | null>(null);
   const epoch = useRef(0), inFlight = useRef(false), delivered = useRef("");
+  const observedSaved = useRef(savedFingerprint), savedRefreshPending = useRef(false), editorActive = useRef(editing);
+  editorActive.current = editing;
   const autoChecks = useRef(0), busyCallback = useRef(onBusyChange), activity = useRef(onActivity);
   const editorId = useId(), modelId = useId(), effortId = useId(), statusId = useId();
   busyCallback.current = onBusyChange;
   activity.current = onActivity;
   const unresolved = recovering || modelUnresolved(operation);
-  const presentation = modelPresentation(source, thread.savedModelSettings);
+  const presentation = source?.source === "desktop" ? modelPresentation(source, thread.savedModelSettings)
+    : summary ? modelSummaryPresentation(summary) : modelPresentation(null, thread.savedModelSettings);
   const editable = source?.source === "desktop" && source.canChange && !!source.revision && !disabled && !thread.archived && !thread.missing;
   const changed = editing && !unresolved && !!source?.current && (model !== source.current.model || effort !== source.current.effort);
   const selected = source?.models.find(value => value.id === model);
@@ -55,7 +71,7 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
   const request = source ? modelSettingsRequest(source, model, effort, "preview") : null;
   useReloadGuard(() => submitting ? "正在保存模型设置，请稍后更新。" : unresolved ? "模型设置结果尚未确认，请先核对。" : changed ? "模型设置还有未保存的修改。" : null);
 
-  const accept = (incoming: ModelOperation): boolean => {
+  const accept = (incoming: ModelOperation, cacheTicket?: ThreadInfoTicket): boolean => {
     if (incoming.threadId !== thread.id || (requestRef.current && !sameModelRequest(requestRef.current, incoming))) return false;
     const next = mergeModelOperation(operationRef.current, incoming);
     if (!sameModelRequest(next, incoming)) return false;
@@ -75,6 +91,15 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
       if (next.status === "succeeded") {
         const current = next.current || { model: next.model, effort: next.effort };
         const previous = sourceRef.current;
+        const nextSummary = modelOperationSummary(next, previous);
+        // Persist the confirmed display value before its follow-up source read.
+        // A failed refresh must not make reopening fall back to the old model.
+        // The ticket predates the mutation/check, so logout cannot be undone.
+        if (nextSummary && cacheTicket && threadInfoCache.current(cacheKey, cacheTicket)) {
+          summaryRef.current = { summary: nextSummary, savedFingerprint };
+          setSummary(nextSummary);
+          threadInfoCache.put(cacheKey, { summary: nextSummary, savedFingerprint }, cacheTicket);
+        }
         if (previous) {
           const updated = { ...previous, source: "desktop" as const, current, revision: null, canChange: false, operation: undefined };
           sourceRef.current = updated;
@@ -90,9 +115,18 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
   };
 
   const fetchSource = async (owner: number, preserveInput = false): Promise<ModelSettingsSource | null> => {
+    const ticket = threadInfoCache.ticket(cacheKey);
     const next = await api<ModelSettingsSource>(`/api/tasks/${thread.id}/model-settings`, "GET", undefined, { signal: AbortSignal.timeout(15000) });
-    if (owner !== epoch.current) return null;
+    if (owner !== epoch.current || !threadInfoCache.current(cacheKey, ticket)) return null;
     if (next.threadId !== thread.id) throw new Error("会话信息已变化，请重新读取。");
+    const previousSummary = summaryRef.current?.savedFingerprint === savedFingerprint ? summaryRef.current.summary : null;
+    const choice = chooseModelSummary(next, previousSummary);
+    summaryRef.current = choice.summary ? { summary: choice.summary, savedFingerprint } : null;
+    setSummary(choice.summary);
+    if (choice.refreshCache) {
+      if (choice.summary) threadInfoCache.put(cacheKey, { summary: choice.summary, savedFingerprint }, ticket);
+      else threadInfoCache.remove(cacheKey);
+    }
     sourceRef.current = next;
     setSource(next);
     if (!preserveInput && !requestRef.current) { setModel(next.current?.model || ""); setEffort(next.current?.effort || ""); }
@@ -120,12 +154,13 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
     const identity = requestRef.current;
     if (!identity || inFlight.current) return;
     const owner = epoch.current;
+    const cacheTicket = threadInfoCache.ticket(cacheKey);
     inFlight.current = true;
     setChecking(true); setError("");
     try {
       const next = await api<ModelOperation>(`/api/tasks/${thread.id}/model-settings/${identity.requestId}`, "GET", undefined, { signal: AbortSignal.timeout(15000) });
       if (owner !== epoch.current) return;
-      if (!sameModelRequest(identity, next) || !accept(next)) throw new Error("暂未核对到这次设置，请稍后再试。");
+      if (!sameModelRequest(identity, next) || !accept(next, cacheTicket)) throw new Error("暂未核对到这次设置，请稍后再试。");
       if (!modelUnresolved(next)) await fetchSource(owner, next.status !== "succeeded");
     } catch (failure) {
       if (owner === epoch.current) {
@@ -174,6 +209,8 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
     if (!body) return;
     const pending: ModelOperation = { requestId, threadId: thread.id, model, effort, status: "pending" };
     if (!rememberModelRequest(pending)) { setError("暂时无法保留操作进度，请重新打开 Pocket 后再试。"); return; }
+    threadInfoCache.remove(cacheKey); summaryRef.current = null; setSummary(null);
+    const cacheTicket = threadInfoCache.ticket(cacheKey);
     requestRef.current = { threadId: thread.id, requestId };
     operationRef.current = pending; setOperation(pending);
     const owner = epoch.current;
@@ -183,7 +220,7 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
     try {
       const next = await api<ModelOperation>(`/api/tasks/${thread.id}/model-settings`, "POST", body, { signal: AbortSignal.timeout(20000) });
       if (owner !== epoch.current) return;
-      if (!sameModelRequest(pending, next) || !accept(next)) throw new Error("暂未确认保存结果，请核对。");
+      if (!sameModelRequest(pending, next) || !accept(next, cacheTicket)) throw new Error("暂未确认保存结果，请核对。");
       if (!modelUnresolved(next)) await fetchSource(owner, next.status !== "succeeded");
     } catch (failure) {
       if (owner === epoch.current && requestRef.current) {
@@ -205,10 +242,28 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
   useEffect(() => {
     epoch.current++;
     if (requestRef.current) { setEditing(true); void actions.current.check(); }
-    else if (!thread.missing) void actions.current.readSource();
+    else if (!thread.missing && !initialSummary?.fresh) void actions.current.readSource();
     else setLoading(false);
     return () => { epoch.current++; inFlight.current = false; busyCallback.current?.(false); };
   }, [thread.id]);
+  useEffect(() => threadInfoCache.subscribe(event => {
+    if (event.machine && event.machine !== cacheKey.machine) return;
+    summaryRef.current = null; setSummary(null);
+    // An in-progress model operation keeps its own receipt lifecycle. Outside
+    // that flow, a revoked read source must not remain a displayed live value.
+    if (!editorActive.current && !requestRef.current) {
+      sourceRef.current = null; setSource(null); setLoading(false);
+    }
+  }), [thread.id, thread.hostId]);
+  useEffect(() => {
+    if (observedSaved.current !== savedFingerprint) {
+      observedSaved.current = savedFingerprint; savedRefreshPending.current = true;
+      threadInfoCache.remove(cacheKey); summaryRef.current = null; setSummary(null);
+    }
+    if (!savedRefreshPending.current || waiting || editing || unresolved || thread.missing) return;
+    savedRefreshPending.current = false;
+    void actions.current.readSource();
+  }, [savedFingerprint, waiting, editing, unresolved, thread.missing]);
   useEffect(() => {
     if (!unresolved || waiting) return;
     const refresh = () => { if (document.visibilityState === "visible" && navigator.onLine) void actions.current.check(); };

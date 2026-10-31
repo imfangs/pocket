@@ -4,7 +4,10 @@
 .task-list-surface .thread-automation-icon[data-automation-state="unknown"] { color:var(--warning); }
 .thread-automations { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); min-width:0; }
 .thread-automations-heading, .thread-automation-heading { display:flex; align-items:baseline; justify-content:space-between; gap:12px; min-width:0; }
+.thread-automations-heading { align-items:center; min-height:22px; }
 .thread-automations-heading h3 { display:flex; align-items:center; gap:6px; margin:0; color:var(--ink); font-size:13px; font-weight:600; line-height:1.6; }
+.thread-automations-heading h3 { flex:none; }
+.thread-automations .thread-automations-summary { margin:0; color:var(--muted); font-size:12px; line-height:1.6; text-align:right; }
 .thread-automations-heading h3 > span { color:var(--muted); font-size:12px; font-weight:400; }
 .thread-automations-heading > button { flex:none; padding:6px 0 6px 8px; font-size:12px; }
 .thread-automations .thread-automations-notice { margin:8px 0 0; color:var(--muted); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }

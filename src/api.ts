@@ -4,6 +4,7 @@ import { hydrateReadResponse, isReadVersion, readResponseKind, READ_VERSION_HEAD
 import { createReadResponseCache } from "./readResponseCache.ts";
 import { requestActivity, type RequestActivity } from "./requestActivity.ts";
 import { clientVersionHeaders } from "./clientVersion.ts";
+import { threadInfoCache } from "./threadInfoCache.ts";
 
 export function createApiClient(scope: () => MachineId | null = currentMachineId, request: typeof fetch = (...args) => fetch(...args),
   expire: (machine: MachineId) => void = machine => window.dispatchEvent(new CustomEvent("navigator-auth-expired", { detail: { machine } })),
@@ -12,7 +13,7 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
   const authenticationEpochs = new Map<MachineId, number>();
   const reads = createReadResponseCache();
   let readEpoch = 0;
-  const clearReadResponses = (machine?: MachineId) => { readEpoch++; reads.clear(machine); };
+  const clearReadResponses = (machine?: MachineId) => { readEpoch++; reads.clear(machine); threadInfoCache.clear(machine); };
   const authenticationEpoch = (machine: MachineId) => authenticationEpochs.get(machine) ?? 0;
   const invalidateAuthentication = (machine: MachineId) => {
     authenticationEpochs.set(machine, authenticationEpoch(machine) + 1);

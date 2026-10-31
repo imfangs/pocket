@@ -4,6 +4,7 @@ import {
   effortForModel, effortName, forgetModelRequest, mergeModelOperation, modelCanConnect, modelFailureStatus, modelName,
   modelOperationText, modelPresentation, modelSettingsLabel, modelSettingsRequest, modelSourceHint,
   modelUnresolved, readModelRequest, rememberModelRequest, sameModelRequest,
+  modelSettingsSummary, modelSummaryPresentation, modelOperationSummary, chooseModelSummary,
 } from '../src/threadModels.ts';
 
 const source = {
@@ -16,6 +17,61 @@ const memory = () => {
   const values = new Map();
   return { values, getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
 };
+
+test('cached model summaries contain only display data, never a revision, capability or receipt', () => {
+  const summary = modelSettingsSummary({ ...source, operation: pending });
+  assert.deepEqual(summary, { current: source.current, source: 'desktop', models: [{ id: 'gpt-6-astra', name: 'GPT-6 Astra' }] });
+  assert.equal(modelSummaryPresentation(summary).label, 'GPT-6 Astra · Ultra');
+  assert.equal(modelSummaryPresentation(summary).saved, false);
+  assert.equal(modelSummaryPresentation({ ...summary, source: 'saved' }).saved, true);
+  assert.equal(modelSettingsSummary({ ...source, current: null }), null);
+  assert.equal(modelSettingsSummary({ ...source, current: { model: null, effort: null } }), null);
+  const named = modelSettingsSummary({ ...source, models: [{ ...source.models[0], displayName: 'Desktop choice' }] });
+  assert.equal(modelSummaryPresentation(named).label, 'Desktop choice · Ultra');
+  source.current.model = 'changed-after-projection';
+  assert.equal(summary.current.model, 'gpt-6-astra');
+  source.current.model = 'gpt-6-astra';
+});
+
+test('only a confirmed model operation supplies a display snapshot when its follow-up read fails', () => {
+  for (const status of ['pending', 'unknown', 'rejected', 'changed']) {
+    assert.equal(modelOperationSummary({ ...pending, status }, source), null);
+  }
+  const confirmed = modelOperationSummary({ ...pending, status: 'succeeded', current: { model: 'gpt-6-astra', effort: 'low' } }, source);
+  assert.deepEqual(confirmed, { current: { model: 'gpt-6-astra', effort: 'low' }, source: 'desktop',
+    models: [{ id: 'gpt-6-astra', name: 'GPT-6 Astra' }] });
+  const recovered = modelOperationSummary({ ...pending, status: 'succeeded' }, null);
+  assert.equal(modelSummaryPresentation(recovered).label, 'GPT-6 Astra · High');
+});
+
+test('a saved or unavailable fallback cannot replace or renew an observed desktop summary', () => {
+  const confirmed = modelOperationSummary({ ...pending, status: 'succeeded' }, source);
+  for (const fallback of [
+    { ...source, source: 'saved', current: source.current, revision: null, canChange: false },
+    { ...source, source: 'unavailable', current: null, revision: null, canChange: false },
+  ]) {
+    const choice = chooseModelSummary(fallback, confirmed);
+    assert.equal(choice.summary, confirmed);
+    assert.equal(choice.refreshCache, false);
+    assert.equal(modelSummaryPresentation(choice.summary).label, 'GPT-6 Astra · High');
+    // Only display selection changes: permissions still belong to this read.
+    assert.equal(modelSettingsRequest(fallback, 'gpt-6-astra', 'high', 'blocked'), null);
+  }
+});
+
+test('a real desktop read wins and a changed saved fingerprint admits new persistent information', () => {
+  const confirmed = modelOperationSummary({ ...pending, status: 'succeeded' }, source);
+  const desktop = chooseModelSummary(source, confirmed);
+  assert.equal(desktop.refreshCache, true);
+  assert.equal(modelSummaryPresentation(desktop.summary).label, 'GPT-6 Astra · Ultra');
+  // The component drops previous when the catalog fingerprint changes.
+  const saved = chooseModelSummary({ ...source, source: 'saved' }, null);
+  assert.equal(saved.refreshCache, true);
+  assert.equal(saved.summary.source, 'saved');
+  assert.equal(modelSummaryPresentation(saved.summary).saved, true);
+  const unavailable = chooseModelSummary({ ...source, source: 'unavailable', current: null }, null);
+  assert.deepEqual(unavailable, { summary: null, refreshCache: true });
+});
 
 test('model labels use the current catalog and retain unfamiliar model identities', () => {
   assert.equal(modelSettingsLabel(source.current, source.models), 'GPT-6 Astra · Ultra');

@@ -24,8 +24,41 @@ export type ModelSettingsSource = {
   checkedAt: number;
 };
 export type ModelRequestIdentity = Pick<ModelOperation, "threadId" | "requestId">;
+export type ModelSettingsSummary = {
+  current: ModelSettings;
+  source: ModelSettingsSource["source"];
+  models: Pick<ThreadModel, "id" | "name" | "displayName">[];
+};
 
-export function modelName(id: string | null | undefined, models: ThreadModel[] = []): string {
+export function modelSettingsSummary(source: Pick<ModelSettingsSource, "current" | "source" | "models">): ModelSettingsSummary | null {
+  if (!source.current || !["desktop", "saved", "unavailable"].includes(source.source) ||
+      ![source.current.model, source.current.effort].every(value => value === null || typeof value === "string") ||
+      !(source.current.model || source.current.effort) || !Array.isArray(source.models)) return null;
+  return { current: { model: source.current.model, effort: source.current.effort }, source: source.source,
+    models: source.models.filter(model => model && typeof model.id === "string" && typeof model.name === "string")
+      .map(model => ({ id: model.id, name: model.name, ...(typeof model.displayName === "string" ? { displayName: model.displayName } : {}) })) };
+}
+
+export function modelOperationSummary(operation: ModelOperation, previous: ModelSettingsSource | null): ModelSettingsSummary | null {
+  if (operation.status !== "succeeded") return null;
+  return modelSettingsSummary({ source: "desktop", current: operation.current ?? { model: operation.model, effort: operation.effort },
+    models: previous?.models ?? [] });
+}
+
+// A fallback can describe an older rollout/settings snapshot than the last
+// observed desktop value. Keep that display value without refreshing its age;
+// callers clear `previous` when the catalog's saved-settings fingerprint moves.
+export function chooseModelSummary(source: Pick<ModelSettingsSource, "current" | "source" | "models">,
+  previous: ModelSettingsSummary | null): { summary: ModelSettingsSummary | null; refreshCache: boolean } {
+  if (source.source !== "desktop" && previous?.source === "desktop") return { summary: previous, refreshCache: false };
+  return { summary: modelSettingsSummary(source), refreshCache: true };
+}
+
+export function modelSummaryPresentation(summary: ModelSettingsSummary) {
+  return { value: summary.current, label: modelSettingsLabel(summary.current, summary.models), saved: summary.source !== "desktop" };
+}
+
+export function modelName(id: string | null | undefined, models: Pick<ThreadModel, "id" | "name" | "displayName">[] = []): string {
   if (!id) return "模型未提供";
   const entry = models.find(model => model.id === id);
   const name = entry?.displayName?.trim() || entry?.name?.trim() || id;
@@ -42,7 +75,7 @@ export function effortName(value: string): string {
   return names[value] || value;
 }
 
-export function modelSettingsLabel(value: ModelSettings | null | undefined, models: ThreadModel[] = []): string {
+export function modelSettingsLabel(value: ModelSettings | null | undefined, models: Pick<ThreadModel, "id" | "name" | "displayName">[] = []): string {
   if (!value || (!value.model && !value.effort)) return "暂未读取";
   return `${modelName(value.model, models)}${value.effort ? ` · ${effortName(value.effort)}` : ""}`;
 }

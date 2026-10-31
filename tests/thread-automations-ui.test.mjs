@@ -109,5 +109,13 @@ test('cache and failed-refresh states label retained plans and preserve their co
     assert.doesNotMatch(html, /暂无关联/);
   }
   const refreshing = renderContent({ source: { ...source, stale: true }, loading: true });
-  assert.match(refreshing, /正在刷新/); assert.match(refreshing, /disabled=""/);
+  assert.match(refreshing, /正在刷新/); assert.doesNotMatch(refreshing, /重新读取|thread-automations-notice/);
+});
+
+test('initial loading, refreshing, and empty results share the compact heading row', () => {
+  for (const extra of [{ source: null, loading: true }, { loading: true }, { source: { ...source, stale: true }, loading: true }, { source: { ...source, automations: [] } }]) {
+    const html = renderContent(extra);
+    assert.match(html, /thread-automations-heading[^]*thread-automations-summary/);
+    assert.doesNotMatch(html, /thread-automations-notice/);
+  }
 });
