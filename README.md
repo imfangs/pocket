@@ -22,7 +22,7 @@ Claude Code 接入可行性见 [官方接口与 BotMux / Happy / HAPI 源码调�
 
 ## 使用
 
-- 在菜单选择「格得 Mac」或「豌豆 Mac」，记住上次选择；各自的会话、登录、目录偏好与通知独立。切机前保护未完成输入，详见[多机连接](docs/design/2026-10-17-multi-machine.md)。
+- 在设置中选择「格得 Mac」或「豌豆 Mac」，记住上次选择；各自的会话、登录、目录偏好与通知独立。切机前保护未完成输入，详见[多机连接](docs/design/2026-10-17-multi-machine.md)。
 - 默认按统一Rank排序；搜索标题、项目和目录，菜单按项目切换列表。
 - 左划会话可「优先关注 / 取消关注」，红星独立提高Pocket排序权重；Codex紫色图钉只读保留，两种标记可并列。桌面和键盘使用同一行的星标按钮。
 - 新建默认只显示 Query；目录、项目与标题放在「更多设置」，沿用上次有效选择。缺少必要选择时才展开补充，首条消息和创建过程持续保留回执。
@@ -39,13 +39,13 @@ Claude Code 接入可行性见 [官方接口与 BotMux / Happy / HAPI 源码调�
 - 「在 Mac 打开」用原 thread ID 请求官方 App。运行与审批继续由原版负责，网页提交继承原模型和权限，见 [会话接入说明](docs/CONVERSATION.md)。
 - 「设置」保留主题/安装、通知，退出登录位于最底部。备份不再出现在网页；本机自动备份与 CLI 兼容能力保留。原横线分隔符会话默认显示。
 
-原项目筛选、Pocket 优先关注及运行/待输入过滤继续使用。完整验证与当前限制见 [CURRENT.md](CURRENT.md)。
+项目范围、Pocket 关注及未读/运行中筛选继续使用。完整验证与当前限制见 [CURRENT.md](CURRENT.md)。
 
 ## 运行
 
 Node 26（使用内置 SQLite）、npm。代码与运行依赖不包含模型服务。
 
-实时历史与 query 的桌面桥接另需 Python 3 和本机 FBT IPC 模块，路径在 `config/desktop-bridge.json`。App 发布号仅作诊断，连接与派发按实际 IPC 契约和原 owner 状态检查；新建、改名、归档/恢复使用的内置 CLI 仍独立检查已验证版本。取舍与升级处理见[桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)。
+实时历史与 query 的桌面桥接另需 Python 3 和本机 FBT IPC 模块，路径在 `config/desktop-bridge.json`。App 发布号仅作诊断，连接与派发按实际 IPC 契约和原 owner 状态检查；新建、改名、归档/恢复使用的内置 CLI 对尚未验证的可运行版本仅告警，仍核对实际协议与结果。取舍与升级处理见[桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)。
 
 缺少桌面连接时仍可显示只读落盘历史；入队保存、显式重连尝试和已取得的发送许可分别处理。接口不兼容时保留草稿与待发消息，暂停实际派发，不另启 Agent 接管任务。
 
@@ -55,6 +55,15 @@ npm run build
 npm test
 npm start
 ```
+
+浏览器回归使用独立合成接口，不需要启动 Mac API 或连接真实会话：
+
+```sh
+npx playwright install chromium webkit # 新环境首次准备测试浏览器
+npm run test:browser
+```
+
+命令构建隔离前端包并检查关键用户流程；复验已有构建、单浏览器选择及输出位置见 [浏览器验收](tests/browser/README.md)。
 
 直接地址 `http://127.0.0.1:4397`。后台服务、HTTPS 和双栈域名由 FBT local 管理：
 

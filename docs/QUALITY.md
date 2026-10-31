@@ -16,6 +16,8 @@ UI 组件引入先读 [AI Elements 适用性评估](research/2026-09-28-ai-eleme
 
 ## 下一步队列
 
+日常浏览器回归从 [tests/browser](../tests/browser/README.md) 进入：`npm run test:browser` 自动构建隔离前端包，使用本地合成API验证列表/详情/新建焦点、信息缓存、发送行连续性及历史分页意图。无需启动Mac服务或读取私有数据；使用既有构建时传`POCKET_BROWSER_DIST`。特定历史问题仍按对应设计文档补充专项，浏览器触摸事件不替代实体iPhone验收。
+
 按新证据调整顺序，不把表中推断写成已发生的问题。
 
 | 优先级 | 流程与问题 | 证据及最小验证 |

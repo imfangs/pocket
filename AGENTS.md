@@ -13,6 +13,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 | 本轮任务 | 先读的契约与依据 |
 | --- | --- |
+| 阶段性CR、历史窗口重构、提交正文回收、可重复浏览器验收 | [10-31阶段审查](docs/design/2026-10-31-stage-refactor.md)：结构/Spec分轴、历史协调职责、终态正文与防重身份分离；后端取消链路等候选有独立重开条件 |
 | 会话信息打开时高度跳动、定时任务/模型摘要重复读取 | [稳定布局与信息缓存](docs/design/2026-10-31-info-dialog-cache.md)：加载/空态同一行、30秒页面内缓存、过期保留显示后台读取；模型权限/回执不缓存，修改仍实时核对 |
 | 设置/会话信息紧凑布局、顶部创建/活动/加号默认透明 | [控件与信息减法](docs/design/2026-10-30-compact-settings-and-controls.md)：统一节奏、元数据两列、局部Modal标题margin、44px点击区和选中反馈保持 |
 | 新建/详情关闭后标题及加号上半部分模糊、菜单开关可恢复 | [iOS滚动边缘](docs/design/2026-10-30-ios-header-scroll-edge.md)：原生scroll edge effect与CSS blur不同；保持手机实色sticky顶边，原生A/B与新建/详情两路径已验证，不能只凭桌面filter:none判定修复 |
@@ -104,7 +105,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 
 ## 验证、运行与收尾
 
-- 功能改动先跑相关回归；发布前运行 `npm test` 和 `npm run build`，再验证受影响的实际流程。文档改动检查路径、事实、历史保全和 diff 即可。验证策略及受控真实发送对象只在 [QUALITY](docs/QUALITY.md) 维护。
+- 功能改动先跑相关回归；发布前运行 `npm test` 和 `npm run build`，再验证受影响的实际流程。涉及阅读、发送、导航或输入交互时，优先用 `npm run test:browser` 的合成端到端入口；参数与范围见 [tests/browser](tests/browser/README.md)。文档改动检查路径、事实、历史保全和 diff 即可。验证策略及受控真实发送对象只在 [QUALITY](docs/QUALITY.md) 维护。
 - 默认使用合成数据和只读真实验收；必要发送按受控对象/文本约定操作，避免污染其他原任务。区分自动测试、浏览器、模拟器、iPhone 主屏幕真机与长期使用证据。
 - 桥接测试与生产调用一样通过 `readBridgeConfig()` 读取解释器/IPC路径，保留 `NAVIGATOR_BRIDGE_CONFIG` 的机器覆盖；不能硬读可提交默认配置。10-28豌豆预检已复现默认Python路径不存在、其私有配置可用的差异。
 - 本地开发优先复用已有 API 或任务内临时 fixture；结束后关闭自己启动的临时进程。已登记服务的生命周期复用 FBT local，实际配置留在本仓库，不顺手重启 Codex。

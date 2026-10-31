@@ -34,15 +34,13 @@
 
 ## 阅读缓存与传输
 
-2026-10-28方案已落地，当前契约见[分层阅读缓存](design/2026-10-28-reading-cache.md)：20会话有界内存、IndexedDB近期阅读投影、条件响应与跨标签撤销。下文保留实施前的盘点和成本判断；实际发布状态以CURRENT为准。
+当前实现以[分层阅读缓存](design/2026-10-28-reading-cache.md)为准。浏览器分层保存纯阅读投影：会话与阅读投影内存各最多20份/8MiB，条件响应内存32份/8MiB/5分钟；IndexedDB默认128份近期正文，可配置20–500份，并受30MiB/7天限制。认证后先展示缓存，再核对当前来源；退出、401和跨标签清理撤销旧读写。Service Worker只缓存公开壳。
 
-2026-10-28核对：会话目录保存在App内存；`conversationFeed.ts`维护最多10个最近会话的正文、阅读位置与展开状态，切回先展示再核对。刷新/退出后这些正文缓存不保留。浏览器持久存储的是机器隔离的阅读摘要、偏好及恢复ID；Service Worker仅缓存公开壳。
+GET目录、正文和实时历史支持ETag/304，显式sync支持版本头/204；没有完整消息增量协议。缓存只能恢复阅读，不授予发送、审批、文件访问或模型修改权限，也不能确认发送或替代实际可见阅读。持久层按电脑、来源scope和thread ID隔离；分页旧历史只留当前详情窗口。
 
-Mac侧`source_threads`保存目录快照；`DesktopService.history`合并在途请求并使用短时内存缓存，运行中750ms、其它3000ms、最多10项。活跃状态预取另复用8秒缓存，详见[状态预取](design/2026-10-22-active-thread-prefetch.md)。`catalog/sync/transcript`已有gzip传输路径；API仍为no-store，目前没有按正文版本返回304或增量消息的协议。
+Mac侧`source_threads`保存目录快照；`DesktopService.history`合并在途请求，运行中750ms、其它3000ms、最多10项。状态预取使用短期缓存；前台读取优先于最多8个候选/单并发的正文预取，见[状态预取](design/2026-10-22-active-thread-prefetch.md)与[正文预取](design/2026-10-31-transcript-prefetch.md)。前端取消与后端工作终止是不同层，尚不承诺所有读取已端到端取消。
 
-用户希望缓存进一步改善流畅与传输量。待验证的增量优先是同一长会话的重复响应字节、无变化轮询占比，再试正文版本协商；引入TanStack Query/SWR本身不会减少服务端完整响应。持久正文缓存需单独界定容量、机器/来源隔离、退出清理与过期展示。缓存只用于阅读，发送权限、执行状态和accepted确认仍由新鲜回执决定。本轮未引入缓存库或新的持久正文存储。
-
-同日成本判断：扩充有字节上限的内存缓存成本小；IndexedDB近期列表/正文缓存与条件请求各为中等成本，建议依次验证。磁盘层异步读取、合并写入，不按每个流式字符落盘；先显示已存内容、后台核对版本。完整增量成本较高：需要处理流式修改、删除/裁剪、双来源消息ID变化、基准版本不符时全量回退，不能只实现末尾追加。此处为方案判断，尚未实施新缓存层。
+会话信息中的定时任务和模型摘要另有[30秒页面内缓存](design/2026-10-31-info-dialog-cache.md)，权限与操作回执不缓存。缓存组件采用`idb`；选型与最初成本判断见[组件评估](research/2026-10-28-cache-components.md)，旧版实施前盘点保存在[历史记录](../HISTORY.md#2026-10-28-缓存实施前的架构盘点)。
 
 ## HTTP
 
@@ -67,7 +65,7 @@ Mac侧`source_threads`保存目录快照；`DesktopService.history`合并在途�
 - `POST /api/open/:id`：只接受已导入原 ID，调用系统 `open codex://threads/:id`，返回 `handoff_requested`，不发送消息或新建会话。
 - `GET /api/export`、`POST /api/import`：仅 Pocket 元数据备份。
 
-所有私人 API 需通过 Cookie 认证；本机 CLI 的独立 bearer 仅直连 loopback 有效。状态变更需相同 Origin 和从 catalog 取得的 `X-Navigator-Token`，登录/退出只要求同源。允许 loopback、threads.local 和本机已登记的精确 tunnel Host；Caddy/cloudflared 在 loopback 转发 HTTPS，服务校验 forwarded proto 并按实际 Host 重建 Origin。无 CORS、无遥测，API 响应 no-store，静态资源和 CSP 限定本站。Pages 只持久保存公开前端与连接地址，私人 API 经 Worker 转发，口令哈希与浏览器会话保存在 Mac。
+所有私人 API 需通过 Cookie 认证；本机 CLI 的独立 bearer 仅直连 loopback 有效。状态变更需相同 Origin 和从 catalog 取得的 `X-Navigator-Token`，登录/退出只要求同源。允许 loopback、threads.local 和本机已登记的精确 tunnel Host；Caddy/cloudflared 在 loopback 转发 HTTPS，服务校验 forwarded proto 并按实际 Host 重建 Origin。私人 API 不开放 CORS，响应保持 no-store。前端已按[使用反馈契约](design/2026-10-26-usage-feedback.md)接入 PostHog 使用统计、回放和主动反馈；CSP 只增加相应必要域名，截图/文字反馈沿授权的提交路径处理。Pages 只持久保存公开前端与连接地址，私人 API 经 Worker 转发，口令哈希与浏览器会话保存在 Mac。
 
 边缘专用 `POST /api/relay/register` 由 Worker 自己处理，使用独立机器 key 的 SHA-256 verifier，只能续登记当前项目的连接地址。它不转发到 Mac，也不授予任务读取/编辑权限。自 2026-09-28 起，常驻连接器直接调用此接口，不依赖 Wrangler OAuth；只有发布代码时需要 Cloudflare 管理凭据。详细配对和恢复见 `docs/MOBILE.md`。
 

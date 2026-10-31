@@ -44,6 +44,8 @@ Service Worker 只预缓存公开离线提示、manifest 和图标；私人 API 
 
 `npm run build:pages` 生成静态资源与 `_worker.js`；`wrangler.jsonc` 绑定独立 KV。发布复用 FBT pages-site，配置在 `config/pages-site.json`。DNS 只新增 x 的 CNAME，不变更 fangs.cc 的 nameserver。
 
+2026-10-31阶段整理后，逐文件核验默认使用`browser-fetch`与项目自己的Playwright开发依赖，`playwright_root`为项目根目录。这样发布和日常浏览器回归复用可安装依赖，不再需要私有QA中的绝对runtime路径。上传后读取超时仍沿同一次部署续验，认证恢复流程不变；实际发布回读结果见CURRENT。
+
 本机服务和连接器分别由 `config/local-service.json`、`config/tunnel-service.json` 管理。只重启 Node 不会改变隧道地址；连接器重启会生成新地址并重新登记。网页壳可打开不代表 Mac 在线，API 会返回明确的连接错误。
 
 ### 当前发布与排障

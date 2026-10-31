@@ -69,7 +69,7 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 ## 上下文用量与压缩
 
-会话顶部状态栏显示上下文占用百分比，展开可查看 used / window / remaining tokens。值来自原 App 的 latestTokenUsageInfo.last.totalTokens 与 modelContextWindow，与桌面保持同口径；不是累计计费用量，也不以网页显示的消息字数估算。只有已取得实时桌面快照时显示，字段缺失时标记暂不可用。
+会话输入区的上下文控件显示占用百分比，展开可查看 used / window / remaining tokens。值来自原 App 的 latestTokenUsageInfo.last.totalTokens 与 modelContextWindow，与桌面保持同口径；不是累计计费用量，也不以网页显示的消息字数估算。只有已取得实时桌面快照时显示，字段缺失时标记暂不可用。
 
 「压缩上下文」在原任务空闲时可用，允许保留待发消息。较早内容会被总结为更短上下文，可能省略细节；按钮旁的说明可展开。压缩期间暂停执行派发和自动出队，仍可保存新的待发正文；原本已暂停/编辑中的队列不会被自动解锁。POST /api/tasks/:id/compact 只接受 `{requestId}`，GET /api/tasks/:id/compact/:requestId 仅查询回执。
 
@@ -83,7 +83,7 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 2026-10-13实现调整：`config/desktop-bridge.json` 只配置运行路径，App 发布号不再决定准入。桥接仍检查 Codex bundle 身份、socket、固定 IPC 方法/快照版本、owner 与响应归属，以及 Pocket 实际消费的任务状态。初始化、owner discovery、following、snapshot、start turn、steer turn 的已知版本分别为 0、1、1、11、2、1；未知契约保持拒绝。这些是内部协议，不是官方承诺稳定的公共 SDK。
 
-内置 CLI 由 `bin/bundled_cli.py` 按实际包布局发现；新建、改名、归档/恢复仍独立检查已验证 CLI 版本，未验证版本返回 `cli_version_changed`。接口不兼容时保留落盘历史、草稿与条件允许的入队保存，暂停实际发送、停止、压缩和自动出队；存量 `app_version_changed` 回执继续识别，新鲜有效状态可解除旧连接失败。具体取舍与验证边界见[桌面兼容](design/2026-10-13-desktop-compatibility.md)。
+内置 CLI 由 `bin/bundled_cli.py` 按实际包布局发现；新建、改名、归档/恢复会记录CLI版本；从2026-10-30起，合法可运行但尚未验证的版本仅告警，继续实际RPC与结果核对，不再单凭版本阻断。接口不兼容时保留落盘历史、草稿与条件允许的入队保存，暂停实际发送、停止、压缩和自动出队；存量 `app_version_changed` 回执继续识别，新鲜有效状态可解除旧连接失败。具体取舍与验证边界见[桌面兼容](design/2026-10-13-desktop-compatibility.md)。
 
 历史证据：2026-10-10在 `26.1007.21159:20052` 上已完成原owner公网受控回显及CLI隔离验收，原模型/权限不变；当时采用精确App版本配置。该次[桌面升级兼容记录](research/2026-10-10-desktop-upgrade-compatibility.md)保留原结论，不作为当前准入规则。
 
@@ -95,9 +95,9 @@ request_responses 账本保存响应编号、请求指纹、一次性 decision �
 
 2026-09-30增加独立的只读文字路径 `GET /api/tasks/:id/transcript`，直接读取受限、按来源过滤的rollout，不等待桌面快照。该响应只有展示数据，没有执行权限；前端以共同消息ID、同消息完整度或明确的回合完成证据更新消息，原生内容领先时保留原生结果。原桌面状态仍独立更新，文字不能清除发送回执或授权操作。文字读取、缓存、后台暂停、压缩与验证边界见 [文字优先说明](design/2026-09-30-transcript-first.md)。
 
-后端最多短时复用 10 条任务的历史：未完成的读取合并为一个请求，完成后活动快照 750ms、其他 3 秒过期。浏览器本次登录内最多缓存 10 个已访问任务的历史与阅读位置，切回先展示缓存，成功复核前保持发送禁用；退出后随 App 卸载清空。历史不保存到 Pocket 数据库、KV、浏览器持久存储或 Service Worker cache。分组/说明仍独立存储。未发送的 query 草稿只保留在当前登录页面内存中，可在任务与标签切换后取回；刷新前提示未发送文本。
+后端最多短时复用10条任务的历史：未完成读取合并为一个请求，活动快照750ms、其他3秒过期。浏览器会话内存最多20个/8MiB，IndexedDB另保存认证后可读的近期阅读投影，默认128份/30MiB/7天。刷新可恢复阅读，退出/401清理并撤销迟到写入；权限、回执和草稿不由阅读缓存恢复。完整规则见[分层阅读缓存](design/2026-10-28-reading-cache.md)。原聊天历史不写入Pocket数据库、KV或Service Worker cache；未发送Query草稿保留在当前页面内存，更新前保护未完成输入。
 
-历史请求一次只运行一个，离开页面会取消；18 秒仍无响应则结束等待并有界退避重试，断网时保留已读内容并提示恢复方式。发送操作不使用这套自动重试，仍按下文 requestId/回执处理。
+每个前端实时历史订阅一次只运行一个请求，离开页面会取消等待并拒收迟到结果；这不等同于所有服务端扫描都已停止。18 秒仍无响应则结束等待并有界退避重试，断网时保留已读内容并提示恢复方式。发送操作不使用这套自动重试，仍按下文 requestId/回执处理。
 
 ## 发送与重复提交
 

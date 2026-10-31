@@ -27,5 +27,12 @@
     "_worker.js",
     "_routes.json"
   ],
-  "receipt": ".local/pages-site.json"
+  "receipt": ".local/pages-site.json",
+  "verification": {
+    "transport": "browser-fetch",
+    "playwright_root": ".",
+    "timeout_ms": 45000,
+    "retries": 2,
+    "concurrency": 4
+  }
 }
