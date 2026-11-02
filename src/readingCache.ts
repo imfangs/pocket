@@ -1,7 +1,8 @@
 import type { Catalog, Group, PocketContent, Project, Thread } from "./types";
+import { hiddenFields } from "./hiddenThreads.ts";
 import type { Message, SavedTranscript } from "./conversationFeed";
 import {
-  clearReadingCache, createReadingCacheStorage, readingCacheFence, readingCacheKey, readingCacheLimits, readingRecordOrder,
+  clearReadingCache, createReadingCacheStorage, readingCacheFence, readingCacheKey, readingCacheLimits, mergeReadingCatalogRecords,
   subscribeReadingCacheInvalidation, type ReadingCacheRecord, type ReadingCacheStorage,
 } from "./readingCacheStorage.ts";
 
@@ -39,6 +40,7 @@ function sanitizeCatalog(value: unknown, scope: string): Catalog | null {
       pinned: item.pinned === true, pinnedOrder: finite(item.pinnedOrder), pinRevision: finite(item.pinRevision),
       ...(item.pinSource === "pocket" || item.pinSource === "codex" ? { pinSource: item.pinSource } : {}),
       codexPinned: item.codexPinned === true, pocketPriority: item.pocketPriority === true,
+      ...hiddenFields(item),
       separator: item.separator === true, source: string(item.source) ? item.source : "", createdAt: finite(item.createdAt),
       updatedAt: finite(item.updatedAt), lastMessageAt: typeof item.lastMessageAt === "number" ? finite(item.lastMessageAt) : null,
       branch: string(item.branch) ? item.branch : null, missing: item.missing === true, sourceExcluded: item.sourceExcluded === true,
@@ -159,13 +161,17 @@ export function createReadingCache({ storage, now = Date.now }: Options = {}) {
       const json = JSON.stringify(kind === "transcript" ? { ...transcript, checkedAt: 0 }
         : { ...catalog, sourceInfo: { ...catalog.sourceInfo, syncedAt: 0 } });
       const key = readingCacheKey(machine, scope, kind, threadId);
-      const record: ReadingCacheRecord = { schema: 1, key, machine, scope, kind, threadId, savedAt: now(), accessedAt: now(),
+      let record: ReadingCacheRecord = { schema: 1, key, machine, scope, kind, threadId, savedAt: now(), accessedAt: now(),
         bytes: new TextEncoder().encode(json).byteLength + key.length * 2 + 512, json, fence: fence ?? "memory-only",
         observedAt, contentRevision: kind === "transcript" ? transcript.pocketContent?.revision ?? 0 : 0 };
       if (memoryWeight(record) > readingCacheLimits.memoryBytes || record.bytes > readingCacheLimits.diskBytes) return false;
       const previous = memory.get(key);
-      if (previous && readingRecordOrder(record, previous) < 0) return false;
-      const sameBody = previous?.json === json;
+      if (previous) record = mergeReadingCatalogRecords(record, previous);
+      if (record === previous) return false;
+      if (memoryWeight(record) > readingCacheLimits.memoryBytes || record.bytes > readingCacheLimits.diskBytes) {
+        memory.delete(key); pending.delete(key); return false;
+      }
+      const sameBody = previous?.json === record.json;
       const deferUnchanged = sameBody && record.savedAt - previous.savedAt < readingCacheLimits.validationRefreshMs;
       if (deferUnchanged) record.savedAt = previous.savedAt;
       if (kind === "catalog") for (const [oldKey, old] of memory) {
@@ -196,38 +202,63 @@ export function createReadingCache({ storage, now = Date.now }: Options = {}) {
     const fence = currentFence(machine), ticket = generation;
     if (!available(machine)) return null;
     const key = scope && threadId ? readingCacheKey(machine, scope, "transcript", threadId) : null;
-    let record = key ? memory.get(key) : [...memory.values()].filter(item => item.machine === machine && item.kind === "catalog").sort((a, b) => b.savedAt - a.savedAt)[0];
+    const remembered = () => key ? memory.get(key) : [...memory.values()].filter(item => item.machine === machine && item.kind === "catalog")
+      .sort((a, b) => b.savedAt - a.savedAt)[0];
+    const current = () => available(machine) && ticket === generation && currentFence(machine) === fence;
+    const adopt = (record: ReadingCacheRecord, touch = true): ReadingSnapshot<T> | null => {
+      if (memoryWeight(record) > readingCacheLimits.memoryBytes || record.bytes > readingCacheLimits.diskBytes) {
+        memory.delete(record.key); pending.delete(record.key); return null;
+      }
+      const snapshot = decode<T>(record, machine);
+      if (!snapshot) { memory.delete(record.key); return null; }
+      record = { ...record, accessedAt: now() };
+      if (!key) for (const [otherKey, other] of memory) {
+        if (other.machine === machine && other.kind === "catalog" && otherKey !== record.key) { memory.delete(otherKey); pending.delete(otherKey); }
+      }
+      memory.delete(record.key); memory.set(record.key, record); prune(); schedule(record, touch);
+      return snapshot;
+    };
+    let record = remembered();
+    const initialCatalogScope = !key && record && decode<T>(record, machine) ? record.scope : undefined;
     if (record) {
       // IDB epochs cover tabs whose broadcast/storage notifications were lost,
       // including readable-but-unwritable localStorage. This reads metadata only.
       if (disk?.isCurrent) {
         try { if (!await disk.isCurrent(machine)) { revoke(machine); return null; } }
         catch { disk?.close(); disk = null; }
-        if (!available(machine) || ticket !== generation || currentFence(machine) !== fence) return null;
-        record = key ? memory.get(key) : [...memory.values()].filter(item => item.machine === machine && item.kind === "catalog")
-          .sort((a, b) => b.savedAt - a.savedAt)[0];
+        if (!current()) return null;
+        record = remembered();
       }
     }
-    if (record) {
-      const snapshot = decode<T>(record, machine);
-      if (snapshot) { record.accessedAt = now(); memory.delete(record.key); memory.set(record.key, record); schedule(record, true); return snapshot; }
-      memory.delete(record.key);
+    // Catalogs may receive independent preference writes from another tab.
+    // Reconcile that small stored projection on load; transcript hot reads keep
+    // their original memory-only path after the epoch check above.
+    if (record && (key || fence === null || disk === null)) {
+      const snapshot = adopt(record);
+      if (snapshot) return snapshot;
     }
     if (fence === null) return null;
     try {
-      record = (await (key ? getDisk()?.transcript(key, machine) : getDisk()?.catalog(machine))) ?? undefined;
-      if (!record || !available(machine) || ticket !== generation || currentFence(machine) !== fence ||
-          key && record.key !== key || !key && record.kind !== "catalog") return null;
-      const snapshot = decode<T>(record, machine);
-      if (!snapshot) return null;
+      const stored = (await (key ? getDisk()?.transcript(key, machine) : getDisk()?.catalog(machine))) ?? undefined;
+      if (!current()) return null;
+      const diskRecord = stored && (key ? stored.key === key : stored.kind === "catalog") && decode<T>(stored, machine) ? stored : undefined;
       // A network result may have populated L1 while the disk read was pending.
-      const newer = key ? memory.get(record.key) : [...memory.values()].filter(item => item.machine === machine && item.kind === "catalog")
-        .sort((a, b) => b.savedAt - a.savedAt)[0];
-      if (newer && readingRecordOrder(newer, record) >= 0) return decode<T>(newer, machine);
-      record = { ...record, accessedAt: now() };
-      memory.set(record.key, record); prune(); schedule(record, true);
-      return snapshot;
-    } catch { disk?.close(); disk = null; return null; }
+      const latest = remembered(), liveRecord = latest && decode<T>(latest, machine) ? latest : undefined;
+      if (liveRecord && initialCatalogScope === liveRecord.scope && diskRecord && diskRecord.scope !== liveRecord.scope)
+        return adopt(liveRecord);
+      record = diskRecord && liveRecord ? mergeReadingCatalogRecords(liveRecord, diskRecord) : diskRecord ?? liveRecord;
+      if (!record) return null;
+      // A merged preference projection can carry new metadata even when its
+      // body/timestamps came from disk. A plain LRU read cannot recreate an
+      // evicted entry; pending new bodies still retain their scheduled write.
+      const changedMetadata = !key && diskRecord?.key === record.key && diskRecord.json !== record.json;
+      return adopt(record, !changedMetadata);
+    } catch {
+      disk?.close(); disk = null;
+      if (!current()) return null;
+      const fallback = remembered();
+      return fallback ? adopt(fallback) : null;
+    }
   };
   return {
     loadCatalog: (machine: string) => load<Catalog>(machine),

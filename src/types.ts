@@ -63,6 +63,8 @@ export interface Thread {
   pinSource?: "pocket" | "codex";
   codexPinned?: boolean;
   pocketPriority?: boolean;
+  pocketHidden?: boolean;
+  hiddenRevision?: number;
   separator: boolean;
   source: string;
   createdAt: number;
@@ -100,7 +102,7 @@ export interface Catalog {
   sourceError: string | null;
   csrfToken?: string;
 }
-export type View = "all" | "unread" | "running" | "created" | "priority" | "codex-pinned" | "pinned" | "recent" | "archived";
-export type NavigationScope = "all" | "priority" | "codex-pinned" | "archived";
+export type View = "all" | "unread" | "running" | "created" | "priority" | "codex-pinned" | "pinned" | "recent" | "archived" | "hidden";
+export type NavigationScope = "all" | "priority" | "codex-pinned" | "archived" | "hidden";
 export type ActivityFilter = "all" | "unread" | "running";
 export type ThreadSort = "smart" | "created" | "activity";

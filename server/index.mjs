@@ -380,6 +380,16 @@ export function makeApp(options = {}) {
       const taskPriority = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)\/priority$/);
       if (taskPriority && method === "POST")
         return json(res, 200, store.setPriority(taskPriority[1], await body(req, 2048)));
+      const taskHidden = path.match(/^\/api\/tasks\/([a-zA-Z0-9-]+)\/hidden$/);
+      if (taskHidden && method === "POST") {
+        const input = await body(req, 2048);
+        if (!input || typeof input !== "object" || Array.isArray(input) || typeof input.hidden !== "boolean" ||
+            Object.keys(input).some(key => key !== "hidden" && key !== "scope") ||
+            Object.hasOwn(input, "scope") && (typeof input.scope !== "string" || !input.scope || input.scope.length > 512))
+          throw new AppError("隐藏请求只接受 hidden 布尔值与可选的来源 scope");
+        if (input.scope !== undefined && input.scope !== pocketContent.scope) throw new AppError("会话来源已变化，请重新选择。", 409);
+        return json(res, 200, { ...store.setHidden(taskHidden[1], { hidden: input.hidden }), visibilityScope: pocketContent.scope });
+      }
       const taskConnection = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/connection$/i);
       if (taskConnection && method === "GET")
         return json(res, 200, desktop.connection(taskConnection[1]));

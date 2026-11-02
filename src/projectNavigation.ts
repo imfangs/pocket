@@ -1,4 +1,5 @@
 import type { Project, Thread } from "./types";
+import { pocketHidden } from "./hiddenThreads.ts";
 
 export const UNASSIGNED_PROJECT = "__unassigned__";
 
@@ -29,7 +30,7 @@ function distinctSuffix(project: Project, peers: readonly Project[]) {
 // Project identity comes from Codex, never from a shared name or directory.
 export function projectNavigationItems(
   projects: readonly Project[],
-  threads: readonly Pick<Thread, "archived" | "separator" | "projectId" | "sourceExcluded">[] = [],
+  threads: readonly Pick<Thread, "archived" | "separator" | "projectId" | "sourceExcluded" | "pocketHidden">[] = [],
 ): ProjectNavigationItem[] {
   const seen = new Set<string>();
   const ordered = projects
@@ -68,7 +69,7 @@ export function projectNavigationItems(
       ...(duplicate ? { suffix: distinctSuffix(project, ordered.filter(other => nameKey(other.name) === nameKey(project.name))) } : {}),
     };
   });
-  if (threads.some(thread => !thread.sourceExcluded && !thread.archived && !thread.separator && !thread.projectId)) {
+  if (threads.some(thread => !thread.sourceExcluded && !pocketHidden(thread) && !thread.archived && !thread.separator && !thread.projectId)) {
     items.push({ id: UNASSIGNED_PROJECT, name: "未归属项目", title: "未归属项目", ariaLabel: "未归属项目" });
   }
   return items;

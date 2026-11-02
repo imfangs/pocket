@@ -42,6 +42,7 @@ export function emptyListContent({ view, activity = view === "unread" || view ==
   if (view === "codex-pinned") return { title: "还没有置顶会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "pinned") return { title: "还没有已标记的会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "archived") return { title: "没有已归档会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
+  if (view === "hidden") return { title: "没有隐藏的会话", description: "左滑会话可以隐藏。", action: "showAll", actionLabel: "查看全部会话" };
   if (view === "recent") return { title: "还没有打开记录", description: "", action: "showAll", actionLabel: "查看全部会话" };
   return { title: "没有会话", description: "", action: "showAll", actionLabel: "查看全部会话" };
 }

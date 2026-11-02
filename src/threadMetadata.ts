@@ -1,5 +1,6 @@
 import type { Catalog } from "./types";
 import { hasPriorityState, priorityFields } from "./priority.ts";
+import { hasHiddenState, hiddenFields } from "./hiddenThreads.ts";
 
 const version = (value: number | undefined) => Number.isSafeInteger(value) && value! >= 0 ? value! : 0;
 
@@ -16,11 +17,14 @@ export function preserveNewerThreadMetadata(current: Catalog, incoming: Catalog)
     const stalePin = version(known.pinRevision) > version(thread.pinRevision)
       || hasPriorityState(known) && !hasPriorityState(thread);
     const staleTitle = version(known.titleRevision) > version(thread.titleRevision);
-    if (!stalePin && !staleTitle) return thread;
+    const staleHidden = version(known.hiddenRevision) > version(thread.hiddenRevision)
+      || hasHiddenState(known) && !hasHiddenState(thread);
+    if (!stalePin && !staleTitle && !staleHidden) return thread;
     changed = true;
     const merged = { ...thread,
       ...(stalePin ? priorityFields(known) : {}),
       ...(staleTitle ? { title: known.title, titleRevision: known.titleRevision } : {}),
+      ...(staleHidden ? hiddenFields(known) : {}),
     };
     if (stalePin && !hasPriorityState(known)) {
       delete merged.codexPinned; delete merged.pocketPriority;

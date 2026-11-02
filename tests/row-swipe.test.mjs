@@ -30,7 +30,7 @@ class ElementFixture {
     return null;
   }
 }
-function fixture({ initiallyOpen = false } = {}) {
+function fixture({ initiallyOpen = false, width } = {}) {
   const row = new ListenerTarget(), document = new ListenerTarget();
   const main = new ElementFixture('button', { className: 'task-select' });
   const title = new ElementFixture('strong', { parent: main });
@@ -39,6 +39,7 @@ function fixture({ initiallyOpen = false } = {}) {
   let open = initiallyOpen, enabled = true, selection = false, claims = 0, clock = 1000;
   const translations = [], changes = [];
   const cleanup = bindRowSwipe(row, {
+    width,
     enabled: () => enabled, isOpen: () => open, onClaim: () => { claims++; },
     onOpenChange: next => { open = next; changes.push(next); },
     onTranslate: (offset, dragging) => translations.push({ offset, dragging }),
@@ -107,6 +108,21 @@ test('a right swipe closes an open row without exceeding its closed edge', () =>
   assert.deepEqual(f.translations.at(-1), { offset: -59, dragging: true });
   f.touch('touchmove', 400); f.touch('touchend', 400);
   assert.deepEqual(f.changes, [false]);
+  assert.deepEqual(f.translations.at(-1), { offset: 0, dragging: false });
+  f.cleanup();
+});
+
+test('two actions reveal their complete width and keep reversal and cancellation stable', () => {
+  const f = fixture({ width: ROW_ACTION_WIDTH * 2 });
+  f.touch('touchstart'); f.touch('touchmove', 100); f.touch('touchend', 117);
+  assert.equal(f.isOpen(), false, 'a partial reveal before the half-width settles closed');
+  f.touch('touchstart'); f.touch('touchmove', 0); f.touch('touchend', 0);
+  assert.deepEqual(f.translations.at(-1), { offset: -168, dragging: false });
+  assert.equal(f.isOpen(), true);
+  f.touch('touchstart'); f.touch('touchmove', 225); f.touch('touchcancel');
+  assert.deepEqual(f.translations.at(-1), { offset: -168, dragging: false });
+  f.touch('touchstart'); f.touch('touchmove', 300); f.touch('touchend', 300);
+  assert.equal(f.isOpen(), false);
   assert.deepEqual(f.translations.at(-1), { offset: 0, dragging: false });
   f.cleanup();
 });

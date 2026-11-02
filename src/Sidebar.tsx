@@ -1,6 +1,6 @@
 import { IconButton } from "./ui/IconButton";
 import PocketLogo from "./PocketLogo";
-import { Archive, Folder, Layers3, Pin, Settings2, Star, X } from "lucide-react";
+import { Archive, EyeOff, Folder, Layers3, Pin, Settings2, Star, X } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { Catalog, View } from "./types";
 import { projectNavigationItems } from "./projectNavigation";
@@ -135,6 +135,17 @@ export default function Sidebar(p: Props) {
               <Pin size={18} aria-hidden="true" />
               <span>置顶</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.codexPinned}</small>
+            </button>
+            <button
+              data-view="hidden"
+              aria-label={`隐藏，${counts.hidden} 个会话`}
+              aria-current={p.view === "hidden" ? "page" : undefined}
+              className={`nav-item ${p.view === "hidden" ? "selected" : ""}`}
+              onClick={() => p.onView("hidden")}
+            >
+              <EyeOff size={18} aria-hidden="true" />
+              <span>隐藏</span>
+              <small className="sidebar-nav-count" aria-hidden="true">{counts.hidden}</small>
             </button>
           </nav>
           {projects.length > 0 && <nav className="sidebar-projects" aria-label="项目">

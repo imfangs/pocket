@@ -52,6 +52,7 @@ import { activeOperation } from "./taskOperations";
 import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
 import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
+import { hiddenFields, pocketHidden, updateThreadHidden } from "./hiddenThreads";
 import { focusInspectorEntry, inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
 import { machineStorageKey, currentMachineId } from "./machineScope";
 import { createReadingCache, readingCatalogScope, type ReadingCache } from "./readingCache";
@@ -177,6 +178,14 @@ export default function App({
   const transcriptReader = useRef<TranscriptReader | null>(null), prefetchCatalogAt = useRef(0);
   const [readingCache, setReadingCache] = useState<ReadingCache | null>(null);
   const [catalogFromDisk, setCatalogFromDisk] = useState(false);
+  const visibilityCachePending = useRef(false);
+  useEffect(() => {
+    if (!visibilityCachePending.current || !readingCache || !catalogFresh.current) return;
+    const machine = currentMachineId();
+    if (!machine || !readingCatalogScope(catalog)) return;
+    visibilityCachePending.current = false;
+    readingCache.rememberCatalog(machine, catalog);
+  }, [catalog, readingCache]);
   useEffect(() => {
     const machine = currentMachineId();
     if (!machine) return;
@@ -467,6 +476,7 @@ export default function App({
   const runtimeStates = runtimeKnown ? taskStatuses.runtimeStates : undefined;
   const prefetchExcluded = useMemo(() => {
     const ids = new Set(catalog.excludedThreadIds);
+    for (const thread of catalog.threads) if (pocketHidden(thread)) ids.add(thread.id);
     for (const operation of taskOperations.operations) if (operation.threadId && activeOperation(operation)) ids.add(operation.threadId);
     for (const [id, draft] of conversationDrafts.current) if (draft.requestId) ids.add(id);
     for (const thread of catalog.threads) if (submissions.getThread(thread.id).some(item => !item.echoed && !item.dismissed &&
@@ -517,7 +527,7 @@ export default function App({
   const creationCues = new Map<string, CreationCue>(creationRows.flatMap(row => row.thread ? [[row.thread.id, row.cue] as const] : []));
   const showCreationArrival = scope === "all" && !project && activity === "all" && !query.trim();
   const pendingCreationRows = showCreationArrival ? creationRows.filter(row => !row.thread) : [];
-  const promotedThreads = showCreationArrival ? creationRows.flatMap(row => row.thread ? [row.thread] : []) : [];
+  const promotedThreads = showCreationArrival ? creationRows.flatMap(row => row.thread && !pocketHidden(row.thread) ? [row.thread] : []) : [];
   const promotedIds = new Set(promotedThreads.map(thread => thread.id));
   const listThreads = [...promotedThreads, ...threads.filter(thread => !promotedIds.has(thread.id))];
   const creationNoticeKey = (operation: TaskOperation) => JSON.stringify([operation.requestId, operation.status,
@@ -553,7 +563,7 @@ export default function App({
     refreshAfterActivity();
   });
   const switchView = (view: View) => {
-    if (view === "all" || view === "priority" || view === "codex-pinned" || view === "archived")
+    if (view === "all" || view === "priority" || view === "codex-pinned" || view === "archived" || view === "hidden")
       updateNavigation({ type: "scope", scope: view }, true);
   };
   const switchProject = (id: string) => updateNavigation({ type: "project", project: id }, true);
@@ -615,6 +625,26 @@ export default function App({
       ? { ...item, ...priorityFields(result) } : item) }));
     void refresh().catch(() => {});
   };
+  const hideThread = async (thread: Thread) => {
+    const requestScope = catalogScope.current;
+    if (!requestScope) { void refresh().catch(() => {}); throw new Error("会话信息正在更新，请稍后再试。"); }
+    const isCurrent = () => catalogScope.current === requestScope;
+    const hidden = !pocketHidden(thread);
+    if (!catalogFresh.current || catalogFromDisk) {
+      const fresh = await refresh();
+      if (!fresh || !isCurrent() || readingCatalogScope(fresh) !== requestScope)
+        throw new Error("会话来源已变化，请重新选择。");
+      const current = fresh.threads.find(item => item.id === thread.id);
+      if (!current) throw new Error("会话暂不可用，请刷新。");
+      thread = current;
+    }
+    const result = await updateThreadHidden(thread, api, { hidden, scope: requestScope, isCurrent });
+    catalogReader.invalidate();
+    visibilityCachePending.current = true;
+    setCatalog(current => !isCurrent() ? current : ({ ...current, threads: current.threads.map(item => item.id === result.id
+      ? { ...item, ...hiddenFields(result) } : item) }));
+    void refresh().catch(() => {});
+  };
   if (loading && !hasCatalog) return <BootSplash />;
   return (
     <div className="app-shell">
@@ -664,7 +694,7 @@ export default function App({
           </div>
           <div className="filter-row">
             <div className="activity-filters">
-              {scope !== "archived" && ([
+              {scope !== "archived" && scope !== "hidden" && ([
                 { activity: "unread", label: "未读", count: unreadKnown ? unreadCount : "—" },
                 { activity: "running", label: "运行中", count: runtimeKnown ? runningCount : "—" },
               ] as const).map(filter => (
@@ -676,7 +706,7 @@ export default function App({
                   <span>{filter.label}</span><small>{filter.count}</small>
                 </button>
               ))}
-              {scope !== "archived" && <button className="needs-input-toggle priority-toggle"
+              {scope !== "archived" && scope !== "hidden" && <button className="needs-input-toggle priority-toggle"
                 data-inbox={scope === "priority"} aria-pressed={scope === "priority"}
                 title={scope === "priority" ? `返回${navigationTitle(navigation.priorityReturn || { scope: "all", project: "" }, catalog.projects)}` : "查看 Pocket 关注的会话"}
                 onClick={() => updateNavigation({ type: "togglePriority" })}>
@@ -777,6 +807,7 @@ export default function App({
               <CreationPendingRows items={pendingCreationRows} onOpen={operation => void guard(() => openCreation(operation))} onReview={reviewCreation} />
               {hasCatalog && (listThreads.length > 0 || !pendingCreationRows.length) && <TaskList
                 onPriority={prioritizeThread}
+                onHidden={hideThread}
                 runtimeStates={taskStatuses.runtimeStates}
                 runtimeUnavailable={taskStatuses.runtimeUnavailable}
                 runtimeLoading={taskStatuses.runtimeLoading}

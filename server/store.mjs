@@ -23,11 +23,12 @@ const validDate = (s) =>
   Number.isFinite(Date.parse(s)) &&
   new Date(s).toISOString().slice(0, 10) === s;
 export const intents = ["none", "active", "later", "reference"];
-function pinFromRow(source, row, pinRevision) {
+function threadFromRow(source, row, pinRevision) {
   const titleRevision = parse(row.title_revision, 0);
   // These independent values are projections, never values supplied by an
   // imported/source object. Keep the legacy effective pin fields for old PWAs.
-  const independent = { codexPinned: Boolean(source.pinned), pocketPriority: row.pocket_pinned === 1 };
+  const independent = { codexPinned: Boolean(source.pinned), pocketPriority: row.pocket_pinned === 1,
+    pocketHidden: row.pocket_hidden === 1, hiddenRevision: parse(row.hidden_revision, 0) };
   if (row.pocket_pinned == null) return { ...source, ...independent, pinRevision, titleRevision, pinSource: "codex" };
   return {
     ...source,
@@ -69,6 +70,7 @@ export class NavigatorStore {
       CREATE TABLE IF NOT EXISTS groups(id TEXT PRIMARY KEY,name TEXT NOT NULL,parent_id TEXT,color TEXT NOT NULL,position INTEGER NOT NULL,source_project_id TEXT);
       CREATE TABLE IF NOT EXISTS annotations(thread_id TEXT PRIMARY KEY,intent TEXT NOT NULL DEFAULT 'none',note TEXT NOT NULL DEFAULT '',review_at TEXT,group_ids TEXT,last_opened_at INTEGER,updated_at INTEGER NOT NULL,revision INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS pin_overrides(thread_id TEXT PRIMARY KEY,pinned INTEGER NOT NULL CHECK(pinned IN (0,1)),position INTEGER,updated_at INTEGER NOT NULL,CHECK((pinned=1 AND position IS NOT NULL AND position<0) OR (pinned=0 AND position IS NULL)));
+      CREATE TABLE IF NOT EXISTS hidden_threads(thread_id TEXT PRIMARY KEY,hidden INTEGER NOT NULL CHECK(hidden IN (0,1)),updated_at INTEGER NOT NULL);
     `);
     this.lastError = null;
   }
@@ -206,21 +208,21 @@ export class NavigatorStore {
   }
   thread(id) {
     const row = this.db
-      .prepare("SELECT s.data,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision,(SELECT value FROM settings WHERE key='titleRevision') AS title_revision FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id WHERE s.id=?")
+      .prepare("SELECT s.data,p.pinned AS pocket_pinned,p.position AS pocket_position,h.hidden AS pocket_hidden,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision,(SELECT value FROM settings WHERE key='titleRevision') AS title_revision,(SELECT value FROM settings WHERE key='hiddenRevision') AS hidden_revision FROM source_threads s LEFT JOIN pin_overrides p ON p.thread_id=s.id LEFT JOIN hidden_threads h ON h.thread_id=s.id WHERE s.id=?")
       .get(id);
     if (!row) throw new AppError("找不到会话", 404);
-    return pinFromRow(JSON.parse(row.data), row, parse(row.pin_revision, 0));
+    return threadFromRow(JSON.parse(row.data), row, parse(row.pin_revision, 0));
   }
   catalog() {
     const groups = this.groups();
-    // Revision lookups share the source/pin SQLite snapshot, so an older
-    // catalog response cannot carry a newer revision for an older title.
+    // Revision lookups share the source/preferences SQLite snapshot, so an
+    // older catalog cannot carry newer revisions for older field values.
     const rows = this.db
-      .prepare("SELECT s.data,a.*,p.pinned AS pocket_pinned,p.position AS pocket_position,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision,(SELECT value FROM settings WHERE key='titleRevision') AS title_revision FROM source_threads s LEFT JOIN annotations a ON a.thread_id=s.id LEFT JOIN pin_overrides p ON p.thread_id=s.id")
+      .prepare("SELECT s.data,a.*,p.pinned AS pocket_pinned,p.position AS pocket_position,h.hidden AS pocket_hidden,(SELECT value FROM settings WHERE key='pinRevision') AS pin_revision,(SELECT value FROM settings WHERE key='titleRevision') AS title_revision,(SELECT value FROM settings WHERE key='hiddenRevision') AS hidden_revision FROM source_threads s LEFT JOIN annotations a ON a.thread_id=s.id LEFT JOIN pin_overrides p ON p.thread_id=s.id LEFT JOIN hidden_threads h ON h.thread_id=s.id")
       .all();
     const pinRevision = parse(rows[0]?.pin_revision, 0);
     const threads = rows.map((row) => {
-      const t = pinFromRow(JSON.parse(row.data), row, pinRevision);
+      const t = threadFromRow(JSON.parse(row.data), row, pinRevision);
       return { ...t, ...annotationFromRow(row, t, groups) };
     });
     return {
@@ -247,6 +249,37 @@ export class NavigatorStore {
     if (!Number.isSafeInteger(previous) || previous < 0 || previous >= Number.MAX_SAFE_INTEGER)
       throw new AppError("会话名称修订编号已超出可用范围");
     this.set("titleRevision", previous + 1);
+  }
+  advanceHiddenRevision() {
+    const previous = this.setting("hiddenRevision", 0);
+    if (!Number.isSafeInteger(previous) || previous < 0 || previous >= Number.MAX_SAFE_INTEGER)
+      throw new AppError("隐藏修订编号已超出可用范围");
+    this.set("hiddenRevision", previous + 1);
+  }
+  setHidden(id, input) {
+    if (!input || typeof input !== "object" || Array.isArray(input) ||
+        Object.keys(input).some(key => key !== "hidden") || typeof input.hidden !== "boolean")
+      throw new AppError("隐藏请求只接受 hidden 布尔值");
+    let changed = false;
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.thread(id);
+      const previous = this.db.prepare("SELECT hidden FROM hidden_threads WHERE thread_id=?").get(id);
+      if ((previous?.hidden ?? 0) !== Number(input.hidden)) {
+        this.db.prepare(`INSERT INTO hidden_threads(thread_id,hidden,updated_at) VALUES(?,?,?)
+          ON CONFLICT(thread_id) DO UPDATE SET hidden=excluded.hidden,updated_at=excluded.updated_at`)
+          .run(id, Number(input.hidden), Date.now());
+        this.advanceHiddenRevision();
+        changed = true;
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    if (changed) this.backup();
+    const source = this.thread(id);
+    return { ...source, ...this.annotation(id, source) };
   }
   setPin(id, input) {
     if (!input || typeof input !== "object" || Array.isArray(input) ||
@@ -472,11 +505,16 @@ export class NavigatorStore {
       groups: this.groups(),
       annotations: this.db.prepare("SELECT * FROM annotations").all(),
       pins: this.pins(),
+      hiddenThreads: this.hiddenThreads(),
     };
   }
   pins() {
     return this.db.prepare("SELECT * FROM pin_overrides ORDER BY thread_id").all()
       .map((pin) => ({ ...pin, pinned: pin.pinned === 1 }));
+  }
+  hiddenThreads() {
+    return this.db.prepare("SELECT * FROM hidden_threads ORDER BY thread_id").all()
+      .map(row => ({ ...row, hidden: row.hidden === 1 }));
   }
   backup() {
     const directory = join(this.directory, "backups");
@@ -502,6 +540,21 @@ export class NavigatorStore {
     )
       throw new AppError("不是支持的 Pocket 备份");
     const restorePins = Object.hasOwn(data, "pins");
+    const restoreHidden = Object.hasOwn(data, "hiddenThreads");
+    if (restoreHidden) {
+      if (!Array.isArray(data.hiddenThreads) || data.hiddenThreads.length > 20000)
+        throw new AppError("备份隐藏格式无效");
+      const hiddenIds = new Set();
+      for (const entry of data.hiddenThreads) {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry) ||
+            Object.keys(entry).some(key => !["thread_id", "hidden", "updated_at"].includes(key)) ||
+            typeof entry.thread_id !== "string" || entry.thread_id.length > 120 ||
+            !/^[-a-zA-Z0-9:]+$/.test(entry.thread_id) || hiddenIds.has(entry.thread_id) ||
+            typeof entry.hidden !== "boolean" || !Number.isSafeInteger(entry.updated_at) || entry.updated_at < 0)
+          throw new AppError("备份隐藏格式无效");
+        hiddenIds.add(entry.thread_id);
+      }
+    }
     if (restorePins) {
       if (!Array.isArray(data.pins) || data.pins.length > 20000)
         throw new AppError("备份置顶格式无效");
@@ -578,6 +631,10 @@ export class NavigatorStore {
         thread_id: pin.thread_id, pinned: pin.pinned, position: pin.position, updated_at: pin.updated_at,
       })).sort((a, b) => a.thread_id < b.thread_id ? -1 : a.thread_id > b.thread_id ? 1 : 0) : null;
       const pinsChanged = restorePins && JSON.stringify(this.pins()) !== JSON.stringify(importedPins);
+      const importedHidden = restoreHidden ? data.hiddenThreads.map(entry => ({
+        thread_id: entry.thread_id, hidden: entry.hidden, updated_at: entry.updated_at,
+      })).sort((a, b) => a.thread_id < b.thread_id ? -1 : a.thread_id > b.thread_id ? 1 : 0) : null;
+      const hiddenChanged = restoreHidden && JSON.stringify(this.hiddenThreads()) !== JSON.stringify(importedHidden);
       // A restore must invalidate snapshots from before it, including tasks
       // whose annotations disappear from the imported backup. Keep default
       // rows for those tasks so their revision cannot fall back to zero.
@@ -600,6 +657,13 @@ export class NavigatorStore {
         for (const entry of data.pins)
           pin.run(entry.thread_id, Number(entry.pinned), entry.position, entry.updated_at);
         this.advancePinRevision();
+      }
+      if (hiddenChanged) {
+        this.db.exec("DELETE FROM hidden_threads");
+        const hidden = this.db.prepare("INSERT INTO hidden_threads(thread_id,hidden,updated_at) VALUES(?,?,?)");
+        for (const entry of importedHidden)
+          hidden.run(entry.thread_id, Number(entry.hidden), entry.updated_at);
+        this.advanceHiddenRevision();
       }
       const g = this.db.prepare("INSERT INTO groups VALUES(?,?,?,?,?,?)");
       data.groups.forEach((x) =>

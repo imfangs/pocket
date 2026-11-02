@@ -1,5 +1,8 @@
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from "idb";
 import { readReadingCacheLimit, subscribeReadingCacheLimit } from "./readingCachePreference.ts";
+import { preserveNewerThreadMetadata } from "./threadMetadata.ts";
+import { hiddenFields } from "./hiddenThreads.ts";
+import type { Catalog, Thread } from "./types";
 
 export const READING_CACHE_DATABASE = "pocket-reading-cache-v1";
 const fencePrefix = "pocket.reading-cache.epoch.v1.";
@@ -101,6 +104,43 @@ export function readingRecordOrder(next: ReadingCacheRecord, previous: ReadingCa
   }
   // Source clocks/revisions may reset with a different source scope.
   return next.savedAt - previous.savedAt;
+}
+
+// Directory/source freshness still chooses the body and its row membership.
+// Independent user metadata revisions can advance in a slower/older scan, so
+// merge only those allowlisted fields without renewing the body's timestamps.
+export function mergeReadingCatalogRecords(next: ReadingCacheRecord, previous: ReadingCacheRecord): ReadingCacheRecord {
+  if (next.machine !== previous.machine || next.fence !== previous.fence || next.kind !== previous.kind) return next;
+  const base = readingRecordOrder(next, previous) < 0 ? previous : next;
+  const other = base === next ? previous : next;
+  if (base.kind !== "catalog" || base.scope !== other.scope || base.key !== other.key) return base;
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+  const revision = (value: unknown) => Number.isSafeInteger(value) && Number(value) >= 0;
+  try {
+    const catalog = JSON.parse(base.json), supplied = JSON.parse(other.json);
+    if (!record(catalog) || !Array.isArray(catalog.threads) || !record(supplied) || !Array.isArray(supplied.threads)) return base;
+    const peers = new Map(supplied.threads.filter(record).filter(thread => typeof thread.id === "string").map(thread => [thread.id, thread]));
+    const metadata = catalog.threads.map((thread: Thread) => {
+      if (!record(thread) || typeof thread.id !== "string") return thread;
+      const peer = peers.get(thread.id);
+      if (!peer) return thread;
+      const validPin = revision(peer.pinRevision) && typeof peer.pinned === "boolean" &&
+        typeof peer.pinnedOrder === "number" && Number.isFinite(peer.pinnedOrder) &&
+        (peer.pinSource === undefined || peer.pinSource === "pocket" || peer.pinSource === "codex") &&
+        (peer.codexPinned === undefined && peer.pocketPriority === undefined ||
+          typeof peer.codexPinned === "boolean" && typeof peer.pocketPriority === "boolean");
+      return { ...thread, ...hiddenFields(peer),
+        ...(revision(peer.titleRevision) && typeof peer.title === "string" ? { title: peer.title, titleRevision: peer.titleRevision } : {}),
+        ...(validPin ? { pinned: peer.pinned, pinnedOrder: peer.pinnedOrder, pinSource: peer.pinSource, pinRevision: peer.pinRevision,
+          codexPinned: peer.codexPinned, pocketPriority: peer.pocketPriority } : {}),
+      };
+    });
+    const baseCatalog = catalog as unknown as Catalog;
+    const merged = preserveNewerThreadMetadata({ ...catalog, threads: metadata } as Catalog, baseCatalog);
+    if (merged === baseCatalog) return base;
+    const json = JSON.stringify(merged);
+    return { ...base, json, bytes: new TextEncoder().encode(json).byteLength + base.key.length * 2 + 512 };
+  } catch { return base; }
 }
 
 async function openReadingDatabase(name: string): Promise<IDBPDatabase<ReadingDatabase>> {
@@ -231,22 +271,29 @@ export function createReadingCacheStorage({ databaseName = READING_CACHE_DATABAS
       const globalEpoch = epoch(await controls.get(allMachines));
       if (closed || globalEpoch !== (epochs.get(allMachines) ?? 0)) { await tx.done; return; }
       const machines = new Map<string, number>();
-      for (const { touch, ...record } of records) {
+      for (const { touch, ...incoming } of records) {
+        let record = incoming;
         const machineEpoch = machines.get(record.machine) ?? epoch(await controls.get(record.machine));
         machines.set(record.machine, machineEpoch);
         if (closed || machineEpoch !== (epochs.get(record.machine) ?? 0) ||
             record.fence !== readingCacheFence(record.machine)) continue;
-        const existing = await entries.get(record.key);
-        if (touch || existing && readingRecordOrder(record, existing) < 0) {
+        const stored = await entries.get(record.key);
+        const existing = stored && stored.globalEpoch === globalEpoch && stored.machineEpoch === machineEpoch &&
+          stored.fence === record.fence && !expired(stored, now) ? stored : undefined;
+        if (!touch && existing) record = mergeReadingCatalogRecords(record, existing);
+        if (touch || record === existing) {
           // L1 can lag another tab's fresh body. An LRU touch only changes the
           // existing disk entry's access time and never resurrects an eviction.
-          if (existing && existing.globalEpoch === globalEpoch && existing.machineEpoch === machineEpoch && existing.fence === record.fence)
-            await entries.put({ ...existing, accessedAt: Math.max(existing.accessedAt, record.accessedAt) });
+          if (existing)
+            await entries.put({ ...existing, accessedAt: Math.max(existing.accessedAt, incoming.accessedAt) });
           continue;
+        }
+        if (record.json.length * 2 + record.key.length * 2 + 512 > readingCacheLimits.memoryBytes || record.bytes > readingCacheLimits.diskBytes) {
+          await entries.delete(record.key); continue;
         }
         if (record.kind === "catalog") {
           const catalogs = await entries.index("machineKind").getAll([record.machine, "catalog"]);
-          if (catalogs.some(previous => previous.savedAt > record.savedAt && previous.fence === record.fence)) continue;
+          if (catalogs.some(previous => previous.key !== record.key && previous.savedAt > record.savedAt && previous.fence === record.fence)) continue;
           let previous = await entries.index("machineKind").openCursor([record.machine, "catalog"]);
           while (previous) {
             if (previous.value.key !== record.key) await previous.delete();

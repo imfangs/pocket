@@ -38,6 +38,29 @@ test('a rejected action retains a visible error without pretending that the Pock
   assert.doesNotMatch(html, /取消关注/);
 });
 
+test('a second hidden action has a separate keyboard entry and fits beside priority', () => {
+  const html = renderRow({ onHidden: noop });
+  assert.match(html, /class="row-swipe-actions" style="width:168px"/);
+  assert.match(html, /class="row-hidden-action" aria-hidden="true" tabindex="-1"[^>]*disabled/);
+  assert.match(html, /class="row-hidden-shortcut icon-button"[^>]*aria-label="隐藏 Original task"[^>]*tabindex="0"/);
+  assert.match(html, /aria-label="优先关注 Original task"/);
+  const hiddenOnly = renderRow({ onPriority: undefined, onHidden: noop });
+  assert.match(hiddenOnly, /class="row-swipe-actions" style="width:84px"/);
+  assert.doesNotMatch(hiddenOnly, /row-priority-action|row-priority-shortcut/);
+});
+
+test('hidden rows can be restored without changing their independent priority action', () => {
+  const html = renderRow({ onHidden: noop, hidden: true, open: true, prioritized: true });
+  assert.match(html, /class="row-hidden-action" aria-hidden="false" tabindex="0" aria-label="取消隐藏 Original task"/);
+  assert.match(html, />取消隐藏<\/span>/);
+  assert.match(html, /aria-label="取消关注 Original task"/);
+  const pending = renderRow({ onHidden: noop, hidden: false, open: true, pending: true, pendingAction: 'hidden', disabled: true });
+  assert.match(pending, /class="row-hidden-action"[^>]*disabled/);
+  assert.match(pending, /class="row-priority-action"[^>]*disabled/);
+  assert.equal((pending.match(/处理中…/g) || []).length, 1);
+  assert.match(pending, />优先关注<\/span>/);
+});
+
 test('rows retain swipe and keyboard priority actions with no retired batch selection', () => {
   const thread = Object.freeze({ id: 'thread', title: 'Original task', pinned: false, intent: 'none', projectName: 'Project', updatedAt: 1, groupIds: [] });
   const html = renderToStaticMarkup(createElement(TaskList, { threads: [thread], view: 'all', selected: null,

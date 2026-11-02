@@ -48,7 +48,7 @@ test('sidebar counts retain cached scopes through source failure and update afte
   assert.deepEqual(sidebarNavigationCounts(unavailable.threads), original);
   assert.equal(sidebarNavigationCounts([{ ...catalog.threads[0], pocketPriority: false }]).priority, 0);
   assert.deepEqual(sidebarNavigationCounts([{ ...catalog.threads[0], archived: true }]),
-    { all: 0, priority: 0, codexPinned: 0, projects: new Map() });
+    { all: 0, priority: 0, codexPinned: 0, hidden: 0, projects: new Map() });
 });
 test('retired views and invalid preferences migrate to independent smart navigation', () => {
   const defaults = { scope: 'all', project: '', activity: 'all', sort: 'smart', sortVersion: 4 };

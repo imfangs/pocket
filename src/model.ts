@@ -5,6 +5,7 @@ import { UNASSIGNED_PROJECT } from "./projectNavigation.ts";
 import { lastMessageTime } from "./threadTime.ts";
 import { codexPinned, pocketPriority } from "./priority.ts";
 import { hasUnreadContent } from "./unread.ts";
+import { pocketHidden } from "./hiddenThreads.ts";
 
 function creationTime(thread: Thread): number {
   const value = thread.createdAt;
@@ -30,8 +31,9 @@ export function filterThreads(
   const filtered = threads
     .filter((t) => {
       if (t.sourceExcluded) return false;
+      if (view === "hidden" ? !pocketHidden(t) : pocketHidden(t)) return false;
       if (view === "archived" && !t.archived) return false;
-      if (view !== "archived" && t.archived)
+      if (view !== "archived" && view !== "hidden" && t.archived)
         return false;
       if (activity === "unread" && !hasUnreadContent(t, runtimeStates?.get(t.id))) return false;
       if (activity === "running" && (t.missing || t.separator || runtimeStates?.get(t.id) !== "running")) return false;
@@ -52,7 +54,7 @@ export function filterThreads(
       return terms.every((q) => hay.includes(q));
     });
   if (sort === "created" || view === "created") return filtered.sort((a, b) => creationTime(b) - creationTime(a) || a.id.localeCompare(b.id));
-  if (sort === "smart" && view !== "archived") return smartThreadOrder(filtered, { now: ranking?.now ?? Date.now(), draftIds: ranking?.draftIds, pocketActivity: ranking?.pocketActivity, runtimeStates });
+  if (sort === "smart" && view !== "archived" && view !== "hidden") return smartThreadOrder(filtered, { now: ranking?.now ?? Date.now(), draftIds: ranking?.draftIds, pocketActivity: ranking?.pocketActivity, runtimeStates });
   if (sort === "activity" || sort === "smart") return filtered.sort((a, b) => (lastMessageTime(b) ?? 0) - (lastMessageTime(a) ?? 0)
     || creationTime(b) - creationTime(a) || a.id.localeCompare(b.id));
   return filtered.sort((a, b) => {

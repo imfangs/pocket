@@ -71,8 +71,8 @@ test('navigation shows concise independent shortcuts and counts while keeping ar
     const html = renderToStaticMarkup(createElement(Sidebar, { catalog: { threads: [thread], groups: [{ id: 'old-group', name: 'Old group', parentId: null }] }, view: 'all', onView: noop, onClose: noop, onSettings: noop, mobileOpen: false }));
     assert.doesNotMatch(html, /我的分组|我的安排|未分组|正在推进|稍后继续|留作参考|Old group|data-view="group"/);
     assert.doesNotMatch(html, /data-view="(?:pinned|recent|unread)"/);
-    assert.deepEqual([...html.matchAll(/data-view="([^"]+)"/g)].map(match => match[1]), ['all', 'priority', 'codex-pinned']);
-    for (const [name, count] of [['全部', 1], ['关注', 0], ['置顶', 0]]) {
+    assert.deepEqual([...html.matchAll(/data-view="([^"]+)"/g)].map(match => match[1]), ['all', 'priority', 'codex-pinned', 'hidden']);
+    for (const [name, count] of [['全部', 1], ['关注', 0], ['置顶', 0], ['隐藏', 0]]) {
       assert.ok(html.includes(`aria-label="${name}，${count} 个会话"`));
       assert.ok(html.includes(`<span>${name}</span><small class="sidebar-nav-count" aria-hidden="true">${count}</small>`));
     }

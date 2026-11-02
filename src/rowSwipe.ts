@@ -1,6 +1,7 @@
 export const ROW_ACTION_WIDTH = 84;
 
 type SwipeOptions = {
+  width?: number;
   enabled: () => boolean;
   isOpen: () => boolean;
   onClaim: () => void;
@@ -10,10 +11,11 @@ type SwipeOptions = {
 type Gesture = { id: number; x: number; y: number; time: number; base: number; claimed: boolean };
 
 export function bindRowSwipe(row: HTMLElement, options: SwipeOptions, browser = window): () => void {
+  const width = options.width && Number.isFinite(options.width) && options.width > 0 ? options.width : ROW_ACTION_WIDTH;
   let gesture: Gesture | null = null;
   let suppressClickAfter = 0, suppressClickUntil = 0;
   const selected = () => browser.getSelection()?.isCollapsed === false;
-  const clamp = (offset: number) => Math.max(-ROW_ACTION_WIDTH, Math.min(0, offset));
+  const clamp = (offset: number) => Math.max(-width, Math.min(0, offset));
   const mainButton = (target: EventTarget | null) => {
     const button = (target as Element | null)?.closest?.("button");
     return button && button === row.querySelector("button.task-select") ? button : null;
@@ -21,7 +23,7 @@ export function bindRowSwipe(row: HTMLElement, options: SwipeOptions, browser = 
   const cancel = () => {
     const claimed = gesture?.claimed;
     gesture = null;
-    if (claimed) options.onTranslate(options.isOpen() ? -ROW_ACTION_WIDTH : 0, false);
+    if (claimed) options.onTranslate(options.isOpen() ? -width : 0, false);
   };
   const begin = (event: TouchEvent) => {
     cancel();
@@ -33,7 +35,7 @@ export function bindRowSwipe(row: HTMLElement, options: SwipeOptions, browser = 
     if (target.closest("button") && !mainButton(target)) return;
     const touch = event.touches[0];
     gesture = { id: touch.identifier, x: touch.clientX, y: touch.clientY, time: event.timeStamp,
-      base: options.isOpen() ? -ROW_ACTION_WIDTH : 0, claimed: false };
+      base: options.isOpen() ? -width : 0, claimed: false };
   };
   const move = (event: TouchEvent) => {
     const current = gesture;
@@ -46,7 +48,7 @@ export function bindRowSwipe(row: HTMLElement, options: SwipeOptions, browser = 
       if (event.timeStamp - current.time >= 400) return cancel();
       if (Math.max(Math.abs(dx), Math.abs(dy)) < 12) return;
       if (Math.abs(dx) < 12 || Math.abs(dx) < Math.abs(dy) * 1.5 ||
-          (current.base === 0 && dx > 0) || (current.base === -ROW_ACTION_WIDTH && dx < 0) ||
+          (current.base === 0 && dx > 0) || (current.base === -width && dx < 0) ||
           !event.cancelable || event.defaultPrevented) return cancel();
       current.claimed = true;
       options.onClaim();
@@ -62,11 +64,11 @@ export function bindRowSwipe(row: HTMLElement, options: SwipeOptions, browser = 
     const touch = Array.from(event.changedTouches).find(item => item.identifier === current.id);
     if (!current.claimed || !touch || event.touches.length || !options.enabled() || selected()) return cancel();
     gesture = null;
-    const open = clamp(current.base + touch.clientX - current.x) <= -ROW_ACTION_WIDTH / 2;
+    const open = clamp(current.base + touch.clientX - current.x) <= -width / 2;
     suppressClickAfter = event.timeStamp;
     suppressClickUntil = event.timeStamp + 500;
     options.onOpenChange(open);
-    options.onTranslate(open ? -ROW_ACTION_WIDTH : 0, false);
+    options.onTranslate(open ? -width : 0, false);
   };
   const click = (event: MouseEvent) => {
     if (!suppressClickUntil) return;

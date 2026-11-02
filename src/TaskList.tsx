@@ -35,6 +35,7 @@ interface Props {
   onSelect: (id: string, animate?: boolean, origin?: InspectorEntryOrigin) => void;
   onOpen: (t: Thread) => void;
   onPriority?: (t: Thread) => Promise<void>;
+  onHidden?: (t: Thread) => Promise<void>;
   busy: boolean;
   query: string;
   onClearQuery: () => void;
@@ -53,9 +54,11 @@ interface Props {
 export default function TaskList(p: Props) {
   const [limits, setLimits] = useState(() => new Map<string, number>());
   const [openRowId, setOpenRowId] = useState<string | null>(null);
-  const [prioritizingId, setPrioritizingId] = useState<string | null>(null);
-  const [priorityErrors, setPriorityErrors] = useState<Record<string, string>>({});
-  const prioritizing = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
+  const [pendingAction, setPendingAction] = useState<{ id: string; kind: "priority" | "hidden" } | null>(null);
+  const pendingId = pendingAction?.id;
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
+  const acting = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
+  const focusAfterHidden = useRef<{ scope: string; id?: string } | null>(null);
   const motion = useRef<ReturnType<typeof bindTaskListMotion> | null>(null);
   const scope = `${p.view}\0${p.projectScope || ""}\0${p.activity || "all"}\0${p.sort || "smart"}\0${p.query}`;
   const limit = limits.get(scope) ?? 80;
@@ -133,7 +136,7 @@ export default function TaskList(p: Props) {
     }
     rememberAnchor();
     motion.current?.commit(scope);
-  }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, p.creationCues, prioritizingId, held, scope, limit, rememberAnchor]);
+  }, [p.threads, p.selected, p.runtimeStates, p.runtimeUnavailable, p.runtimeLoading, p.draftIds, p.creationCues, pendingId, held, scope, limit, rememberAnchor]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { setOpenRowId(null); }, [scope]);
   useEffect(() => {
@@ -149,26 +152,65 @@ export default function TaskList(p: Props) {
     document.addEventListener("focusin", outside);
     return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("focusin", outside); };
   }, [openRowId]);
-  const clearPriorityError = (id: string) => setPriorityErrors(previous => { const next = { ...previous }; delete next[id]; return next; });
+  const clearActionError = (id: string) => setActionErrors(previous => { const next = { ...previous }; delete next[id]; return next; });
   const changePriority = async (thread: Thread, animate: boolean) => {
-    if (!p.onPriority || p.busy || prioritizing.current) return;
+    if (!p.onPriority || p.busy || acting.current) return;
     const current = latest.current.currentRows.get(thread.id);
     if (!current) return;
     thread = current;
     motion.current?.beginPriority(thread.id, !pocketPriority(thread), animate);
-    prioritizing.current = thread.id; setPrioritizingId(thread.id); setOpenRowId(thread.id); clearPriorityError(thread.id);
+    acting.current = thread.id; setPendingAction({ id: thread.id, kind: "priority" }); setOpenRowId(thread.id); clearActionError(thread.id);
     try {
       await p.onPriority(thread);
       motion.current?.confirmPriority(thread.id);
       if (mounted.current) setOpenRowId(current => current === thread.id ? null : current);
     } catch (failure) {
       motion.current?.cancelPriority(thread.id);
-      if (mounted.current) setPriorityErrors(previous => ({ ...previous, [thread.id]: failure instanceof Error ? failure.message : "关注状态未保存，请重试。" }));
+      if (mounted.current) setActionErrors(previous => ({ ...previous, [thread.id]: failure instanceof Error ? failure.message : "关注状态未保存，请重试。" }));
     } finally {
-      prioritizing.current = null;
-      if (mounted.current) setPrioritizingId(null);
+      acting.current = null;
+      if (mounted.current) setPendingAction(null);
     }
   };
+  const changeHidden = async (thread: Thread, animate: boolean) => {
+    if (!p.onHidden || p.busy || acting.current) return;
+    const current = latest.current.currentRows.get(thread.id);
+    if (!current) return;
+    thread = current;
+    const originScope = latest.current.scope;
+    const index = latest.current.rows.findIndex(row => row.id === thread.id);
+    const nextId = latest.current.rows[index + 1]?.id ?? latest.current.rows[index - 1]?.id;
+    acting.current = thread.id; setPendingAction({ id: thread.id, kind: "hidden" });
+    setOpenRowId(thread.id); clearActionError(thread.id);
+    try {
+      await p.onHidden(thread);
+      if (mounted.current) {
+        setOpenRowId(value => value === thread.id ? null : value);
+        if (latest.current.scope === originScope) {
+          // This removal is the user's completed action, so it need not wait
+          // for the pointer-hold grace period used by background refreshes.
+          setHeld(null);
+          const active = document.activeElement;
+          if (!animate && (!active || active === document.body ||
+              active instanceof HTMLElement && active.closest<HTMLElement>("[data-swipe-row-id]")?.dataset.swipeRowId === thread.id))
+            focusAfterHidden.current = { scope: originScope, id: nextId };
+        }
+      }
+    } catch (failure) {
+      if (mounted.current) setActionErrors(previous => ({ ...previous, [thread.id]: failure instanceof Error ? failure.message : "隐藏状态未保存，请重试。" }));
+    } finally {
+      acting.current = null;
+      if (mounted.current) setPendingAction(null);
+    }
+  };
+  useLayoutEffect(() => {
+    const target = focusAfterHidden.current;
+    if (!target || pendingId) return;
+    focusAfterHidden.current = null;
+    if (target.scope !== scope || !list.current) return;
+    const buttons = [...list.current.querySelectorAll<HTMLButtonElement>("button.task-select:not(:disabled)")];
+    (buttons.find(button => button.dataset.threadId === target.id) ?? buttons[0] ?? list.current).focus({ preventScroll: true });
+  }, [p.threads, pendingId, scope]);
   const empty = emptyListContent({ view: p.view, activity: p.activity, query: p.query, projectScope: p.projectScope, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
     runtimeAvailable: !p.runtimeLoading && !p.runtimeUnavailable, runtimeLoading: p.runtimeLoading });
   const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll : empty.action === "searchAll" ? p.onSearchAll
@@ -177,6 +219,8 @@ export default function TaskList(p: Props) {
     <div
       ref={list}
       className="task-list-surface"
+      tabIndex={-1}
+      style={{ outline: "none" }}
     >
       {rows.length === 0 ? (
         <div className="empty-list">
@@ -212,11 +256,12 @@ export default function TaskList(p: Props) {
               <SwipeTaskRow
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${recentlyCreated ? "is-recently-created" : ""} ${creationPending ? `is-creation-${creationPending.phase}` : ""}`}
                 key={t.id}
-                threadId={t.id} title={t.title} prioritized={pocketPriority(t)} open={openRowId === t.id}
-                disabled={inactive || p.busy || !!prioritizingId} pending={prioritizingId === t.id} error={priorityErrors[t.id]}
+                threadId={t.id} title={t.title} prioritized={pocketPriority(t)} hidden={t.pocketHidden === true} open={openRowId === t.id}
+                disabled={inactive || p.busy || !!pendingId} pending={pendingId === t.id} pendingAction={pendingAction?.kind} error={actionErrors[t.id]}
                 onPriority={p.onPriority ? animate => void changePriority(t, animate) : undefined}
+                onHidden={p.onHidden ? animate => void changeHidden(t, animate) : undefined}
                 onOpenChange={value => setOpenRowId(current => value ? t.id : current === t.id ? null : current)}
-                onClaim={() => setOpenRowId(current => current === t.id ? current : null)} onDismissError={() => clearPriorityError(t.id)}
+                onClaim={() => setOpenRowId(current => current === t.id ? current : null)} onDismissError={() => clearActionError(t.id)}
               >
                 <button
                   className="task-select"
@@ -249,14 +294,14 @@ export default function TaskList(p: Props) {
                         : <span aria-label="暂无可确认的消息时间" title="暂无可确认的消息时间">—</span>}
                     </span>
                   </div>
-                  {(!p.projectScope || states.length > 0 || prioritizingId === t.id) && <div className="row-second">
+                  {(!p.projectScope || states.length > 0 || pendingId === t.id) && <div className="row-second">
                     {!p.projectScope && <span className="project-label">
                       {t.projectName === "无项目" ? "独立会话" : t.projectName}
                     </span>}
                     {states.length > 0 && <span className="row-secondary-states" data-list-status="secondary" data-list-status-key={states.map(state => state.key).join(" ")}>
                       {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
                     </span>}
-                    {prioritizingId === t.id && <span className="row-priority-pending" role="status">正在保存…</span>}
+                    {pendingId === t.id && <span className="row-priority-pending" role="status">正在保存…</span>}
                   </div>}
                 </button>
                 <IconButton type="button"
@@ -264,7 +309,7 @@ export default function TaskList(p: Props) {
                   aria-label={`在 Codex 打开 ${t.title}`}
                   title="在 Codex 打开"
                   onClick={() => { const current = latest.current.currentRows.get(t.id); if (current) p.onOpen(current); }}
-                  disabled={inactive || t.missing}
+                  disabled={inactive || t.missing || p.busy || !!pendingId}
                 >
                   <ArrowUpRight size={18} />
                 </IconButton>

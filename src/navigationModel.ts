@@ -1,15 +1,18 @@
 import { filterThreads } from "./model.ts";
 import { codexPinned, pocketPriority } from "./priority.ts";
 import { UNASSIGNED_PROJECT } from "./projectNavigation.ts";
+import { pocketHidden } from "./hiddenThreads.ts";
 import type { ActivityFilter, Catalog, NavigationScope, Thread, ThreadSort, View } from "./types";
 import type { TaskStatus } from "./taskStatuses";
 
 // Match each menu destination's full scope, independent of search/activity
 // filters. Source failures retain the supplied catalog rather than inventing 0.
 export function sidebarNavigationCounts(threads: readonly Thread[]) {
-  const counts = { all: 0, priority: 0, codexPinned: 0, projects: new Map<string, number>() };
+  const counts = { all: 0, priority: 0, codexPinned: 0, hidden: 0, projects: new Map<string, number>() };
   for (const thread of threads) {
-    if (thread.sourceExcluded || thread.archived) continue;
+    if (thread.sourceExcluded) continue;
+    if (pocketHidden(thread)) { counts.hidden++; continue; }
+    if (thread.archived) continue;
     counts.all++;
     if (pocketPriority(thread)) counts.priority++;
     if (codexPinned(thread)) counts.codexPinned++;
@@ -34,7 +37,8 @@ export interface NavigationPrefs {
   priorityReturn?: { scope: "all" | "codex-pinned"; project: string };
 }
 const isScope = (value: unknown): value is NavigationScope => value === "all" || value === "priority"
-  || value === "codex-pinned" || value === "archived";
+  || value === "codex-pinned" || value === "archived" || value === "hidden";
+const collectionOnly = (scope: NavigationScope) => scope === "archived" || scope === "hidden";
 
 // Migrate the former mutually exclusive views into independent dimensions.
 // Retired groups/arrangements never restore an empty dead end. Only persisted
@@ -45,7 +49,7 @@ export function normalizeNavigationPrefs(value: unknown): NavigationPrefs {
   const current = prefs.sortVersion === 4;
   const scope = isScope(prefs.scope) ? prefs.scope : isScope(prefs.view) ? prefs.view : "all";
   const project = scope === "all" && (current || prefs.sortVersion === 3) && typeof prefs.project === "string" && prefs.project.length <= 256 ? prefs.project : "";
-  const activity = scope === "archived" ? "all" : current
+  const activity = collectionOnly(scope) ? "all" : current
     ? prefs.activity === "unread" || prefs.activity === "running" ? prefs.activity : "all"
     : prefs.view === "unread" || prefs.view === "running" ? prefs.view : "all";
   const sort = current ? prefs.sort === "created" || prefs.sort === "activity" ? prefs.sort : "smart"
@@ -71,10 +75,10 @@ export function changeNavigation(current: NavigationPrefs, change: NavigationCha
   const { priorityReturn, ...base } = current;
   // Explicit menu navigation replaces any earlier shortcut return target.
   if (change.type === "scope") return { ...base, scope: change.scope, project: "",
-    activity: change.scope === "archived" ? "all" : current.activity };
+    activity: collectionOnly(change.scope) ? "all" : current.activity };
   if (change.type === "project") return { ...base, scope: "all", project: change.project };
   if (change.type === "togglePriority") {
-    if (current.scope === "archived") return current;
+    if (collectionOnly(current.scope)) return current;
     if (current.scope === "priority") return { ...base, ...(priorityReturn || { scope: "all", project: "" }) };
     return { ...base, scope: "priority", project: "", priorityReturn: { scope: current.scope, project: current.project } };
   }
@@ -83,21 +87,21 @@ export function changeNavigation(current: NavigationPrefs, change: NavigationCha
     return { ...current, sort: current.sort === sort ? "smart" : sort };
   }
   if (change.type === "clearActivity") return { ...current, activity: "all" };
-  if (current.scope === "archived") return current;
+  if (collectionOnly(current.scope)) return current;
   return { ...current, activity: current.activity === change.activity ? "all" : change.activity };
 }
 
 export function navigationTitle(navigation: Pick<NavigationPrefs, "scope" | "project">, projects: Catalog["projects"]): string {
   if (navigation.scope === "all" && navigation.project) return navigation.project === UNASSIGNED_PROJECT
     ? "未归属项目" : projects.find(project => project.id === navigation.project)?.name || "项目";
-  return { all: "全部", priority: "关注", "codex-pinned": "置顶", archived: "已归档" }[navigation.scope];
+  return { all: "全部", priority: "关注", "codex-pinned": "置顶", archived: "已归档", hidden: "隐藏" }[navigation.scope];
 }
 
 // Both chips describe the result of selecting that activity within the current
 // category/project and search, regardless of which activity is selected now.
 export function navigationActivityCounts(threads: readonly Thread[], navigation: NavigationPrefs, query: string,
   runtimeStates?: ReadonlyMap<string, TaskStatus>) {
-  if (navigation.scope === "archived") return { unread: 0, running: 0 };
+  if (collectionOnly(navigation.scope)) return { unread: 0, running: 0 };
   const count = (activity: ActivityFilter) => filterThreads(threads, navigation.scope, query, navigation.project,
     "updated", runtimeStates, undefined, activity).length;
   return { unread: count("unread"), running: count("running") };

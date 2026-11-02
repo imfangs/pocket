@@ -18,7 +18,7 @@ POCKET_TEST_BROWSERS=chromium npm run test:browser
 POCKET_BROWSER_OUTPUT=.local/qa/my-check npm run test:browser
 ```
 
-Seven flows run in each engine:
+Ten flows run in each engine:
 
 - list → conversation → return, and new-query autofocus;
 - information loading geometry and repeated-open caching;
@@ -27,6 +27,9 @@ Seven flows run in each engine:
 - deliberate top pull, bounded history loading and return to latest;
 - slow history after moving away;
 - slow history while writing a draft.
+- swipe to hide, category counts, confirmed IndexedDB cold start, and unhide;
+- failed hiding and navigation/focus continuity during a pending write;
+- keyboard unhide of an archived conversation without unarchiving it.
 
 The send scenarios keep one DOM row through pending, accepted, exact echo and an old queue snapshot. History tests keep the same scroll root and ensure prepared results do not override newer reading/input intent. Synthetic touch events exercise the actual event bindings; they do not prove physical iPhone keyboard, inertia or PWA behavior.
 
