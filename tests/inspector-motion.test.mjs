@@ -30,7 +30,7 @@ class Node extends Target {
 }
 function fixture({entry=false,reduced=false,desktop=false,animate=true}={}){
   const panel=new Node(),workspace=new Node(),browser=new Target(),document=new Target(),body=new Node(),narrow=new Target(),media=new Target();
-  let closes=0,allowed=true,selection=false;
+  let closes=0,allowed=true,selection=false;const origins=[];
   panel.closest=selector=>selector==='.workspace'?workspace:null;
   document.body=body;document.documentElement=body;document.visibilityState='visible';document.activeElement=null;document.defaultView=browser;
   document.createElement=()=>new Node();document.createEvent=()=>{const event=new Event('pocket-reading-visibility-change');event.initEvent=()=>{};return event;};
@@ -38,14 +38,14 @@ function fixture({entry=false,reduced=false,desktop=false,animate=true}={}){
   Object.assign(browser,{document,innerWidth:390,matchMedia:query=>query.includes('max-width')?narrow:media,getSelection:()=>({isCollapsed:!selection}),
     getComputedStyle:node=>({transform:`matrix(1, 0, 0, 1, ${node.visualX??0}, 0)`,overflowX:node.overflowX??'visible'})});
   if(!animate)panel.animate=undefined;
-  const control=bindInspectorMotion(panel,{animateEntry:entry,onClose:()=>closes++,enabled:()=>allowed},browser);
+  const control=bindInspectorMotion(panel,{animateEntry:entry,onClose:origin=>{closes++;origins.push(origin);},enabled:()=>allowed},browser);
   const target=new Node();target.parentElement=panel;
   const touch=(type,x,y,time,{fingers=type==='touchend'?0:1,at=target,id=1,cancelable=true}={})=>{
     const event=new Event(type,{cancelable});const point={identifier:id,clientX:x,clientY:y};
     Object.defineProperties(event,{target:{value:at},touches:{value:Array.from({length:fingers},()=>point)},changedTouches:{value:[point]},timeStamp:{value:time}});
     panel.dispatchEvent(event);return event;
   };
-  return {panel,workspace,browser,document,body,narrow,media,control,touch,target,closes:()=>closes,holdCount:()=>body.children.length,
+  return {panel,workspace,browser,document,body,narrow,media,control,touch,target,origins,closes:()=>closes,holdCount:()=>body.children.length,
     allow:value=>{allowed=value;},select:value=>{selection=value;},phase:()=>panel.attrs.get('data-inspector-motion'),finish:()=>panel.calls.at(-1)?.animation.finish()};
 }
 
@@ -66,6 +66,7 @@ test('a completed message edge swipe returns while the keyboard is open, without
   assert.equal(editor.blurs(), 0); assert.equal(f.panel.style.transform, undefined); assert.equal(f.panel.calls.length, 0);
   f.touch('touchend', 170, 201, 200);
   assert.equal(editor.blurs(), 1); assert.equal(f.closes(), 1);
+  assert.deepEqual(f.origins, ['pointer']);
   assert.equal(editor.input.value, 'Retained draft'); assert.equal(f.panel.calls.length, 0); f.control.dispose();
 });
 
@@ -78,6 +79,7 @@ test('cancelled or short keyboard-open swipes preserve focus and text', () => {
     if (kind === 'reverse') f.touch('touchmove', 25, 201, 250);
     f.touch('touchend', kind === 'reverse' ? 25 : 60, 201, 400);
     assert.equal(f.closes(), 0, kind); assert.equal(editor.blurs(), 0, kind);
+    assert.deepEqual(f.origins, [], kind);
     assert.equal(f.document.activeElement, editor.input); assert.equal(editor.input.selectionStart, 4);
     assert.equal(editor.input.value, 'Retained draft'); f.control.dispose();
   }
@@ -199,7 +201,24 @@ test('desktop, keyboard, reduced motion and unavailable WAAPI all close without 
 
 test('reduced-motion swipes still navigate on release without following displacement',()=>{
   const f=fixture({reduced:true});f.touch('touchstart',20,200,0);f.touch('touchmove',160,201,100);f.touch('touchend',170,201,200);
-  assert.equal(f.closes(),1);assert.equal(f.panel.calls.length,0);assert.equal(f.panel.style.transform,undefined);f.control.dispose();
+  assert.equal(f.closes(),1);assert.deepEqual(f.origins,['pointer']);assert.equal(f.panel.calls.length,0);assert.equal(f.panel.style.transform,undefined);f.control.dispose();
+});
+
+test('close intent remains separate from animation fallback and preference changes', () => {
+  for (const origin of ['pointer', 'keyboard', 'programmatic']) {
+    for (const animate of [false, true]) {
+      const f = fixture(); f.control.close(animate, origin); if (animate) f.finish();
+      assert.deepEqual(f.origins, [origin]); f.control.dispose();
+    }
+  }
+  const f = fixture(); f.control.close(true, 'keyboard'); f.media.matches = true; f.media.fire('change');
+  assert.deepEqual(f.origins, ['keyboard']); f.control.dispose();
+});
+
+test('a completed animated swipe identifies pointer return even after a cancelled keyboard exit', () => {
+  const f = fixture(); f.control.close(true, 'keyboard'); f.browser.fire('resize');
+  f.touch('touchstart', 20, 200, 0); f.touch('touchmove', 170, 201, 100); f.touch('touchend', 175, 201, 200); f.finish();
+  assert.deepEqual(f.origins, ['pointer']); f.control.dispose();
 });
 
 test('pagehide before visibility changes retains the reading hold and never completes a hidden exit',()=>{

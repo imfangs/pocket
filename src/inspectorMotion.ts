@@ -1,14 +1,16 @@
 import { bindInspectorSwipe } from "./mobileInspector.ts";
 import { holdReadingMotion, MOTION_EASE, MOTION_MS, prefersReducedMotion } from "./motion.ts";
+import type { InspectorCloseOrigin } from "./inspectorFocus.ts";
 
 type Phase = "idle" | "entering" | "dragging" | "settling" | "exiting" | "closed";
-type Options = { onClose: () => void; enabled?: () => boolean; animateEntry?: boolean };
+type Options = { onClose: (origin: InspectorCloseOrigin) => void; enabled?: () => boolean; animateEntry?: boolean };
 
 export function bindInspectorMotion(panel: HTMLElement, options: Options, browser = window) {
   const document = browser.document, workspace = panel.closest<HTMLElement>(".workspace");
   const narrow = browser.matchMedia("(max-width: 760px)"), reduced = browser.matchMedia("(prefers-reduced-motion: reduce)");
   let phase: Phase = "idle", animation: Animation | null = null, generation = 0, stopped = false, closed = false, suspended = false;
   let composing = false;
+  let closeOrigin: InspectorCloseOrigin = "programmatic";
   let releaseReading: (() => void) | null = null, offset = 0;
   const visible = () => !suspended && document.visibilityState !== "hidden";
   const editing = () => !!document.activeElement && panel.contains(document.activeElement) &&
@@ -56,7 +58,7 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
     closed = true; setPhase("closed");
     // Keep the reading hold until React actually removes this offscreen panel.
     // A close callback is not itself proof that the old detail has unmounted.
-    options.onClose();
+    options.onClose(closeOrigin);
   };
   const travel = (to: number, next: "entering" | "settling" | "exiting", velocity = 0) => {
     const from = stopAnimation();
@@ -83,8 +85,9 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
       if (next === "exiting") finishClose(); else settle();
     }
   };
-  const close = (animate = true) => {
+  const close = (animate = true, origin: InspectorCloseOrigin = "programmatic") => {
     if (!enabled() || phase === "exiting") return;
+    closeOrigin = origin;
     if (!animate || !animated()) { stopAnimation(); finishClose(); return; }
     travel(width(), "exiting");
   };
@@ -93,7 +96,7 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
     // Selection, pinch and native cancellation restore stable content at once.
     settle();
   };
-  const releaseSwipe = bindInspectorSwipe(panel, () => close(false), browser, {
+  const releaseSwipe = bindInspectorSwipe(panel, () => close(false, "pointer"), browser, {
     enabled: () => enabled() && !composing && phase !== "exiting" && phase !== "closed",
     start() {
       const current = stopAnimation();
@@ -103,10 +106,11 @@ export function bindInspectorMotion(panel: HTMLElement, options: Options, browse
     move(value) { if (phase === "dragging") setOffset(value); },
     release(complete, velocity) {
       if (complete) {
+        closeOrigin = "pointer";
         // A confirmed message-area gesture can leave editing. Keep focus for
         // short/cancelled gestures, and never transform the focused editor.
         if (editing()) (document.activeElement as HTMLElement)?.blur();
-        if (phase === "dragging") travel(width(), "exiting", velocity); else close(false);
+        if (phase === "dragging") travel(width(), "exiting", velocity); else close(false, "pointer");
       } else if (phase === "dragging") travel(0, "settling");
     },
     cancel: cancelGesture,

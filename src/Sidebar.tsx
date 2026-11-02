@@ -32,9 +32,7 @@ export default function Sidebar(p: Props) {
     const isOpen = narrow && p.mobileOpen;
     if (isOpen && !wasOpen.current) {
       returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      asideRef.current
-        ?.querySelector<HTMLButtonElement>(".brand button")
-        ?.focus();
+      asideRef.current?.focus({ preventScroll: true });
     } else if (!isOpen && wasOpen.current) {
       const target = returnFocus.current;
       const active = document.activeElement;
@@ -57,6 +55,8 @@ export default function Sidebar(p: Props) {
       />
       <aside
         ref={asideRef}
+        tabIndex={-1}
+        style={{ outline: "none" }}
         inert={narrow && !p.mobileOpen}
         role={narrow ? "dialog" : undefined}
         aria-modal={narrow && p.mobileOpen ? true : undefined}
@@ -76,6 +76,11 @@ export default function Sidebar(p: Props) {
             ).filter(el => el.tabIndex >= 0 && !el.matches(":disabled") && !el.closest("[hidden],[inert]") && el.getClientRects().length > 0);
             const first = els[0],
               last = els[els.length - 1];
+            if (document.activeElement === asideRef.current) {
+              e.preventDefault();
+              (e.shiftKey ? last : first)?.focus();
+              return;
+            }
             if (e.shiftKey && document.activeElement === first) {
               e.preventDefault();
               last?.focus();

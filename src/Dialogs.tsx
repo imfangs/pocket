@@ -88,8 +88,9 @@ export function Modal({
     if (dialog) { dialog.inert = false; dialog.removeAttribute("data-modal-closing"); }
     dialog?.showModal();
     const releaseModal = dialog ? trackModal(dialog) : () => {};
-    if (entryFocus === "title") titleRef.current?.focus({ preventScroll: true });
-    else dialog?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    const preferred = entryFocus === "auto" ? dialog?.querySelector<HTMLElement>("[data-autofocus]:not(:disabled)") : null;
+    if (preferred && !preferred.closest("[hidden], [inert]")) preferred.focus();
+    else titleRef.current?.focus({ preventScroll: true });
     // Reuse the same focus/blur and Safari recovery rules as the conversation.
     // A bottom sheet must follow the visual viewport, not the covered layout viewport.
     const releaseViewport = dialog ? bindInspectorViewport(dialog) : () => {};
@@ -174,8 +175,7 @@ export function Modal({
       aria-busy={busy || undefined}
     >
       <header>
-        <h2 ref={titleRef} tabIndex={entryFocus === "title" ? -1 : undefined}
-          style={entryFocus === "title" ? { outline: "none" } : undefined}>{title}</h2>
+        <h2 ref={titleRef} tabIndex={-1} style={{ outline: "none" }}>{title}</h2>
         <IconButton
           className="icon-button"
           onClick={event => requestClose(false, event.detail !== 0)}

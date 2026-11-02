@@ -35,7 +35,7 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
   file: MessageFileReference; threadId: string; machine: MachineId; opener: HTMLElement; onClose: () => void;
   readFile: Reader; download: (blob?: Blob) => void; downloading: boolean; downloadError: string;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null), closeButton = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null), title = useRef<HTMLHeadingElement>(null);
   const [result, setResult] = useState<{ text: string; blob: Blob } | null>(null), [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const mounted = useRef(false), generation = useRef(0);
@@ -49,7 +49,7 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
     const previous = { body: body.style.overflow, html: html.style.overflow };
     body.style.overflow = html.style.overflow = "hidden";
     if (!element.open) element.showModal();
-    closeButton.current?.focus({ preventScroll: true });
+    title.current?.focus({ preventScroll: true });
     visibility();
     return () => {
       mounted.current = false;
@@ -82,11 +82,11 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
   return createPortal(<dialog ref={dialog} className="text-file-viewer" data-reading-overlay="" aria-label={`预览文件：${file.name}`}
     onCancel={event => { event.preventDefault(); onClose(); }}>
     <header className="text-file-toolbar">
-      <h2>{file.name}</h2>
+      <h2 ref={title} tabIndex={-1} style={{ outline: "none" }}>{file.name}</h2>
       <button type="button" disabled={downloading} aria-busy={downloading || undefined} aria-label={`${downloading ? "正在下载" : "下载文件"}：${file.name}`} onClick={() => download(result?.blob)}>
         <Download size={18} aria-hidden="true" /><span>{downloading ? "下载中…" : "下载"}</span>
       </button>
-      <button ref={closeButton} type="button" className="text-file-close" aria-label="关闭文件预览" onClick={onClose}><X size={18} aria-hidden="true" /><span>关闭</span></button>
+      <button type="button" className="text-file-close" aria-label="关闭文件预览" onClick={onClose}><X size={18} aria-hidden="true" /><span>关闭</span></button>
     </header>
     {downloadError && <p className="text-file-download-error" role="alert">{downloadError}</p>}
     <div className="text-file-scroll ph-no-capture ph-mask" tabIndex={0} role="region" aria-label="文件内容">

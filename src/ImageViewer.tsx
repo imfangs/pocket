@@ -9,7 +9,7 @@ import { diagramDataPrefix } from "./mermaidPolicy";
 export default function ImageViewer({ src, alt, onClose, opener, diagram = false }: { src: string; alt: string; onClose: () => void; opener?: HTMLElement | null; diagram?: boolean }) {
   const imageSrc = diagram && src.startsWith(diagramDataPrefix) ? src : machineApiPath(src);
   const noun = diagram ? "图表" : "图片";
-  const dialog = useRef<HTMLDialogElement>(null), stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLDivElement>(null), closeButton = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null), stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLDivElement>(null);
   const close = useRef(onClose); close.current = onClose;
   const returnFocus = useRef(opener ?? (typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null));
   const mounted = useRef(false), closing = useRef(false), generation = useRef(0);
@@ -43,7 +43,7 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
     body.style.overscrollBehavior = html.style.overscrollBehavior = "none";
     if (returnFocus.current?.isConnected && !returnFocus.current.closest("[inert]")) returnFocus.current.focus({ preventScroll: true });
     if (!element.open) element.showModal();
-    closeButton.current?.focus({ preventScroll: true });
+    stage.current?.focus({ preventScroll: true });
     visibility();
     return () => {
       mounted.current = false;
@@ -84,7 +84,7 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
   if (typeof document === "undefined") return null;
   return createPortal(<dialog ref={dialog} className="pocket-image-viewer" data-image-viewer="" data-diagram-viewer={diagram || undefined} data-reading-overlay="" aria-label={`查看${noun}：${alt || noun}`}
     onCancel={event => { event.preventDefault(); requestClose(); }}>
-    <div ref={stage} className="image-viewer-stage">
+    <div ref={stage} className="image-viewer-stage" tabIndex={-1} role="region" aria-label={`${noun}预览`} style={{ outline: "none" }}>
       <div ref={canvas} className="image-viewer-canvas">
         <img key={`${src}:${attempt}`} className="image-viewer-image" src={imageSrc} alt={alt || noun} draggable={false} decoding="async" referrerPolicy="no-referrer"
           data-scale={value.scale} style={{ width: fitted.width || undefined, height: fitted.height || undefined, visibility: phase === "ready" ? "visible" : "hidden",
@@ -101,7 +101,7 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
           <button type="button" onClick={() => { ready.current = false; setPhase("loading"); commit(imageIdentity()); setAttempt(value => value + 1); }}>重新加载图片</button></>}
       </div>}
     </div>
-    <button ref={closeButton} type="button" className="image-viewer-close" aria-label={`关闭${noun}`} onClick={requestClose}><X size={20} aria-hidden="true" /><span>关闭</span></button>
+    <button type="button" className="image-viewer-close" aria-label={`关闭${noun}`} onClick={requestClose}><X size={20} aria-hidden="true" /><span>关闭</span></button>
     <div className="image-viewer-zoom" role="group" aria-label={`${noun}缩放`}>
       <button type="button" aria-label={`缩小${noun}`} disabled={phase !== "ready" || value.scale <= 1} onClick={() => changeZoom(valueRef.current.scale / 1.5)}><Minus size={20} aria-hidden="true" /></button>
       <button type="button" className="image-viewer-reset" aria-label={`复位${noun}`} disabled={phase !== "ready" || value.scale === 1 && value.x === 0 && value.y === 0} onClick={() => commit(imageIdentity())}><RotateCcw size={17} aria-hidden="true" /><span>复位</span></button>

@@ -17,7 +17,7 @@ import type { SubmittedQueryStore } from "./submittedQueries";
 import { isMacBrowser } from "./browserPlatform";
 import "./navigation-motion.css";
 import ImagePreviewProvider from "./ImagePreviewProvider";
-import { focusInspectorEntry, type InspectorEntryOrigin } from "./inspectorFocus";
+import { focusInspectorEntry, inspectorEntryFromClick, type InspectorCloseOrigin, type InspectorEntryOrigin } from "./inspectorFocus";
 import { currentMachineId, machineTaskUrl } from "./machineScope";
 import ThreadModelSettings from "./ThreadModelSettings";
 import ThreadAutomations from "./ThreadAutomations";
@@ -43,7 +43,7 @@ interface Props {
   onRenamed: (thread: Thread) => void;
   onCheckOperation: (requestId: string) => void;
   onCancelOperation: (requestId: string) => void;
-  onClose: () => void;
+  onClose: (origin: InspectorCloseOrigin) => void;
   onActivity?: () => void;
   animateEntry?: boolean;
   entryOrigin?: InspectorEntryOrigin;
@@ -66,7 +66,7 @@ export default function Inspector(p: Props) {
   useLayoutEffect(() => {
     if (!panel.current) return;
     const releaseViewport = bindInspectorViewport(panel.current);
-    const controller = bindInspectorMotion(panel.current, { onClose: () => close.current(), enabled: () => !overlayOpen.current, animateEntry: p.animateEntry });
+    const controller = bindInspectorMotion(panel.current, { onClose: origin => close.current(origin), enabled: () => !overlayOpen.current, animateEntry: p.animateEntry });
     navigation.current = controller;
     return () => { controller.dispose(); navigation.current = null; releaseViewport(); };
   }, []);
@@ -90,7 +90,7 @@ export default function Inspector(p: Props) {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </h2>
-        <IconButton type="button" data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0)}>
+        <IconButton type="button" data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0, inspectorEntryFromClick(event))}>
           <ChevronLeft size={23} className="inspector-back-icon" />
           <X size={18} className="inspector-close-icon" />
         </IconButton>

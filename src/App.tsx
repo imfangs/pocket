@@ -53,7 +53,7 @@ import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
 import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
 import { hiddenFields, pocketHidden, updateThreadHidden } from "./hiddenThreads";
-import { focusInspectorEntry, inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
+import { focusInspectorEntry, inspectorEntryFromClick, scheduleInspectorReturnFocus, type InspectorEntryOrigin } from "./inspectorFocus";
 import { machineStorageKey, currentMachineId } from "./machineScope";
 import { createReadingCache, readingCatalogScope, type ReadingCache } from "./readingCache";
 import useTranscriptPrefetch from "./useTranscriptPrefetch";
@@ -141,10 +141,15 @@ export default function App({
   const taskStatuses = useTaskStatuses({ threads: displayCatalog.threads, activity: pocketActivity,
     selectedId: selected, excludedThreadIds: catalog.excludedThreadIds, draftIds });
   const selectedRef = useRef(selected);
+  const selectionRevision = useRef(0);
+  const returnFocusController = useRef<AbortController | null>(null);
+  useEffect(() => () => returnFocusController.current?.abort(), []);
   const [animateSelection, setAnimateSelection] = useState(false);
   const [entryOrigin, setEntryOrigin] = useState<InspectorEntryOrigin>("programmatic");
   const [newConversationClosing, setNewConversationClosing] = useState(false);
   const setSelected = useCallback((id: string | null, animate = false, origin: InspectorEntryOrigin = "programmatic") => {
+    returnFocusController.current?.abort(); returnFocusController.current = null;
+    selectionRevision.current++;
     selectedRef.current = id;
     setEntryOrigin(origin);
     setAnimateSelection(!!id && animate);
@@ -873,10 +878,18 @@ export default function App({
               onCheckOperation={id => void taskOperations.check(id)}
               onCancelOperation={id => void taskOperations.cancel(id)}
               onActivity={refreshAfterActivity}
-              onClose={() =>
+              onClose={origin =>
                 void guard(async () => {
+                  if (selectedRef.current !== current.id) return;
+                  const panel = document.querySelector<HTMLElement>(".inspector"), list = listPanel.current;
                   setSelected(null);
-                  requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`.task-select[data-thread-id="${current.id}"]`)?.focus({ preventScroll: true }));
+                  const revision = selectionRevision.current, returnScope = catalogScope.current;
+                  if (panel && list) {
+                    const controller = new AbortController(); returnFocusController.current = controller;
+                    scheduleInspectorReturnFocus(panel, list, current.id, origin,
+                      () => selectedRef.current === null && selectionRevision.current === revision && catalogScope.current === returnScope,
+                      window, controller.signal);
+                  }
                   refreshAfterActivity();
                 })
               }

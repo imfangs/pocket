@@ -18,7 +18,7 @@ POCKET_TEST_BROWSERS=chromium npm run test:browser
 POCKET_BROWSER_OUTPUT=.local/qa/my-check npm run test:browser
 ```
 
-Ten flows run in each engine:
+Fourteen flows run in each engine:
 
 - list → conversation → return, and new-query autofocus;
 - information loading geometry and repeated-open caching;
@@ -26,14 +26,18 @@ Ten flows run in each engine:
 - sending in an empty conversation;
 - deliberate top pull, bounded history loading and return to latest;
 - slow history after moving away;
-- slow history while writing a draft.
+- slow history while writing a draft;
 - swipe to hide, category counts, confirmed IndexedDB cold start, and unhide;
 - failed hiding and navigation/focus continuity during a pending write;
-- keyboard unhide of an archived conversation without unarchiving it.
+- keyboard unhide of an archived conversation without unarchiving it;
+- nested information dialog title focus, keyboard close control and Escape ownership;
+- editing, cancelled swipes and neutral touch return under both motion preferences;
+- keyboard return focus and immediate reopening of another conversation;
+- return callbacks that do not steal focus from newly opened search or dialogs.
 
-The send scenarios keep one DOM row through pending, accepted, exact echo and an old queue snapshot. History tests keep the same scroll root and ensure prepared results do not override newer reading/input intent. Synthetic touch events exercise the actual event bindings; they do not prove physical iPhone keyboard, inertia or PWA behavior.
+The send scenarios keep one DOM row through pending, accepted, exact echo and an old queue snapshot. History tests keep the same scroll root and ensure prepared results do not override newer reading/input intent. Return-focus scenarios use Chromium native CDP touch input and WebKit synthetic touch events; the other touch scenarios use synthetic events. These exercise the actual event bindings without establishing physical iPhone keyboard, inertia or PWA behavior.
 
-`fixture.mjs` intercepts every request at `https://pocket.test`. Only static files inside the chosen build and explicitly implemented synthetic APIs are available. Static responses apply the chosen build's `_headers`, including CSP; document navigation checks the actual header and the first browser flow confirms that an inline script is blocked. Unsupported header-rule syntax fails explicitly rather than silently dropping policy.
+`fixture.mjs` intercepts every request at `https://pocket.test`. Only static files inside the chosen build and explicitly implemented synthetic APIs are available. Static responses apply the chosen build's `_headers`, including CSP; document navigation checks the actual header and the navigation flow confirms that an inline script is blocked. Unsupported header-rule syntax fails explicitly rather than silently dropping policy.
 
 External requests and unknown APIs fail the suite. Service workers are disabled; no real network request is forwarded. Add a synthetic handler only when a new tested user flow needs it. Each scenario includes startup in its failure reporting and closes its browser/context even when setup only partly completes. The runner forwards interruption to its own child process group and records an interrupted result.
 

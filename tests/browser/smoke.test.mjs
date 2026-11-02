@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHarness, engines, ids, pullFromTop, refresh } from './fixture.mjs';
 import { runScenario } from './scenario.mjs';
+import { inspectorReturnFlows } from './inspectorReturnFlows.mjs';
 
 const results = [];
 const output = resolve(process.env.POCKET_BROWSER_REPORT || '.local/qa/browser-smoke/results.json');
@@ -84,6 +85,7 @@ function flow(engine, name, options, run) {
 }
 
 for (const engine of engines) {
+  inspectorReturnFlows(engine, flow);
   flow(engine, 'list, detail and new-query focus remain connected', {}, async h => {
     const page = await h.open(null);
     const cspEnforced = await page.evaluate(() => new Promise(resolve => {
