@@ -1,15 +1,49 @@
+import { currentLocale, t, useLocale } from "./i18n";
 import { Clock } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { api } from "./api";
 import { currentMachineId, requireMachine } from "./machineScope";
 import { threadInfoCache, type ThreadInfoKey } from "./threadInfoCache";
-import type { Thread, ThreadAutomationsSource } from "./types";
+import type { Thread, ThreadAutomation, ThreadAutomationsSource } from "./types";
 import "./thread-automations.css";
 
 type Props = { thread: Pick<Thread, "id" | "hostId" | "automationSummary"> };
 type CachedAutomations = { source: ThreadAutomationsSource; summaryKey: string };
 
+// The API exposes a generated description rather than the scheduler's RRULE.
+// Localize only its complete, known DAILY/WEEKLY grammar; unknown descriptions
+// stay intact and this projection never calculates or changes execution times.
+export function automationScheduleText(automation: Pick<ThreadAutomation, "scheduleLabel" | "scheduleSupported">): string {
+  const label = automation.scheduleLabel;
+  if (currentLocale() === "zh-CN") return label;
+  if (!automation.scheduleSupported) return label === "自定义安排" ? t("自定义安排") : label;
+  const match = /^(每天|每 ([1-9]\d{0,3}) 天|每周 (周[一二三四五六日](?:、周[一二三四五六日])*)|每 ([1-9]\d{0,3}) 周 (周[一二三四五六日](?:、周[一二三四五六日])*)) (.+)$/.exec(label);
+  if (!match) return label;
+  const [, frequency, dayInterval, weeklyDays, weekInterval, intervalDays, timeText] = match;
+  if (dayInterval === "1" || weekInterval === "1") return label;
+  const validTime = (value: string) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+  let times: string;
+  const hourly = /^(\d{2}:\d{2})–(\d{2}:\d{2})，每小时一次$/.exec(timeText);
+  if (hourly && validTime(hourly[1]) && validTime(hourly[2])) {
+    if (hourly[1].slice(3) !== hourly[2].slice(3) || Number(hourly[2].slice(0, 2)) - Number(hourly[1].slice(0, 2)) < 3) return label;
+    times = t("{{start}}–{{end}}，每小时一次", { start: hourly[1], end: hourly[2] });
+  } else {
+    const values = timeText.split("、");
+    if (values.length > 24 || values.some((value, index) => !validTime(value) || index > 0 && value <= values[index - 1])) return label;
+    times = values.join(", ");
+  }
+  if (frequency === "每天") return t("每天 {{times}}", { times });
+  if (dayInterval) return t("每 {{count}} 天 {{times}}", { count: Number(dayInterval), times });
+  const days = (weeklyDays || intervalDays).split("、");
+  const dayOrder = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+  if (days.some((day, index) => index > 0 && dayOrder.indexOf(day) <= dayOrder.indexOf(days[index - 1]))) return label;
+  const names = days.map(day => t(day)).join(", ");
+  return weekInterval ? t("每 {{count}} 周 {{days}} {{times}}", { count: Number(weekInterval), days: names, times })
+    : t("每周 {{days}} {{times}}", { days: names, times });
+}
+
 export default function ThreadAutomations({ thread }: Props) {
+  useLocale();
   return <ThreadAutomationsSession key={`${currentMachineId()}:${thread.hostId}:${thread.id}`} thread={thread} />;
 }
 
@@ -23,6 +57,7 @@ function validSource(value: unknown): value is ThreadAutomationsSource {
 }
 
 function ThreadAutomationsSession({ thread }: Props) {
+  useLocale();
   const threadId = thread.id;
   const key = useMemo<ThreadInfoKey>(() => ({ machine: requireMachine(), hostId: thread.hostId, threadId, kind: "automations" }), [thread.hostId, threadId]);
   const summary = thread.automationSummary;
@@ -84,6 +119,7 @@ export function ThreadAutomationsContent({ source, loading = false, error = "", 
   error?: string;
   onRetry: () => void;
 }) {
+  useLocale();
   const headingId = useId();
   const automations = source?.automations ?? [];
   const stale = !!source && (source.stale || !source.available || !!error);
@@ -94,25 +130,25 @@ export function ThreadAutomationsContent({ source, loading = false, error = "", 
   const empty = !loading && !status && source?.available && !source.stale && automations.length === 0;
   return <section className="thread-automations" aria-labelledby={headingId} aria-busy={loading} data-empty={empty || undefined}>
     <div className="thread-automations-heading">
-      <h3 id={headingId}><Clock size={14} aria-hidden="true" />定时任务{automations.length > 0 && <span>{automations.length}</span>}</h3>
-      {needsRetry && !loading ? <button type="button" className="text-button" onClick={onRetry}>重新读取</button>
+      <h3 id={headingId}><Clock size={14} aria-hidden="true" />{t("定时任务")}{automations.length > 0 && <span>{automations.length}</span>}</h3>
+      {needsRetry && !loading ? <button type="button" className="text-button" onClick={onRetry}>{t("重新读取")}</button>
         : <p className="thread-automations-summary" role={loading ? "status" : undefined}>
-          {loading ? source ? "正在刷新…" : "正在读取…" : empty ? "暂无关联的定时任务" : ""}
+          {loading ? source ? t("正在刷新…") : t("正在读取…") : empty ? t("暂无关联的定时任务") : ""}
         </p>}
     </div>
-    {status && <p className="thread-automations-notice" role={error ? "alert" : "status"}>{status}{error && automations.length > 0 ? " 以下为缓存内容。" : ""}</p>}
+    {status && <p className="thread-automations-notice" role={error ? "alert" : "status"}>{t(status)}{error && automations.length > 0 ? t(" 以下为缓存内容。") : ""}</p>}
     {automations.length > 0 && <ul className="thread-automations-list" data-stale={stale || undefined}>
       {automations.map(automation => <li key={automation.id} className="thread-automation">
         <div className="thread-automation-heading">
-          <h4>{automation.name || "未命名任务"}</h4>
+          <h4>{automation.name || t("未命名任务")}</h4>
           <span className="thread-automation-status" data-status={automation.status}>
-            {automation.status === "ACTIVE" ? "已启用" : automation.status === "PAUSED" ? "已暂停" : "状态待确认"}
+            {automation.status === "ACTIVE" ? t("已启用") : automation.status === "PAUSED" ? t("已暂停") : t("状态待确认")}
           </span>
         </div>
-        <p className="thread-automation-schedule">{automation.scheduleLabel || "暂无法读取执行安排"}</p>
+        <p className="thread-automation-schedule">{automationScheduleText(automation) || t("暂无法读取执行安排")}</p>
         <details className="thread-automation-content">
-          <summary>任务内容</summary>
-          <p>{automation.prompt || "未提供任务内容"}</p>
+          <summary>{t("任务内容")}</summary>
+          <p>{automation.prompt || t("未提供任务内容")}</p>
         </details>
       </li>)}
     </ul>}

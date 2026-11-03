@@ -2,6 +2,7 @@ import { directiveAttributes, directivePattern, directiveIsEscaped, incompleteDi
 import { currentMachineId, isMachineId, machineTaskUrl, type MachineId } from "./machineScope.ts";
 import { readableHeartbeatMessage } from "./heartbeatMessage.ts";
 import { readableSubagentNotification } from "./subagentNotification.ts";
+import { sourceTranslation, type DisplayTranslator } from "./displayTranslation.ts";
 
 const taskId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export function pocketTaskTarget(value: string, current: MachineId | null = currentMachineId()): { threadId: string; machine: MachineId } | null {
@@ -28,9 +29,9 @@ const quote = (text: string) => "\n\n" + plain(text).split("\n").map(line => `> 
 
 // These are display adapters, never executable directives. Work on original
 // offsets and protect Markdown code/examples and link destinations from edits.
-export function readableCodexMarkdown(source: string): string {
-  source = readableSubagentNotification(source);
-  source = readableHeartbeatMessage(source);
+export function readableCodexMarkdown(source: string, translate: DisplayTranslator = sourceTranslation): string {
+  source = readableSubagentNotification(source, translate);
+  source = readableHeartbeatMessage(source, translate);
   if (!/<(?:oai-mem-citation|citation_entries|rollout_ids)|&lt;|:(?:created-thread|code-comment|codex-|inbox-item|archive-thread|automation)|/.test(source)) return source;
   const protectedRanges = protectedMarkdownRanges(source);
   const componentProtectedRanges = protectedMarkdownRanges(source, true);
@@ -57,36 +58,36 @@ export function readableCodexMarkdown(source: string): string {
   replace(/&lt;(oai-mem-citation|citation_entries|rollout_ids)&gt;[\s\S]*?(?:&lt;\/\1&gt;|$)/g, () => "", true);
   replace(directivePattern, match => {
     const name = match[1], label = match[2]?.replace(/\\([\[\]\\])/g, "$1"), attrs = directiveAttributes(match[3]);
-    if (!attrs) return name.startsWith("codex-") ? "〔内容暂不可用〕" : null;
+    if (!attrs) return name.startsWith("codex-") ? translate("〔内容暂不可用〕") : null;
     if (name === "codex-file-citation") {
       const path = localFileReference(attrs.path);
-      if (!path) return "〔文件引用暂不可用〕";
+      if (!path) return translate("〔文件引用暂不可用〕");
       const url = path.split("/").map(encodeURIComponent).join("/");
       return `[${plain(path.slice(path.lastIndexOf("/") + 1))}](<${url}>)`;
     }
     if (name === "created-thread") {
       return attrs.threadId && taskId.test(attrs.threadId)
-        ? `[打开任务](${machineTaskUrl(attrs.threadId)})`
-        : attrs.clientThreadId ? "任务正在准备中" : null;
+        ? `[${translate("打开任务")}](${machineTaskUrl(attrs.threadId)})`
+        : attrs.clientThreadId ? translate("任务正在准备中") : null;
     }
     if (name === "code-comment") {
       if (!attrs.title || !attrs.body) return null;
       return quote([attrs.title, attrs.body, attrs.file && `${attrs.file}${/^\d+$/.test(attrs.start || "") ? `:${attrs.start}` : ""}`].filter(Boolean).join("\n\n"));
     }
-    if (name === "codex-followup") return label ? quote(label + (attrs.prompt && attrs.prompt !== label ? `\n\n${attrs.prompt}` : "")) : "〔后续建议暂不可用〕";
-    if (name === "codex-annotation") return /^\d+$/.test(attrs.index || "") ? `〔批注 ${attrs.index}〕` : "〔批注暂不可用〕";
+    if (name === "codex-followup") return label ? quote(label + (attrs.prompt && attrs.prompt !== label ? `\n\n${attrs.prompt}` : "")) : translate("〔后续建议暂不可用〕");
+    if (name === "codex-annotation") return /^\d+$/.test(attrs.index || "") ? translate("〔批注 {{index}}〕", { index: attrs.index }) : translate("〔批注暂不可用〕");
     if (name === "inbox-item") return attrs.title ? quote([attrs.title, attrs.summary].filter(Boolean).join("\n\n")) : null;
     if (name === "archive-thread") return "";
     if (name === "automation" || name === "automation-update")
-      return quote(attrs.name || attrs.title || "定时任务（请在 Codex 查看）");
+      return quote(attrs.name || attrs.title || translate("定时任务（请在 Codex 查看）"));
     // Unknown Codex components remain readable without guessing their actions
     // or turning unrecognized path attributes into file permissions.
-    return quote([label || attrs.title || attrs.name, attrs.summary || attrs.body, "此内容请在 Codex 查看"].filter(Boolean).join("\n\n"));
+    return quote([label || attrs.title || attrs.name, attrs.summary || attrs.body, translate("此内容请在 Codex 查看")].filter(Boolean).join("\n\n"));
   });
   // A streaming component is not a complete directive yet. Keep its raw
   // attributes off the page until the closing brace arrives; code is protected.
   replace(incompleteDirectivePattern, match =>
-    /^:{1,2}codex-file-citation\s*\{/.test(match[0]) ? "文件信息正在载入…" : "内容正在载入…");
+    translate(/^:{1,2}codex-file-citation\s*\{/.test(match[0]) ? "文件信息正在载入…" : "内容正在载入…"));
   replace(/(cite|filecite|filenavlist|entity|image_group|i)([\s\S]*?)/g, match => {
     if (match[1] === "entity") {
       try { const data: unknown = JSON.parse(match[2]); if (Array.isArray(data) && typeof data[1] === "string") return plain(data[1]); } catch { /* Keep an unsupported payload visible. */ }
@@ -94,10 +95,10 @@ export function readableCodexMarkdown(source: string): string {
     }
     if (match[1] === "filecite") {
       const lines = /(?:^|)(L\d+(?:-L?\d+)?)$/.exec(match[2]);
-      return `〔文件引用${lines ? " " + lines[1] : ""}〕`;
+      return translate("〔文件引用{{lines}}〕", { lines: lines ? " " + lines[1] : "" });
     }
     // Reference IDs alone cannot reconstruct a source URL or a media attachment.
-    return match[1] === "cite" ? "〔来源引用〕" : match[1] === "filenavlist" ? "〔相关文件〕" : "〔图片引用〕";
+    return translate(match[1] === "cite" ? "〔来源引用〕" : match[1] === "filenavlist" ? "〔相关文件〕" : "〔图片引用〕");
   });
   let result = source;
   for (const edit of edits.sort((a, b) => b.start - a.start)) result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);

@@ -1,20 +1,22 @@
+import { t, useLocale } from "./i18n";
 import { useState } from "react";
 import { Laptop } from "lucide-react";
 import { changeMachine, currentMachineId, machines, type MachineId } from "./machineScope";
 import "./machine-picker.css";
 
 export default function MachinePicker() {
+  useLocale();
   const [error, setError] = useState("");
   return <div className="machine-picker">
-    <label><Laptop size={16} aria-hidden="true" /><span className="sr-only">选择电脑</span>
-      <select aria-label="选择电脑" value={currentMachineId() ?? ""} onChange={event => {
+    <label><Laptop size={16} aria-hidden="true" /><span className="sr-only">{t("选择电脑")}</span>
+      <select aria-label={t("选择电脑")} value={currentMachineId() ?? ""} onChange={event => {
         try { setError(changeMachine(event.target.value as MachineId) ?? ""); }
         catch (failure) { setError(failure instanceof Error ? failure.message : "暂时无法切换电脑，请重试。"); }
       }}>
-        <option value="" disabled>选择电脑</option>
+        <option value="" disabled>{t("选择电脑")}</option>
         {machines.map(machine => <option key={machine.id} value={machine.id}>{machine.label}</option>)}
       </select>
     </label>
-    {error && <p role="alert">{error}</p>}
+    {error && <p role="alert">{t(error)}</p>}
   </div>;
 }

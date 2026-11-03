@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from "./i18n";
 import { useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import { Eye, EyeOff, LoaderCircle, Star, StarOff, X } from "lucide-react";
 import { bindRowSwipe, ROW_ACTION_WIDTH } from "./rowSwipe";
@@ -10,6 +11,7 @@ export default function SwipeTaskRow({ threadId, title, prioritized, hidden = fa
   onPriority?: (animate: boolean) => void; onHidden?: (animate: boolean) => void;
   onOpenChange: (open: boolean) => void; onClaim: () => void; onDismissError: () => void;
 }) {
+  useLocale();
   const track = useRef<HTMLDivElement>(null), moving = useRef<HTMLDivElement>(null);
   const shortcuts = useRef<Partial<Record<RowAction, HTMLButtonElement | null>>>({});
   const actions = useRef<Partial<Record<RowAction, HTMLButtonElement | null>>>({});
@@ -61,7 +63,7 @@ export default function SwipeTaskRow({ threadId, title, prioritized, hidden = fa
     restoreKeyboardFocus.current = event.detail === 0 ? kind : null;
     (kind === "priority" ? onPriority : onHidden)?.(event.detail !== 0);
   };
-  const label = (kind: RowAction) => kind === "priority" ? prioritized ? "取消关注" : "优先关注" : hidden ? "取消隐藏" : "隐藏";
+  const label = (kind: RowAction) => kind === "priority" ? tr(prioritized ? "取消关注" : "优先关注") : hidden ? tr("取消隐藏") : tr("隐藏", { context: "action" });
   const icon = (kind: RowAction) => pending && pendingAction === kind ? <LoaderCircle size={16} className="row-priority-spinner" aria-hidden="true" />
     : kind === "priority" ? prioritized ? <StarOff size={16} aria-hidden="true" /> : <Star size={16} aria-hidden="true" />
       : hidden ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />;
@@ -93,8 +95,8 @@ export default function SwipeTaskRow({ threadId, title, prioritized, hidden = fa
       </div>
       {row}
     </div>
-    {error && <div className="row-priority-error" id={errorId} role="alert"><span>{error}</span>
-      <button type="button" data-row-action="dismiss" className="icon-button" aria-label="关闭会话操作错误提示" onClick={onDismissError}><X size={14} aria-hidden="true" /></button>
+    {error && <div className="row-priority-error" id={errorId} role="alert"><span>{tr(error)}</span>
+      <button type="button" data-row-action="dismiss" className="icon-button" aria-label={tr("关闭会话操作错误提示")} onClick={onDismissError}><X size={14} aria-hidden="true" /></button>
     </div>}
   </div>;
 }

@@ -1,10 +1,14 @@
 # Pocket
 
+简体中文 · [English](README.en.md)
+
 把 Mac 上的 Codex 带到手机，随时查看对话、接着工作。多机入口：**https://x.fangs.cc**；格得本机另配置 **https://threads.local**（当前在线状态见 CURRENT）。
 
 原名任务架 / Codex Navigator，2026-09-28 更名为 Pocket。仓库目录、服务与数据标识沿用原值，既有口令、已保存数据及备份保持兼容。
 
 手机 PWA 与 `x.fangs.cc` 固定入口的实现、口令文件、连接器和发布方式见 [docs/MOBILE.md](docs/MOBILE.md)，实际就绪状态以 [CURRENT.md](CURRENT.md) 为准。
+
+界面支持简体中文与英文，默认跟随系统，可在设置的“语言”中调整；语言切换保留当前会话与草稿，不翻译对话内容。实现和新增语言约定见[多语言](docs/design/2026-11-04-internationalization.md)。
 
 菜单、登录、加载与PWA图标统一采用[同一份矢量Logo](design/brand/README.md)。
 

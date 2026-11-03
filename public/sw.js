@@ -1,7 +1,8 @@
-const CACHE = "navigator-public-shell-v11";
+const CACHE = "navigator-public-shell-v12";
 const PUBLIC_FILES = [
   "/startup.css",
   "/theme.js",
+  "/language.js",
   "/offline.html",
   "/manifest.webmanifest",
   "/icons/pocket-v1.svg",

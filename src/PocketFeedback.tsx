@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Switch } from "@radix-ui/themes/components/switch";
 import { LoaderCircle, MessageSquareWarning } from "lucide-react";
@@ -20,6 +21,7 @@ const shakePreferred = () => { try { return localStorage.getItem(shakeKey) === "
 type Session = { scope: string; baseScope: string; context: FeedbackContext; image?: FeedbackCapture };
 
 export function usePocketFeedback({ readingScope, threadId, title }: { readingScope?: string; threadId?: string; title?: string }) {
+  useLocale();
   const shakeId = useId();
   const machine = currentMachineId(), baseScope = `pocket:${machine}:${readingScope || "pending"}`;
   const [enabled, setEnabled] = useState(false), [ready, setReady] = useState(false);
@@ -93,29 +95,27 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
   };
   return {
     enabled, ready, open,
-    settings: enabled ? <section className="pocket-feedback-settings" aria-label="使用反馈">
+    settings: enabled ? <section className="pocket-feedback-settings" aria-label={t("使用反馈")}>
       <div className="pocket-feedback-setting-row">
-        <label htmlFor={shakeId}>摇一摇反馈</label>
+        <label htmlFor={shakeId}>{t("摇一摇反馈")}</label>
         <span className="pocket-feedback-setting-control">
           <Switch id={shakeId} type="button" size="3" checked={shakeEnabled}
             aria-describedby={`${shakeId}-help`} onCheckedChange={() => void toggleShake()} />
         </span>
       </div>
-      <p id={`${shakeId}-help`} className="field-help" role={shakeHint ? "status" : undefined}>{shakeHint || "启用后，摇动手机可打开截图反馈。"}</p>
+      <p id={`${shakeId}-help`} className="field-help" role={shakeHint ? "status" : undefined}>{shakeHint ? t(shakeHint) : t("启用后，摇动手机可打开截图反馈。")}</p>
     </section> : null,
     element: <>
       {preparing && <div className="feedback-capture-progress" data-feedback-ignore="" data-reading-overlay="" role="status">
-        <LoaderCircle size={15} className="spinning" />正在准备反馈…
-        <button type="button" onClick={() => { operation.current?.abort(); operation.current = null; setPreparing(false); }}>取消</button>
+        <LoaderCircle size={15} className="spinning" />{t("正在准备反馈…")}<button type="button" onClick={() => { operation.current?.abort(); operation.current = null; setPreparing(false); }}>{t("取消")}</button>
       </div>}
-      {session && <Modal title="使用反馈" className="feedback-dialog" captureIgnore onClose={() => setSession(null)}>
+      {session && <Modal title={t("使用反馈")} className="feedback-dialog" captureIgnore onClose={() => setSession(null)}>
           <FeedbackPanel key={session.scope} appId="pocket" scope={session.scope} context={session.context} initialCapture={session.image}
             capture={signal => captureFeedback(document.body, { signal })} draftStore={feedbackDrafts}
-            submit={submit} status={status} retry={retry} onClose={() => setSession(null)} autoDirect={readAutoDirectPreference()} />
+            submit={submit} status={status} retry={retry} onClose={() => setSession(null)} autoDirect={readAutoDirectPreference()} translate={t} />
       </Modal>}
     </>,
     button: (onOpen: () => void) => <Button type="button" variant="soft" color="gray" disabled={!ready} onClick={onOpen}>
-      <MessageSquareWarning size={14} aria-hidden="true" />反馈问题
-    </Button>,
+      <MessageSquareWarning size={14} aria-hidden="true" />{t("反馈问题")}</Button>,
   };
 }

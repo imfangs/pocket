@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import PocketLogo from "./PocketLogo";
 import { Archive, EyeOff, Folder, Layers3, Pin, Settings2, Star, X } from "lucide-react";
@@ -17,6 +18,7 @@ interface Props {
   onSettings: () => void;
 }
 export default function Sidebar(p: Props) {
+  useLocale();
   const [narrow, setNarrow] = useState(
     () => matchMedia("(max-width:760px)").matches,
   );
@@ -60,7 +62,7 @@ export default function Sidebar(p: Props) {
         inert={narrow && !p.mobileOpen}
         role={narrow ? "dialog" : undefined}
         aria-modal={narrow && p.mobileOpen ? true : undefined}
-        aria-label="工作区导航"
+        aria-label={tr("工作区导航")}
         className={`sidebar project-navigation ${p.mobileOpen ? "mobile-open" : ""}`}
         onKeyDown={(e) => {
           if (!narrow || !p.mobileOpen) return;
@@ -101,60 +103,60 @@ export default function Sidebar(p: Props) {
           <IconButton type="button"
             className="icon-button mobile-only"
             onClick={p.onClose}
-            aria-label="关闭导航"
+            aria-label={tr("关闭导航")}
           >
             <X size={18} />
           </IconButton>
         </div>
         <div className="sidebar-scroll">
-          <nav aria-label="会话视图">
+          <nav aria-label={tr("会话视图")}>
             <button
               data-view="all"
-              aria-label={`全部，${counts.all} 个会话`}
+              aria-label={tr("{{label}}，{{count}} 个会话", { label: tr("全部"), count: counts.all })}
               aria-current={allSelected ? "page" : undefined}
               className={`nav-item ${allSelected ? "selected" : ""}`}
               onClick={() => p.onView("all")}
             >
               <Layers3 size={18} aria-hidden="true" />
-              <span>全部</span>
+              <span>{tr("全部")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.all}</small>
             </button>
             <button
               data-view="priority"
-              aria-label={`关注，${counts.priority} 个会话`}
+              aria-label={tr("{{label}}，{{count}} 个会话", { label: tr("关注"), count: counts.priority })}
               aria-current={p.view === "priority" ? "page" : undefined}
               className={`nav-item ${p.view === "priority" ? "selected" : ""}`}
               onClick={() => p.onView("priority")}
             >
               <Star size={18} aria-hidden="true" />
-              <span>关注</span>
+              <span>{tr("关注")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.priority}</small>
             </button>
             <button
               data-view="codex-pinned"
-              aria-label={`置顶，${counts.codexPinned} 个会话`}
+              aria-label={tr("{{label}}，{{count}} 个会话", { label: tr("置顶"), count: counts.codexPinned })}
               aria-current={p.view === "codex-pinned" ? "page" : undefined}
               className={`nav-item ${p.view === "codex-pinned" ? "selected" : ""}`}
               onClick={() => p.onView("codex-pinned")}
             >
               <Pin size={18} aria-hidden="true" />
-              <span>置顶</span>
+              <span>{tr("置顶")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.codexPinned}</small>
             </button>
             <button
               data-view="hidden"
-              aria-label={`隐藏，${counts.hidden} 个会话`}
+              aria-label={tr("{{label}}，{{count}} 个会话", { label: tr("隐藏"), count: counts.hidden })}
               aria-current={p.view === "hidden" ? "page" : undefined}
               className={`nav-item ${p.view === "hidden" ? "selected" : ""}`}
               onClick={() => p.onView("hidden")}
             >
               <EyeOff size={18} aria-hidden="true" />
-              <span>隐藏</span>
+              <span>{tr("隐藏")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.hidden}</small>
             </button>
           </nav>
-          {projects.length > 0 && <nav className="sidebar-projects" aria-label="项目">
-            <p className="sidebar-projects-heading">项目</p>
+          {projects.length > 0 && <nav className="sidebar-projects" aria-label={tr("项目")}>
+            <p className="sidebar-projects-heading">{tr("项目")}</p>
             {projects.map(project => {
               const selected = p.project === project.id && projectScopedView;
               const count = counts.projects.get(project.id) || 0;
@@ -162,13 +164,13 @@ export default function Sidebar(p: Props) {
                 key={project.id}
                 data-project-id={project.id}
                 aria-current={selected ? "page" : undefined}
-                aria-label={`${project.ariaLabel}，${count} 个会话`}
-                title={project.title}
+                aria-label={tr("{{label}}，{{count}} 个会话", { label: project.id === "__unassigned__" ? tr("未归属项目") : project.ariaLabel, count })}
+                title={project.id === "__unassigned__" ? tr("未归属项目") : project.title}
                 className={`nav-item sidebar-project ${selected ? "selected" : ""}`}
                 onClick={() => p.onProject?.(project.id)}
               >
                 <Folder size={17} aria-hidden="true" />
-                <span className="sidebar-project-label"><span className="sidebar-project-name">{project.name}</span>
+                <span className="sidebar-project-label"><span className="sidebar-project-name">{project.id === "__unassigned__" ? tr("未归属项目") : project.name}</span>
                   {project.suffix && <small className="sidebar-project-suffix">{project.suffix}</small>}
                 </span>
                 <small className="sidebar-nav-count" aria-hidden="true">{count}</small>
@@ -184,13 +186,13 @@ export default function Sidebar(p: Props) {
               onClick={() => p.onView("archived")}
             >
               <Archive size={17} />
-              <span>已归档</span>
+              <span>{tr("已归档")}</span>
             </button>
             <IconButton type="button"
               className="icon-button sidebar-settings"
               onClick={p.onSettings}
-              aria-label="设置"
-              title="设置"
+              aria-label={tr("设置")}
+              title={tr("设置")}
             >
               <Settings2 size={17} aria-hidden="true" />
             </IconButton>

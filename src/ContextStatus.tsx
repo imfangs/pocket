@@ -1,3 +1,4 @@
+import { t, useLocale, currentLocale } from "./i18n";
 import * as Popover from "@radix-ui/react-popover";
 import { Button } from "./ui/Button";
 import { PocketPortalTheme } from "./ui/PocketTheme";
@@ -33,6 +34,7 @@ export default function ContextStatus({
   refresh: () => Promise<void> | undefined;
   onInteractionChange?: (active: boolean) => void;
 }) {
+  useLocale();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -56,8 +58,8 @@ export default function ContextStatus({
     return () => onInteractionChange?.(false);
   }, [interacting, onInteractionChange]);
   const requestId = receipt?.requestId;
-  const usageLabel = usage ? `上下文用量 ${Math.round(usage.percent)}%` : "上下文用量与压缩";
-  const triggerLabel = `${usageLabel}${uncertain ? "，压缩结果待核对" : history?.compaction?.active ? "，压缩中" : pending ? "，压缩结果待核对" : ""}`;
+  const usageLabel = usage ? t("上下文用量 {{percent}}%", { percent: Math.round(usage.percent) }) : t("上下文用量与压缩");
+  const triggerLabel = uncertain ? t("{{usage}}，压缩结果待核对", { usage: usageLabel }) : history?.compaction?.active ? t("{{usage}}，压缩中", { usage: usageLabel }) : pending ? t("{{usage}}，压缩结果待核对", { usage: usageLabel }) : usageLabel;
   useReloadGuard(() => working ? "压缩操作尚未完成，请稍后更新。"
     : pending ? "压缩结果尚待核对，请处理后再更新。" : null);
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function ContextStatus({
     if (["pending", "accepted", "unknown"].includes(status || "")) watchedRequest.current = requestId;
     if (status === "completed" && watchedRequest.current === requestId) {
       watchedRequest.current = null;
-      toast.success("上下文压缩已完成", { id: `compact-${requestId}`, duration: 3500 });
+      toast.success(t("上下文压缩已完成"), { id: `compact-${requestId}`, duration: 3500 });
     }
   }, [requestId, status]);
   const act = async () => {
@@ -140,13 +142,13 @@ export default function ContextStatus({
               />
             </svg>
           )}
-          {uncertain ? "压缩待核对" : history?.compaction?.active
-            ? "压缩中…"
+          {uncertain ? t("压缩待核对") : history?.compaction?.active
+            ? t("压缩中…")
             : pending
-              ? "压缩待核对"
+              ? t("压缩待核对")
               : usage
                 ? `${Math.round(usage.percent)}%`
-                : "上下文"}
+                : t("上下文")}
           <ChevronDown size={12} aria-hidden="true" />
         </Popover.Trigger>
         <Popover.Portal>
@@ -158,7 +160,7 @@ export default function ContextStatus({
             sideOffset={8}
             collisionPadding={16}
             align="start"
-            aria-label="上下文用量与压缩"
+            aria-label={t("上下文用量与压缩")}
             onCloseAutoFocus={event => {
               // Preserve outside pointer focus; keyboard dismissal needs a
               // visible destination even if compaction just finished.
@@ -177,8 +179,8 @@ export default function ContextStatus({
           >
             <p className="context-usage">
               {usage
-                ? `${usage.usedTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
-                : "用量暂不可用"}
+                ? `${usage.usedTokens.toLocaleString(currentLocale())} / ${usage.contextWindow.toLocaleString(currentLocale())} tokens`
+                : t("用量暂不可用")}
             </p>
             <Button variant="soft"
               type="button"
@@ -186,7 +188,7 @@ export default function ContextStatus({
               disabled={disabled || working || (!pending && !(history?.canAttemptCompact ?? history?.canCompact))}
               onClick={() => void act()}
             >
-              {working ? "处理中…" : pending ? "核对状态" : history?.compaction?.active ? "正在压缩…" : history?.runtime === "active" ? "执行中，稍后压缩" : "压缩上下文"}
+              {working ? t("处理中…") : pending ? t("核对状态") : history?.compaction?.active ? t("正在压缩…") : history?.runtime === "active" ? t("执行中，稍后压缩") : t("压缩上下文")}
             </Button>
             {(labels[status || ""] ||
               error) && (
@@ -194,7 +196,7 @@ export default function ContextStatus({
                 className={error ? "inline-error" : "context-operation"}
                 role="status"
               >
-                {error || labels[status || ""]}
+                {t(error || labels[status || ""] || "")}
               </p>
             )}
           </Popover.Content>

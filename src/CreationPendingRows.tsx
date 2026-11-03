@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from "./i18n";
 import type { TaskOperation } from "./taskOperations";
 import type { CreationCue } from "./creationList";
 import "./task-list-status.css";
@@ -16,9 +17,10 @@ export default function CreationPendingRows({ items, onOpen, onReview }: {
   onOpen: (operation: TaskOperation) => void;
   onReview: (operation: TaskOperation) => void;
 }) {
+  useLocale();
   if (!items.length) return null;
   return <div className="task-list-surface creation-pending-list">
-    <div className="task-list" role="list" aria-label="创建中的会话">
+    <div className="task-list" role="list" aria-label={tr("创建中的会话")}>
       {items.map(({ operation, title, projectName, cue, canOpen }) => {
         const canReview = cue.phase === "attention";
         return <div key={operation.requestId} role="listitem"
@@ -32,11 +34,11 @@ export default function CreationPendingRows({ items, onOpen, onReview }: {
             <div className="row-first">
               <strong>{title}</strong>
               <span className="row-status-slot" data-list-status="primary" data-list-status-key={`creation-${cue.phase}`}>
-                <span className="creation-state-label" data-creation-phase={cue.phase} role="status">{cue.label}</span>
+                <span className="creation-state-label" data-creation-phase={cue.phase} role="status">{tr(cue.label)}</span>
               </span>
             </div>
             {projectName && <div className="row-second"><span className="project-label">
-              {projectName === "无项目" ? "独立会话" : projectName}
+              {projectName === "无项目" ? tr("独立会话") : projectName}
             </span></div>}
           </button>
         </div>;

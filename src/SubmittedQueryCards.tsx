@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, Copy } from "lucide-react";
@@ -11,6 +12,7 @@ type CardError = { status: SubmittedQuery["status"]; revision?: number; failure:
 const matchesError = (error: CardError, item: SubmittedQuery) => error.status === item.status && error.revision === item.queueRevision;
 
 function SubmittedQueryText({ text }: { text: string }) {
+  useLocale();
   const id = useId(), body = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false), [overflows, setOverflows] = useState(false);
   useLayoutEffect(() => {
@@ -26,9 +28,9 @@ function SubmittedQueryText({ text }: { text: string }) {
     <div id={id} className="submitted-query-body" data-expanded={expanded}>
       <p ref={body} className="submitted-query-text">{text}</p>
     </div>
-    {overflows && <button type="button" className="submitted-query-disclosure" aria-expanded={expanded} aria-controls={id} aria-label={expanded ? "收起原文" : "展开原文"}
+    {overflows && <button type="button" className="submitted-query-disclosure" aria-expanded={expanded} aria-controls={id} aria-label={expanded ? t("收起原文") : t("展开原文")}
       onPointerDown={event => { if (event.button === 0 && event.pointerType !== "touch") event.preventDefault(); }}
-      onClick={() => setExpanded(value => !value)}>{expanded ? "收起" : "展开"}</button>}
+      onClick={() => setExpanded(value => !value)}>{expanded ? t("收起") : t("展开")}</button>}
   </div>;
 }
 
@@ -45,6 +47,7 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
   explicitExitIds?: ReadonlySet<string>;
   inlineTargets?: ReadonlyMap<string, HTMLElement>;
 }) {
+  useLocale();
   const presence = useHandoffRows(items, submissionKey, inlineTargets ? NO_HANDOFF_IDS : exitIds, explicitExitIds);
   const inlineNodes = useRef(new Map<string, HTMLElement>());
   const inlineRefs = useRef(new Map<string, (node: HTMLElement | null) => void>());
@@ -128,26 +131,26 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
         data-submission-id={item.requestId} data-submission-status={item.status} data-feedback-state={accepted ? "accepted" : paused && item.status === "queued" ? "paused" : waiting ? "pending" : item.status}
         data-query-breathing={inlineTargets && item.status === "queued" && !paused && !disabled || undefined}>
         <div className="submitted-query-heading">
-          <span role="status">{accepted && <CheckCircle2 size={13} aria-hidden="true" />}{submittedQueryLabel(item, connecting)}</span>
+          <span role="status">{accepted && <CheckCircle2 size={13} aria-hidden="true" />}{t(submittedQueryLabel(item, connecting))}</span>
           <div className="submitted-query-primary-actions">
-            {!inlineTargets && item.text.trim() && <button type="button" className="submitted-query-copy" aria-label={copied === item.requestId ? "已复制已提交消息" : "复制已提交消息"}
-              title={copied === item.requestId ? "已复制" : "复制已提交消息"} onClick={() => void copy(item)}>
-              {copied === item.requestId ? <span>已复制</span> : <Copy size={15} aria-hidden="true" />}
+            {!inlineTargets && item.text.trim() && <button type="button" className="submitted-query-copy" aria-label={copied === item.requestId ? t("已复制已提交消息") : t("复制已提交消息")}
+              title={copied === item.requestId ? t("已复制") : t("复制已提交消息")} onClick={() => void copy(item)}>
+              {copied === item.requestId ? <span>{t("已复制")}</span> : <Copy size={15} aria-hidden="true" />}
             </button>}
-            <button type="button" disabled={disabled || !!checking} title={item.status === "unknown" ? "核对不会重复发送" : undefined}
-              onClick={() => void verify(item)}>{checking === item.requestId ? "正在核对…" : accepted ? "刷新历史" : "核对状态"}</button>
+            <button type="button" disabled={disabled || !!checking} title={item.status === "unknown" ? t("核对不会重复发送") : undefined}
+              onClick={() => void verify(item)}>{checking === item.requestId ? t("正在核对…") : accepted ? t("刷新历史") : t("核对状态")}</button>
           </div>
-          {item.status === "unknown" && <span className="sr-only">核对不会重复发送。</span>}
+          {item.status === "unknown" && <span className="sr-only">{t("核对不会重复发送。")}</span>}
         </div>
         {!inlineTargets && item.text.trim() && <SubmittedQueryText text={item.text} />}
         {!inlineTargets && <AttachmentList attachments={item.attachments} />}
         {(canDismiss || restore && ["rejected", "not_found"].includes(item.status)) && <div className="submitted-query-actions">
-          {restore && ["rejected", "not_found"].includes(item.status) && <button type="button" disabled={disabled || !!checking || !!restoring} onClick={() => void editAgain(item)}>{restoring === item.requestId ? "正在取回…" : "重新编辑"}</button>}
-          {canDismiss && <button type="button" onClick={() => dismiss(item.requestId)}>收起</button>}
+          {restore && ["rejected", "not_found"].includes(item.status) && <button type="button" disabled={disabled || !!checking || !!restoring} onClick={() => void editAgain(item)}>{restoring === item.requestId ? t("正在取回…") : t("重新编辑")}</button>}
+          {canDismiss && <button type="button" onClick={() => dismiss(item.requestId)}>{t("收起")}</button>}
         </div>}
-        {showError && <p className="receipt-action-error submitted-query-error" role="alert">{readableRequestError(error.failure, "暂时无法核对，请稍后再试。")}</p>}
+        {showError && <p className="receipt-action-error submitted-query-error" role="alert">{t(readableRequestError(error.failure, "暂时无法核对，请稍后再试。"))}</p>}
       </Row>;
       return target ? createPortal(row, target, item.requestId) : row;
     });
-  return inlineTargets ? <>{renderedRows}</> : <section className="submitted-queries" aria-label="已提交的消息">{renderedRows}</section>;
+  return inlineTargets ? <>{renderedRows}</> : <section className="submitted-queries" aria-label={t("已提交的消息")}>{renderedRows}</section>;
 }

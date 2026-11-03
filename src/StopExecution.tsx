@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { useEffect, useRef, useState } from "react";
 import { Square, RefreshCw, LoaderCircle } from "lucide-react";
@@ -16,6 +17,7 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
   refresh: () => Promise<void> | undefined; notify: (text: string) => void;
   onInteractionChange?: (active: boolean) => void;
 }) {
+  useLocale();
   const [busy, setBusy] = useState(false);
   const { owner, state } = useControlRequest(threadId, "stop");
   const acting = useRef(false), watched = useRef<string | null>(null);
@@ -76,10 +78,10 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
   };
   if (!history?.canStop && !waiting && !working) return null;
   return <IconButton type="button" className="stop-execution" data-composer-reading-control="" disabled={disabled || working}
-    aria-label={working ? "正在停止执行" : waiting ? "核对停止状态" : "停止当前执行"}
+    aria-label={working ? t("正在停止执行") : waiting ? t("核对停止状态") : t("停止当前执行")}
     aria-busy={working} data-waiting={waiting || working || undefined}
     onPointerDown={event => { if (event.button === 0 && event.pointerType !== "touch") event.preventDefault(); }}
-    title="中断当前执行，保留会话和待发消息" onClick={() => void stop()}>
+    title={t("中断当前执行，保留会话和待发消息")} onClick={() => void stop()}>
     <span className="stop-execution-disc">
       {working ? <LoaderCircle className="stop-spinner" size={16} aria-hidden="true" /> : waiting ? <RefreshCw size={15} aria-hidden="true" /> : <Square size={11} strokeWidth={0} fill="currentColor" aria-hidden="true" />}
     </span>

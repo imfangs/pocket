@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Code2, Maximize2, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import CopyButton from "./CopyButton";
@@ -7,6 +8,7 @@ import { renderDiagram } from "./mermaidRenderer";
 import "./mermaid.css";
 
 export default function MermaidBlock({ source, complete }: { source: string; complete: boolean }) {
+  useLocale();
   const frame = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false), [width, setWidth] = useState(320);
   const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.dataset.theme === "dark");
@@ -49,25 +51,25 @@ export default function MermaidBlock({ source, complete }: { source: string; com
     : failure === "limit" || failure === "timeout" ? "图表较复杂，已保留源码" : failure ? "暂时无法绘制，已保留源码" : !current ? "正在绘制…" : "";
   return <div className="code-block mermaid-block" data-diagram-state={!complete ? "incomplete" : !visible ? "deferred" : failure || (url ? "ready" : "loading")}>
     <div className="code-block-header">
-      <span>图表</span>
+      <span>{t("图表")}</span>
       <div className="diagram-actions">
-        {url && <button type="button" className="diagram-source-toggle" aria-pressed={sourceChoice} onClick={() => setSourceChoice(value => !value)}><Code2 size={14} aria-hidden="true" />源码</button>}
-        {failure && failure !== "unsupported" && failure !== "limit" && <button type="button" aria-label="重试绘制" onClick={() => { setResult(null); setAttempt(value => value + 1); }}><RotateCcw size={15} aria-hidden="true" /></button>}
-        <CopyButton text={source} label="复制图表源码" />
+        {url && <button type="button" className="diagram-source-toggle" aria-pressed={sourceChoice} onClick={() => setSourceChoice(value => !value)}><Code2 size={14} aria-hidden="true" />{t("源码")}</button>}
+        {failure && failure !== "unsupported" && failure !== "limit" && <button type="button" aria-label={t("重试绘制")} onClick={() => { setResult(null); setAttempt(value => value + 1); }}><RotateCcw size={15} aria-hidden="true" /></button>}
+        <CopyButton text={source} label={t("复制图表源码")} />
       </div>
     </div>
     <div ref={frame} className="diagram-frame">
-      {showSource ? <pre tabIndex={0} aria-label="图表源码" onPointerDown={() => setSourceChoice(true)} onFocus={() => setSourceChoice(true)}><code>{source}</code></pre> : <>
-        <div className="diagram-preview-scroll" tabIndex={0} role="region" aria-label="图表预览，可上下滚动">
-          <button type="button" className="diagram-preview" aria-label="放大查看图表" aria-haspopup="dialog"
-            onClick={event => openDiagram(url!, "图表", event.currentTarget)}>
-            <img src={url!} alt="Mermaid 图表，可查看源码或放大" decoding="async" draggable={false}
+      {showSource ? <pre tabIndex={0} aria-label={t("图表源码")} onPointerDown={() => setSourceChoice(true)} onFocus={() => setSourceChoice(true)}><code>{source}</code></pre> : <>
+        <div className="diagram-preview-scroll" tabIndex={0} role="region" aria-label={t("图表预览，可上下滚动")}>
+          <button type="button" className="diagram-preview" aria-label={t("放大查看图表")} aria-haspopup="dialog"
+            onClick={event => openDiagram(url!, "", event.currentTarget)}>
+            <img src={url!} alt={t("Mermaid 图表，可查看源码或放大")} decoding="async" draggable={false}
               onError={() => setResult({ source, width, value: { ok: false, reason: "invalid" } })} />
           </button>
         </div>
-        <span className="diagram-enlarge"><Maximize2 size={14} aria-hidden="true" />放大</span>
+        <span className="diagram-enlarge"><Maximize2 size={14} aria-hidden="true" />{t("放大")}</span>
       </>}
-      {note && <span className="diagram-note" role="status">{note}</span>}
+      {note && <span className="diagram-note" role="status">{t(note)}</span>}
     </div>
   </div>;
 }

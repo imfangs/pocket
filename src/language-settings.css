@@ -1,0 +1,4 @@
+.language-setting-row { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.language-setting-row > label { flex-shrink:0; font-size:14px; font-weight:550; }
+.language-setting-row > select { width:auto; max-width:min(72%, 280px); min-width:0; min-height:44px; padding:8px 12px; }
+.language-setting > .field-help { margin-top:6px; }

@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
 import PocketLogo from "./PocketLogo";
@@ -23,9 +24,10 @@ import { SettingsDialog } from "./Dialogs";
 import { bindMachineUnloadGuard, changeMachine, currentMachineId, needsPublicMachine } from "./machineScope";
 
 function AccessSettings() {
+  useLocale();
   const [open, setOpen] = useState(false);
   return <div className="access-settings">
-    <IconButton type="button" className="icon-button" aria-label="设置" title="设置" onClick={() => setOpen(true)}>
+    <IconButton type="button" className="icon-button" aria-label={t("设置")} title={t("设置")} onClick={() => setOpen(true)}>
       <Settings2 size={18} aria-hidden="true" />
     </IconButton>
     {open && <SettingsDialog notificationsAvailable={false} onClose={() => setOpen(false)} />}
@@ -33,13 +35,14 @@ function AccessSettings() {
 }
 
 function AppLoadFailure() {
+  useLocale();
   return <main className="access-screen">
     <section className="access-card" role="alert">
       <AccessSettings />
       <div className="access-brand"><PocketLogo /><span>Pocket</span></div>
-      <h1>暂时无法打开 Pocket</h1>
-      <p className="access-intro">可能遇到了版本更新或网络中断。请确认网络后重新加载。</p>
-      <Button type="button" className="primary access-submit" onClick={() => location.reload()}>重新加载 Pocket</Button>
+      <h1>{t("暂时无法打开 Pocket")}</h1>
+      <p className="access-intro">{t("可能遇到了版本更新或网络中断。请确认网络后重新加载。")}</p>
+      <Button type="button" className="primary access-submit" onClick={() => location.reload()}>{t("重新加载 Pocket")}</Button>
     </section>
   </main>;
 }
@@ -48,6 +51,7 @@ function AppLoadFailure() {
 // of its drafts, and no network or version event triggers a reload here.
 const App = lazy(() => import("./App").catch(() => ({ default: AppLoadFailure })));
 export default function AccessGate() {
+  useLocale();
   const machine = currentMachineId();
   const [state, setState] = useState<
       "loading" | "locked" | "authenticated" | "offline" | "select"
@@ -184,14 +188,14 @@ export default function AccessGate() {
             logoutAction={
               <button type="button" className="settings-logout-button" onClick={() => void logout()} disabled={busy}>
                 <LogOut size={16} aria-hidden="true" />
-                <span>{busy ? "正在退出…" : "退出登录"}</span>
+                <span>{busy ? t("正在退出…") : t("退出登录")}</span>
               </button>
             }
           />
         </Suspense>
         {error && (
           <div className="access-toast" role="alert">
-            {error}
+            {t(error)}
           </div>
         )}
       </>
@@ -204,19 +208,17 @@ export default function AccessGate() {
           <PocketLogo />
           <span>Pocket</span>
         </div>
-        <h1>连接 Codex</h1>
-        {state === "select" ? <p className="access-intro" role={error ? "alert" : undefined}>{error || "请在设置中选择电脑。"}</p> : state === "offline" ? (
+        <h1>{t("连接 Codex")}</h1>
+        {state === "select" ? <p className="access-intro" role={error ? "alert" : undefined}>{error ? t(error) : t("请在设置中选择电脑。")}</p> : state === "offline" ? (
           <div className="access-offline">
             <WifiOff size={24} />
-            <p>暂时无法连接。</p>
-            <small>确认 Mac 和网络可用后再试。</small>
-            <Button type="button" className="primary" onClick={() => void check()}>
-              重新连接
-            </Button>
+            <p>{t("暂时无法连接。")}</p>
+            <small>{t("确认 Mac 和网络可用后再试。")}</small>
+            <Button type="button" className="primary" onClick={() => void check()}>{t("重新连接")}</Button>
           </div>
         ) : (
           <form onSubmit={login}>
-            <label htmlFor="passphrase">访问口令</label>
+            <label htmlFor="passphrase">{t("访问口令")}</label>
             <div className="passphrase-input">
               <LockKeyhole size={18} />
               <input
@@ -237,7 +239,7 @@ export default function AccessGate() {
               />
               <button
                 type="button"
-                aria-label={visible ? "隐藏口令" : "显示口令"}
+                aria-label={visible ? t("隐藏口令") : t("显示口令")}
                 onClick={() => setVisible((v) => !v)}
               >
                 {visible ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -245,19 +247,17 @@ export default function AccessGate() {
             </div>
             {error && (
               <p className="inline-error" role="alert">
-                {error}
+                {t(error)}
               </p>
             )}
             <Button type="submit"
               className="primary access-submit"
               disabled={busy || !passphrase}
             >
-              {busy ? "正在验证…" : "进入 Pocket"}
+              {busy ? t("正在验证…") : t("进入 Pocket")}
               <ArrowRight size={17} />
             </Button>
-            <small className="access-session-note">
-              在这台设备保持登录 7 天，可随时退出。
-            </small>
+            <small className="access-session-note">{t("在这台设备保持登录 7 天，可随时退出。")}</small>
           </form>
         )}
         <div className="access-install">

@@ -8,6 +8,7 @@ import * as queries from '../src/submittedQueries.ts';
 import * as feedback from '../src/submissionFeedback.ts';
 import * as requestErrors from '../src/requestError.ts';
 import { captureDraft } from '../src/draftTransaction.ts';
+import { sourceTranslation } from '../src/displayTranslation.ts';
 
 // Exercise the component's real handlers and state transitions without a DOM or
 // native API. Layout/selection/44px hit targets are verified in the browser QA.
@@ -34,6 +35,7 @@ function mount(file, initial, request = async () => {}, clipboard = async () => 
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
     'lucide-react': { Check: 'check-icon', CheckCircle2: 'check-circle', Copy: 'copy-icon' },
     './submittedQueries': queries, './submissionFeedback': feedback, './requestError': requestErrors,
+    './i18n': { t: sourceTranslation, useLocale: () => 'zh-CN' },
     './AutoTextarea': { default: 'textarea' }, './AttachmentList': { default: 'attachments' },
     './api': { api: request }, './submissionReceipt': { waitForSubmission: async receipt => receipt },
     './updateSafety': { holdReload: () => () => {}, useReloadGuard() {} },

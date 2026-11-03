@@ -1,5 +1,6 @@
 import { heartbeatFieldMarkdown } from "./heartbeatMessage.ts";
 import { stripEnvelopeCitationSuffix } from "./envelopeCitation.ts";
+import { sourceTranslation, type DisplayTranslator } from "./displayTranslation.ts";
 
 export type SubagentNotification = {
   status: "completed" | "errored" | "running" | "pending_init" | "shutdown" | "not_found";
@@ -53,8 +54,8 @@ export function subagentNotificationFallback(source: string): string | null {
   return `${fence}text\n${source.trim()}\n${fence}`;
 }
 
-export function readableSubagentNotification(source: string): string {
+export function readableSubagentNotification(source: string, translate: DisplayTranslator = sourceTranslation): string {
   const notification = subagentNotification(source);
-  return notification ? [notification.label, heartbeatFieldMarkdown(notification.text)].filter(Boolean).join("\n\n")
+  return notification ? [translate(notification.label), heartbeatFieldMarkdown(notification.text)].filter(Boolean).join("\n\n")
     : subagentNotificationFallback(source) ?? source;
 }

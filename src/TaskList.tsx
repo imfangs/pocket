@@ -1,3 +1,4 @@
+import { t as tr, useLocale, formatDate } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import {
   Search,
@@ -52,6 +53,7 @@ interface Props {
   creationCues?: ReadonlyMap<string, CreationCue>;
 }
 export default function TaskList(p: Props) {
+  useLocale();
   const [limits, setLimits] = useState(() => new Map<string, number>());
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<{ id: string; kind: "priority" | "hidden" } | null>(null);
@@ -225,14 +227,14 @@ export default function TaskList(p: Props) {
       {rows.length === 0 ? (
         <div className="empty-list">
           {p.query ? <Search size={30} /> : <Inbox size={32} />}
-          <h2>{empty.title}</h2>
-          {empty.description && <p>{empty.description}</p>}
+          <h2>{tr(empty.title)}</h2>
+          {empty.description && <p>{tr(empty.description)}</p>}
           {emptyAction && empty.actionLabel && <div className="empty-list-actions">
-            <button className={empty.action === "create" ? "primary" : "secondary"} onClick={emptyAction} disabled={p.busy}>{empty.actionLabel}</button>
+            <button className={empty.action === "create" ? "primary" : "secondary"} onClick={emptyAction} disabled={p.busy}>{tr(empty.actionLabel)}</button>
           </div>}
         </div>
       ) : (
-        <div className="task-list" role="list" aria-label="会话列表">
+        <div className="task-list" role="list" aria-label={tr("会话列表")}>
           {rows.map((t) => {
             const inactive = !currentRows.has(t.id);
             const creation = inactive ? undefined : p.creationCues?.get(t.id);
@@ -247,11 +249,15 @@ export default function TaskList(p: Props) {
             const hasAutomations = !!automations && Number.isInteger(automations.count) && automations.count > 0;
             const allAutomationsPaused = hasAutomations && automations.activeCount === 0 && automations.pausedCount === automations.count;
             const automationState = allAutomationsPaused ? "paused" : automations && automations.activeCount > 0 ? "active" : "unknown";
-            const automationLabel = hasAutomations ? `定时任务：${automations.count} 个，${[
-              automations.activeCount > 0 ? `${automations.activeCount} 个已启用` : "",
-              automations.pausedCount > 0 ? `${automations.pausedCount} 个已暂停` : "",
-              automations.count > automations.activeCount + automations.pausedCount ? "部分状态待确认" : "",
-            ].filter(Boolean).join("，")}${automations.stale ? "；缓存可能已过期" : ""}` : "";
+            const automationLabel = hasAutomations ? tr("定时任务：{{count}} 个，{{statuses}}{{stale}}", {
+              count: automations.count,
+              statuses: [
+                automations.activeCount > 0 ? tr("{{count}} 个已启用", { count: automations.activeCount }) : "",
+                automations.pausedCount > 0 ? tr("{{count}} 个已暂停", { count: automations.pausedCount }) : "",
+                automations.count > automations.activeCount + automations.pausedCount ? tr("部分状态待确认") : "",
+              ].filter(Boolean).join(tr("，")),
+              stale: automations.stale ? tr("；缓存可能已过期") : "",
+            }) : "";
             return (
               <SwipeTaskRow
                 className={`task-row ${p.selected === t.id ? "is-selected" : ""} ${recentlyCreated ? "is-recently-created" : ""} ${creationPending ? `is-creation-${creationPending.phase}` : ""}`}
@@ -274,40 +280,40 @@ export default function TaskList(p: Props) {
                   aria-pressed={p.selected === t.id}
                   title={t.title}
                 >
-                  {recentlyCreated && <span className="sr-only">5 分钟内新建，</span>}
+                  {recentlyCreated && <span className="sr-only">{tr("5 分钟内新建，")}</span>}
                   <div className="row-first">
-                    <strong>{t.separator ? "分隔符会话" : t.title}</strong>
+                    <strong>{t.separator ? tr("分隔符会话") : t.title}</strong>
                     {pocketPriority(t) && <Star size={13} className="priority-icon"
-                      data-list-status="priority" data-list-status-key="pocket" role="img" aria-label="Pocket 优先关注" />}
+                      data-list-status="priority" data-list-status-key="pocket" role="img" aria-label={tr("Pocket 优先关注")} />}
                     {codexPinned(t) && <Pin size={13} className="pin-icon"
-                      data-list-status="codex-pin" data-list-status-key="codex" data-pin-source="codex" role="img" aria-label="Codex 置顶" />}
+                      data-list-status="codex-pin" data-list-status-key="codex" data-pin-source="codex" role="img" aria-label={tr("Codex 置顶")} />}
                     {hasAutomations && <span className="thread-automation-icon" data-automation-state={automationState}
                       data-automation-stale={automations.stale || undefined} data-list-status="automation"
                       role="img" aria-label={automationLabel} title={automationLabel}>
                       {allAutomationsPaused ? <AlarmClockOff size={13} aria-hidden="true" /> : <Clock size={13} aria-hidden="true" />}
                     </span>}
                     <span className="row-status-slot" data-list-status="primary" data-list-status-key={creationPending ? `creation-${creationPending.phase}` : presentation.primaryState?.key ?? "time"}>
-                      {creationPending ? <span className="creation-state-label" data-creation-phase={creationPending.phase} role="status">{creationPending.label}</span>
+                      {creationPending ? <span className="creation-state-label" data-creation-phase={creationPending.phase} role="status">{tr(creationPending.label)}</span>
                         : presentation.primaryState ? <span className="task-state-badge" data-state={presentation.primaryState.key}>
-                        {presentation.primaryState.label}
-                      </span> : messageAt !== null ? <time dateTime={new Date(messageAt).toISOString()} title={`最后消息：${new Date(messageAt).toLocaleString("zh-CN")}`}>{ago(messageAt)}</time>
-                        : <span aria-label="暂无可确认的消息时间" title="暂无可确认的消息时间">—</span>}
+                        {tr(presentation.primaryState.label)}
+                      </span> : messageAt !== null ? <time dateTime={new Date(messageAt).toISOString()} title={tr("最后消息：{{time}}", { time: formatDate(messageAt) })}>{ago(messageAt)}</time>
+                        : <span aria-label={tr("暂无可确认的消息时间")} title={tr("暂无可确认的消息时间")}>—</span>}
                     </span>
                   </div>
                   {(!p.projectScope || states.length > 0) && <div className="row-second">
                     {!p.projectScope && <span className="project-label">
-                      {t.projectName === "无项目" ? "独立会话" : t.projectName}
+                      {t.projectName === "无项目" ? tr("独立会话") : t.projectName}
                     </span>}
                     {states.length > 0 && <span className="row-secondary-states" data-list-status="secondary" data-list-status-key={states.map(state => state.key).join(" ")}>
-                      {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
+                      {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{tr(state.label)}</span>)}
                     </span>}
                   </div>}
-                  {pendingId === t.id && <span className="sr-only" role="status">正在保存…</span>}
+                  {pendingId === t.id && <span className="sr-only" role="status">{tr("正在保存…")}</span>}
                 </button>
                 <IconButton type="button"
                   className="row-open icon-button"
-                  aria-label={`在 Codex 打开 ${t.title}`}
-                  title="在 Codex 打开"
+                  aria-label={tr("在 Codex 打开 {{title}}", { title: t.title })}
+                  title={tr("在 Codex 打开")}
                   onClick={() => { const current = latest.current.currentRows.get(t.id); if (current) p.onOpen(current); }}
                   disabled={inactive || t.missing || p.busy || !!pendingId}
                 >
@@ -325,9 +331,7 @@ export default function TaskList(p: Props) {
                 if (next.size > 10) next.delete(next.keys().next().value!);
                 return next;
               })}
-            >
-              显示更多 · 还有 {p.threads.length - limit} 条
-            </button>
+            >{tr("显示更多 · 还有 {{count}} 条", { count: p.threads.length - limit })}</button>
           )}
         </div>
       )}

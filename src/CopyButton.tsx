@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -11,6 +12,7 @@ export default function CopyButton({
   text: string;
   label: string;
 }) {
+  useLocale();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const icon = useRef<HTMLSpanElement>(null), previous = useRef(copied);
@@ -27,8 +29,8 @@ export default function CopyButton({
       type="button"
       className="copy-button"
       data-copied={copied || undefined}
-      aria-label={copied ? "已复制" : label}
-      title={label}
+      aria-label={copied ? t("已复制") : t(label)}
+      title={t(label)}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -36,13 +38,13 @@ export default function CopyButton({
           clearTimeout(timer.current);
           timer.current = setTimeout(() => setCopied(false), 1800);
         } catch {
-          toast.error("复制未完成，请长按选择文字后复制");
+          toast.error(t("复制未完成，请长按选择文字后复制"));
         }
       }}
     >
       <span ref={icon} className="copy-feedback-icon" aria-hidden="true">{copied ? <Check size={15} /> : <Copy size={15} />}</span>
       <span className="sr-only" role="status">
-        {copied ? "已复制" : ""}
+        {copied ? t("已复制") : ""}
       </span>
     </IconButton>
   );

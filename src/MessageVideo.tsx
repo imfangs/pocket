@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { isMessageVideo } from "../shared/message-media.mjs";
@@ -25,6 +26,7 @@ function stopTransfer(video: HTMLVideoElement) {
 }
 
 export default function MessageVideo({ file, threadId, label }: { file: MessageFileReference; threadId: string; label?: string }) {
+  useLocale();
   const machine = currentMachineId(), source = messageVideoSource(file, threadId, machine);
   const url = source?.url ?? "", video = useRef<HTMLVideoElement>(null);
   const retry = useRef<(() => void) | null>(null);
@@ -80,18 +82,18 @@ export default function MessageVideo({ file, threadId, label }: { file: MessageF
     };
   }, [url, machine]);
 
-  if (!source) return <span className="message-file-fallback">{file.name}<small>文件保存在电脑上</small></span>;
+  if (!source) return <span className="message-file-fallback">{file.name}<small>{t("文件保存在电脑上")}</small></span>;
   return <span className="message-video" data-pocket-video="">
     <span className={`message-video-frame${failed ? " is-failed" : ""}`}>
-      <video ref={video} src={url} controls playsInline preload="none" aria-label={`视频：${title}`} aria-hidden={failed || undefined} />
+      <video ref={video} src={url} controls playsInline preload="none" aria-label={t("视频：{{title}}", { title: title })} aria-hidden={failed || undefined} />
       {failed && <span className="message-video-failure" role="alert">
-        <span>视频暂时无法播放，可重试或下载后查看。</span>
-        <button type="button" aria-label={`重试播放：${source.name}`} onClick={() => retry.current?.()}>重试</button>
+        <span>{t("视频暂时无法播放，可重试或下载后查看。")}</span>
+        <button type="button" aria-label={t("重试播放：{{value0}}", { value0: source.name })} onClick={() => retry.current?.()}>{t("重试")}</button>
       </span>}
     </span>
     <span className="message-video-caption">
       <span className="message-video-name" title={title}>{title}</span>
-      <a href={source.downloadUrl} download={source.name} aria-label={`下载视频：${source.name}`}><Download size={15} aria-hidden="true" />下载</a>
+      <a href={source.downloadUrl} download={source.name} aria-label={t("下载视频：{{value0}}", { value0: source.name })}><Download size={15} aria-hidden="true" />{t("下载")}</a>
     </span>
   </span>;
 }

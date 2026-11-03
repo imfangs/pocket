@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import { IconButton } from "./ui/IconButton";
 import { useEffect, useId, useRef, useState } from "react";
@@ -12,6 +13,7 @@ import type { RenameOperation, RenameSource } from "./threadRename";
 export default function RenameThreadDialog({ thread, onClose, onSaved }: {
   thread: Thread; onClose: () => void; onSaved: (thread: Thread) => void;
 }) {
+  useLocale();
   const [source, setSource] = useState<RenameSource | null>(null);
   const [name, setName] = useState(thread.title), [baseline, setBaseline] = useState(thread.title);
   const [operation, setOperation] = useState<RenameOperation>();
@@ -136,16 +138,16 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
     }
   };
 
-  return <Modal title="重命名会话" className="rename-thread-dialog" onClose={onClose} busy={submitting} dirty={dirty}>
+  return <Modal title={tr("重命名会话")} className="rename-thread-dialog" onClose={onClose} busy={submitting} dirty={dirty}>
     <form className="rename-thread-form" onSubmit={event => void submit(event)} noValidate>
-      <label className="field-label" htmlFor={inputId}>会话名称</label>
+      <label className="field-label" htmlFor={inputId}>{tr("会话名称")}</label>
       <div className="rename-thread-name">
         <input ref={nameInput} id={inputId} value={name} autoComplete="off" enterKeyHint="done"
           disabled={nameDisabled}
           aria-describedby={statusId} aria-invalid={!!renameNameError(name) && !!error || undefined}
           onKeyDown={event => { if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault(); }}
           onChange={event => editName(event.target.value)} />
-        {name.length > 0 && <IconButton type="button" className="icon-button rename-thread-clear" title="清空名称" aria-label="清空名称" disabled={nameDisabled}
+        {name.length > 0 && <IconButton type="button" className="icon-button rename-thread-clear" title={tr("清空名称")} aria-label={tr("清空名称")} disabled={nameDisabled}
           onMouseDown={event => { if (event.button === 0 && document.activeElement === nameInput.current) event.preventDefault(); }}
           onClick={() => {
             if (nameDisabled || inFlight.current) return;
@@ -154,17 +156,17 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
           }}><X size={16} aria-hidden="true" /></IconButton>}
       </div>
       <p className="field-help rename-thread-status" id={statusId} role="status">
-        {loading ? "正在读取原标题…" : operation ? renameOperationText(operation) : source && !source.canRename ? renameSourceHint(source) : "名称会同步到 Codex。"}
+        {loading ? tr("正在读取原标题…") : operation ? tr(renameOperationText(operation)) : source && !source.canRename ? tr(renameSourceHint(source)) : tr("名称会同步到 Codex。")}
       </p>
-      {operation?.currentTitle && operation.status === "changed" && <p className="field-help">当前名称：{operation.currentTitle}</p>}
-      {error && <p className="inline-error" role="alert">{error}</p>}
+      {operation?.currentTitle && operation.status === "changed" && <p className="field-help">{tr("当前名称：")}{operation.currentTitle}</p>}
+      {error && <p className="inline-error" role="alert">{tr(error)}</p>}
       <footer className="dialog-actions">
         {unresolved ? <>
-          <Button type="button" className="text-button" variant="ghost" color="gray" disabled={submitting} onClick={onClose}>关闭</Button>
-          <Button type="button" className="secondary" variant="soft" color="gray" disabled={busy || submitting} onClick={() => void check()}>{busy ? "正在核对…" : "核对结果"}</Button>
+          <Button type="button" className="text-button" variant="ghost" color="gray" disabled={submitting} onClick={onClose}>{tr("关闭")}</Button>
+          <Button type="button" className="secondary" variant="soft" color="gray" disabled={busy || submitting} onClick={() => void check()}>{busy ? tr("正在核对…") : tr("核对结果")}</Button>
         </> : <>
-          {(!source || !source.canRename) && <Button type="button" className="secondary" variant="soft" color="gray" disabled={loading} onClick={() => void readSource(true)}>重新读取</Button>}
-          <Button type="submit" className="primary" disabled={loading || submitting || !source?.canRename || !name.trim() || name.trim() === source.title}>保存名称</Button>
+          {(!source || !source.canRename) && <Button type="button" className="secondary" variant="soft" color="gray" disabled={loading} onClick={() => void readSource(true)}>{tr("重新读取")}</Button>}
+          <Button type="submit" className="primary" disabled={loading || submitting || !source?.canRename || !name.trim() || name.trim() === source.title}>{tr("保存名称")}</Button>
         </>}
       </footer>
     </form>

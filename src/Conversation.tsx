@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import AutoTextarea from "./AutoTextarea";
 import ContextStatus from "./ContextStatus";
@@ -93,6 +94,7 @@ export default function Conversation({
   managementBlocked?: boolean;
   managementHint?: string;
 }) {
+  useLocale();
   const [localSubmissions] = useState(createSubmittedQueryStore);
   const submissions = providedSubmissions ?? localSubmissions;
   const autoDirect = useSyncExternalStore(subscribeSendingPreference, readAutoDirectPreference, readAutoDirectPreference);
@@ -746,12 +748,12 @@ export default function Conversation({
   const inlineConnectionLabel = !online ? "离线" : connecting ? "连接中" : compatibilityCode ? "暂不可连接"
     : connectionFailed ? "连接失败" : observedConnection.status === "connected" ? "同步中" : "未连接";
   return (
-    <section ref={conversationRoot} className="conversation" aria-label="会话历史与发送">
+    <section ref={conversationRoot} className="conversation" aria-label={t("会话历史与发送")}>
       <div className="conversation-feed">
       <div
         className="conversation-messages"
         role="region"
-        aria-label="会话正文"
+        aria-label={t("会话正文")}
         tabIndex={0}
         ref={messages}
         onScroll={() => {
@@ -771,31 +773,31 @@ export default function Conversation({
         }}
       >
         {(hasEarlierMessages || earlier.active || earlier.loading || earlier.error || earlier.ready) && <div className="earlier-history-boundary">
-          {earlier.active && <span>正在查看较早消息</span>}
-          {earlier.error && <p role="status">{earlier.error}</p>}
-          {earlier.ready && <p role="status">{earlier.ready === "newer" ? "较新消息已载入，可在下方查看。" : "消息已载入，当前阅读位置保持不变。"}</p>}
-          {earlier.expired ? <button type="button" disabled={!online || earlier.loading} onClick={() => { void earlierWindow.restart(); }}>{earlier.loading ? "正在重新核对…" : "重新核对"}</button>
+          {earlier.active && <span>{t("正在查看较早消息")}</span>}
+          {earlier.error && <p role="status">{t(earlier.error)}</p>}
+          {earlier.ready && <p role="status">{earlier.ready === "newer" ? t("较新消息已载入，可在下方查看。") : t("消息已载入，当前阅读位置保持不变。")}</p>}
+          {earlier.expired ? <button type="button" disabled={!online || earlier.loading} onClick={() => { void earlierWindow.restart(); }}>{earlier.loading ? t("正在重新核对…") : t("重新核对")}</button>
             : !earlier.active || earlier.hasOlder || earlier.ready && earlier.ready !== "newer" ? <button type="button" disabled={!online || earlier.loading}
-              onClick={() => earlier.ready && earlier.ready !== "newer" ? earlierWindow.applyReady() : earlierWindow.older()}>{earlier.loading ? "正在加载消息…" : earlier.ready && earlier.ready !== "newer" ? "查看已加载的消息" : earlier.error ? "重试加载更早消息" : "加载更早消息"}</button>
-            : <span>已到最早消息</span>}
+              onClick={() => earlier.ready && earlier.ready !== "newer" ? earlierWindow.applyReady() : earlierWindow.older()}>{earlier.loading ? t("正在加载消息…") : earlier.ready && earlier.ready !== "newer" ? t("查看已加载的消息") : earlier.error ? t("重试加载更早消息") : t("加载更早消息")}</button>
+            : <span>{t("已到最早消息")}</span>}
         </div>}
         <div className="conversation-live" hidden={earlier.active}>
         {emptyReadState === "loading" && <div className="conversation-read-loading" role="status">
           <LoaderCircle size={16} className="composer-connection-spinner" aria-hidden="true" />
-          <span>正在读取消息…</span>
+          <span>{t("正在读取消息…")}</span>
         </div>}
         {emptyReadState === "empty" && (
           <div className="history-empty conversation-empty">
-            <h3>{targetAvailable ? "从一句话开始" : "暂时没有可显示的消息"}</h3>
-            {targetAvailable && <p>写下你想讨论或完成的事。</p>}
+            <h3>{targetAvailable ? t("从一句话开始") : t("暂时没有可显示的消息")}</h3>
+            {targetAvailable && <p>{t("写下你想讨论或完成的事。")}</p>}
           </div>
         )}
         {emptyReadRecovery && <div className="history-empty conversation-empty conversation-read-recovery" role="status">
-          <h3>暂时无法读取会话</h3>
+          <h3>{t("暂时无法读取会话")}</h3>
           <Button type="button" variant="soft" color="gray" disabled={retryingHistory}
             onClick={() => void recoverConnection()}>
             <RefreshCw size={15} aria-hidden="true" />
-            {retryingHistory ? "正在读取…" : "重新读取"}
+            {retryingHistory ? t("正在读取…") : t("重新读取")}
           </Button>
         </div>}
         {[...progress.entries.map(entry => {
@@ -827,24 +829,24 @@ export default function Conversation({
         {earlier.active && <div className="earlier-history-messages">
           {earlier.messages.map(message => <EarlierHistoryMessage key={message.id} threadId={thread.id} message={message} />)}
           {earlier.hasNewer && <div className="earlier-history-boundary earlier-history-newer">
-            <span>较新消息未显示</span>
+            <span>{t("较新消息未显示")}</span>
             {earlier.canLoadNewer && <button type="button" disabled={!online || earlier.loading || earlier.expired}
-              onClick={() => { void earlierWindow.newer(); }}>{earlier.loading ? "正在加载…" : earlier.ready === "newer" ? "查看已加载的较新消息" : "查看较新消息"}</button>}
+              onClick={() => { void earlierWindow.newer(); }}>{earlier.loading ? t("正在加载…") : earlier.ready === "newer" ? t("查看已加载的较新消息") : t("查看较新消息")}</button>}
           </div>}
         </div>}
       </div>
       {(awayFromLatest || earlier.active) && <button type="button" className="conversation-latest" onClick={returnToLatest}>
         <ArrowDown size={14} aria-hidden="true" />
-        {!earlier.active && hasNewContent ? "有新内容 · 返回最新" : "返回最新消息"}
+        {!earlier.active && hasNewContent ? t("有新内容 · 返回最新") : t("返回最新消息")}
       </button>}
       </div>
       <div className="conversation-status">
         {connectionHint && (!recoveryVisible || thread.archived || managementBlocked || compatibilityCode) && <div className="conversation-connection">
-        {connectionHint && <p role="status">{connectionHint}</p>}
+        {connectionHint && <p role="status">{t(connectionHint)}</p>}
         </div>}
         {(error || notice) && <div className="conversation-feedback">
-          {error ? <p className="conversation-action-error" role="alert">{readableRequestError(error)}</p>
-            : <p className={`message-notice${/^已加入(?: Mac )?待发/.test(notice) ? " queue-receipt-notice" : ""}`} role="status">{notice}</p>}
+          {error ? <p className="conversation-action-error" role="alert">{t(readableRequestError(error))}</p>
+            : <p className={`message-notice${/^已加入(?: Mac )?待发/.test(notice) ? " queue-receipt-notice" : ""}`} role="status">{t(notice)}</p>}
         </div>}
       </div>
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
@@ -859,7 +861,7 @@ export default function Conversation({
         onSubmit={(e) => void submit(e)}>
         <div className="composer-overview">
           <div className="runtime-summary">
-            {!showConnectionState && runtimeLabel && <span role="status" className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>{runtimeLabel}</span>}
+            {!showConnectionState && runtimeLabel && <span role="status" className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>{t(runtimeLabel)}</span>}
             <TurnDuration timing={toolbarTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
           </div>
           <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked}
@@ -870,9 +872,7 @@ export default function Conversation({
           error={attachmentError || (attachmentRecoveryNeeded ? attachmentRecoveryError : undefined)}
           localRemovalAllowed={targetAvailable && !draft.requestId}
           onRecover={attachmentRecoveryNeeded ? () => void recoverAttachments() : undefined} />
-        <label className="sr-only" htmlFor="user-query">
-          发送消息
-        </label>
+        <label className="sr-only" htmlFor="user-query">{t("发送消息")}</label>
         <div className="composer-text-field" onClick={event => {
           const input = event.currentTarget.querySelector("textarea");
           if (input && event.target !== input && event.isTrusted && event.button === 0 &&
@@ -885,9 +885,9 @@ export default function Conversation({
         <div className="composer-editable" data-draft-preview={composer.compact && draft.text.length > 0 || undefined}>
         <AutoTextarea
           id="user-query"
-          aria-label="发送消息"
+          aria-label={t("发送消息")}
           rows={composer.compact ? 1 : 2}
-          placeholder={thread.archived ? "取消归档后可继续对话…" : composer.compact ? "继续对话…" : enqueue ? "写下下一步，稍后依次发送…" : "写下想法，继续这段对话…"}
+          placeholder={thread.archived ? t("取消归档后可继续对话…") : composer.compact ? t("继续对话…") : enqueue ? t("写下下一步，稍后依次发送…") : t("写下想法，继续这段对话…")}
           value={draft.text}
           maxLength={16000}
           onFocus={() => usage.focus(thread.id)}
@@ -899,36 +899,36 @@ export default function Conversation({
           }}
         />
         {composer.compact && draft.text.length > 0 && <span className="composer-draft-preview" aria-hidden="true">
-          {draft.text.replace(/\s+/g, " ").trim() || "未发送的草稿"}
+          {draft.text.replace(/\s+/g, " ").trim() || t("未发送的草稿")}
         </span>}
         </div>
         {inlineRecovery && <button type="button" className="composer-recovery" data-composer-reading-control=""
-          disabled={retryingHistory || connecting} title={recoveryMessage}
-          aria-label="重新读取"
+          disabled={retryingHistory || connecting} title={t(recoveryMessage)}
+          aria-label={t("重新读取")}
           onClick={event => { event.stopPropagation(); void recoverConnection(); }}>
           {retryingHistory || connecting ? <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" /> : <RefreshCw size={12} aria-hidden="true" />}
-          <span>{retryingHistory || connecting ? "重试中…" : /较慢/.test(recoveryMessage) ? "连接较慢" : "连接中断"}</span>
-          {!retryingHistory && !connecting && <span className="composer-recovery-action">重试</span>}
+          <span>{retryingHistory || connecting ? t("重试中…") : /较慢/.test(recoveryMessage) ? t("连接较慢") : t("连接中断")}</span>
+          {!retryingHistory && !connecting && <span className="composer-recovery-action">{t("重试")}</span>}
         </button>}
         {inlineAttachmentRecovery && <button type="button" className="composer-recovery composer-attachment-recovery" data-composer-reading-control=""
-          disabled={recoveringAttachments} title={attachmentRecoveryError} aria-label="重新读取附件"
+          disabled={recoveringAttachments} title={t(attachmentRecoveryError)} aria-label={t("重新读取附件")}
           onClick={event => { event.stopPropagation(); void recoverAttachments(); }}>
           {recoveringAttachments ? <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" /> : <RefreshCw size={12} aria-hidden="true" />}
-          <span>{recoveringAttachments ? "读取中…" : "附件未同步"}</span>
-          {!recoveringAttachments && <span className="composer-recovery-action">重试</span>}
+          <span>{recoveringAttachments ? t("读取中…") : t("附件未同步")}</span>
+          {!recoveringAttachments && <span className="composer-recovery-action">{t("重试")}</span>}
         </button>}
         {!emptyReadRecovery && !inlineRecovery && !inlineAttachmentRecovery && (showConnectionState || !online) &&
-          !(online && connecting && connectionOnlyAction && !composer.compact) && <span className="composer-inline-state" role="status" title={connectionLabel} aria-label={connectionLabel}
+          !(online && connecting && connectionOnlyAction && !composer.compact) && <span className="composer-inline-state" role="status" title={t(connectionLabel)} aria-label={t(connectionLabel)}
           data-state={!online || connectionFailed || compatibilityCode ? "warning" : connecting ? "connecting" : "idle"}>
           {connecting && <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" />}
-          <span>{inlineConnectionLabel}</span>
+          <span>{t(inlineConnectionLabel)}</span>
         </span>}
-        {!recoveryVisible && !inlineAttachmentRecovery && !showConnectionState && online && !historyError && history?.runtime === "active" && !history.compaction?.active && !history.pendingRequests?.length && <span className="composer-inline-state composer-inline-runtime" role="status" data-state="running">运行中</span>}
+        {!recoveryVisible && !inlineAttachmentRecovery && !showConnectionState && online && !historyError && history?.runtime === "active" && !history.compaction?.active && !history.pendingRequests?.length && <span className="composer-inline-state composer-inline-runtime" role="status" data-state="running">{t("运行中")}</span>}
         </div>
         </div>
         <div className="composer-actions">
           <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} onPickingChange={composer.setPicking} preserveFocus />
-          <button type="button" className="composer-collapse icon-button" aria-label="收起输入" title="收起输入"
+          <button type="button" className="composer-collapse icon-button" aria-label={t("收起输入")} title={t("收起输入")}
             disabled={!composer.canCollapse} onPointerDown={event => { if (event.button === 0 && event.pointerType !== "touch") event.preventDefault(); }} onClick={composer.collapse}>
             <ChevronDown size={18} aria-hidden="true" />
           </button>
@@ -953,7 +953,7 @@ export default function Conversation({
             }
           >
             {restoring || connectionOnlyAction && connecting ? <LoaderCircle size={15} className="composer-connection-spinner" aria-hidden="true" /> : restoreOnlyAction ? <ArchiveRestore size={15} aria-hidden="true" /> : connectionOnlyAction ? <RefreshCw size={15} aria-hidden="true" /> : <Send size={15} />}
-            {restoreOnlyAction ? restoring ? "取消归档中…" : "取消归档" : connectionOnlyAction ? connecting ? "连接中…" : "重试连接" : sending ? "提交中…" : draft.requestId ? "核对发送状态" : managementBlocked ? "暂不可发送" : sendAndConnect ? "发送" : enqueue ? "加入队列" : "发送"}
+            {restoreOnlyAction ? restoring ? t("取消归档中…") : t("取消归档") : connectionOnlyAction ? connecting ? t("连接中…") : t("重试连接") : sending ? t("提交中…") : draft.requestId ? t("核对发送状态") : managementBlocked ? t("暂不可发送") : sendAndConnect ? t("发送") : enqueue ? t("加入队列") : t("发送")}
           </Button>
         </div>
       </form>

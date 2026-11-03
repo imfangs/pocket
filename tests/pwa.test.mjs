@@ -20,11 +20,13 @@ test('public shell upgrade retains deep links on offline retry and never adds pr
   assert.equal(stored.has('navigator-public-shell-v8'), false); assert.equal(stored.has('unrelated-cache'), true);
   assert.equal(skipped, 1); assert.equal(claimed, 1);
   const resources = [...stored.values()].flatMap(cache => [...cache.keys()]);
-  assert.ok(resources.includes('/offline.html')); assert.ok(resources.every(path => !path.startsWith('/api/')));
+  assert.ok(stored.has('navigator-public-shell-v12'));
+  assert.ok(resources.includes('/offline.html')); assert.ok(resources.includes('/language.js'));
+  assert.ok(resources.every(path => !path.startsWith('/api/')));
   const original = 'https://example.test/?task=aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
   handlers.fetch({ request: { url: original, method: 'GET', mode: 'navigate' }, respondWith: value => { pending = value; } });
   const html = await (await pending).text();
-  const href = /<a\s+href="([^"]*)"[^>]*>重新连接<\/a>/.exec(html)?.[1];
+  const href = /<a\s+href="([^"]*)"[^>]*data-shell-text="reconnect"[^>]*>Reconnect<\/a>/.exec(html)?.[1];
   assert.equal(fetched, original); assert.notEqual(href, undefined);
   assert.equal(new URL(href, original).href, original);
 });
@@ -60,7 +62,8 @@ test("worker handles real fetch failures and 502 navigations with only the publi
     context,
   );
   let installing;handlers.install({waitUntil:p=>installing=p});await installing;
-  assert.ok(cached.length>0&&cached.every(path=>path==='/offline.html'||path==='/theme.js'||path==='/startup.css'||path==='/manifest.webmanifest'||path.startsWith('/icons/')));
+  assert.ok(cached.includes('/language.js'));
+  assert.ok(cached.length>0&&cached.every(path=>path==='/offline.html'||path==='/theme.js'||path==='/language.js'||path==='/startup.css'||path==='/manifest.webmanifest'||path.startsWith('/icons/')));
   const navigation = async () => {
     let promise;
     handlers.fetch({

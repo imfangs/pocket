@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -7,6 +8,7 @@ import { machineApiPath } from "./machineScope";
 import { diagramDataPrefix } from "./mermaidPolicy";
 
 export default function ImageViewer({ src, alt, onClose, opener, diagram = false }: { src: string; alt: string; onClose: () => void; opener?: HTMLElement | null; diagram?: boolean }) {
+  useLocale();
   const imageSrc = diagram && src.startsWith(diagramDataPrefix) ? src : machineApiPath(src);
   const noun = diagram ? "图表" : "图片";
   const dialog = useRef<HTMLDialogElement>(null), stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLDivElement>(null);
@@ -82,11 +84,11 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
   const fitted = fitImage(natural, frame);
   const changeZoom = (scale: number) => commit(zoomImage(valueRef.current, scale, { x: 0, y: 0 }, bounds()));
   if (typeof document === "undefined") return null;
-  return createPortal(<dialog ref={dialog} className="pocket-image-viewer" data-image-viewer="" data-diagram-viewer={diagram || undefined} data-reading-overlay="" aria-label={`查看${noun}：${alt || noun}`}
+  return createPortal(<dialog ref={dialog} className="pocket-image-viewer" data-image-viewer="" data-diagram-viewer={diagram || undefined} data-reading-overlay="" aria-label={t("查看{{noun}}：{{value1}}", { noun: t(noun), value1: alt || t(noun) })}
     onCancel={event => { event.preventDefault(); requestClose(); }}>
-    <div ref={stage} className="image-viewer-stage" tabIndex={-1} role="region" aria-label={`${noun}预览`} style={{ outline: "none" }}>
+    <div ref={stage} className="image-viewer-stage" tabIndex={-1} role="region" aria-label={t("{{noun}}预览", { noun: t(noun) })} style={{ outline: "none" }}>
       <div ref={canvas} className="image-viewer-canvas">
-        <img key={`${src}:${attempt}`} className="image-viewer-image" src={imageSrc} alt={alt || noun} draggable={false} decoding="async" referrerPolicy="no-referrer"
+        <img key={`${src}:${attempt}`} className="image-viewer-image" src={imageSrc} alt={alt || t(noun)} draggable={false} decoding="async" referrerPolicy="no-referrer"
           data-scale={value.scale} style={{ width: fitted.width || undefined, height: fitted.height || undefined, visibility: phase === "ready" ? "visible" : "hidden",
             transform: `translate(-50%, -50%) translate(${value.x}px, ${value.y}px) scale(${value.scale})` }}
           onLoad={event => {
@@ -97,15 +99,15 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
           }} onError={() => { ready.current = false; setPhase("failed"); }} />
       </div>
       {phase !== "ready" && <div className="image-viewer-message" data-image-viewer-control="">
-        {phase === "loading" ? <p role="status">正在加载图片…</p> : <><p role="alert">图片暂时无法显示</p>
-          <button type="button" onClick={() => { ready.current = false; setPhase("loading"); commit(imageIdentity()); setAttempt(value => value + 1); }}>重新加载图片</button></>}
+        {phase === "loading" ? <p role="status">{t("正在加载图片…")}</p> : <><p role="alert">{t("图片暂时无法显示")}</p>
+          <button type="button" onClick={() => { ready.current = false; setPhase("loading"); commit(imageIdentity()); setAttempt(value => value + 1); }}>{t("重新加载图片")}</button></>}
       </div>}
     </div>
-    <button type="button" className="image-viewer-close" aria-label={`关闭${noun}`} onClick={requestClose}><X size={20} aria-hidden="true" /><span>关闭</span></button>
-    <div className="image-viewer-zoom" role="group" aria-label={`${noun}缩放`}>
-      <button type="button" aria-label={`缩小${noun}`} disabled={phase !== "ready" || value.scale <= 1} onClick={() => changeZoom(valueRef.current.scale / 1.5)}><Minus size={20} aria-hidden="true" /></button>
-      <button type="button" className="image-viewer-reset" aria-label={`复位${noun}`} disabled={phase !== "ready" || value.scale === 1 && value.x === 0 && value.y === 0} onClick={() => commit(imageIdentity())}><RotateCcw size={17} aria-hidden="true" /><span>复位</span></button>
-      <button type="button" aria-label={`放大${noun}`} disabled={phase !== "ready" || value.scale >= IMAGE_ZOOM_MAX} onClick={() => changeZoom(valueRef.current.scale * 1.5)}><Plus size={20} aria-hidden="true" /></button>
+    <button type="button" className="image-viewer-close" aria-label={t("关闭{{noun}}", { noun: t(noun) })} onClick={requestClose}><X size={20} aria-hidden="true" /><span>{t("关闭")}</span></button>
+    <div className="image-viewer-zoom" role="group" aria-label={t("{{noun}}缩放", { noun: t(noun) })}>
+      <button type="button" aria-label={t("缩小{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale <= 1} onClick={() => changeZoom(valueRef.current.scale / 1.5)}><Minus size={20} aria-hidden="true" /></button>
+      <button type="button" className="image-viewer-reset" aria-label={t("复位{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale === 1 && value.x === 0 && value.y === 0} onClick={() => commit(imageIdentity())}><RotateCcw size={17} aria-hidden="true" /><span>{t("复位")}</span></button>
+      <button type="button" aria-label={t("放大{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale >= IMAGE_ZOOM_MAX} onClick={() => changeZoom(valueRef.current.scale * 1.5)}><Plus size={20} aria-hidden="true" /></button>
     </div>
   </dialog>, document.body);
 }

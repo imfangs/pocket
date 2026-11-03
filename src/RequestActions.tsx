@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "./api";
@@ -13,6 +14,7 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
   threadId: string; requests: PendingRequest[]; disabled: boolean; refresh: () => Promise<void> | undefined;
   drafts: Map<string, QueryDraft>;
 }) {
+  useLocale();
   const [busy, setBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, Reply>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -103,18 +105,18 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
     } finally { release(); if (generation === viewGeneration.current) setBusy(null); }
   };
   if (!requests.length) return null;
-  return <section ref={container} className="request-actions" aria-label="等待确认">
-    <strong>等待确认</strong>
+  return <section ref={container} className="request-actions" aria-label={t("等待确认")}>
+    <strong>{t("等待确认")}</strong>
     {requests.map(request => {
       const reply = pending[request.key] || request.response;
       const waiting = !!reply && ["pending", "accepted", "unknown", "resolved"].includes(reply.status);
       const requestAnswers = values(request);
       return <article className="approval-card" key={request.key}>
-        <span className="approval-kind">{request.kind === "file" ? "文件改动" : request.kind === "permissions" ? "本轮权限" : request.questions?.length ? "需要回答" : request.command ? "命令执行" : "操作确认"}</span>
+        <span className="approval-kind">{request.kind === "file" ? t("文件改动") : request.kind === "permissions" ? t("本轮权限") : request.questions?.length ? t("需要回答") : request.command ? t("命令执行") : t("操作确认")}</span>
         <p>{request.reason}</p>
-        {request.cwd && <><small>工作目录</small><div className="approval-cwd">{request.cwd}</div></>}
-        {request.command && <><small>将执行的命令</small><pre>{request.command}</pre></>}
-        {request.details && <><small>{request.kind === "file" ? "文件改动" : request.kind === "permissions" ? "申请权限 · 仅本轮" : "请求详情"}</small><pre>{request.details}</pre></>}
+        {request.cwd && <><small>{t("工作目录")}</small><div className="approval-cwd">{request.cwd}</div></>}
+        {request.command && <><small>{t("将执行的命令")}</small><pre>{request.command}</pre></>}
+        {request.details && <><small>{request.kind === "file" ? t("文件改动") : request.kind === "permissions" ? t("申请权限 · 仅本轮") : t("请求详情")}</small><pre>{request.details}</pre></>}
         {request.questions?.map(question => <fieldset key={question.id} disabled={disabled || !!busy || waiting} className="approval-question">
           <legend>{question.question}</legend>
           {question.options?.map(option => <label key={option.label}>
@@ -130,15 +132,15 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
               onChange={event => answer(request, question.id, event.target.value)} />}
         </fieldset>)}
         <div className="approval-buttons">
-          {waiting ? <><small>{reply.status === "unknown" ? "结果待核对，不会重复响应" : "已提交，等待更新"}</small>
-            <button disabled={disabled || !!busy} onClick={() => void act(request)}>核对状态</button></>
-            : <>{request.choices.includes("cancel") && <button disabled={disabled || !!busy} onClick={() => void act(request, "cancel")}>拒绝本次</button>}
-              {request.choices.includes("accept") && <Button type="button" className="primary" disabled={disabled || !!busy} onClick={() => void act(request, "accept")}>{request.kind === "permissions" ? "允许本轮" : "允许这一次"}</Button>}
-              {!!request.questions?.length && <Button type="button" className="primary" disabled={disabled || !!busy || request.questions.some(q => !requestAnswers[q.id]?.trim())} onClick={() => void act(request, "answer")}>提交回答</Button>}</>}
+          {waiting ? <><small>{reply.status === "unknown" ? t("结果待核对，不会重复响应") : t("已提交，等待更新")}</small>
+            <button disabled={disabled || !!busy} onClick={() => void act(request)}>{t("核对状态")}</button></>
+            : <>{request.choices.includes("cancel") && <button disabled={disabled || !!busy} onClick={() => void act(request, "cancel")}>{t("拒绝本次")}</button>}
+              {request.choices.includes("accept") && <Button type="button" className="primary" disabled={disabled || !!busy} onClick={() => void act(request, "accept")}>{request.kind === "permissions" ? t("允许本轮") : t("允许这一次")}</Button>}
+              {!!request.questions?.length && <Button type="button" className="primary" disabled={disabled || !!busy || request.questions.some(q => !requestAnswers[q.id]?.trim())} onClick={() => void act(request, "answer")}>{t("提交回答")}</Button>}</>}
         </div>
         {errors[request.key] && <p className="inline-error approval-error" role="alert"
           ref={element => { if (element) errorElements.current.set(request.key, element); else errorElements.current.delete(request.key); }}>
-          {errors[request.key]}
+          {t(errors[request.key])}
         </p>}
       </article>;
     })}

@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { createAppUpdate, type AppVersion } from "./appUpdate";
@@ -5,6 +6,7 @@ import { getReloadBlocker } from "./updateSafety";
 import { CLIENT_VERSION, clientVersionHeaders } from "./clientVersion";
 
 export default function PocketUpdate({ taskId }: { taskId: string | null }) {
+  useLocale();
   const [available, setAvailable] = useState<AppVersion | null>(null);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState("");
@@ -56,8 +58,8 @@ export default function PocketUpdate({ taskId }: { taskId: string | null }) {
   }, [update]);
   if (!available) return null;
   return <div className="pocket-update" role="status">
-    <div className="pocket-update-copy"><span>Pocket 有新版本</span>{hint && <small>{hint}</small>}</div>
-    <button type="button" disabled={busy} aria-label="更新 Pocket" onClick={async () => {
+    <div className="pocket-update-copy"><span>{t("Pocket 有新版本")}</span>{hint && <small>{t(hint)}</small>}</div>
+    <button type="button" disabled={busy} aria-label={t("更新 Pocket")} onClick={async () => {
       setBusy(true);
       setHint("");
       const result = await update.apply();
@@ -65,6 +67,6 @@ export default function PocketUpdate({ taskId }: { taskId: string | null }) {
         setBusy(false);
         setHint(result.reason || (result.status === "current" ? "已经是最新版本。" : "稍后再试。"));
       }
-    }}><RefreshCw size={14} className={busy ? "spinning" : undefined} />{busy ? "检查中…" : "更新"}</button>
+    }}><RefreshCw size={14} className={busy ? "spinning" : undefined} />{busy ? t("检查中…") : t("更新")}</button>
   </div>;
 }

@@ -1,3 +1,4 @@
+import { sourceTranslation, type DisplayTranslator } from "./displayTranslation.ts";
 export type ResponseAnnotation = { text: string; comment?: string };
 export type ResponseAnnotations = { query: string; annotations: ResponseAnnotation[] };
 
@@ -33,10 +34,10 @@ export function parseResponseAnnotations(source: string): ResponseAnnotations | 
   return { query: rest.slice(notice.length + block[0].length), annotations };
 }
 
-export function readableAnnotationMessage(query: string, annotations: readonly ResponseAnnotation[]) {
+export function readableAnnotationMessage(query: string, annotations: readonly ResponseAnnotation[], translate: DisplayTranslator = sourceTranslation) {
   const references = annotations.map((item, index) => [
-    `引用${annotations.length > 1 ? ` ${index + 1}` : ""}：\n${item.text}`,
-    item.comment?.trim() ? `批注：\n${item.comment}` : "",
+    translate("引用{{number}}：\n{{text}}", { number: annotations.length > 1 ? ` ${index + 1}` : "", text: item.text }),
+    item.comment?.trim() ? translate("批注：\n{{text}}", { text: item.comment }) : "",
   ].filter(Boolean).join("\n\n"));
   return [...(query.trim() ? [query] : []), ...references].join("\n\n");
 }

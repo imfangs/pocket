@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import MessageMarkdown from "./MessageMarkdown";
@@ -16,6 +17,7 @@ export default function UserQueryBody({ text, images, disclosure }: {
   images?: Record<string, string>;
   disclosure: QueryDisclosure;
 }) {
+  useLocale();
   const id = useId();
   const content = useRef<HTMLDivElement>(null);
   const [overflows, setOverflows] = useState(false);
@@ -76,7 +78,7 @@ export default function UserQueryBody({ text, images, disclosure }: {
         motion.prepare(anchor);
         disclosure.toggle(!expanded, anchor);
       }}>
-      {expanded ? "收起" : "展开更多"}
+      {expanded ? t("收起") : t("展开更多")}
       {expanded ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
     </button>}
   </div>;

@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { useEffect, useState } from "react";
 import type { TurnTiming } from "./conversationFeed";
 
@@ -16,6 +17,7 @@ export function elapsedDuration(timing: TurnTiming, extraMs = 0) {
 // Tick only this small label, never the message list. Anchor to Mac time so a
 // phone with a different clock still displays the same elapsed duration.
 export default function TurnDuration({ timing, live }: { timing?: TurnTiming | null; live: boolean }) {
+  useLocale();
   const [tick, setTick] = useState<{ observedAt: number; turnId: string | null; extraMs: number } | null>(null);
   const observedAt = timing?.observedAt;
   const turnId = timing?.turnId;
@@ -37,7 +39,7 @@ export default function TurnDuration({ timing, live }: { timing?: TurnTiming | n
   if (elapsed == null) return null;
   const label = running ? live ? "" : "已记录" : "总用时";
   const duration = formatDuration(elapsed);
-  return <span className="turn-duration" title="本轮从开始到结束的用时，包含工具执行和等待确认">
-    {label && `${label} `}<time aria-label={label ? undefined : `本轮用时 ${duration}`}>{duration}</time>
+  return <span className="turn-duration" title={t("本轮从开始到结束的用时，包含工具执行和等待确认")}>
+    {label && `${t(label)} `}<time aria-label={label ? undefined : t("本轮用时 {{value1}}", { value1: duration })}>{duration}</time>
   </span>;
 }

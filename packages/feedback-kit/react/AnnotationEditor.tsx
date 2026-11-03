@@ -1,3 +1,4 @@
+import { feedbackSourceText, type FeedbackTranslate } from "./localization.ts";
 import { useEffect, useRef, useState } from "react";
 import { Annotorious, ImageAnnotator, ShapeType, UserSelectAction, useAnnotator,
   type AnnotoriousImageAnnotator, type ImageAnnotation, type RectangleGeometry } from "@annotorious/react";
@@ -22,7 +23,7 @@ export function imageAnnotations(values: FeedbackAnnotation[], width: number, he
   });
 }
 type Props = {
-  url: string; width: number; height: number; annotations: FeedbackAnnotation[]; disabled: boolean;
+  translate?: FeedbackTranslate; url: string; width: number; height: number; annotations: FeedbackAnnotation[]; disabled: boolean;
   drawing: boolean; selected: string | null; onChange: (values: FeedbackAnnotation[]) => void;
   onSelect: (id: string | null) => void; onCreated: () => void;
 };
@@ -76,6 +77,7 @@ function Binding(props: Props) {
 }
 
 export default function AnnotationEditor(props: Props) {
+  const t = props.translate ?? feedbackSourceText;
   const [initialHistory] = useState(initialAnnotationHistory);
   return <div className={`feedback-kit-picture${props.drawing && !props.disabled ? " is-drawing" : ""}`}>
     <div className="feedback-kit-image-stage">
@@ -84,7 +86,7 @@ export default function AnnotationEditor(props: Props) {
           initialHistory={initialHistory}
           drawingEnabled={props.drawing && !props.disabled} containerClassName="feedback-kit-annotator"
           style={{ fill: "#3e63dd", fillOpacity: .08, stroke: "#3e63dd", strokeWidth: 2 }}>
-          <img src={props.url} alt="反馈截图，可框选需要说明的位置" width={props.width} height={props.height} draggable={false} />
+          <img src={props.url} alt={t("反馈截图，可框选需要说明的位置")} width={props.width} height={props.height} draggable={false} />
         </ImageAnnotator>
         <Binding {...props} />
       </Annotorious>

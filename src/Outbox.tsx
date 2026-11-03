@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import AutoTextarea from "./AutoTextarea";
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -40,6 +41,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   inlineTargets?: ReadonlyMap<string, HTMLElement>;
   focusRoot?: RefObject<HTMLElement | null>;
 }) {
+  useLocale();
   const presence = useHandoffRows(items, outboxKey, inlineTargets ? NO_HANDOFF_IDS : exitIds, explicitExitIds);
   const inlineNodes = useRef(new Map<string, HTMLElement>());
   const inlineRefs = useRef(new Map<string, (node: HTMLElement | null) => void>());
@@ -247,41 +249,41 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         const showError = !accepted && error && matchesError(error, item) && items.some(current => current.id === item.id) &&
           !(suppressNetworkErrors && isNetworkError(error.failure));
         const feedback = queueFeedbackState(item, { accepted, paused: !!paused, editing: editing?.id === item.id, busy: busy === item.id, disabled, headBlocked });
-        const row = <div className={`${inlineTargets ? "query-inline-actions outbox-inline-actions" : "outbox-item queue-feedback"}${feedback.breathing && !leaving && !inlineTargets ? " is-queue-breathing" : ""}`} key={item.id} ref={inlineTargets ? inlineRef(item.id) : node => presence.bind(item.id, node)} data-feedback-state={feedback.state} data-query-breathing={inlineTargets && feedback.breathing || undefined} data-outbox-id={item.id} data-query-editing={inlineTargets && editing?.id === item.id || undefined} role="group" aria-label={`待发消息 ${index + 1}`} aria-busy={busy === item.id}
+        const row = <div className={`${inlineTargets ? "query-inline-actions outbox-inline-actions" : "outbox-item queue-feedback"}${feedback.breathing && !leaving && !inlineTargets ? " is-queue-breathing" : ""}`} key={item.id} ref={inlineTargets ? inlineRef(item.id) : node => presence.bind(item.id, node)} data-feedback-state={feedback.state} data-query-breathing={inlineTargets && feedback.breathing || undefined} data-outbox-id={item.id} data-query-editing={inlineTargets && editing?.id === item.id || undefined} role="group" aria-label={t("待发消息 {{value1}}", { value1: index + 1 })} aria-busy={busy === item.id}
           onClickCapture={event => { if (leaving) { event.preventDefault(); event.stopPropagation(); } }}>
-          {editing?.id === item.id ? <AutoTextarea aria-label="编辑待发消息" value={text} maxLength={16000} disabled={!!busy || disabled}
+          {editing?.id === item.id ? <AutoTextarea aria-label={t("编辑待发消息")} value={text} maxLength={16000} disabled={!!busy || disabled}
             onChange={e => { setText(e.target.value); drafts.set(key(item.id), { text: e.target.value, revision: editing.revision }); }} />
             : !inlineTargets && <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
           {!inlineTargets && <AttachmentList attachments={item.attachments} />}
           <div className="outbox-actions">
-            <small>{accepted ? "已发送" : busy === item.id || item.status === "pending" ? "正在提交…" :
-              item.status === "unknown" ? "结果待确认，不会自动重发" :
-              item.status === "editing" ? editing?.id === item.id ? "编辑中，已暂停发送" : "已暂停" :
-              item.status === "rejected" ? "发送未完成，可编辑后重试" : paused ? "已暂停" : "排队中"}</small>
+            <small>{accepted ? t("已发送") : busy === item.id || item.status === "pending" ? t("正在提交…") :
+              item.status === "unknown" ? t("结果待确认，不会自动重发") :
+              item.status === "editing" ? editing?.id === item.id ? t("编辑中，已暂停发送") : t("已暂停") :
+              item.status === "rejected" ? t("发送未完成，可编辑后重试") : paused ? t("已暂停") : t("排队中")}</small>
             {editing?.id === item.id ? <>
-              <button disabled={!!busy || disabled || (!text.trim() && !item.attachments?.length)} onClick={() => void act(item, "save")}>{paused ? "保存并保持暂停" : "保存并排队"}</button>
-              <button disabled={!!busy} onClick={() => discardEdit(item)}>放弃修改</button>
+              <button disabled={!!busy || disabled || (!text.trim() && !item.attachments?.length)} onClick={() => void act(item, "save")}>{paused ? t("保存并保持暂停") : t("保存并排队")}</button>
+              <button disabled={!!busy} onClick={() => discardEdit(item)}>{t("放弃修改")}</button>
             </> : mutable ? <>
-              <button data-outbox-action="edit" aria-label={`${item.status === "editing" ? "继续编辑" : "编辑"}第 ${index + 1} 条待发消息`} disabled={!!busy || disabled} onClick={() => void act(item, "edit")}>{item.status === "editing" ? "继续编辑" : "编辑"}</button>
-              <button aria-label={`删除第 ${index + 1} 条待发消息`} disabled={!!busy || disabled} onClick={() => void act(item, "cancel")}>删除</button>
-              <button aria-label={`${item.status === "editing" ? "恢复排队" : "直接发送"}第 ${index + 1} 条消息`} disabled={!!busy || disabled || (!allowSend && item.status !== "editing")} onClick={() => void act(item, item.status === "editing" ? "resume" : "send")}>{item.status === "editing" ? "恢复排队" : "直接发送"}</button>
-            </> : <button disabled={!!busy || disabled} onClick={() => void act(item, "check")}>核对状态</button>}
+              <button data-outbox-action="edit" aria-label={t(item.status === "editing" ? "继续编辑第 {{index}} 条待发消息" : "编辑第 {{index}} 条待发消息", { index: index + 1 })} disabled={!!busy || disabled} onClick={() => void act(item, "edit")}>{item.status === "editing" ? t("继续编辑") : t("编辑")}</button>
+              <button aria-label={t("删除第 {{value1}} 条待发消息", { value1: index + 1 })} disabled={!!busy || disabled} onClick={() => void act(item, "cancel")}>{t("删除")}</button>
+              <button aria-label={t(item.status === "editing" ? "恢复排队第 {{index}} 条消息" : "直接发送第 {{index}} 条消息", { index: index + 1 })} disabled={!!busy || disabled || (!allowSend && item.status !== "editing")} onClick={() => void act(item, item.status === "editing" ? "resume" : "send")}>{item.status === "editing" ? t("恢复排队") : t("直接发送")}</button>
+            </> : <button disabled={!!busy || disabled} onClick={() => void act(item, "check")}>{t("核对状态")}</button>}
           </div>
-          {inlineTargets && item.id === firstInline && paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
-          {showError && <p className="receipt-action-error" role="alert">{readableRequestError(error.failure)}</p>}
-          {inlineTargets && item.id === firstInline && queueErrorVisible && <p className="receipt-action-error" role="alert">{readableRequestError(queueError!.failure)}</p>}
+          {inlineTargets && item.id === firstInline && paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>{t("恢复排队")}</button>}
+          {showError && <p className="receipt-action-error" role="alert">{t(readableRequestError(error.failure))}</p>}
+          {inlineTargets && item.id === firstInline && queueErrorVisible && <p className="receipt-action-error" role="alert">{t(readableRequestError(queueError!.failure))}</p>}
         </div>;
         return target ? createPortal(row, target, item.id) : row;
       });
   if (inlineTargets) return <>{renderedRows}</>;
   return (
-    <section ref={section} className="outbox" aria-label="Pocket 待发消息">
-      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? `待发送 · ${remainingCount}` : "已发送"}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? "首条结果待核对，队列已暂停" : paused ? "队列已暂停" : headEditing ? editing?.id === items[0]?.id ? "首条编辑中，队列已暂停" : "首条已暂停" : items[0]?.status === "rejected" ? "首条发送未完成，请先处理" : connectionPending ? "连接恢复后依次发送" : items[0]?.autoDirect === true ? "可接收时依次发送" : "本轮结束后依次发送"}</span>}
-        {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>恢复排队</button>}
+    <section ref={section} className="outbox" aria-label={t("Pocket 待发消息")}>
+      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? t("待发送 · {{value1}}", { value1: remainingCount }) : t("已发送")}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? t("首条结果待核对，队列已暂停") : paused ? t("队列已暂停") : headEditing ? editing?.id === items[0]?.id ? t("首条编辑中，队列已暂停") : t("首条已暂停") : items[0]?.status === "rejected" ? t("首条发送未完成，请先处理") : connectionPending ? t("连接恢复后依次发送") : items[0]?.autoDirect === true ? t("可接收时依次发送") : t("本轮结束后依次发送")}</span>}
+        {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>{t("恢复排队")}</button>}
       </div>
       {renderedRows}
       {queueErrorVisible &&
-        <p className="receipt-action-error" role="alert">{readableRequestError(queueError.failure)}</p>}
+        <p className="receipt-action-error" role="alert">{t(readableRequestError(queueError.failure))}</p>}
     </section>
   );
 }

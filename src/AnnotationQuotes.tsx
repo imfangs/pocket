@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useDisclosureMotion } from "./useDisclosureMotion";
@@ -10,6 +11,7 @@ const updateLayout: AnnotationLayoutChange = (_anchor, update) => update();
 function AnnotationQuote({ annotation, index, numbered, changeLayout }: {
   annotation: ResponseAnnotation; index: number; numbered: boolean; changeLayout: AnnotationLayoutChange;
 }) {
+  useLocale();
   const id = useId(), body = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false), [overflows, setOverflows] = useState(false);
   const motion = useDisclosureMotion(expanded);
@@ -23,8 +25,8 @@ function AnnotationQuote({ annotation, index, numbered, changeLayout }: {
     return () => observer.disconnect();
   }, [annotation.text]);
   return <div className="response-annotation" data-annotation-index={index}>
-    {numbered && <span className="response-annotation-label">引用 {index}</span>}
-    <blockquote className="response-annotation-quote" aria-label={`引用 ${index}`} data-annotation-expanded={expanded}>
+    {numbered && <span className="response-annotation-label">{t("引用 {{value1}}", { value1: index })}</span>}
+    <blockquote className="response-annotation-quote" aria-label={t("引用 {{value1}}", { value1: index })} data-annotation-expanded={expanded}>
       <div id={id} ref={motion.ref} className="annotation-quote-viewport">
         <p ref={body} className="annotation-quote-text">{annotation.text}</p>
       </div>
@@ -34,7 +36,7 @@ function AnnotationQuote({ annotation, index, numbered, changeLayout }: {
           motion.prepare(anchor);
           changeLayout(anchor, () => setExpanded(!expanded));
         }}>
-        {expanded ? "收起引用" : "展开引用"}
+        {expanded ? t("收起引用") : t("展开引用")}
         {expanded ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}
       </button>}
     </blockquote>
@@ -45,10 +47,11 @@ function AnnotationQuote({ annotation, index, numbered, changeLayout }: {
 export default function AnnotationQuotes({ annotations, changeLayout = updateLayout }: {
   annotations: readonly ResponseAnnotation[]; changeLayout?: AnnotationLayoutChange;
 }) {
+  useLocale();
   const id = useId(), container = useRef<HTMLDivElement>(null), [expanded, setExpanded] = useState(false);
   const motion = useDisclosureMotion(expanded);
   const numbered = annotations.length > 1;
-  return <div ref={container} className="response-annotations" role="group" aria-label="引用内容">
+  return <div ref={container} className="response-annotations" role="group" aria-label={t("引用内容")}>
     {annotations.slice(0, 2).map((annotation, index) => <AnnotationQuote key={index} annotation={annotation} index={index + 1} numbered={numbered} changeLayout={changeLayout} />)}
     {annotations.length > 2 && <>
       {/* Keep hidden quotes measurable so their overflow controls exist before
@@ -62,7 +65,7 @@ export default function AnnotationQuotes({ annotations, changeLayout = updateLay
           motion.prepare(anchor);
           changeLayout(anchor, () => setExpanded(!expanded));
         }}>
-        {expanded ? "收起其余引用" : `展开其余 ${annotations.length - 2} 处引用`}
+        {expanded ? t("收起其余引用") : t("展开其余 {{value1}} 处引用", { value1: annotations.length - 2 })}
         {expanded ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}
       </button>
     </>}

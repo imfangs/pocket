@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "./api";
@@ -24,12 +25,14 @@ type Props = {
 };
 
 export default function ThreadModelSettings(props: Props) {
+  useLocale();
   // Changing the inspected conversation also replaces all request ownership.
   return <ModelSettingsSession key={`${requireMachine()}:${props.thread.hostId}:${props.thread.id}`} {...props} />;
 }
 
 type CachedModelSummary = { summary: ModelSettingsSummary; savedFingerprint: string };
 function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity, onBusyChange }: Props) {
+  useLocale();
   const cacheKey: ThreadInfoKey = { machine: requireMachine(), hostId: thread.hostId, threadId: thread.id, kind: "models" };
   const savedFingerprint = JSON.stringify([thread.savedModelSettings?.model ?? null, thread.savedModelSettings?.effort ?? null]);
   const [initialSummary] = useState(() => {
@@ -279,41 +282,44 @@ function ModelSettingsSession({ thread, disabled = false, onConnect, onActivity,
   const clearResult = () => { operationRef.current = undefined; setOperation(undefined); setError(""); };
   const status = connecting ? "正在连接…" : checking ? "正在核对设置…" : loading ? "正在读取设置…"
     : unresolved || operation ? modelOperationText(operation) : !editable ? modelSourceHint(source) : "思考强度修改后，对后续消息生效。";
-  return <section className="thread-model-settings" aria-label="模型设置">
+  const displayModels = source?.source === "desktop" ? source.models : summary?.models;
+  const modelLabel = !presentation.value || !presentation.value.model && !presentation.value.effort ? t("暂未读取")
+    : `${presentation.value.model ? modelName(presentation.value.model, displayModels) : t("模型未提供")}${presentation.value.effort ? ` · ${effortName(presentation.value.effort)}` : ""}`;
+  return <section className="thread-model-settings" aria-label={t("模型设置")}>
     <div className="thread-model-summary">
-      <span className="thread-model-label">模型</span>
-      <div className="thread-model-value"><span>{presentation.label}</span>{presentation.saved && <small>已保存</small>}</div>
+      <span className="thread-model-label">{t("模型")}</span>
+      <div className="thread-model-value"><span>{modelLabel}</span>{presentation.saved && <small>{t("已保存")}</small>}</div>
       {!editing && !unresolved && <Button type="button" className="text-button thread-model-edit" variant="ghost" color="gray" size="2" aria-expanded={false} aria-controls={editorId}
-        disabled={disabled || loading || thread.archived || thread.missing} onClick={() => void beginEdit()}>修改</Button>}
+        disabled={disabled || loading || thread.archived || thread.missing} onClick={() => void beginEdit()}>{t("修改")}</Button>}
     </div>
     {editing && <form id={editorId} className="thread-model-editor" onSubmit={event => void submit(event)}>
       {source?.canChangeModel !== false && source?.source === "desktop" && source.models.length > 1 ? <label htmlFor={modelId}>
-        <span>模型</span><select id={modelId} value={model} disabled={!editable || waiting || unresolved} aria-describedby={statusId}
+        <span>{t("模型")}</span><select id={modelId} value={model} disabled={!editable || waiting || unresolved} aria-describedby={statusId}
           onChange={event => { const next = event.target.value; setModel(next); setEffort(effortForModel(source.models.find(value => value.id === next), effort)); clearResult(); }}>
           {!source.models.some(value => value.id === model) && <option value={model}>{modelName(model)}</option>}
           {source.models.map(value => <option key={value.id} value={value.id}>{modelName(value.id, source.models)}</option>)}
         </select>
       </label> : null}
-      {selected && <label htmlFor={effortId}><span>思考强度</span><select id={effortId} value={effort} disabled={!editable || waiting || unresolved} aria-describedby={statusId}
+      {selected && <label htmlFor={effortId}><span>{t("思考强度")}</span><select id={effortId} value={effort} disabled={!editable || waiting || unresolved} aria-describedby={statusId}
         onChange={event => { setEffort(event.target.value); clearResult(); }}>
-        {!selected.supportedEfforts.includes(effort) && <option value={effort}>{effort ? `${effortName(effort)}（当前）` : "请选择"}</option>}
+        {!selected.supportedEfforts.includes(effort) && <option value={effort}>{effort ? t("{{value0}}（当前）", { value0: effortName(effort) }) : t("请选择")}</option>}
         {selected.supportedEfforts.map(value => <option key={value} value={value}>{effortName(value)}</option>)}
       </select></label>}
-      <p className="field-help thread-model-status" id={statusId} role="status">{status}</p>
-      {error && <p className="inline-error thread-model-error" role="alert">{error}</p>}
+      <p className="field-help thread-model-status" id={statusId} role="status">{t(status)}</p>
+      {error && <p className="inline-error thread-model-error" role="alert">{t(error)}</p>}
       <div className="thread-model-actions">
         <Button type="button" className="text-button" variant="ghost" color="gray" disabled={submitting} onClick={() => {
           setEditing(false); setError("");
           if (!unresolved) { setModel(source?.current?.model || ""); setEffort(source?.current?.effort || ""); clearResult(); }
-        }}>{unresolved ? "收起" : "取消"}</Button>
-        {unresolved ? <Button type="button" className="secondary" variant="soft" color="gray" disabled={waiting} onClick={() => void check()}>核对结果</Button>
+        }}>{unresolved ? t("收起") : t("取消")}</Button>
+        {unresolved ? <Button type="button" className="secondary" variant="soft" color="gray" disabled={waiting} onClick={() => void check()}>{t("核对结果")}</Button>
           : !editable || operation?.status === "changed" || operation?.status === "rejected" ? <Button type="button" className="secondary" variant="soft" color="gray" disabled={waiting || disabled || thread.archived || thread.missing}
-            onClick={() => void beginEdit()}>重新读取</Button>
-          : <Button type="submit" className="primary" disabled={waiting || !request}>保存</Button>}
+            onClick={() => void beginEdit()}>{t("重新读取")}</Button>
+          : <Button type="submit" className="primary" disabled={waiting || !request}>{t("保存")}</Button>}
       </div>
     </form>}
-    {!editing && unresolved && <div className="thread-model-recovery"><span role="status">{modelOperationText(operation)}</span>
-      <Button type="button" className="text-button" variant="ghost" color="gray" disabled={waiting} onClick={() => { setEditing(true); void check(); }}>核对结果</Button></div>}
-    {!editing && !unresolved && error && <p className="field-help thread-model-status" role="status">暂时无法读取设置。</p>}
+    {!editing && unresolved && <div className="thread-model-recovery"><span role="status">{t(modelOperationText(operation))}</span>
+      <Button type="button" className="text-button" variant="ghost" color="gray" disabled={waiting} onClick={() => { setEditing(true); void check(); }}>{t("核对结果")}</Button></div>}
+    {!editing && !unresolved && error && <p className="field-help thread-model-status" role="status">{t("暂时无法读取设置。")}</p>}
   </section>;
 }

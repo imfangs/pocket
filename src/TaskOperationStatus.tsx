@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from "./i18n";
 import { useLayoutEffect, useRef } from "react";
 import { activeOperation, observeCreationNotice, operationCancelLabel, operationText, type TaskOperation } from "./taskOperations";
 import { animateReceiptHandoff } from "./receiptMotion";
@@ -9,6 +10,7 @@ export default function TaskOperationStatus({ operation, title, error, onCheck, 
   onRetry?: () => void;
   onDiscard?: () => void;
 }) {
+  useLocale();
   const root = useRef<HTMLDivElement>(null), dismiss = useRef(onDismiss);
   const exit = useRef<(() => void) | null>(null);
   const notice = useRef<ReturnType<typeof observeCreationNotice> | null>(null);
@@ -32,17 +34,17 @@ export default function TaskOperationStatus({ operation, title, error, onCheck, 
   const cancelLabel = operationCancelLabel(operation);
   return <div ref={root} className="task-operation-status" role="status" data-status={operation.status}>
     {title && <strong>{title}</strong>}
-    <span>{operationText(operation)}</span>
-    {operation.operation === "create" && operation.status === "unknown" && <small>停止核对不会删除可能已创建的会话。</small>}
-    {!!operation.descendantCount && <small>包含 {operation.descendantCount} 个子会话。</small>}
+    <span>{tr(operationText(operation))}</span>
+    {operation.operation === "create" && operation.status === "unknown" && <small>{tr("停止核对不会删除可能已创建的会话。")}</small>}
+    {!!operation.descendantCount && <small>{tr("包含 {{count}} 个子会话。", { count: operation.descendantCount })}</small>}
     <div className="task-operation-actions">
-      {cancelLabel && <button className="text-button" onClick={onCancel}>{cancelLabel}</button>}
-      {operation.status === "unknown" && <button className="text-button" onClick={onCheck}>核对操作状态</button>}
-      {onRetry && <button className="text-button" onClick={onRetry}>修改后重试</button>}
-      {onDiscard && <button className="text-button" onClick={onDiscard}>放弃本次新建</button>}
-      {operation.operation === "create" && (operation.status === "succeeded" || operation.creationStatus === "created") && onOpen && <button className="text-button" onClick={() => { notice.current?.stop(); onOpen(); }}>{operation.status === "succeeded" ? "打开新会话" : "查看已创建会话"}</button>}
-      {!activeOperation(operation) && onDismiss && <button className="text-button" onClick={() => close(true)}>关闭提示</button>}
+      {cancelLabel && <button className="text-button" onClick={onCancel}>{tr(cancelLabel)}</button>}
+      {operation.status === "unknown" && <button className="text-button" onClick={onCheck}>{tr("核对操作状态")}</button>}
+      {onRetry && <button className="text-button" onClick={onRetry}>{tr("修改后重试")}</button>}
+      {onDiscard && <button className="text-button" onClick={onDiscard}>{tr("放弃本次新建")}</button>}
+      {operation.operation === "create" && (operation.status === "succeeded" || operation.creationStatus === "created") && onOpen && <button className="text-button" onClick={() => { notice.current?.stop(); onOpen(); }}>{operation.status === "succeeded" ? tr("打开新会话") : tr("查看已创建会话")}</button>}
+      {!activeOperation(operation) && onDismiss && <button className="text-button" onClick={() => close(true)}>{tr("关闭提示")}</button>}
     </div>
-    {error && <small className="inline-error" role="alert">{error}</small>}
+    {error && <small className="inline-error" role="alert">{tr(error)}</small>}
   </div>;
 }

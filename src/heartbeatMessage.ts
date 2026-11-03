@@ -1,4 +1,5 @@
 import { stripEnvelopeCitationSuffix } from "./envelopeCitation.ts";
+import { sourceTranslation, type DisplayTranslator } from "./displayTranslation.ts";
 
 type HeartbeatMessage =
   | { kind: "trigger"; text: string; instructions: string }
@@ -51,10 +52,10 @@ export function heartbeatFieldMarkdown(source: string): string {
   return hasHtml(fromMarkdown(source)) ? literalMarkdown(source) : source;
 }
 
-export function readableHeartbeatMessage(source: string): string {
+export function readableHeartbeatMessage(source: string, translate: DisplayTranslator = sourceTranslation): string {
   const message = heartbeatMessage(source);
   if (message) return message.kind === "result" ? heartbeatFieldMarkdown(message.text)
-    : `${message.text}\n\n${heartbeatFieldMarkdown(message.instructions)}`;
+    : `${translate(message.text)}\n\n${heartbeatFieldMarkdown(message.instructions)}`;
   return heartbeatFallback(source) ?? source;
 }
 import { fromMarkdown } from "mdast-util-from-markdown";

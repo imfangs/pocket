@@ -1,3 +1,4 @@
+import { t as tr, currentLocale } from "./i18nCore.ts";
 import type { ActivityFilter, Catalog, Thread, View } from "./types";
 import type { TaskStatus } from "./taskStatuses";
 import { smartThreadOrder, type SmartOrderOptions } from "./smartOrder.ts";
@@ -118,11 +119,11 @@ export function preserveOpenThread(current: Catalog, incoming: Catalog, selected
 
 export function ago(ms: number) {
   const d = Math.max(0, Date.now() - ms);
-  if (d < 60000) return "刚刚";
-  if (d < 3600000) return `${Math.floor(d / 60000)} 分钟前`;
-  if (d < 86400000) return `${Math.floor(d / 3600000)} 小时前`;
-  if (d < 7 * 86400000) return `${Math.floor(d / 86400000)} 天前`;
-  return new Date(ms).toLocaleDateString("zh-CN", {
+  if (d < 60000) return tr("刚刚");
+  if (d < 3600000) return tr("{{count}} 分钟前", { count: Math.floor(d / 60000) });
+  if (d < 86400000) return tr("{{count}} 小时前", { count: Math.floor(d / 3600000) });
+  if (d < 7 * 86400000) return tr("{{count}} 天前", { count: Math.floor(d / 86400000) });
+  return new Date(ms).toLocaleDateString(currentLocale(), {
     month: "short",
     day: "numeric",
   });

@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from "./i18n";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ArrowDown, RefreshCw } from "lucide-react";
 import { bindPullToRefresh } from "./pullToRefresh";
@@ -10,6 +11,7 @@ export default function TaskListPanel({ children, busy, onRefresh, scrollRef, in
   inert?: boolean;
   feedback?: ReactNode;
 }) {
+  useLocale();
   const ownPanel = useRef<HTMLElement>(null);
   const panel = scrollRef ?? ownPanel;
   const latest = useRef({ busy, onRefresh });
@@ -25,11 +27,11 @@ export default function TaskListPanel({ children, busy, onRefresh, scrollRef, in
   }, []);
   const visible = pull.distance > 0 || pull.refreshing;
   return (
-    <section className="list-panel" ref={panel} aria-label="会话列表" inert={inert}>
+    <section className="list-panel" ref={panel} aria-label={tr("会话列表")} inert={inert}>
       <div className="pull-refresh-indicator" data-loading={pull.refreshing || undefined}
         style={{ opacity: visible ? 1 : 0 }} role="status" aria-live="polite">
         {visible && <>{pull.refreshing ? <RefreshCw size={15} /> : <ArrowDown size={15} />}
-          <span>{pull.refreshing ? "正在刷新…" : pull.armed ? "松开刷新" : "下拉刷新"}</span></>}
+          <span>{pull.refreshing ? tr("正在刷新…") : pull.armed ? tr("松开刷新") : tr("下拉刷新")}</span></>}
       </div>
       <div className="pull-refresh-content" data-dragging={visible && !pull.refreshing || undefined}
         style={{ transform: pull.distance ? `translateY(${pull.distance}px)` : undefined }}>

@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Download, FileText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { isMessageVideo } from "../shared/message-media.mjs";
@@ -79,13 +80,15 @@ export function saveMessageFile(blob: Blob, name: string) {
 }
 
 export default function MessageFile({ file, threadId, label }: { file: MessageFileReference; threadId: string; label?: string }) {
+  useLocale();
   const registered = safeMessageFile(file, threadId);
-  if (!registered) return <span className="message-file-fallback">{file.name}<small>文件保存在电脑上</small></span>;
+  if (!registered) return <span className="message-file-fallback">{file.name}<small>{t("文件保存在电脑上")}</small></span>;
   return isMessageVideo(registered.name) ? <MessageVideo file={registered} threadId={threadId} label={label} />
     : <MessageDocument file={registered} threadId={threadId} />;
 }
 
 function MessageDocument({ file, threadId }: { file: MessageFileReference; threadId: string }) {
+  useLocale();
   const [pending, setPending] = useState(false), [error, setError] = useState("");
   const [preview, setPreview] = useState<{ opener: HTMLElement; machine: MachineId } | null>(null);
   const active = useRef<AbortController | null>(null);
@@ -117,17 +120,17 @@ function MessageDocument({ file, threadId }: { file: MessageFileReference; threa
   };
   return <span className="message-file">
     <button type="button" className="message-file-button" disabled={!textPreview && pending} aria-busy={!textPreview && pending || undefined}
-      aria-label={`${textPreview ? "预览文件" : pending ? "正在下载" : "下载文件"}：${registered.name}`} onClick={event => {
+      aria-label={t("{{action}}：{{name}}", { action: textPreview ? t("预览文件") : pending ? t("正在下载") : t("下载文件"), name: registered.name })} onClick={event => {
         if (textPreview) {
           try { setPreview({ opener: event.currentTarget, machine: requireMachine() }); } catch { setError("请选择电脑后继续。"); }
         } else void download();
       }}>
       <FileText size={19} aria-hidden="true" />
       <span className="message-file-name">{registered.name}</span>
-      <span className="message-file-action">{textPreview ? "查看" : pending ? "下载中…" : "下载"}</span>
+      <span className="message-file-action">{textPreview ? t("查看") : pending ? t("下载中…") : t("下载")}</span>
       {!textPreview && <Download size={15} aria-hidden="true" />}
     </button>
-    {error && <span className="message-file-error" role="alert">{error}</span>}
+    {error && <span className="message-file-error" role="alert">{t(error)}</span>}
     {preview && <TextFilePreview key={`${preview.machine}/${threadId}/${registered.url}/${registered.name}`} file={registered} threadId={threadId} machine={preview.machine} opener={preview.opener}
       onClose={() => setPreview(null)} readFile={fetchMessageFile} download={blob => void download(blob)} downloading={pending} downloadError={error} />}
   </span>;

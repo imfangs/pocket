@@ -1,3 +1,4 @@
+import { t as tr } from "./i18nCore.ts";
 import { filterThreads } from "./model.ts";
 import { codexPinned, pocketPriority } from "./priority.ts";
 import { UNASSIGNED_PROJECT } from "./projectNavigation.ts";
@@ -93,8 +94,8 @@ export function changeNavigation(current: NavigationPrefs, change: NavigationCha
 
 export function navigationTitle(navigation: Pick<NavigationPrefs, "scope" | "project">, projects: Catalog["projects"]): string {
   if (navigation.scope === "all" && navigation.project) return navigation.project === UNASSIGNED_PROJECT
-    ? "未归属项目" : projects.find(project => project.id === navigation.project)?.name || "项目";
-  return { all: "全部", priority: "关注", "codex-pinned": "置顶", archived: "已归档", hidden: "隐藏" }[navigation.scope];
+    ? tr("未归属项目") : projects.find(project => project.id === navigation.project)?.name || tr("项目");
+  return tr({ all: "全部", priority: "关注", "codex-pinned": "置顶", archived: "已归档", hidden: "隐藏" }[navigation.scope]);
 }
 
 // Both chips describe the result of selecting that activity within the current

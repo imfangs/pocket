@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import MarkdownCode from "./MarkdownCode";
 import MessageImage from "./MessageImage";
 import MessageFile, { registeredMessageFile } from "./MessageFile";
@@ -32,12 +33,13 @@ function publicUrl(value: string) {
 }
 
 function MarkdownLink({ href, children }: { href?: string; children?: ReactNode }) {
+  useLocale();
   const { links, threadId } = useContext(FileLinksContext);
   const content = <InsideLinkContext.Provider value={true}>{children}</InsideLinkContext.Provider>;
   if (href && links.has(href)) {
     const file = links.get(href);
     return file && threadId ? <MessageFile key={`${threadId}/${file.url}`} file={file} threadId={threadId} />
-      : <span className="message-file-fallback">{content}<small>文件保存在电脑上</small></span>;
+      : <span className="message-file-fallback">{content}<small>{t("文件保存在电脑上")}</small></span>;
   }
   const taskUrl = href && pocketTaskUrl(href);
   if (taskUrl) return <a className="pocket-task-link" href={taskUrl} onClick={event => {
@@ -47,7 +49,7 @@ function MarkdownLink({ href, children }: { href?: string; children?: ReactNode 
     if (!target) return;
     if (target.machine !== currentMachineId()) {
       const error = changeMachine(target.machine, target.threadId);
-      if (error) toast.error(error);
+      if (error) toast.error(t(error));
     } else window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: target.threadId }));
   }}>{content}</a>;
   return href ? (
@@ -60,17 +62,18 @@ function MarkdownLink({ href, children }: { href?: string; children?: ReactNode 
 }
 
 function MarkdownMedia({ src, alt }: { src?: string | Blob; alt?: string }) {
+  useLocale();
   const { videos, threadId } = useContext(FileLinksContext);
   const insideLink = useContext(InsideLinkContext);
   const video = typeof src === "string" ? videos.get(src) : undefined;
   if (video) {
     // A linked thumbnail retains its outer link's action. Even a capability
     // registered elsewhere must not put native controls inside an anchor.
-    if (insideLink) return <span>{alt || video.file?.name || "视频"}</span>;
+    if (insideLink) return <span>{alt || video.file?.name || t("视频")}</span>;
     if (video.file && threadId) return <MessageFile key={`${threadId}/${video.file.url}`} file={video.file} threadId={threadId} label={alt} />;
-    return <span className="markdown-image-reference">{alt || "视频"}
-      {video.href ? <a href={video.href} target="_blank" rel="noopener noreferrer">查看视频</a>
-        : <small>文件保存在电脑上</small>}
+    return <span className="markdown-image-reference">{alt || t("视频")}
+      {video.href ? <a href={video.href} target="_blank" rel="noopener noreferrer">{t("查看视频")}</a>
+        : <small>{t("文件保存在电脑上")}</small>}
     </span>;
   }
   if (typeof src === "string" && imageRoute.test(src))
@@ -78,8 +81,8 @@ function MarkdownMedia({ src, alt }: { src?: string | Blob; alt?: string }) {
   // Reading a private conversation must not load third-party image URLs.
   const href = typeof src === "string" && /^https?:/.test(src) ? src : "";
   return <span className="markdown-image-reference">
-    {alt || "图片"}
-    {href && <a href={href} target="_blank" rel="noopener noreferrer">查看图片</a>}
+    {alt || t("图片")}
+    {href && <a href={href} target="_blank" rel="noopener noreferrer">{t("查看图片")}</a>}
   </span>;
 }
 
@@ -88,7 +91,7 @@ const components: Components = {
   img: MarkdownMedia,
   table({ children }) {
     return (
-      <div className="markdown-table" tabIndex={0} role="region" aria-label="表格，可横向滚动">
+      <div className="markdown-table" tabIndex={0} role="region" aria-label={t("表格，可横向滚动")}>
         <table>{children}</table>
       </div>
     );
@@ -99,7 +102,8 @@ const components: Components = {
 };
 
 export default memo(function MessageMarkdown({ text, images, files, threadId, codex = true }: Props) {
-  const markdown = useMemo(() => codex ? readableCodexMarkdown(text) : text, [text, codex]);
+  const locale = useLocale();
+  const markdown = useMemo(() => codex ? readableCodexMarkdown(text, t) : text, [text, codex, locale]);
   // Only the exact source reference can mint a render token. A raw or forged
   // /api/.../files URL never inherits another link's registered capability.
   const fileLinks = new Map<string, MessageFileReference | null>();

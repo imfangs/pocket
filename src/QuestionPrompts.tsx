@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import type { Ref } from "react";
@@ -15,6 +16,7 @@ type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; 
   sourceText?: string; sourceImages?: Message["images"]; sourceFiles?: Message["files"]; sourceTruncated?: boolean; presentationStore?: QuestionPresentationStore;
   readMarker?: { sourceMessageId: string; rootRef?: Ref<HTMLElement>; markerRef: Ref<HTMLDivElement> } };
 function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker, presentationStore: providedStore }: Omit<Props, "questions" | "readMarker" | "sourceText"> & { question: AsyncQuestion; endMarker?: Ref<HTMLDivElement> }) {
+  useLocale();
   const key = `${threadId}/question/${question.key}`;
   const presentationStore = providedStore ?? questionPresentationStore();
   const ignored = useSyncExternalStore(presentationStore.subscribe,
@@ -110,11 +112,11 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
     {!expanded && <>
       <p className="question-title" id={titleId}>{question.title}</p>
       <div className="question-presentation-actions">
-        {presentation.ignored && <span className="question-ignored-label">已忽略</span>}
-        <button type="button" className="question-answer-toggle" aria-expanded={false} aria-controls={`${titleId}-answer`} onClick={openAnswer}>回答</button>
-        {!presentation.ignored && <button type="button" className="question-ignore" disabled={!presentation.canIgnore} onClick={ignore}>忽略</button>}
-        {presentation.ignored && presentation.hasDraft && <small className="question-draft-preserved">答案草稿已保留</small>}
-        {presentation.hasDraft && presentation.canIgnore && <button type="button" className="question-ignore" onClick={discard}>丢弃草稿</button>}
+        {presentation.ignored && <span className="question-ignored-label">{t("已忽略")}</span>}
+        <button type="button" className="question-answer-toggle" aria-expanded={false} aria-controls={`${titleId}-answer`} onClick={openAnswer}>{t("回答")}</button>
+        {!presentation.ignored && <button type="button" className="question-ignore" disabled={!presentation.canIgnore} onClick={ignore}>{t("忽略")}</button>}
+        {presentation.ignored && presentation.hasDraft && <small className="question-draft-preserved">{t("答案草稿已保留")}</small>}
+        {presentation.hasDraft && presentation.canIgnore && <button type="button" className="question-ignore" onClick={discard}>{t("丢弃草稿")}</button>}
       </div>
     </>}
     {expanded && <div className="question-answer-panel" id={`${titleId}-answer`}>
@@ -126,31 +128,32 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
       <span>{option}</span>
     </label>)}
     {!!question.options.length && <button type="button" className="question-custom" disabled={disabled || busy || waiting}
-      onClick={() => { setEditing(false); update(switchAnswerMode(draft, question.options, custom ? "options" : "custom")); }}>{custom ? "改用选项" : "自己填写"}</button>}
-    {custom && <AutoTextarea aria-label="自行填写回答" aria-labelledby={titleId} value={draft.text} maxLength={16000} disabled={disabled || busy || waiting}
+      onClick={() => { setEditing(false); update(switchAnswerMode(draft, question.options, custom ? "options" : "custom")); }}>{custom ? t("改用选项") : t("自己填写")}</button>}
+    {custom && <AutoTextarea aria-label={t("自行填写回答")} aria-labelledby={titleId} value={draft.text} maxLength={16000} disabled={disabled || busy || waiting}
       onFocus={() => setEditing(true)}
       onChange={e => update(editAnswer(draft, question.options, e.target.value, "custom"))} />}
     </fieldset>
-    <div className="question-submit"><button type="button" className="question-ignore" disabled={!presentation.canIgnore} onClick={ignore}>忽略</button>
-    {presentation.hasDraft && presentation.canIgnore && <button type="button" className="question-ignore" onClick={discard}>丢弃草稿</button>}
+    <div className="question-submit"><button type="button" className="question-ignore" disabled={!presentation.canIgnore} onClick={ignore}>{t("忽略")}</button>
+    {presentation.hasDraft && presentation.canIgnore && <button type="button" className="question-ignore" onClick={discard}>{t("丢弃草稿")}</button>}
     <Button type="submit" className="primary" disabled={disabled || busy || (!waiting && !draft.text.trim())}>
-      {busy ? "提交中…" : waiting ? "核对回答状态" : "提交回答"}
+      {busy ? t("提交中…") : waiting ? t("核对回答状态") : t("提交回答")}
     </Button></div>
     </div>}
-    {error && <p className="inline-error" role="alert">{error}</p>}
+    {error && <p className="inline-error" role="alert">{t(error)}</p>}
     {endMarker && <div ref={endMarker} data-pocket-read-marker="" aria-hidden="true" style={{ height: 1 }} />}
   </form>;
 }
 export default function QuestionPrompts(props: Props) {
+  useLocale();
   if (!props.questions.length) return null;
   const lastObserved = props.questions.reduce((last, question, index) => question.sourceMessageId === props.readMarker?.sourceMessageId ? index : last, -1);
   const sourceText = questionSourceText(props.sourceText, props.questions.map(question => question.title),
     !!props.sourceImages && Object.keys(props.sourceImages).length > 0 ||
       !!props.sourceFiles && Object.keys(props.sourceFiles).length > 0, props.questions.map(question => question.options));
-  return <section ref={props.readMarker?.rootRef} className="question-prompts" aria-label="Codex 想确认的问题">
+  return <section ref={props.readMarker?.rootRef} className="question-prompts" aria-label={t("Codex 想确认的问题")}>
     {sourceText && <div className="question-source-text"><MessageMarkdown text={sourceText} images={props.sourceImages} files={props.sourceTruncated ? undefined : props.sourceFiles} threadId={props.threadId} /></div>}
-    {props.sourceTruncated && <small className="question-source-truncated">内容较长，此处已截取。</small>}
-    <strong>Codex 想确认</strong>
+    {props.sourceTruncated && <small className="question-source-truncated">{t("内容较长，此处已截取。")}</small>}
+    <strong>{t("Codex 想确认")}</strong>
     {props.questions.map((question, index) => <QuestionCard key={`${props.threadId}/${question.key}`} threadId={props.threadId} question={question} disabled={props.disabled} drafts={props.drafts} refresh={props.refresh}
       presentationStore={props.presentationStore} endMarker={index === lastObserved ? props.readMarker?.markerRef : undefined} />)}
   </section>;

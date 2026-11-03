@@ -1,7 +1,9 @@
+import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
 import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import LanguageSettings from "./LanguageSettings";
 import NotificationSettings from "./NotificationSettings";
 import MachinePicker from "./MachinePicker";
 import SendingSettings from "./SendingSettings";
@@ -44,6 +46,7 @@ export function Modal({
   captureIgnore?: boolean;
   initialFocus?: "auto" | "title";
 }) {
+  useLocale();
   const ref = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   // Entry policy is stable for this mount; later content/busy updates must not
@@ -180,19 +183,19 @@ export function Modal({
           className="icon-button"
           onClick={event => requestClose(false, event.detail !== 0)}
           disabled={busy}
-          aria-label="关闭对话框"
+          aria-label={t("关闭对话框")}
         >
           <X size={19} />
         </IconButton>
       </header>
       <div className="pocket-dialog-body">
         {confirmClose && <div className="modal-close-confirm" role="alert">
-          <p>还有未提交的内容。</p>
+          <p>{t("还有未提交的内容。")}</p>
           <Button ref={continueEditing} type="button" className="secondary" variant="soft" color="gray" disabled={busy} onClick={() => {
             setConfirmClose(false);
             ref.current?.querySelector<HTMLElement>("[data-autofocus], input:not([type='hidden']), textarea, select")?.focus();
-          }}>继续编辑</Button>
-          <Button type="button" className="danger-button" variant="soft" color="red" disabled={busy} onClick={event => beginClose(event.detail !== 0)}>放弃并关闭</Button>
+          }}>{t("继续编辑")}</Button>
+          <Button type="button" className="danger-button" variant="soft" color="red" disabled={busy} onClick={event => beginClose(event.detail !== 0)}>{t("放弃并关闭")}</Button>
         </div>}
         {children}
       </div>
@@ -206,19 +209,21 @@ export function SettingsDialog(p: {
   feedbackActions?: React.ReactNode;
   onClose: () => void;
 }) {
+  useLocale();
   return (
-    <Modal title="设置" className="settings-dialog" onClose={p.onClose} initialFocus="title">
+    <Modal title={t("设置")} className="settings-dialog" onClose={p.onClose} initialFocus="title">
       <div className="settings-content">
-        <section className="settings-connection" aria-label="电脑">
-          <h3>连接电脑</h3>
+        <section className="settings-connection" aria-label={t("电脑")}>
+          <h3>{t("连接电脑")}</h3>
           <MachinePicker />
         </section>
-        {p.appearanceActions && <section className="settings-appearance" aria-label="外观与安装">{p.appearanceActions}</section>}
+        {p.appearanceActions && <section className="settings-appearance" aria-label={t("外观与安装")}>{p.appearanceActions}</section>}
+        <LanguageSettings />
         <ReadingCacheSettings />
         <SendingSettings />
         {p.notificationsAvailable !== false && <NotificationSettings />}
         {p.feedbackActions}
-        <p className="settings-version" title={CLIENT_VERSION}>版本 {CLIENT_VERSION.slice(0, 12)}</p>
+        <p className="settings-version" title={CLIENT_VERSION}>{t("版本")} {CLIENT_VERSION.slice(0, 12)}</p>
         {p.logoutAction && <div className="settings-logout">{p.logoutAction}</div>}
       </div>
     </Modal>

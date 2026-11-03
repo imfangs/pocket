@@ -1,9 +1,8 @@
+import { currentLocale, formatDate, t } from "./i18nCore.ts";
 const minute = 60_000, hour = 60 * minute, day = 24 * hour;
-const fullDate = new Intl.DateTimeFormat("zh-CN", {
+const fullDate: Intl.DateTimeFormatOptions = {
   year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZoneName: "short",
-});
-const withinYear = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
-const acrossYears = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+};
 
 export function validMessageTimestamp(value: unknown): value is number {
   return typeof value === "number" && value !== 0 && Number.isFinite(new Date(value).getTime());
@@ -13,13 +12,13 @@ export function messageTime(timestamp: unknown, now: number) {
   if (!validMessageTimestamp(timestamp)) return null;
   const date = new Date(timestamp), age = now - timestamp;
   let label: string;
-  if (age >= 0 && age < minute) label = "刚刚";
-  else if (age >= minute && age < hour) label = `${Math.floor(age / minute)}分钟前`;
-  else if (age >= hour && age < day) label = `${Math.floor(age / hour)}小时前`;
-  else if (age >= day && age < 7 * day) label = `${Math.floor(age / day)}天前`;
+  if (age >= 0 && age < minute) label = t("刚刚");
+  else if (age >= minute && age < hour) label = t("{{count}}分钟前", { count: Math.floor(age / minute) });
+  else if (age >= hour && age < day) label = t("{{count}}小时前", { count: Math.floor(age / hour) });
+  else if (age >= day && age < 7 * day) label = t("{{count}}天前", { count: Math.floor(age / day) });
   // A future or invalid device clock cannot turn an actual timestamp into "now".
-  else label = (date.getFullYear() === new Date(now).getFullYear() ? withinYear : acrossYears).format(date);
-  return { label, dateTime: date.toISOString(), absolute: fullDate.format(date) };
+  else label = formatDate(date, { ...(date.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}), month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", ...(currentLocale() === "zh-CN" ? { hour12: false } : {}) });
+  return { label, dateTime: date.toISOString(), absolute: formatDate(date, fullDate) };
 }
 
 export function progressMessageTime(timestamp: unknown, now: number) {

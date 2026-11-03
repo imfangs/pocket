@@ -46,7 +46,7 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
         try { finishActivity = activity.begin({ machine, path, method }); }
         catch { /* Activity is optional observation, never a request precondition. */ }
         const send = () => request(url, { method, signal: options.signal, cache: "no-store",
-            headers: { ...clientVersionHeaders(), "Content-Type": options.contentType || "application/json", ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
+            headers: { ...clientVersionHeaders(), "Accept-Language": (typeof document !== "undefined" && document.documentElement?.lang === "en" ? "en" : "zh-CN"), "Content-Type": options.contentType || "application/json", ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
               ...(cached ? { [method === "GET" ? "If-None-Match" : READ_VERSION_HEADER]: cached.version } : {}) },
             ...(body === undefined ? {} : { body: options.raw ? body as BodyInit : JSON.stringify(body) }) });
         let response = await send();
@@ -69,7 +69,7 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
         // A preceding session must neither expire a new login nor retry an old
         // mutation using its credentials. Cache/source invalidation is separate.
         if (response.status === 403 && data.error === "请求已过期，请刷新页面" && currentAuthentication()) {
-          const fresh = await request(machineApiPath("/api/catalog", machine), { cache: "no-store", signal: options.signal, headers: clientVersionHeaders() });
+          const fresh = await request(machineApiPath("/api/catalog", machine), { cache: "no-store", signal: options.signal, headers: { ...clientVersionHeaders(), "Accept-Language": (typeof document !== "undefined" && document.documentElement?.lang === "en" ? "en" : "zh-CN") } });
           checkMachineResponse(fresh, machine);
           if (fresh.ok) {
             const catalog = await fresh.json();

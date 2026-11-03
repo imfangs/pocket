@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -27,6 +28,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
   onCheck: () => void; onCancelOperation: () => void; onClose: () => void;
   closeRequested?: boolean;
 }) {
+  useLocale();
   const [locations, setLocations] = useState<CreateLocation[]>([]), [directoryCwd, setDirectoryCwd] = useState("");
   const [projectLocationId, setProjectLocationId] = useState("");
   const [directoryQuery, setDirectoryQuery] = useState(""), [selectionTouched, setSelectionTouched] = useState(false);
@@ -63,6 +65,9 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
   const directory = directories.find(item => item.cwd === directoryCwd);
   const selectedLocation = creationLocation(directories, directoryCwd, projectLocationId);
   const projects = directory ? creationProjectChoices(directory) : [];
+  const projectLabel = (choice: ReturnType<typeof creationProjectChoices>[number]) => !choice.location.projectId
+    ? choice.label.replace(/^不归入项目(?=（| ·|$)/, tr("不归入项目"))
+    : !choice.location.projectName?.trim() && !choice.location.label.trim() ? choice.label.replace(/^未命名项目(?=（| ·|$)/, tr("未命名项目")) : choice.label;
   const locked = busy || activeOperation(operation) || operation?.status === "succeeded";
   const dirty = !activeOperation(operation) && operation?.status !== "succeeded" && (!!name || selectionTouched || !!query);
   useEffect(() => {
@@ -113,15 +118,15 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
   const locationFields = <div className="new-conversation-location-fields" data-required={locationRequired || undefined}>
     <div className="new-conversation-field new-conversation-directory">
       <div className="new-directory-heading">
-        <label className="field-label" htmlFor="new-conversation-location">工作目录</label>
+        <label className="field-label" htmlFor="new-conversation-location">{tr("工作目录")}</label>
         <Button type="button" className="text-button directory-search-toggle" variant="ghost" color="gray" size="2" aria-expanded={directorySearchOpen} aria-controls="new-directory-search"
           disabled={locked} onClick={() => { setDirectorySearchOpen(value => !value); setDirectoryQuery(""); }}>
-          <Search size={14} aria-hidden="true" />{directorySearchOpen ? "收起查找" : "查找目录"}
+          <Search size={14} aria-hidden="true" />{directorySearchOpen ? tr("收起查找") : tr("查找目录")}
         </Button>
       </div>
       {directorySearchOpen && <div className="directory-search" id="new-directory-search">
         <Search size={16} aria-hidden="true" />
-        <input ref={directorySearch} type="search" aria-label="搜索工作目录" placeholder="搜索目录名或路径" value={directoryQuery} disabled={locked}
+        <input ref={directorySearch} type="search" aria-label={tr("搜索工作目录")} placeholder={tr("搜索目录名或路径")} value={directoryQuery} disabled={locked}
           onChange={event => setDirectoryQuery(event.target.value)} onKeyDown={event => {
             if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
             if (event.key === "Enter") { event.preventDefault(); directorySelect.current?.focus(); return; }
@@ -137,20 +142,20 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
         saveCreationPreference({ cwd: event.target.value, locationId: location?.id || "" });
       }} required aria-invalid={selectionError === "directory" || undefined}
         aria-describedby={selectionError === "directory" ? "new-conversation-directory-error" : undefined}>
-        <option value="">{loading ? "正在读取目录…" : "选择一个工作目录"}</option>
-        {hiddenSelection && <optgroup label="当前选择"><option value={hiddenSelection.directory.cwd}>{hiddenSelection.label}</option></optgroup>}
+        <option value="">{loading ? tr("正在读取目录…") : tr("选择一个工作目录")}</option>
+        {hiddenSelection && <optgroup label={tr("当前选择")}><option value={hiddenSelection.directory.cwd}>{hiddenSelection.label}</option></optgroup>}
         {directoryResults.map(choice => <option key={choice.directory.cwd} value={choice.directory.cwd}>{choice.label}</option>)}
       </select>
-      {selectionError === "directory" && <p id="new-conversation-directory-error" className="inline-error" role="alert">请选择工作目录后创建。</p>}
-      {rememberedUnavailable && !selectionTouched && <p className="field-help">上次的目录或项目已不可用，请重新选择。</p>}
+      {selectionError === "directory" && <p id="new-conversation-directory-error" className="inline-error" role="alert">{tr("请选择工作目录后创建。")}</p>}
+      {rememberedUnavailable && !selectionTouched && <p className="field-help">{tr("上次的目录或项目已不可用，请重新选择。")}</p>}
       {directoryQuery && !loading && <p className="field-help directory-search-feedback" role="status">
-        {directoryResults.length ? `找到 ${directoryResults.length} 个目录。` : "没有匹配目录，试试路径中的词。"}
-        {hiddenSelection && ` 当前选择仍是「${hiddenSelection.label}」。`}
+        {directoryResults.length ? tr("找到 {{count}} 个目录。", { count: directoryResults.length }) : tr("没有匹配目录，试试路径中的词。")}
+        {hiddenSelection && tr(" 当前选择仍是「{{label}}」。", { label: hiddenSelection.label })}
       </p>}
       {directory && <p className="field-help new-conversation-path">{directory.cwd}</p>}
     </div>
     {projects.length > 1 ? <div className="new-conversation-field new-conversation-project">
-      <label className="field-label" htmlFor="new-conversation-project">归属项目</label>
+      <label className="field-label" htmlFor="new-conversation-project">{tr("归属项目")}</label>
       <select ref={projectSelect} id="new-conversation-project" value={projectLocationId} disabled={loading || locked}
         onChange={event => {
           selectLocation(directoryCwd, event.target.value); setSelectionTouched(true);
@@ -158,13 +163,13 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
           saveCreationPreference({ cwd: directoryCwd, locationId: event.target.value });
         }} required aria-invalid={selectionError === "project" || undefined}
           aria-describedby={selectionError === "project" ? "new-conversation-project-error" : undefined}>
-        <option value="">选择归属项目</option>
-        {projects.map(choice => <option key={choice.location.id} value={choice.location.id}>{choice.label}</option>)}
+        <option value="">{tr("选择归属项目")}</option>
+        {projects.map(choice => <option key={choice.location.id} value={choice.location.id}>{projectLabel(choice)}</option>)}
       </select>
-      {selectionError === "project" && <p id="new-conversation-project-error" className="inline-error" role="alert">请选择归属项目后创建。</p>}
-    </div> : projects.length === 1 ? <p className="field-help">归属项目：{projects[0].label}</p> : null}
+      {selectionError === "project" && <p id="new-conversation-project-error" className="inline-error" role="alert">{tr("请选择归属项目后创建。")}</p>}
+    </div> : projects.length === 1 ? <p className="field-help">{tr("归属项目：")}{projectLabel(projects[0])}</p> : null}
   </div>;
-  return <Modal title="新建会话" className="new-conversation-dialog" onClose={() => (closeRequested || !busy) && onClose()} busy={busy} dirty={dirty} closeRequested={closeRequested}>
+  return <Modal title={tr("新建会话")} className="new-conversation-dialog" onClose={() => (closeRequested || !busy) && onClose()} busy={busy} dirty={dirty} closeRequested={closeRequested}>
     <form className="new-conversation-form" noValidate onSubmit={async event => {
       event.preventDefault(); if (!available || loading || locked || submitting.current || queryTooLong) return;
       if (!selectedLocation) {
@@ -187,16 +192,16 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
     }}>
       <div className="quick-create-query" ref={queryBox}>
         <div className="quick-create-query-input">
-          <label className="sr-only" htmlFor="quick-create-query">首条消息</label>
+          <label className="sr-only" htmlFor="quick-create-query">{tr("首条消息")}</label>
           <AutoTextarea id="quick-create-query" data-autofocus value={query} disabled={locked} maxLength={16000}
-            aria-invalid={queryTooLong || undefined} placeholder={clipboardPending ? "正在读取剪贴板…" : "写下想讨论或完成的事，也可以粘贴内容"}
+            aria-invalid={queryTooLong || undefined} placeholder={clipboardPending ? tr("正在读取剪贴板…") : tr("写下想讨论或完成的事，也可以粘贴内容")}
             onChange={event => { const text = event.target.value; clipboardReader.current?.cancel(); setQueryDraft(draft => editCreationQuery(draft, text)); }} />
-          {query.length > 0 && <IconButton type="button" size="2" className="icon-button quick-create-clear" title="清空输入" aria-label="清空输入" disabled={locked} onClick={() => {
+          {query.length > 0 && <IconButton type="button" size="2" className="icon-button quick-create-clear" title={tr("清空输入")} aria-label={tr("清空输入")} disabled={locked} onClick={() => {
             clipboardReader.current?.cancel();
             setQueryDraft(draft => editCreationQuery(draft, ""));
             queryBox.current?.querySelector("textarea")?.focus();
           }}><X size={16} aria-hidden="true" /></IconButton>}
-          {!query.length && !locked && <IconButton type="button" size="2" className="icon-button quick-create-clear" title="粘贴剪贴板" aria-label="粘贴剪贴板"
+          {!query.length && !locked && <IconButton type="button" size="2" className="icon-button quick-create-clear" title={tr("粘贴剪贴板")} aria-label={tr("粘贴剪贴板")}
             onMouseDown={event => { if (event.button === 0 && document.activeElement === queryBox.current?.querySelector("textarea")) event.preventDefault(); }}
             onClick={() => {
               if (locked || submitting.current) return;
@@ -208,27 +213,27 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
                 ? { ...result, hint: "剪贴板中没有文字。" } : result), claimed.revision);
             }}><ClipboardPaste size={16} aria-hidden="true" /></IconButton>}
         </div>
-        {queryDraft.hint && <p className="field-help">{queryDraft.hint}</p>}
-        {queryTooLong && <p className="inline-error" role="alert">首条消息超过16000字，请缩短后再创建并发送。</p>}
+        {queryDraft.hint && <p className="field-help">{tr(queryDraft.hint)}</p>}
+        {queryTooLong && <p className="inline-error" role="alert">{tr("首条消息超过16000字，请缩短后再创建并发送。")}</p>}
       </div>
       {locationRequired && locationFields}
       <AnimatedDetails ref={settings} className="new-conversation-settings">
-        <summary>更多设置</summary>
+        <summary>{tr("更多设置")}</summary>
         <div className="new-conversation-settings-body">
           {!locationRequired && locationFields}
           <div className="new-conversation-field new-conversation-title">
-            <label className="field-label" htmlFor="new-conversation-name">标题 <small>可选</small></label>
-            <input id="new-conversation-name" value={name} disabled={locked} maxLength={220} placeholder="留空自动命名"
+            <label className="field-label" htmlFor="new-conversation-name">{tr("标题")} <small>{tr("可选")}</small></label>
+            <input id="new-conversation-name" value={name} disabled={locked} maxLength={220} placeholder={tr("留空自动命名")}
               onChange={event => setName(event.target.value)} />
           </div>
         </div>
       </AnimatedDetails>
       {operation && <TaskOperationStatus operation={operation} error={operationError} onCheck={onCheck} onCancel={onCancelOperation} />}
-      {(error || optionsError) && <p className="inline-error" role="alert">{error || optionsError}</p>}
+      {(error || optionsError) && <p className="inline-error" role="alert">{tr(error || optionsError)}</p>}
       <footer>
-        {optionsError && <Button type="button" className="secondary" variant="soft" color="gray" disabled={loading || locked} onClick={() => { setError(""); void optionsReader.current?.read(); }}>{loading ? "正在读取…" : "重新读取目录"}</Button>}
-        {activeOperation(operation) && <Button type="button" className="secondary" variant="soft" color="gray" disabled={busy} onClick={onClose}>返回列表</Button>}
-        <Button type="submit" className="primary" disabled={loading || !available || locked || queryTooLong}>{busy || operation?.status === "pending" ? "正在创建…" : loading ? "正在准备…" : query.trim() ? "创建并发送" : "创建会话"}</Button>
+        {optionsError && <Button type="button" className="secondary" variant="soft" color="gray" disabled={loading || locked} onClick={() => { setError(""); void optionsReader.current?.read(); }}>{loading ? tr("正在读取…") : tr("重新读取目录")}</Button>}
+        {activeOperation(operation) && <Button type="button" className="secondary" variant="soft" color="gray" disabled={busy} onClick={onClose}>{tr("返回列表")}</Button>}
+        <Button type="submit" className="primary" disabled={loading || !available || locked || queryTooLong}>{busy || operation?.status === "pending" ? tr("正在创建…") : loading ? tr("正在准备…") : query.trim() ? tr("创建并发送") : tr("创建会话")}</Button>
       </footer>
     </form>
   </Modal>;

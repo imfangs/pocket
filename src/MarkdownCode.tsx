@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Children, isValidElement, type ReactNode } from "react";
 import CopyButton from "./CopyButton";
 import MermaidBlock from "./MermaidBlock";
@@ -14,6 +15,7 @@ function plainText(node: ReactNode): string {
     .join("");
 }
 export default function MarkdownCode({ children }: { children?: ReactNode }) {
+  useLocale();
   const code = Children.toArray(children).find((child) =>
     isValidElement(child),
   );
@@ -27,8 +29,8 @@ export default function MarkdownCode({ children }: { children?: ReactNode }) {
   return (
     <div className="code-block">
       <div className="code-block-header">
-        <span>{language || "代码"}</span>
-        <CopyButton label="复制代码" text={plainText(children)} />
+        <span>{language || t("代码")}</span>
+        <CopyButton label={t("复制代码")} text={plainText(children)} />
       </div>
       <pre tabIndex={0}>{children}</pre>
     </div>

@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
 import {
@@ -86,6 +87,7 @@ export default function App({
   appearanceActions?: React.ReactNode;
   logoutAction?: React.ReactNode;
 }) {
+  useLocale();
   useEffect(startUsageAnalytics, []);
   const [navigation, setNavigation] = useState(readPrefs);
   const { scope, project, activity, sort } = navigation;
@@ -221,7 +223,7 @@ export default function App({
     restoreScroll.current = null;
   }, [scope, project, activity, sort, query]);
   const notify = useCallback((s: string) => {
-    toast.success(s, { id: "pocket-feedback" });
+    toast.success(tr(s), { id: "pocket-feedback" });
   }, []);
   const [catalogReader] = useState(() => createCatalogReader({
     request: sync => api<Catalog>(sync ? "/api/sync" : "/api/catalog", sync ? "POST" : "GET",
@@ -417,7 +419,7 @@ export default function App({
     setNewConversationClosing(false); newDialogOpen.current = true; setNewConversationOpen(true);
   };
   const discardCreation = (operation: TaskOperation) => {
-    if (operation.status !== "rejected" || operation.creationStatus || !window.confirm("放弃本次新建并清除保留的输入？")) return;
+    if (operation.status !== "rejected" || operation.creationStatus || !window.confirm(tr("放弃本次新建并清除保留的输入？"))) return;
     taskOperations.dismiss(operation.requestId);
     creationDrafts.current.delete(operation.requestId); creationQueries.current.delete(operation.requestId);
   };
@@ -524,7 +526,7 @@ export default function App({
     const preview = saved?.input.name?.trim() || saved?.input.initialQuery?.replace(/\s+/g, " ").trim().slice(0, 80);
     return [{ operation, thread, cue: taskOperations.errors[operation.requestId] && cue.phase !== "confirmed"
       ? { ...cue, phase: "attention" as const, label: "确认暂时中断" } : cue,
-      title: thread?.title || preview || operation.thread?.title || "新会话",
+      title: thread?.title || preview || operation.thread?.title || tr("新会话"),
       projectName: thread?.projectName || saved?.location?.projectName || operation.thread?.projectName,
       startedAt: saved?.startedAt ?? operation.createdAt ?? 0,
       canOpen: !!operation.threadId && !!(thread || operation.thread) && (operation.status === "succeeded" || operation.creationStatus === "created") }];
@@ -670,7 +672,7 @@ export default function App({
             <IconButton type="button"
               className="icon-button mobile-only"
               onClick={() => setMobile(true)}
-              aria-label="打开导航"
+              aria-label={tr("打开导航")}
             >
               <Menu size={20} />
             </IconButton>
@@ -682,19 +684,19 @@ export default function App({
             </div>
             <Button variant="soft" color="gray" type="button"
               className="new-conversation-button"
-              aria-label="新建会话"
+              aria-label={tr("新建会话")}
               onClick={() => void guard(showNewConversation)}
             >
-              <Plus size={16} /><span>新建会话</span>
+              <Plus size={16} /><span>{tr("新建会话")}</span>
             </Button>
             <button
               className={`sync-button ${busy ? "spinning" : ""}`}
               onClick={() => { void syncTasks().catch(() => {}); }}
               disabled={busy || loading}
-              aria-label="刷新会话"
+              aria-label={tr("刷新会话")}
             >
               <RefreshCw size={16} />
-              <span>同步</span>
+              <span>{tr("同步")}</span>
             </button>
           </div>
           <div className="filter-row">
@@ -705,28 +707,28 @@ export default function App({
               ] as const).map(filter => (
                 <button key={filter.activity} className={`needs-input-toggle ${filter.activity}-toggle`}
                   data-inbox={activity === filter.activity} aria-pressed={activity === filter.activity}
-                  title={activity === filter.activity ? `取消${filter.label}筛选` : `查看${filter.label}的会话`}
+                  title={activity === filter.activity ? tr("取消{{label}}筛选", { label: tr(filter.label) }) : tr("查看{{label}}的会话", { label: tr(filter.label) })}
                   onClick={() => updateNavigation({ type: "activity", activity: filter.activity })}>
                   <span className={`${filter.activity}-dot`} aria-hidden="true" />
-                  <span>{filter.label}</span><small>{filter.count}</small>
+                  <span>{tr(filter.label)}</span><small>{filter.count}</small>
                 </button>
               ))}
               {scope !== "archived" && scope !== "hidden" && <button className="needs-input-toggle priority-toggle"
                 data-inbox={scope === "priority"} aria-pressed={scope === "priority"}
-                title={scope === "priority" ? `返回${navigationTitle(navigation.priorityReturn || { scope: "all", project: "" }, catalog.projects)}` : "查看 Pocket 关注的会话"}
+                title={scope === "priority" ? tr("返回{{view}}", { view: navigationTitle(navigation.priorityReturn || { scope: "all", project: "" }, catalog.projects) }) : tr("查看 Pocket 关注的会话")}
                 onClick={() => updateNavigation({ type: "togglePriority" })}>
-                <Star size={15} aria-hidden="true" /><span>关注</span>
+                <Star size={15} aria-hidden="true" /><span>{tr("关注")}</span>
               </button>}
-              <div className="thread-sort-controls" role="group" aria-label="会话排序">
+              <div className="thread-sort-controls" role="group" aria-label={tr("会话排序")}>
                 {([
                   { sort: "created", label: "创建", title: "按创建时间从新到旧排列" },
                   { sort: "activity", label: "活动", title: "按最后消息时间从新到旧排列" },
                 ] as const).map(option => (
                   <button key={option.sort} className={`needs-input-toggle ${option.sort}-toggle`}
                     data-inbox={sort === option.sort} aria-pressed={sort === option.sort}
-                    title={sort === option.sort ? "恢复智能排序" : option.title}
+                    title={sort === option.sort ? tr("恢复智能排序") : tr(option.title)}
                     onClick={() => updateNavigation({ type: "sort", sort: option.sort })}>
-                    <span>{option.label}</span>
+                    <span>{tr(option.label)}</span>
                   </button>
                 ))}
               </div>
@@ -735,21 +737,21 @@ export default function App({
               <IconButton type="button"
                 ref={searchToggle}
                 className="icon-button search-toggle"
-                aria-label={searchOpen ? "收起搜索" : "展开搜索"}
+                aria-label={searchOpen ? tr("收起搜索") : tr("展开搜索")}
                 aria-expanded={searchOpen}
                 aria-controls="task-search-box"
                 aria-keyshortcuts="Control+K Meta+K"
                 onClick={searchOpen ? closeSearch : openSearch}
               >
-                <Search size={17} /><span>搜索</span><kbd aria-hidden="true">⌘ K</kbd>
+                <Search size={17} /><span>{tr("搜索")}</span><kbd aria-hidden="true">⌘ K</kbd>
               </IconButton>
             </div>
           </div>
           {searchOpen && <div className="search-box expanded-search" id="task-search-box">
             <input
               ref={search}
-              aria-label="搜索会话"
-              placeholder={`搜索${title}…`}
+              aria-label={tr("搜索会话")}
+              placeholder={tr("搜索{{view}}…", { view: title })}
               aria-describedby="task-search-help"
               inputMode="search"
               enterKeyHint="search"
@@ -762,28 +764,28 @@ export default function App({
                 if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
               }}
             />
-            <IconButton type="button" className="icon-button" onClick={closeSearch} aria-label="清除并收起搜索">
+            <IconButton type="button" className="icon-button" onClick={closeSearch} aria-label={tr("清除并收起搜索")}>
               <X size={17} />
             </IconButton>
           </div>}
-          {searchOpen && <p id="task-search-help" className="sr-only">在当前视图内搜索标题、项目和目录。</p>}
+          {searchOpen && <p id="task-search-help" className="sr-only">{tr("在当前视图内搜索标题、项目和目录。")}</p>}
         </header>
         {error && (
           <div className="error-banner" role="alert">
             <AlertCircle size={17} />
             <span>
-              {error}
+              {tr(error)}
             </span>
             <IconButton type="button"
               className="icon-button"
-              aria-label="关闭提示"
+              aria-label={tr("关闭提示")}
               onClick={() => setError("")}
             >
               <X size={15} />
             </IconButton>
           </div>
         )}
-        {operationNotices.length > 0 && <div className="task-operation-notices" aria-label="会话操作状态">
+        {operationNotices.length > 0 && <div className="task-operation-notices" aria-label={tr("会话操作状态")}>
             {operationNotices.map(operation => <TaskOperationStatus key={operation.requestId} operation={operation}
               autoDismissEnabled={!(narrow && (mobile || !!current))}
               title={operation.threadId ? catalog.threads.find(thread => thread.id === operation.threadId)?.title : undefined}
@@ -802,11 +804,11 @@ export default function App({
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}
             feedback={<CollectionReadFeedback hasCatalog={hasCatalog} pending={busy || !hasCatalog && (loading || catalogReading)}
               error={catalogReadError} retry={() => void syncTasks().catch(() => {})} />}>
-              {retainedInputThreads.length > 0 && <section className="retained-inputs" aria-label="保留的输入">
-                <p>保留的输入</p>
-                {retainedInputThreads.map(thread => <button key={thread.id} aria-label={`继续输入：${thread.title}`}
+              {retainedInputThreads.length > 0 && <section className="retained-inputs" aria-label={tr("保留的输入")}>
+                <p>{tr("保留的输入")}</p>
+                {retainedInputThreads.map(thread => <button key={thread.id} aria-label={tr("继续输入：{{title}}", { title: thread.title })}
                   onClick={event => setSelected(thread.id, event.detail !== 0, inspectorEntryFromClick(event))}>
-                  <span>{thread.title}</span><small>继续处理</small>
+                  <span>{thread.title}</span><small>{tr("继续处理")}</small>
                 </button>)}
               </section>}
               <CreationPendingRows items={pendingCreationRows} onOpen={operation => void guard(() => openCreation(operation))} onReview={reviewCreation} />
@@ -865,7 +867,7 @@ export default function App({
                 catalogReader.invalidate();
                 setCatalog(c => ({ ...c, threads: c.threads.map(old => old.id === thread.id
                   ? { ...old, title: thread.title, titleRevision: thread.titleRevision } : old) }));
-                notify("会话已重命名");
+                notify(tr("会话已重命名"));
                 refreshAfterActivity();
               }}
               onOpen={open}
@@ -896,7 +898,7 @@ export default function App({
             />
           ) : (
             <aside className="inspector-placeholder">
-              <p>选择会话，查看进展</p>
+              <p>{tr("选择会话，查看进展")}</p>
             </aside>
           )}
         </div>

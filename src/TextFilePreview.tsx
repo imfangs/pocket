@@ -1,3 +1,4 @@
+import { t, useLocale } from "./i18n";
 import { Download, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -11,8 +12,8 @@ type Reader = (file: MessageFileReference, threadId: string, options: { machine:
 const plugins = [remarkGfm];
 const components: Components = {
   a: ({ href, children }) => href ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>,
-  img: ({ alt }) => <span className="markdown-image-reference">{alt || "图片"}</span>,
-  table: ({ children }) => <div className="markdown-table" tabIndex={0} role="region" aria-label="表格，可横向滚动"><table>{children}</table></div>,
+  img: ({ alt }) => <span className="markdown-image-reference">{alt || t("图片")}</span>,
+  table: ({ children }) => <div className="markdown-table" tabIndex={0} role="region" aria-label={t("表格，可横向滚动")}><table>{children}</table></div>,
 };
 const safeLink = (value: string, key: string) => {
   if (key !== "href") return "";
@@ -25,16 +26,18 @@ const safeLink = (value: string, key: string) => {
 };
 
 export function TextFileContent({ name, text }: { name: string; text: string }) {
+  useLocale();
   return text ? messageFileTextFormat(name) === "markdown"
     ? <div className="message-text message-markdown"><Markdown remarkPlugins={plugins} components={components} urlTransform={safeLink} skipHtml>{text}</Markdown></div>
     : <pre className="text-file-plain">{text}</pre>
-    : <p className="text-file-empty">空文件</p>;
+    : <p className="text-file-empty">{t("空文件")}</p>;
 }
 
 export default function TextFilePreview({ file, threadId, machine, opener, onClose, readFile, download, downloading, downloadError }: {
   file: MessageFileReference; threadId: string; machine: MachineId; opener: HTMLElement; onClose: () => void;
   readFile: Reader; download: (blob?: Blob) => void; downloading: boolean; downloadError: string;
 }) {
+  useLocale();
   const dialog = useRef<HTMLDialogElement>(null), title = useRef<HTMLHeadingElement>(null);
   const [result, setResult] = useState<{ text: string; blob: Blob } | null>(null), [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -79,20 +82,20 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
     return () => { current = false; controller.abort(); window.clearTimeout(timeout); };
   }, [file.url, file.name, threadId, machine, attempt, readFile]);
   if (typeof document === "undefined") return null;
-  return createPortal(<dialog ref={dialog} className="text-file-viewer" data-reading-overlay="" aria-label={`预览文件：${file.name}`}
+  return createPortal(<dialog ref={dialog} className="text-file-viewer" data-reading-overlay="" aria-label={t("预览文件：{{value0}}", { value0: file.name })}
     onCancel={event => { event.preventDefault(); onClose(); }}>
     <header className="text-file-toolbar">
       <h2 ref={title} tabIndex={-1} style={{ outline: "none" }}>{file.name}</h2>
-      <button type="button" disabled={downloading} aria-busy={downloading || undefined} aria-label={`${downloading ? "正在下载" : "下载文件"}：${file.name}`} onClick={() => download(result?.blob)}>
-        <Download size={18} aria-hidden="true" /><span>{downloading ? "下载中…" : "下载"}</span>
+      <button type="button" disabled={downloading} aria-busy={downloading || undefined} aria-label={t("{{action}}：{{name}}", { action: downloading ? t("正在下载") : t("下载文件"), name: file.name })} onClick={() => download(result?.blob)}>
+        <Download size={18} aria-hidden="true" /><span>{downloading ? t("下载中…") : t("下载")}</span>
       </button>
-      <button type="button" className="text-file-close" aria-label="关闭文件预览" onClick={onClose}><X size={18} aria-hidden="true" /><span>关闭</span></button>
+      <button type="button" className="text-file-close" aria-label={t("关闭文件预览")} onClick={onClose}><X size={18} aria-hidden="true" /><span>{t("关闭")}</span></button>
     </header>
-    {downloadError && <p className="text-file-download-error" role="alert">{downloadError}</p>}
-    <div className="text-file-scroll ph-no-capture ph-mask" tabIndex={0} role="region" aria-label="文件内容">
+    {downloadError && <p className="text-file-download-error" role="alert">{t(downloadError)}</p>}
+    <div className="text-file-scroll ph-no-capture ph-mask" tabIndex={0} role="region" aria-label={t("文件内容")}>
       {result ? <TextFileContent name={file.name} text={result.text} />
-        : error ? <div className="text-file-state"><p role="alert">{error}</p><button type="button" onClick={() => setAttempt(value => value + 1)}>重试</button></div>
-        : <div className="text-file-state"><p role="status">正在读取文件…</p></div>}
+        : error ? <div className="text-file-state"><p role="alert">{t(error)}</p><button type="button" onClick={() => setAttempt(value => value + 1)}>{t("重试")}</button></div>
+        : <div className="text-file-state"><p role="status">{t("正在读取文件…")}</p></div>}
     </div>
   </dialog>, document.body);
 }

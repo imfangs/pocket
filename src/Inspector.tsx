@@ -1,3 +1,4 @@
+import { t, useLocale, formatDate } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
 import { Archive, ArchiveRestore, ArrowUpRight, ChevronDown, ChevronLeft, Clipboard, GitBranch, Pencil, X } from "lucide-react";
@@ -49,6 +50,7 @@ interface Props {
   entryOrigin?: InspectorEntryOrigin;
 }
 export default function Inspector(p: Props) {
+  useLocale();
   const panel = useRef<HTMLElement>(null);
   const close = useRef(p.onClose), overlayOpen = useRef(false), actionPending = useRef(false);
   const navigation = useRef<ReturnType<typeof bindInspectorMotion> | null>(null);
@@ -81,16 +83,16 @@ export default function Inspector(p: Props) {
   const operationStatus = p.operation && <TaskOperationStatus operation={p.operation} error={p.operationError}
     onCheck={() => p.onCheckOperation(p.operation!.requestId)} onCancel={() => p.onCancelOperation(p.operation!.requestId)} />;
   return (
-    <ImagePreviewProvider scope={p.thread.id}><aside className="inspector" aria-label="接续详情" ref={panel} tabIndex={-1} style={{ outline: "none" }}>
+    <ImagePreviewProvider scope={p.thread.id}><aside className="inspector" aria-label={t("接续详情")} ref={panel} tabIndex={-1} style={{ outline: "none" }}>
       <div className="inspector-header">
         <h2 className="inspector-title" title={p.thread.title}>
-          <button type="button" className="inspector-title-trigger" aria-label={`会话信息：${p.thread.title}`}
+          <button type="button" className="inspector-title-trigger" aria-label={t("会话信息：{{value0}}", { value0: p.thread.title })}
             aria-haspopup="dialog" aria-expanded={infoOpen} onClick={() => { setError(""); setCopied(false); setInfoOpen(true); }}>
-            <NetworkTitle machine={currentMachineId()} threadId={p.thread.id}>{p.thread.separator ? "分隔符会话" : p.thread.title}</NetworkTitle>
+            <NetworkTitle machine={currentMachineId()} threadId={p.thread.id}>{p.thread.separator ? t("分隔符会话") : p.thread.title}</NetworkTitle>
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </h2>
-        <IconButton type="button" data-inspector-close className="icon-button" aria-label="关闭详情" onClick={event => navigation.current?.close(event.detail !== 0, inspectorEntryFromClick(event))}>
+        <IconButton type="button" data-inspector-close className="icon-button" aria-label={t("关闭详情")} onClick={event => navigation.current?.close(event.detail !== 0, inspectorEntryFromClick(event))}>
           <ChevronLeft size={23} className="inspector-back-icon" />
           <X size={18} className="inspector-close-icon" />
         </IconButton>
@@ -103,40 +105,40 @@ export default function Inspector(p: Props) {
           managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
           onConnect={options => p.onOpen(p.thread, options)} onRestore={() => p.onArchive(p.thread, false)} />
       </div>
-      {infoOpen && <Modal title="会话信息" onClose={() => setInfoOpen(false)} busy={actionBusy || modelBusy} initialFocus="title">
+      {infoOpen && <Modal title={t("会话信息")} onClose={() => setInfoOpen(false)} busy={actionBusy || modelBusy} initialFocus="title">
         <div className="conversation-info">
           <p className="conversation-info-title">{p.thread.title}</p>
           <ThreadModelSettings thread={p.thread} disabled={actionBusy || managementBlocked}
             onConnect={() => p.onOpen(p.thread, { quiet: true })} onActivity={p.onActivity} onBusyChange={setModelBusy} />
           <div className="thread-management-actions">
             <Button variant="soft" color="gray" type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || p.thread.archived || managementBlocked}
-              onClick={() => setRenaming(true)}><Pencil size={14} aria-hidden="true" />重命名</Button>
+              onClick={() => setRenaming(true)}><Pencil size={14} aria-hidden="true" />{t("重命名")}</Button>
             <Button variant="soft" color="gray" type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || managementBlocked}
               onClick={() => void runAction(() => p.onArchive(p.thread, !p.thread.archived))}>
-              {p.thread.archived ? <ArchiveRestore size={14} aria-hidden="true" /> : <Archive size={14} aria-hidden="true" />}{p.thread.archived ? "取消归档" : "归档会话"}
+              {p.thread.archived ? <ArchiveRestore size={14} aria-hidden="true" /> : <Archive size={14} aria-hidden="true" />}{p.thread.archived ? t("取消归档") : t("归档会话")}
             </Button>
             {showMacOpen && <Button variant="soft" color="gray" type="button" className="secondary" disabled={actionBusy || modelBusy || p.thread.missing || managementBlocked}
-              onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>在 Mac 打开<ArrowUpRight size={14} aria-hidden="true" /></Button>}
+              onClick={() => void runAction(async () => { await p.onOpen(p.thread); setInfoOpen(false); })}>{t("在 Mac 打开")}<ArrowUpRight size={14} aria-hidden="true" /></Button>}
           </div>
-          {p.thread.missing ? <p className="field-help">会话暂不可用，请刷新。</p>
-            : p.thread.archived ? <p className="field-help">取消归档后可继续对话或重命名。</p> : null}
+          {p.thread.missing ? <p className="field-help">{t("会话暂不可用，请刷新。")}</p>
+            : p.thread.archived ? <p className="field-help">{t("取消归档后可继续对话或重命名。")}</p> : null}
           {operationStatus}
-          {p.operation?.code === "outbox_not_empty" && <button type="button" className="text-button" onClick={() => setInfoOpen(false)}>查看待发消息</button>}
-          {error && <p className="inline-error" role="alert">{error}</p>}
+          {p.operation?.code === "outbox_not_empty" && <button type="button" className="text-button" onClick={() => setInfoOpen(false)}>{t("查看待发消息")}</button>}
+          {error && <p className="inline-error" role="alert">{t(error)}</p>}
           <ThreadAutomations thread={p.thread} />
           <UsageFeedback threadId={p.thread.id} pending={p.feedback && !p.feedback.ready}
             onStart={p.feedback?.enabled ? () => { setInfoOpen(false); void p.feedback!.open(p.thread.id); } : undefined} />
           <dl className="conversation-info-details">
-            <dt>来源项目</dt><dd>{p.thread.projectName === "无项目" ? "独立会话" : p.thread.projectName}</dd>
-            <dt>工作目录</dt><dd>{p.thread.cwd}</dd>
-            {p.thread.branch && <><dt><GitBranch size={12} aria-hidden="true" />分支</dt><dd>{p.thread.branch}</dd></>}
-            <dt>创建时间</dt><dd>{new Date(p.thread.createdAt).toLocaleString("zh-CN")}</dd>
-            <dt>会话 ID</dt><dd className="thread-id">{p.thread.id}</dd>
+            <dt>{t("来源项目")}</dt><dd>{p.thread.projectName === "无项目" ? t("独立会话") : p.thread.projectName}</dd>
+            <dt>{t("工作目录")}</dt><dd>{p.thread.cwd}</dd>
+            {p.thread.branch && <><dt><GitBranch size={12} aria-hidden="true" />{t("分支")}</dt><dd>{p.thread.branch}</dd></>}
+            <dt>{t("创建时间")}</dt><dd>{formatDate(p.thread.createdAt)}</dd>
+            <dt>{t("会话 ID")}</dt><dd className="thread-id">{p.thread.id}</dd>
           </dl>
           <button type="button" className="text-button" onClick={async () => {
             try { await navigator.clipboard.writeText(new URL(machineTaskUrl(p.thread.id), location.origin).href); setCopied(true); }
             catch { setError("复制未完成，请选取上方的会话 ID"); }
-          }}><Clipboard size={13} aria-hidden="true" /><span aria-live="polite">{copied ? "链接已复制" : "复制会话链接"}</span></button>
+          }}><Clipboard size={13} aria-hidden="true" /><span aria-live="polite">{copied ? t("链接已复制") : t("复制会话链接")}</span></button>
         </div>
       </Modal>}
       {renaming && <RenameThreadDialog thread={p.thread} onClose={() => setRenaming(false)}
