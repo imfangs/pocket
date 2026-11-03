@@ -26,7 +26,8 @@ test('the revealed action reflects the authoritative Pocket priority value and p
   assert.match(html, />取消关注<\/span>/);
   const pending = renderRow({ open: true, pending: true, disabled: true });
   assert.match(pending, /aria-busy="true"/);
-  assert.match(pending, /处理中…/);
+  assert.match(pending, /class="row-priority-action"[^>]*><svg[^>]*row-priority-spinner/);
+  assert.doesNotMatch(pending, /处理中…|<span>/);
   assert.match(pending, /class="row-priority-action"[^>]*disabled/);
 });
 
@@ -57,7 +58,8 @@ test('hidden rows can be restored without changing their independent priority ac
   const pending = renderRow({ onHidden: noop, hidden: false, open: true, pending: true, pendingAction: 'hidden', disabled: true });
   assert.match(pending, /class="row-hidden-action"[^>]*disabled/);
   assert.match(pending, /class="row-priority-action"[^>]*disabled/);
-  assert.equal((pending.match(/处理中…/g) || []).length, 1);
+  assert.match(pending, /class="row-hidden-action"[^>]*><svg[^>]*row-priority-spinner/);
+  assert.doesNotMatch(pending, /处理中…/);
   assert.match(pending, />优先关注<\/span>/);
 });
 

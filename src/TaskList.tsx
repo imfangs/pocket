@@ -294,15 +294,15 @@ export default function TaskList(p: Props) {
                         : <span aria-label="暂无可确认的消息时间" title="暂无可确认的消息时间">—</span>}
                     </span>
                   </div>
-                  {(!p.projectScope || states.length > 0 || pendingId === t.id) && <div className="row-second">
+                  {(!p.projectScope || states.length > 0) && <div className="row-second">
                     {!p.projectScope && <span className="project-label">
                       {t.projectName === "无项目" ? "独立会话" : t.projectName}
                     </span>}
                     {states.length > 0 && <span className="row-secondary-states" data-list-status="secondary" data-list-status-key={states.map(state => state.key).join(" ")}>
                       {states.map(state => <span key={state.key} className="task-state-badge" data-state={state.key}>{state.label}</span>)}
                     </span>}
-                    {pendingId === t.id && <span className="row-priority-pending" role="status">正在保存…</span>}
                   </div>}
+                  {pendingId === t.id && <span className="sr-only" role="status">正在保存…</span>}
                 </button>
                 <IconButton type="button"
                   className="row-open icon-button"

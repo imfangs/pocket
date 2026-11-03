@@ -88,8 +88,7 @@ export default function SwipeTaskRow({ threadId, title, prioritized, hidden = fa
         {actionTypes.map(kind => <button key={kind} ref={element => { actions.current[kind] = element; }} type="button" data-row-action={kind}
           className={kind === "priority" ? "row-priority-action" : "row-hidden-action"} aria-hidden={!open} tabIndex={open ? 0 : -1}
           aria-label={`${label(kind)} ${title}`} aria-describedby={error ? errorId : undefined} disabled={disabled || !open} onClick={event => change(kind, event)}>
-          {pending && pendingAction === kind && <LoaderCircle size={18} className="row-priority-spinner" aria-hidden="true" />}
-          <span>{pending && pendingAction === kind ? "处理中…" : label(kind)}</span>
+          {pending && pendingAction === kind ? <LoaderCircle size={18} className="row-priority-spinner" aria-hidden="true" /> : <span>{label(kind)}</span>}
         </button>)}
       </div>
       {row}

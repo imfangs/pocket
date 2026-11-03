@@ -13,7 +13,6 @@
 .task-row :is(.row-priority-shortcut,.row-hidden-shortcut) { position:absolute; width:1px; height:1px; min-width:0; min-height:0; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .task-row :is(.row-priority-shortcut,.row-hidden-shortcut):focus-visible { position:static; width:32px; height:36px; min-height:36px; clip-path:none; overflow:visible; align-self:center; margin-left:8px; opacity:1; flex-shrink:0; }
 .task-row :is(.row-priority-shortcut,.row-hidden-shortcut)[aria-hidden="true"] { opacity:0; pointer-events:none; }
-.row-priority-pending { color:var(--muted); }
 .row-priority-error { display:flex; align-items:center; gap:10px; padding:7px 20px; color:var(--danger,#b42318); font-size:12px; line-height:1.5; }
 .row-priority-error > span { flex:1; overflow-wrap:anywhere; }
 .row-priority-error > button { min-width:32px; min-height:32px; flex-shrink:0; }
