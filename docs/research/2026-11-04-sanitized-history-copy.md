@@ -26,3 +26,13 @@
 - 不声称任意个人事实/未知密钥或所有历史版本行为均已认证。公开前仍沿既有Alpha的新Mac/实体手机、完整许可、远程入口与正式仓库/支持流程门槛。
 
 第一轮证据：`inventory-*.json`、`filter-receipt.json`、`filter-stats.json`、`independent-history-audit.json`、`independent-context-resolution.json`。加入最新UI/维护提交与当前源码基线后，最终副本须再次核对；最终身份及路径以同目录的最终回执和CURRENT为准。
+
+## 最终本地交付
+
+固定原源码边界`dd7e01376474ee0ef04fbbb11983ba0546f2bc3a`，包含原365历史与并行UI/本轮公开准备两个正常追加提交。367→367的完整filter之后，增加一条显式baseline准备提交，公共HEAD`2d2fa4aa9ff971ff3391c0ecaeeb30de48a50f92`，合计368提交；初始178空提交保持。候选在`.local/exports/pocket-public-history-2026-11-04/`，净bundle同路径名加`.bundle`，约3MB。未创建GitHub仓库或推送，后续私有验证日志提交不改变这个固定候选源边界。
+
+最终独立审查3,243对象（368commit/2,179blob/696tree）全可达，634 tracked文件与source manifest逐SHA相同，metadata/日期/parent顺序/脱敏message与bootstrap parent正确；无private/strongcredential/path/mode/refs/reflog/alternates/.git ancillary finding，strict fsck通过。普通输入原数据没有复制进候选。完整Mac2,045项、public合成1,872项、公开构建及35个构建文件marker检查通过。临时依赖link、dist、Pythoncache和生成工作目录已清理，Git状态干净；bundle在全新临时clone恢复main，368提交/634文件SHA/fsck再次通过。原365对象与7项私人配置的最终保全核验以`original-preserved-final.json`为准。
+
+最终回执：`independent-final-history-audit.json`、`final-delivery-receipt.json`、`bundle-roundtrip.json`、`public-history-build.log`、`public-history-tests.log`。旧新映射、私人规则及原始源码镜像仅留私有QA，不附bundle。仅known-marker与有限模式及指定语义样本的核验，不升级为任意个人事实/完整秘密认证。
+
+同轮网页三点功能已按个人双机profile单次上线：源`dd7e013`、build`92bfebf04a0f…`、Pages`4e4b5c8a…`，35/35资源、原功能、公网version/profile独立对照通过；不代表源码/历史已公开。Mac/API/连接器与原数据未重启/迁移。

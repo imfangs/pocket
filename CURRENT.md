@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-04。129个图标统一尺寸/线宽与角色、纯操作目标44px，已更新共享网页。自部署准备版已部署到两机及共享公网，个人双机配置、原登录/待发/附件与Codex/连接器保持；源码仍未公开。排序已收进标题栏三项单选菜单，按钮图标对应智能/创建/活动，中英筛选恢复单行，模式记忆及桌面会话/草稿保持；英文文案、状态栏和多语言继续生效。左滑等待仅转圈、隐藏、触摸返回及弹窗中性焦点保持。会话信息缓存、原生iOS顶边修复、设置/过程页脚减法与未读优先正文预取保持；连接仍保留详情停留5秒/输入触发。XML兼容、CLI版本warn、顶部下拉、银色扫光、客户端版本、视频、截图反馈及两机投递保持。准确已发布身份见下方版本表。
+维护日期：2026-11-04本轮接续。三点工作反馈已更新共享网页，脱敏历史368提交本地副本已完成、未公开；129个图标统一尺寸/线宽与角色、纯操作目标44px保持。自部署准备版已部署到两机及共享公网，个人双机配置、原登录/待发/附件与Codex/连接器保持；源码仍未公开。排序已收进标题栏三项单选菜单，按钮图标对应智能/创建/活动，中英筛选恢复单行，模式记忆及桌面会话/草稿保持；英文文案、状态栏和多语言继续生效。左滑等待仅转圈、隐藏、触摸返回及弹窗中性焦点保持。会话信息缓存、原生iOS顶边修复、设置/过程页脚减法与未读优先正文预取保持；连接仍保留详情停留5秒/输入触发。XML兼容、CLI版本warn、顶部下拉、银色扫光、客户端版本、视频、截图反馈及两机投递保持。准确已发布身份见下方版本表。
 
 ## 下一次先看
 
-- **脱敏历史本地副本正在收尾，三点工作反馈已实现待发布。** [历史记录](docs/research/2026-11-04-sanitized-history-copy.md)：初始365提交全部保留、178个公共树不变的空提交明确披露；日期/父链/意图与一一映射已独立核对，3,215全对象无旧不可达对象/私人值/remote/reflog/alternates，归档/图片/已知用户文本样本已检查。原已有历史/7项私有配置保持，最新源码bootstrap与并行UI提交后还须最终复验；未push或公开仓库。[运行三点](docs/design/2026-11-04-conversation-working-dots.md)源`3b72330`：最新内容下方3个中性小点，仅新鲜原owner真实运行显示，缓存/accepted/排队/等待/断网/终态不假跑；独立activityEpoch绑定请求起点，堵后台/pageshow旧在途复亮，原阅读/节点/焦点/选区保持，reduce静态。2,045全测、59完整浏览器及最后6双浏览器受影响复验通过；公网/API仍是原版本，下一步只共享网页发布，不重启两机API/Codex/连接器。证据`.local/qa/history-copy-2026-11-04/`与`.local/qa/working-dots-2026-11-04/`。
+- **脱敏历史本地副本已完成，三点工作反馈已上线。** [历史记录](docs/research/2026-11-04-sanitized-history-copy.md)：以`dd7e013`为固定源码边界，367个私有main提交全部映射（包含最初365和本轮UI/准备提交）＋1个明确public bootstrap＝368，副本HEAD`2d2fa4a`；初始178个空提交披露，日期/父链/意图一一核对，3,243全对象均可达，无原对象残留/私人值/remote/reflog/alternates，634文件与源清单SHA全匹配。净仓库`.local/exports/pocket-public-history-2026-11-04/`与约3MB同名`.bundle`已验证全量roundtrip；未push或公开。最终完整2,045/公开1,872测试、公开构建、35文件private-marker及独立审查通过。原已有历史/7项private配置保持；正常追加UI/维护提交是授权迭代，未重写原Git。[运行三点](docs/design/2026-11-04-conversation-working-dots.md)源`3b72330`、网页发布源`dd7e013`：最新内容下方3点，仅新鲜原owner真实运行显示，缓存/accepted/排队/等待/断网/终态不假跑；activityEpoch绑定请求起点，堵后台/pageshow旧在途复亮，阅读/节点/焦点/选区保持、reduce静态。59完整浏览器及最后6双浏览器受影响复验、CR通过。build`92bfebf04a0f…`、Pages`4e4b5c8a…`只上传一次，35/35资源、原功能与独立公网version/private双机profile匹配；只共享网页，API/Codex/连接器未重启。无待续外部操作，真机/目视与Alpha公开门槛保留。证据`.local/qa/history-copy-2026-11-04/`、`.local/qa/working-dots-2026-11-04/`。
 
 - **Agent搭建入口与开源隐私防护已补齐（仅源码/文档，未公开或部署）。** 中英文README提供可复制搭建指令、macOS/Node26/Python3.11+/Codex登录/自有HTTPS前置条件与宏观SVG/交互HTML架构图；自定义config全程携带，doctor与真实手机/发送验收分开，普通输入内存与阅读/反馈持久缓存分开。已发现并移除测试/fixture里的私人公共域名，源码导出增加edge适配器、准确双语与6项架构/许可资产；合成入口将7组依赖已安装App的套件显式分类，完整测试保留原生覆盖，公开遥测关闭的验证兼容。默认数据在源码外，`.gitignore`扩展；导出写入前扫描已知本机私人值，privacy:check核对实际index（含重命名）、导出真实文件树与SHA，CI补源码边界检查。最终全测2,041、净导出1,868项合成检查通过，guard/安装专项见[隐私回执](docs/research/2026-11-04-open-source-privacy-boundary.md)；独立安装契约/文档链接/实际导出构建/35个公开构建文件marker检查与架构9/9及四尺寸验收通过。未做目视/实体手机、新Mac首装或公开GitHub CI；两机API/公网版本/现有数据未变。**旧613文件冻结包含测试域名，仅保留历史证据，不能发布；私有原Git历史含个人部署资料，公开必须从最新已检查导出创建新仓库。** 本轮证据`.local/qa/agent-selfhost-docs-2026-11-04/`与`.local/qa/open-source-agent-entry-2026-11-04/`；原许可/新Mac发布门槛继续存在。
 
@@ -124,10 +124,10 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `5ecdd196b9dbc626a8cbc12456c44f495814aee8`；图标角色/尺寸/线宽与触控目标统一，原排序/私有profile/阅读/发送保持 |
+| 公网前端/网关源码 | `dd7e01376474ee0ef04fbbb11983ba0546f2bc3a`（UI实现`3b72330`）；末尾工作三点/恢复代次、原图标/排序/私有profile/阅读/发送保持 |
 | 两机API源码 | `da53fa306909dc8a4c3cf97f59d84b779afe23b9`；11-04格得PID68399、豌豆PID9994，后续运维需重查。不可变release、profile/loopback认证200/匿名401及两机公网health已独立读回 |
-| 前端build | 公网与本仓库dist为`ab559f31a18af6db6f0052309cd68abaca8e4487be2f9db5f04c5b1bb89608e9`；两端API内置前端仍为`1ef5620b64d2…`，手机使用共享公网ged/wandou profile，豌豆本机动态bootstrap是wandou单机 |
-| Pages部署 | `c5284b2a-c361-4f27-bd33-d7207a17629e`；11-04 ready=true，35/35公开文件及功能检查通过，只上传一次 |
+| 前端build | 公网与本仓库dist为`92bfebf04a0ff1f22e2d2369f8084af11619fe406dd33500db7c4b111dcfa8f2`；两端API内置前端仍为`1ef5620b64d2…`，手机使用共享公网ged/wandou profile，豌豆本机动态bootstrap是wandou单机 |
+| Pages部署 | `4e4b5c8a-a06e-44cd-856c-201b2c4ee4a3`；11-04 ready=true，35/35公开文件及功能检查通过，只上传一次 |
 | 本次验证 | 2,032全测、53完整浏览器/设施、共享组件/ARIA/零描边及中英文布局、10+4+2组最终针对复验和独立CR通过，公网manifest另行对照 |
 | 本次证据 | `.local/qa/icon-system-2026-11-04/`：`full-tests-release.log`、`browser-release/`、`media-list/independent-summary.json`、`validation.json`、`deploy.json`、`public-version.json`；两机运行仍用`.local/qa/deploy-selfhost-2026-11-04/` |
 | 本次数据与运行 | 仅共享网页更新，API/Codex/连接器不重启、无用户数据写入；Cloudflare单次续期原28权限保持，无未决认证/部署 |
