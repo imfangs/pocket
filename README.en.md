@@ -99,6 +99,8 @@ Ordinary unsent Query text stays in the current page's memory; once queued, it i
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development, synthetic tests and review. Follow [SECURITY.md](SECURITY.md) for issue reporting and supply sanitized evidence only.
 
+The private maintenance repository retains the complete original history. The prepared public-history copy preserves code evolution and dates; see [the history notice](docs/PUBLIC_HISTORY.md) for changed identities, private content and hashes. Older revisions document evolution; install the version supported by the current guide.
+
 To prepare redistributable source:
 
 ```sh

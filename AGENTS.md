@@ -27,6 +27,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 认证迟到响应、历史缓存上限、首批同文Query或图片引用CR | [代码质量修复](docs/design/2026-10-28-code-quality.md)：认证代次与缓存epoch独立、双路首读基线、统一缓存写入、完整Markdown权限解析；提交正文回收仍是候选 |
 | 查反馈、PostHog、采集无数据或体验复盘 | 先读私有台账 `.local/feedback-ledger.json` 按反馈ID对照，再按[反馈接续](docs/design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)查询和补记，区分已发布与效果确认；[专项验收](docs/QUALITY.md#使用反馈验收)覆盖正式CSP与入库回读。工具版本/认证与事件口径留在使用反馈文档，上线状态回CURRENT |
 | 图标、尺寸/线宽/对齐、触控目标 | [图标规范](docs/design/2026-11-04-icon-system.md)：AppIcon辅助16/操作18/导航20、显式标记/插图例外，普通线宽1.75，Radix/品牌隔离与44px点击区 |
+| 消息末尾运行中三点、缓存/accepted/等待状态误亮、后台/BFCache迟到响应 | [运行三点](docs/design/2026-11-04-conversation-working-dots.md)：新鲜原owner/inProgress、精确turn终态/stop/等待hint、独立activityEpoch按请求起点绑定，保留read基线/选区/焦点/上翻及reduce |
 | 整体视觉、Radix Themes、基础控件/色阶/样式归属 | [整体视觉重整](docs/design/2026-10-19-visual-system.md)：整屏对照、tokens/结构/视觉分工、native行为保护；[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md)：variant几何、错误恢复按钮组合 |
 | Impeccable精修、首次必填披露、空白错误恢复与首字丢失 | [10-28设计审查](docs/design/2026-10-28-impeccable-polish.md)：两路独立评审、局部几何与提示对比、原生input后置预连接；已记忆选择和阅读空间保持 |
 | 首开空白／无加载状态、标题反馈复核 | [加载与标题反馈](docs/design/2026-10-28-feedback-loading.md)：双路首读与缓存分开、沿前后visit定位、原生标题摘要与Pocket回读分开判断 |
@@ -77,7 +78,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 豌豆CLI0.164升级、空输入被附件读取错误撑高 | [升级与附件恢复](docs/design/2026-10-25-wandou-update-and-attachment-recovery.md)：真实CLI验证、数据/scope保留、软读取错误与附件保护 |
 | 发送体感慢、豌豆后端更新机制或10-25桌面升级差异 | [更新与发送复核](docs/research/2026-10-25-updates-and-send-experience.md)：实际发布路径、CLI待验证、已复现等待点；调查不等于已修复 |
 | 本机运行、连接器或公网发布 | [个人部署兼容](docs/design/2026-11-04-selfhost-personal-deployment.md)：不可变API/稳定FBT source、ged/wandou profile、原登录/交付保留与分层验收；[手机链路](docs/MOBILE.md)，具体运行/个人Pages配置从CURRENT进入 |
-| 原生 App、竞品或开源方向 | [README](README.md)含可复制Agent搭建指令/前置条件/架构；[隐私边界复核](docs/research/2026-11-04-open-source-privacy-boundary.md)：实际导出漏出的测试域名、原Git历史不宜公开、私有数据位置、privacy:check/索引与重命名/导出清单；[本轮自部署准备](docs/research/2026-11-04-self-hosted-open-source-readiness.md)、[安装指南](docs/SELF_HOSTING.md)承载配置/独立桥接与真实新Mac发布门槛。公开基线只能取新版已复核白名单导出，不能公开维护仓库或沿用旧613文件候选；9月[旧准备度](docs/research/2026-09-27-open-source-readiness.md)仅保留旧判断 |
+| 原生 App、竞品或开源方向 | [README](README.md)含可复制Agent搭建指令/前置条件/架构；[脱敏历史副本](docs/research/2026-11-04-sanitized-history-copy.md)与[公共历史说明](docs/PUBLIC_HISTORY.md)：原历史保持、全量隔离filter/匿名meta/空提交/净bundle与最新源码bootstrap，最终身份回CURRENT；[隐私边界复核](docs/research/2026-11-04-open-source-privacy-boundary.md)承载误入域名、原Git不宜公开与数据/索引/导出边界；[自部署准备](docs/research/2026-11-04-self-hosted-open-source-readiness.md)、[安装指南](docs/SELF_HOSTING.md)承载桥接/配置/新Mac发布门槛。公开只使用经复核的新导出或脱敏副本，不能公开维护仓库或旧613文件候选 |
 
 ## 代码入口
 

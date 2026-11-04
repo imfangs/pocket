@@ -8,7 +8,7 @@ import { isMain } from './is-main.mjs';
 import { privateSourceMarkers, privateSourcePathReason, sourcePrivacyFindings } from './source-privacy.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const top=new Set(['package.json','package-lock.json','.npmrc','.gitignore','.node-version','tsconfig.json','vite.config.ts','index.html','LICENSE','CONTRIBUTING.md','SECURITY.md','PRIVACY.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_DEPENDENCIES.json','THIRD_PARTY_LICENSES.txt']);
-const docs=new Set(['docs/SELF_HOSTING.md','docs/SELF_HOSTING.zh-CN.md','docs/COMPATIBILITY.md','docs/UPGRADING.md',
+const docs=new Set(['docs/SELF_HOSTING.md','docs/SELF_HOSTING.zh-CN.md','docs/COMPATIBILITY.md','docs/UPGRADING.md','docs/PUBLIC_HISTORY.md',
   'docs/assets/pocket-architecture.svg','docs/assets/pocket-architecture.html','docs/assets/pocket-architecture.json','docs/assets/README.md',
   'docs/assets/ARCHIFY-LICENSE.txt','docs/assets/JetBrainsMono-OFL.txt']);
 const prefixes=['src/','server/','shared/','bin/','edge/','public/','vendor/','packages/','.github/','tests/'];

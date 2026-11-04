@@ -99,6 +99,8 @@ npm run setup -- --public-origin https://pocket.example.com
 
 开发、合成测试与审查见 [CONTRIBUTING.md](CONTRIBUTING.md)；问题报告遵循 [SECURITY.md](SECURITY.md)，只提供脱敏资料。
 
+原维护仓库保留完整迭代记录；可公开的历史副本保留代码演进与提交时间，身份、私人资料和 SHA 的变化见[历史说明](docs/PUBLIC_HISTORY.md)。旧版本用于回顾演进，安装请使用当前文档所支持的版本。
+
 维护者准备可再分发源码时：
 
 ```sh
