@@ -148,7 +148,7 @@ test('a mixed CDN rollout cannot activate an old offline page under a new shell 
     keys: async () => [...stored.keys()], delete: async key => stored.delete(key),
   };
   const self = { addEventListener: (type, fn) => { handlers[type] = fn; }, skipWaiting: async () => { skipped++; }, clients: { claim: async () => { claimed++; } } };
-  vm.runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), { caches, self });
+  vm.runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), { POCKET_CLIENT_CONFIG:profile, caches, self });
   let pending; const install = () => { handlers.install({ waitUntil: p => { pending = p; } }); return pending; };
   await assert.rejects(install(), /Offline shell version is not ready/);
   assert.equal(skipped, 0); assert.equal(claimed, 0); assert.ok(stored.has(old));
@@ -156,4 +156,14 @@ test('a mixed CDN rollout cannot activate an old offline page under a new shell 
   handlers.activate({ waitUntil: p => { pending = p; } }); await pending;
   assert.equal(claimed, 1); assert.equal(stored.has(old), false);
   assert.ok([...stored.values()].some(cache => cache.get('/offline.html') === current));
+});
+
+
+test('a failed public bootstrap keeps the previous worker despite later successful cache fetches',async()=>{
+  const handlers={};let skipped=0,filled=0;
+  const self={addEventListener:(name,callback)=>handlers[name]=callback,skipWaiting:async()=>skipped++};
+  const caches={open:async()=>({addAll:async()=>filled++,match:async()=>new Response('valid public shell')})};
+  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,caches,Response,importScripts:()=>{throw new Error('temporary bootstrap failure');}});
+  let pending;handlers.install({waitUntil:value=>pending=value});
+  await assert.rejects(pending,/Client configuration is not ready/);assert.equal(skipped,0);assert.equal(filled,0);
 });

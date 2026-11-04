@@ -2,6 +2,12 @@ try { if (typeof importScripts === "function") importScripts("/client-config.js"
 const defaultMachine = globalThis.POCKET_CLIENT_CONFIG?.defaultMachine || "local";
 const registeredMachines = globalThis.POCKET_CLIENT_CONFIG?.machines || [{id:defaultMachine}];
 const validMachine = value => typeof value === "string" && /^[a-z][a-z0-9-]{0,31}$/.test(value) && registeredMachines.some(machine=>machine.id===value);
+const loadedClientConfig = globalThis.POCKET_CLIENT_CONFIG;
+const clientConfigReady = loadedClientConfig?.schemaVersion === 1 && Array.isArray(loadedClientConfig.machines) &&
+  loadedClientConfig.machines.length > 0 && loadedClientConfig.machines.length <= 32 &&
+  loadedClientConfig.machines.every(machine=>typeof machine?.id === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(machine.id)) &&
+  new Set(loadedClientConfig.machines.map(machine=>machine.id)).size === loadedClientConfig.machines.length &&
+  loadedClientConfig.machines.some(machine=>machine.id===loadedClientConfig.defaultMachine);
 const CACHE = "navigator-public-shell-v13";
 const PUBLIC_FILES = [
   "/startup.css",
@@ -26,6 +32,7 @@ self.addEventListener("install", (event) => {
     caches
       .open(CACHE)
       .then(async (cache) => {
+        if (!clientConfigReady) throw new Error("Client configuration is not ready; keep the existing worker");
         await cache.addAll(PUBLIC_FILES);
         const offline = await cache.match("/offline.html");
         const html = offline ? await offline.text() : "";
