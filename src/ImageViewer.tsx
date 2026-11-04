@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Minus, Plus, RotateCcw, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -103,11 +104,11 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
           <button type="button" onClick={() => { ready.current = false; setPhase("loading"); commit(imageIdentity()); setAttempt(value => value + 1); }}>{t("重新加载图片")}</button></>}
       </div>}
     </div>
-    <button type="button" className="image-viewer-close" aria-label={t("关闭{{noun}}", { noun: t(noun) })} onClick={requestClose}><X size={20} aria-hidden="true" /><span>{t("关闭")}</span></button>
+    <button type="button" className="image-viewer-close" aria-label={t("关闭{{noun}}", { noun: t(noun) })} onClick={requestClose}><AppIcon icon={X} kind="action" aria-hidden="true" /><span>{t("关闭")}</span></button>
     <div className="image-viewer-zoom" role="group" aria-label={t("{{noun}}缩放", { noun: t(noun) })}>
-      <button type="button" aria-label={t("缩小{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale <= 1} onClick={() => changeZoom(valueRef.current.scale / 1.5)}><Minus size={20} aria-hidden="true" /></button>
-      <button type="button" className="image-viewer-reset" aria-label={t("复位{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale === 1 && value.x === 0 && value.y === 0} onClick={() => commit(imageIdentity())}><RotateCcw size={17} aria-hidden="true" /><span>{t("复位")}</span></button>
-      <button type="button" aria-label={t("放大{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale >= IMAGE_ZOOM_MAX} onClick={() => changeZoom(valueRef.current.scale * 1.5)}><Plus size={20} aria-hidden="true" /></button>
+      <button type="button" aria-label={t("缩小{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale <= 1} onClick={() => changeZoom(valueRef.current.scale / 1.5)}><AppIcon icon={Minus} kind="action" aria-hidden="true" /></button>
+      <button type="button" className="image-viewer-reset" aria-label={t("复位{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale === 1 && value.x === 0 && value.y === 0} onClick={() => commit(imageIdentity())}><AppIcon icon={RotateCcw} kind="action" aria-hidden="true" /><span>{t("复位")}</span></button>
+      <button type="button" aria-label={t("放大{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale >= IMAGE_ZOOM_MAX} onClick={() => changeZoom(valueRef.current.scale * 1.5)}><AppIcon icon={Plus} kind="action" aria-hidden="true" /></button>
     </div>
   </dialog>, document.body);
 }

@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -79,7 +80,7 @@ export default function UserQueryBody({ text, images, disclosure }: {
         disclosure.toggle(!expanded, anchor);
       }}>
       {expanded ? t("收起") : t("展开更多")}
-      {expanded ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+      {expanded ? <AppIcon icon={ChevronUp} kind="auxiliary" aria-hidden="true" /> : <AppIcon icon={ChevronDown} kind="auxiliary" aria-hidden="true" />}
     </button>}
   </div>;
 }

@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Download, FileText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -125,10 +126,10 @@ function MessageDocument({ file, threadId }: { file: MessageFileReference; threa
           try { setPreview({ opener: event.currentTarget, machine: requireMachine() }); } catch { setError("请选择电脑后继续。"); }
         } else void download();
       }}>
-      <FileText size={19} aria-hidden="true" />
+      <AppIcon icon={FileText} kind="auxiliary" aria-hidden="true" />
       <span className="message-file-name">{registered.name}</span>
       <span className="message-file-action">{textPreview ? t("查看") : pending ? t("下载中…") : t("下载")}</span>
-      {!textPreview && <Download size={15} aria-hidden="true" />}
+      {!textPreview && <AppIcon icon={Download} kind="auxiliary" aria-hidden="true" />}
     </button>
     {error && <span className="message-file-error" role="alert">{t(error)}</span>}
     {preview && <TextFilePreview key={`${preview.machine}/${threadId}/${registered.url}/${registered.name}`} file={registered} threadId={threadId} machine={preview.machine} opener={preview.opener}

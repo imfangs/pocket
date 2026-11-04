@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { currentLocale, t, useLocale } from "./i18n";
 import { Clock } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
@@ -130,7 +131,7 @@ export function ThreadAutomationsContent({ source, loading = false, error = "", 
   const empty = !loading && !status && source?.available && !source.stale && automations.length === 0;
   return <section className="thread-automations" aria-labelledby={headingId} aria-busy={loading} data-empty={empty || undefined}>
     <div className="thread-automations-heading">
-      <h3 id={headingId}><Clock size={14} aria-hidden="true" />{t("定时任务")}{automations.length > 0 && <span>{automations.length}</span>}</h3>
+      <h3 id={headingId}><AppIcon icon={Clock} kind="auxiliary" aria-hidden="true" />{t("定时任务")}{automations.length > 0 && <span>{automations.length}</span>}</h3>
       {needsRetry && !loading ? <button type="button" className="text-button" onClick={onRetry}>{t("重新读取")}</button>
         : <p className="thread-automations-summary" role={loading ? "status" : undefined}>
           {loading ? source ? t("正在刷新…") : t("正在读取…") : empty ? t("暂无关联的定时任务") : ""}

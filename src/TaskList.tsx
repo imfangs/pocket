@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale, formatDate } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import {
@@ -226,7 +227,7 @@ export default function TaskList(p: Props) {
     >
       {rows.length === 0 ? (
         <div className="empty-list">
-          {p.query ? <Search size={30} /> : <Inbox size={32} />}
+          {p.query ? <AppIcon icon={Search} kind="illustration" /> : <AppIcon icon={Inbox} kind="illustration" />}
           <h2>{tr(empty.title)}</h2>
           {empty.description && <p>{tr(empty.description)}</p>}
           {emptyAction && empty.actionLabel && <div className="empty-list-actions">
@@ -283,14 +284,14 @@ export default function TaskList(p: Props) {
                   {recentlyCreated && <span className="sr-only">{tr("5 分钟内新建，")}</span>}
                   <div className="row-first">
                     <strong>{t.separator ? tr("分隔符会话") : t.title}</strong>
-                    {pocketPriority(t) && <Star size={13} className="priority-icon"
+                    {pocketPriority(t) && <AppIcon icon={Star} kind="marker" className="priority-icon"
                       data-list-status="priority" data-list-status-key="pocket" role="img" aria-label={tr("Pocket 优先关注")} />}
-                    {codexPinned(t) && <Pin size={13} className="pin-icon"
+                    {codexPinned(t) && <AppIcon icon={Pin} kind="marker" className="pin-icon"
                       data-list-status="codex-pin" data-list-status-key="codex" data-pin-source="codex" role="img" aria-label={tr("Codex 置顶")} />}
                     {hasAutomations && <span className="thread-automation-icon" data-automation-state={automationState}
                       data-automation-stale={automations.stale || undefined} data-list-status="automation"
                       role="img" aria-label={automationLabel} title={automationLabel}>
-                      {allAutomationsPaused ? <AlarmClockOff size={13} aria-hidden="true" /> : <Clock size={13} aria-hidden="true" />}
+                      {allAutomationsPaused ? <AppIcon icon={AlarmClockOff} kind="marker" aria-hidden="true" /> : <AppIcon icon={Clock} kind="marker" aria-hidden="true" />}
                     </span>}
                     <span className="row-status-slot" data-list-status="primary" data-list-status-key={creationPending ? `creation-${creationPending.phase}` : presentation.primaryState?.key ?? "time"}>
                       {creationPending ? <span className="creation-state-label" data-creation-phase={creationPending.phase} role="status">{tr(creationPending.label)}</span>
@@ -317,7 +318,7 @@ export default function TaskList(p: Props) {
                   onClick={() => { const current = latest.current.currentRows.get(t.id); if (current) p.onOpen(current); }}
                   disabled={inactive || t.missing || p.busy || !!pendingId}
                 >
-                  <ArrowUpRight size={18} />
+                  <AppIcon icon={ArrowUpRight} kind="action" />
                 </IconButton>
               </SwipeTaskRow>
             );

@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import * as DropdownMenu from "@radix-ui/themes/components/dropdown-menu";
 import { ArrowDownWideNarrow, CalendarDays, Clock3 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -25,7 +26,7 @@ export default function ThreadSortMenu({ value, onChange, disabled = false }: {
       <IconButton ref={trigger} type="button" className="thread-sort-trigger icon-button" disabled={disabled}
         data-sort-mode={value} aria-label={t("排序：{{label}}", { label: t(selected.label) })}
         title={t("排序：{{label}}", { label: t(selected.label) })}>
-        <selected.Icon size={18} aria-hidden="true" />
+        <AppIcon icon={selected.Icon} kind="action" aria-hidden="true" />
       </IconButton>
     </DropdownMenu.Trigger>
     <DropdownMenu.Content className="thread-sort-menu" align="end" size="2" variant="soft" sideOffset={6}

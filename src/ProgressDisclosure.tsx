@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
@@ -17,7 +18,7 @@ export default function ProgressDisclosure({ id, count, open, onOpenChange, chil
   return <div className="progress-disclosure">
     <button id={`${id}-toggle`} type="button" className="progress-disclosure-toggle" aria-expanded={open} aria-controls={contentId}
       onClick={event => { motion.prepare(event.currentTarget); onOpenChange(!open); }}>
-      <ChevronRight className="progress-disclosure-chevron" size={14} aria-hidden="true" />
+      <AppIcon icon={ChevronRight} kind="auxiliary" className="progress-disclosure-chevron" aria-hidden="true" />
       <span>{open ? t("收起过程") : t("查看过程")}</span>
       <span className="progress-disclosure-count">{t("· {{count}} 条", { count })}</span>
     </button>

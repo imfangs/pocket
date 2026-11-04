@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale, currentLocale } from "./i18n";
 import * as Popover from "@radix-ui/react-popover";
 import { Button } from "./ui/Button";
@@ -149,7 +150,7 @@ export default function ContextStatus({
               : usage
                 ? `${Math.round(usage.percent)}%`
                 : t("上下文")}
-          <ChevronDown size={12} aria-hidden="true" />
+          <AppIcon icon={ChevronDown} kind="auxiliary" aria-hidden="true" />
         </Popover.Trigger>
         <Popover.Portal>
           <PocketPortalTheme>

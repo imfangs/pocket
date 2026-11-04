@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Check } from "lucide-react";
 import CopyButton from "./CopyButton";
@@ -71,7 +72,7 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
       {message.truncated && <small>{t("内容较长，此处已截取。")}</small>}
       {queryDelivery?.controls}
       {kind === "progress" ? hasTimestamp && <ProgressMessageFooter timestamp={timestamp} /> : (hasTimestamp || copyable || confirmed || duration) && <footer className="message-footer">
-        {confirmed && !queryDelivery?.hasControls && <span className="message-send-confirmed"><Check size={13} aria-hidden="true" />{t("已发送")}</span>}
+        {confirmed && !queryDelivery?.hasControls && <span className="message-send-confirmed"><AppIcon icon={Check} kind="marker" aria-hidden="true" />{t("已发送")}</span>}
         {duration && <span className="message-duration">{t("总用时")} <time>{duration}</time></span>}
         {hasTimestamp && <MessageTimestamp timestamp={timestamp} />}
         {copyable && <CopyButton text={presentation.copyText} label={notification ? t("复制子任务结果") : kind === "user" ? t("复制这条消息") : t("复制回复")} />}

@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
@@ -676,7 +677,7 @@ export default function App({
               onClick={() => setMobile(true)}
               aria-label={tr("打开导航")}
             >
-              <Menu size={20} />
+              <AppIcon icon={Menu} kind="navigation" />
             </IconButton>
             <div className="heading">
               <h1 title={title}>
@@ -691,7 +692,7 @@ export default function App({
               aria-label={tr("新建会话")}
               onClick={() => void guard(showNewConversation)}
             >
-              <Plus size={16} /><span>{tr("新建会话")}</span>
+              <AppIcon icon={Plus} kind="action" /><span>{tr("新建会话")}</span>
             </Button>
             <button
               className={`sync-button ${busy ? "spinning" : ""}`}
@@ -699,7 +700,7 @@ export default function App({
               disabled={busy || loading}
               aria-label={tr("刷新会话")}
             >
-              <RefreshCw size={16} />
+              <AppIcon icon={RefreshCw} kind="action" />
               <span>{tr("同步")}</span>
             </button>
           </div>
@@ -721,7 +722,7 @@ export default function App({
                 data-inbox={scope === "priority"} aria-pressed={scope === "priority"}
                 title={scope === "priority" ? tr("返回{{view}}", { view: navigationTitle(navigation.priorityReturn || { scope: "all", project: "" }, catalog.projects) }) : tr("查看 Pocket 关注的会话")}
                 onClick={() => updateNavigation({ type: "togglePriority" })}>
-                <Star size={15} aria-hidden="true" /><span>{tr("关注")}</span>
+                <AppIcon icon={Star} kind="auxiliary" aria-hidden="true" /><span>{tr("关注")}</span>
               </button>}
             </div>
             <div className="list-controls">
@@ -734,7 +735,7 @@ export default function App({
                 aria-keyshortcuts="Control+K Meta+K"
                 onClick={searchOpen ? closeSearch : openSearch}
               >
-                <Search size={17} /><span>{tr("搜索")}</span><kbd aria-hidden="true">⌘ K</kbd>
+                <AppIcon icon={Search} kind="action" /><span>{tr("搜索")}</span><kbd aria-hidden="true">⌘ K</kbd>
               </IconButton>
             </div>
           </div>
@@ -756,14 +757,14 @@ export default function App({
               }}
             />
             <IconButton type="button" className="icon-button" onClick={closeSearch} aria-label={tr("清除并收起搜索")}>
-              <X size={17} />
+              <AppIcon icon={X} kind="action" />
             </IconButton>
           </div>}
           {searchOpen && <p id="task-search-help" className="sr-only">{tr("在当前视图内搜索标题、项目和目录。")}</p>}
         </header>
         {error && (
           <div className="error-banner" role="alert">
-            <AlertCircle size={17} />
+            <AppIcon icon={AlertCircle} kind="auxiliary" />
             <span>
               {tr(error)}
             </span>
@@ -772,7 +773,7 @@ export default function App({
               aria-label={tr("关闭提示")}
               onClick={() => setError("")}
             >
-              <X size={15} />
+              <AppIcon icon={X} kind="action" />
             </IconButton>
           </div>
         )}

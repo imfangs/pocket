@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import { useEffect, useState } from 'react';
@@ -55,7 +56,7 @@ export default function NotificationSettings() {
   return <section className="notification-setting" aria-label={t("任务通知")}>
     <div className="notification-setting-row"><strong>{t("任务通知")}</strong>
       {supported && <Button className="secondary" variant="soft" color="gray" disabled={busy || !key} onClick={() => void toggle()}>
-        {enabled ? <BellOff size={16}/> : <Bell size={16}/>}{busy ? t("处理中…") : enabled ? t("关闭通知") : t("开启通知")}
+        {enabled ? <AppIcon icon={BellOff} kind="auxiliary" /> : <AppIcon icon={Bell} kind="auxiliary" />}{busy ? t("处理中…") : enabled ? t("关闭通知") : t("开启通知")}
       </Button>}
     </div>
     <p className="field-help">{supported ? t("在 Pocket 打开或发送过的任务：完成、失败或需要处理时通知。") : t("从手机主屏幕打开 Pocket 后可开启。")}</p>

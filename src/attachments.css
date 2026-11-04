@@ -8,15 +8,11 @@ button.attachment-card { width:100%; text-align:left; }
 .attachment-name { display:block; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; line-height:1.5; }
 .attachment-details small { color:var(--muted); font-size:11px; line-height:1.5; }
 .attachment-controls { display:flex; align-items:center; flex:none; gap:3px; }
-.attachment-controls button { display:inline-flex; align-items:center; justify-content:center; min-width:32px; min-height:36px; padding:4px; background:none; color:var(--muted); border:0; border-radius:5px; font-size:11px; }
+.attachment-controls button { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:4px; background:none; color:var(--muted); border:0; border-radius:5px; font-size:11px; }
 .attachment-controls button:disabled { opacity:.5; }
 .attachment-details .attachment-error, .attachment-error { color:var(--danger); overflow-wrap:anywhere; font-size:11px; margin:0; }
 .draft-attachments { max-height:200px; overflow:auto; flex-shrink:0; }
 .inspector[data-keyboard-open] .draft-attachments { max-height:96px; }
-.composer-actions .attachment-picker { margin-right:auto; flex:none; min-width:36px; min-height:36px; color:var(--muted); }
+.composer-actions .attachment-picker { margin-right:auto; flex:none; min-width:44px; min-height:44px; color:var(--muted); }
 .attachment-picker:disabled { opacity:.45; }
 .outbox .attachment-list { margin:5px 0; }
-@media (pointer:coarse) {
-  .composer-actions .attachment-picker { min-width:44px; min-height:44px; }
-  .attachment-controls button { min-width:36px; min-height:44px; }
-}

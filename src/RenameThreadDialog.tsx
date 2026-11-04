@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import { IconButton } from "./ui/IconButton";
@@ -153,7 +154,7 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
             if (nameDisabled || inFlight.current) return;
             editName("");
             nameInput.current?.focus({ preventScroll: true });
-          }}><X size={16} aria-hidden="true" /></IconButton>}
+          }}><AppIcon icon={X} kind="action" aria-hidden="true" /></IconButton>}
       </div>
       <p className="field-help rename-thread-status" id={statusId} role="status">
         {loading ? tr("正在读取原标题…") : operation ? tr(renameOperationText(operation)) : source && !source.canRename ? tr(renameSourceHint(source)) : tr("名称会同步到 Codex。")}

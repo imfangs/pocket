@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Switch } from "@radix-ui/themes/components/switch";
@@ -107,7 +108,7 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
     </section> : null,
     element: <>
       {preparing && <div className="feedback-capture-progress" data-feedback-ignore="" data-reading-overlay="" role="status">
-        <LoaderCircle size={15} className="spinning" />{t("正在准备反馈…")}<button type="button" onClick={() => { operation.current?.abort(); operation.current = null; setPreparing(false); }}>{t("取消")}</button>
+        <AppIcon icon={LoaderCircle} kind="auxiliary" className="spinning" />{t("正在准备反馈…")}<button type="button" onClick={() => { operation.current?.abort(); operation.current = null; setPreparing(false); }}>{t("取消")}</button>
       </div>}
       {session && <Modal title={t("使用反馈")} className="feedback-dialog" captureIgnore onClose={() => setSession(null)}>
           <FeedbackPanel key={session.scope} appId="pocket" scope={session.scope} context={session.context} initialCapture={session.image}
@@ -116,6 +117,6 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
       </Modal>}
     </>,
     button: (onOpen: () => void) => <Button type="button" variant="soft" color="gray" disabled={!ready} onClick={onOpen}>
-      <MessageSquareWarning size={14} aria-hidden="true" />{t("反馈问题")}</Button>,
+      <AppIcon icon={MessageSquareWarning} kind="auxiliary" aria-hidden="true" />{t("反馈问题")}</Button>,
   };
 }

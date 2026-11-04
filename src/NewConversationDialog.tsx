@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
@@ -121,11 +122,11 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
         <label className="field-label" htmlFor="new-conversation-location">{tr("工作目录")}</label>
         <Button type="button" className="text-button directory-search-toggle" variant="ghost" color="gray" size="2" aria-expanded={directorySearchOpen} aria-controls="new-directory-search"
           disabled={locked} onClick={() => { setDirectorySearchOpen(value => !value); setDirectoryQuery(""); }}>
-          <Search size={14} aria-hidden="true" />{directorySearchOpen ? tr("收起查找") : tr("查找目录")}
+          <AppIcon icon={Search} kind="auxiliary" aria-hidden="true" />{directorySearchOpen ? tr("收起查找") : tr("查找目录")}
         </Button>
       </div>
       {directorySearchOpen && <div className="directory-search" id="new-directory-search">
-        <Search size={16} aria-hidden="true" />
+        <AppIcon icon={Search} kind="auxiliary" aria-hidden="true" />
         <input ref={directorySearch} type="search" aria-label={tr("搜索工作目录")} placeholder={tr("搜索目录名或路径")} value={directoryQuery} disabled={locked}
           onChange={event => setDirectoryQuery(event.target.value)} onKeyDown={event => {
             if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
@@ -200,7 +201,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
             clipboardReader.current?.cancel();
             setQueryDraft(draft => editCreationQuery(draft, ""));
             queryBox.current?.querySelector("textarea")?.focus();
-          }}><X size={16} aria-hidden="true" /></IconButton>}
+          }}><AppIcon icon={X} kind="action" aria-hidden="true" /></IconButton>}
           {!query.length && !locked && <IconButton type="button" size="2" className="icon-button quick-create-clear" title={tr("粘贴剪贴板")} aria-label={tr("粘贴剪贴板")}
             onMouseDown={event => { if (event.button === 0 && document.activeElement === queryBox.current?.querySelector("textarea")) event.preventDefault(); }}
             onClick={() => {
@@ -211,7 +212,7 @@ export default function NewConversationDialog({ preferredCwd, initialQuery, init
               const read = beginCreationClipboard(() => navigator.clipboard.readText());
               if (read) clipboardReader.current?.watch(read.then(result => !result.text && !result.hint
                 ? { ...result, hint: "剪贴板中没有文字。" } : result), claimed.revision);
-            }}><ClipboardPaste size={16} aria-hidden="true" /></IconButton>}
+            }}><AppIcon icon={ClipboardPaste} kind="action" aria-hidden="true" /></IconButton>}
         </div>
         {queryDraft.hint && <p className="field-help">{tr(queryDraft.hint)}</p>}
         {queryTooLong && <p className="inline-error" role="alert">{tr("首条消息超过16000字，请缩短后再创建并发送。")}</p>}

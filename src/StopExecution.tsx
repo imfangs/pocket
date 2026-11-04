@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { useEffect, useRef, useState } from "react";
@@ -83,7 +84,7 @@ export default function StopExecution({ threadId, history, disabled, refresh, no
     onPointerDown={event => { if (event.button === 0 && event.pointerType !== "touch") event.preventDefault(); }}
     title={t("中断当前执行，保留会话和待发消息")} onClick={() => void stop()}>
     <span className="stop-execution-disc">
-      {working ? <LoaderCircle className="stop-spinner" size={16} aria-hidden="true" /> : waiting ? <RefreshCw size={15} aria-hidden="true" /> : <Square size={11} strokeWidth={0} fill="currentColor" aria-hidden="true" />}
+      {working ? <AppIcon icon={LoaderCircle} kind="action" className="stop-spinner" aria-hidden="true" /> : waiting ? <AppIcon icon={RefreshCw} kind="action" aria-hidden="true" /> : <AppIcon icon={Square} kind="marker" size={11} strokeWidth={0} fill="currentColor" aria-hidden="true" />}
     </span>
   </IconButton>;
 }

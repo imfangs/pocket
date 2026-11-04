@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import PocketLogo from "./PocketLogo";
@@ -105,7 +106,7 @@ export default function Sidebar(p: Props) {
             onClick={p.onClose}
             aria-label={tr("关闭导航")}
           >
-            <X size={18} />
+            <AppIcon icon={X} kind="action" />
           </IconButton>
         </div>
         <div className="sidebar-scroll">
@@ -117,7 +118,7 @@ export default function Sidebar(p: Props) {
               className={`nav-item ${allSelected ? "selected" : ""}`}
               onClick={() => p.onView("all")}
             >
-              <Layers3 size={18} aria-hidden="true" />
+              <AppIcon icon={Layers3} kind="navigation" aria-hidden="true" />
               <span>{tr("全部")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.all}</small>
             </button>
@@ -128,7 +129,7 @@ export default function Sidebar(p: Props) {
               className={`nav-item ${p.view === "priority" ? "selected" : ""}`}
               onClick={() => p.onView("priority")}
             >
-              <Star size={18} aria-hidden="true" />
+              <AppIcon icon={Star} kind="navigation" aria-hidden="true" />
               <span>{tr("关注")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.priority}</small>
             </button>
@@ -139,7 +140,7 @@ export default function Sidebar(p: Props) {
               className={`nav-item ${p.view === "codex-pinned" ? "selected" : ""}`}
               onClick={() => p.onView("codex-pinned")}
             >
-              <Pin size={18} aria-hidden="true" />
+              <AppIcon icon={Pin} kind="navigation" aria-hidden="true" />
               <span>{tr("置顶")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.codexPinned}</small>
             </button>
@@ -150,7 +151,7 @@ export default function Sidebar(p: Props) {
               className={`nav-item ${p.view === "hidden" ? "selected" : ""}`}
               onClick={() => p.onView("hidden")}
             >
-              <EyeOff size={18} aria-hidden="true" />
+              <AppIcon icon={EyeOff} kind="navigation" aria-hidden="true" />
               <span>{tr("隐藏")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.hidden}</small>
             </button>
@@ -169,7 +170,7 @@ export default function Sidebar(p: Props) {
                 className={`nav-item sidebar-project ${selected ? "selected" : ""}`}
                 onClick={() => p.onProject?.(project.id)}
               >
-                <Folder size={17} aria-hidden="true" />
+                <AppIcon icon={Folder} kind="navigation" aria-hidden="true" />
                 <span className="sidebar-project-label"><span className="sidebar-project-name">{project.id === "__unassigned__" ? tr("未归属项目") : project.name}</span>
                   {project.suffix && <small className="sidebar-project-suffix">{project.suffix}</small>}
                 </span>
@@ -185,7 +186,7 @@ export default function Sidebar(p: Props) {
               aria-current={p.view === "archived" ? "page" : undefined}
               onClick={() => p.onView("archived")}
             >
-              <Archive size={17} />
+              <AppIcon icon={Archive} kind="navigation" />
               <span>{tr("已归档")}</span>
             </button>
             <IconButton type="button"
@@ -194,7 +195,7 @@ export default function Sidebar(p: Props) {
               aria-label={tr("设置")}
               title={tr("设置")}
             >
-              <Settings2 size={17} aria-hidden="true" />
+              <AppIcon icon={Settings2} kind="navigation" aria-hidden="true" />
             </IconButton>
           </div>
         </div>

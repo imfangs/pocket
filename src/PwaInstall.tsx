@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import { Download, Share2 } from "lucide-react";
@@ -26,13 +27,13 @@ export default function PwaInstall({ controller }: { controller: PwaInstallContr
   return (
     <>
       <Button type="button" className="pwa-install" variant="soft" color="gray" disabled={busy} onClick={() => void install()}>
-        <Download size={16} />
+        <AppIcon icon={Download} kind="auxiliary" />
         <span>{t("添加到主屏幕")}</span>
       </Button>
       {guide && (
         <Modal title={t("添加到手机主屏幕")} className="install-dialog" onClose={() => setGuide(false)}>
           <div className="install-guide">
-            <Share2 size={28} />
+            <AppIcon icon={Share2} kind="illustration" size={28} />
             <p>iPhone / iPad</p>
             <ol>
               <li>{t("用 Safari 打开当前地址并登录。")}</li>

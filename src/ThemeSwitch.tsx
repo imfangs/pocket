@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import { useSyncExternalStore } from "react";
@@ -21,7 +22,7 @@ export default function ThemeSwitch() {
       aria-label={value === "system" ? t("跟随系统") : t("{{label}}模式", { label: t(label) })}
       aria-pressed={preference === value}
       onClick={() => window.dispatchEvent(new CustomEvent("pocket-set-theme", { detail: value }))}>
-      <Icon size={14} aria-hidden="true" />{t(label)}
+      <AppIcon icon={Icon} kind="auxiliary" aria-hidden="true" />{t(label)}
     </Button>)}
   </div>;
 }

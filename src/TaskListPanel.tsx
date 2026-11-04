@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale } from "./i18n";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ArrowDown, RefreshCw } from "lucide-react";
@@ -30,7 +31,7 @@ export default function TaskListPanel({ children, busy, onRefresh, scrollRef, in
     <section className="list-panel" ref={panel} aria-label={tr("会话列表")} inert={inert}>
       <div className="pull-refresh-indicator" data-loading={pull.refreshing || undefined}
         style={{ opacity: visible ? 1 : 0 }} role="status" aria-live="polite">
-        {visible && <>{pull.refreshing ? <RefreshCw size={15} /> : <ArrowDown size={15} />}
+        {visible && <>{pull.refreshing ? <AppIcon icon={RefreshCw} kind="auxiliary" /> : <AppIcon icon={ArrowDown} kind="auxiliary" />}
           <span>{pull.refreshing ? tr("正在刷新…") : pull.armed ? tr("松开刷新") : tr("下拉刷新")}</span></>}
       </div>
       <div className="pull-refresh-content" data-dragging={visible && !pull.refreshing || undefined}

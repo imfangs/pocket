@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { useId, useState, type Ref } from "react";
 import { ChevronDown, ChevronUp, GitBranch } from "lucide-react";
@@ -16,7 +17,7 @@ export default function SubagentNotificationMessage({ notification, changeLayout
   const motion = useDisclosureMotion(open, true);
   return <div className="subagent-notification" data-status={notification.status}>
     <div className="subagent-notification-heading">
-      <span><GitBranch size={14} aria-hidden="true" />{t(notification.label)}</span>
+      <span><AppIcon icon={GitBranch} kind="auxiliary" aria-hidden="true" />{t(notification.label)}</span>
       {notification.text && <button type="button" aria-expanded={open} aria-controls={id}
         onPointerDown={event => {
           // Protect the target while focus moves from another message control.
@@ -34,7 +35,7 @@ export default function SubagentNotificationMessage({ notification, changeLayout
         motion.prepare(event.currentTarget);
         const update = () => setOpen(!open);
         if (changeLayout) changeLayout(event.currentTarget, update); else update();
-      }}>{open ? t("收起结果") : t("查看结果")}{open ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}</button>}
+      }}>{open ? t("收起结果") : t("查看结果")}{open ? <AppIcon icon={ChevronUp} kind="auxiliary" aria-hidden="true" /> : <AppIcon icon={ChevronDown} kind="auxiliary" aria-hidden="true" />}</button>}
     </div>
     {notification.text && <div id={id} ref={motion.ref} hidden={!open} className="subagent-notification-body">
       {/* A notification's result is inert Markdown, without file/image grants. */}

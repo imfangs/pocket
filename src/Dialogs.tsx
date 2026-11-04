@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
@@ -185,7 +186,7 @@ export function Modal({
           disabled={busy}
           aria-label={t("关闭对话框")}
         >
-          <X size={19} />
+          <AppIcon icon={X} kind="action" />
         </IconButton>
       </header>
       <div className="pocket-dialog-body">

@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale } from "./i18n";
 import { useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import { Eye, EyeOff, LoaderCircle, Star, StarOff, X } from "lucide-react";
@@ -64,9 +65,9 @@ export default function SwipeTaskRow({ threadId, title, prioritized, hidden = fa
     (kind === "priority" ? onPriority : onHidden)?.(event.detail !== 0);
   };
   const label = (kind: RowAction) => kind === "priority" ? tr(prioritized ? "取消关注" : "优先关注") : hidden ? tr("取消隐藏") : tr("隐藏", { context: "action" });
-  const icon = (kind: RowAction) => pending && pendingAction === kind ? <LoaderCircle size={16} className="row-priority-spinner" aria-hidden="true" />
-    : kind === "priority" ? prioritized ? <StarOff size={16} aria-hidden="true" /> : <Star size={16} aria-hidden="true" />
-      : hidden ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />;
+  const icon = (kind: RowAction) => pending && pendingAction === kind ? <AppIcon icon={LoaderCircle} kind="action" className="row-priority-spinner" aria-hidden="true" />
+    : kind === "priority" ? prioritized ? <AppIcon icon={StarOff} kind="action" aria-hidden="true" /> : <AppIcon icon={Star} kind="action" aria-hidden="true" />
+      : hidden ? <AppIcon icon={Eye} kind="action" aria-hidden="true" /> : <AppIcon icon={EyeOff} kind="action" aria-hidden="true" />;
   const row = <div ref={moving} className={className}>
     {children}
     {actionTypes.map(kind => <button key={kind} ref={element => { shortcuts.current[kind] = element; }} type="button" data-row-action={kind}
@@ -90,13 +91,13 @@ export default function SwipeTaskRow({ threadId, title, prioritized, hidden = fa
         {actionTypes.map(kind => <button key={kind} ref={element => { actions.current[kind] = element; }} type="button" data-row-action={kind}
           className={kind === "priority" ? "row-priority-action" : "row-hidden-action"} aria-hidden={!open} tabIndex={open ? 0 : -1}
           aria-label={`${label(kind)} ${title}`} aria-describedby={error ? errorId : undefined} disabled={disabled || !open} onClick={event => change(kind, event)}>
-          {pending && pendingAction === kind ? <LoaderCircle size={18} className="row-priority-spinner" aria-hidden="true" /> : <span>{label(kind)}</span>}
+          {pending && pendingAction === kind ? <AppIcon icon={LoaderCircle} kind="action" className="row-priority-spinner" aria-hidden="true" /> : <span>{label(kind)}</span>}
         </button>)}
       </div>
       {row}
     </div>
     {error && <div className="row-priority-error" id={errorId} role="alert"><span>{tr(error)}</span>
-      <button type="button" data-row-action="dismiss" className="icon-button" aria-label={tr("关闭会话操作错误提示")} onClick={onDismissError}><X size={14} aria-hidden="true" /></button>
+      <button type="button" data-row-action="dismiss" className="icon-button" aria-label={tr("关闭会话操作错误提示")} onClick={onDismissError}><AppIcon icon={X} kind="action" aria-hidden="true" /></button>
     </div>}
   </div>;
 }

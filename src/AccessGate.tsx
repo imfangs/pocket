@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
@@ -28,7 +29,7 @@ function AccessSettings() {
   const [open, setOpen] = useState(false);
   return <div className="access-settings">
     <IconButton type="button" className="icon-button" aria-label={t("设置")} title={t("设置")} onClick={() => setOpen(true)}>
-      <Settings2 size={18} aria-hidden="true" />
+      <AppIcon icon={Settings2} kind="action" aria-hidden="true" />
     </IconButton>
     {open && <SettingsDialog notificationsAvailable={false} onClose={() => setOpen(false)} />}
   </div>;
@@ -187,7 +188,7 @@ export default function AccessGate() {
             }
             logoutAction={
               <button type="button" className="settings-logout-button" onClick={() => void logout()} disabled={busy}>
-                <LogOut size={16} aria-hidden="true" />
+                <AppIcon icon={LogOut} kind="auxiliary" aria-hidden="true" />
                 <span>{busy ? t("正在退出…") : t("退出登录")}</span>
               </button>
             }
@@ -211,7 +212,7 @@ export default function AccessGate() {
         <h1>{t("连接 Codex")}</h1>
         {state === "select" ? <p className="access-intro" role={error ? "alert" : undefined}>{error ? t(error) : t("请在设置中选择电脑。")}</p> : state === "offline" ? (
           <div className="access-offline">
-            <WifiOff size={24} />
+            <AppIcon icon={WifiOff} kind="illustration" size={24} />
             <p>{t("暂时无法连接。")}</p>
             <small>{t("确认 Mac 和网络可用后再试。")}</small>
             <Button type="button" className="primary" onClick={() => void check()}>{t("重新连接")}</Button>
@@ -220,7 +221,7 @@ export default function AccessGate() {
           <form onSubmit={login}>
             <label htmlFor="passphrase">{t("访问口令")}</label>
             <div className="passphrase-input">
-              <LockKeyhole size={18} />
+              <AppIcon icon={LockKeyhole} kind="auxiliary" />
               <input
                 id="passphrase"
                 name="password"
@@ -242,7 +243,7 @@ export default function AccessGate() {
                 aria-label={visible ? t("隐藏口令") : t("显示口令")}
                 onClick={() => setVisible((v) => !v)}
               >
-                {visible ? <EyeOff size={17} /> : <Eye size={17} />}
+                {visible ? <AppIcon icon={EyeOff} kind="action" /> : <AppIcon icon={Eye} kind="action" />}
               </button>
             </div>
             {error && (
@@ -255,7 +256,7 @@ export default function AccessGate() {
               disabled={busy || !passphrase}
             >
               {busy ? t("正在验证…") : t("进入 Pocket")}
-              <ArrowRight size={17} />
+              <AppIcon icon={ArrowRight} kind="auxiliary" />
             </Button>
             <small className="access-session-note">{t("在这台设备保持登录 7 天，可随时退出。")}</small>
           </form>

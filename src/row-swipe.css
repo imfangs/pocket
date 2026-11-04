@@ -11,16 +11,16 @@
 .row-hidden-action:disabled { opacity:1; color:var(--ink); }
 :is(.row-priority-action,.row-hidden-action):focus-visible { outline:3px solid var(--ink); outline-offset:-4px; }
 .task-row :is(.row-priority-shortcut,.row-hidden-shortcut) { position:absolute; width:1px; height:1px; min-width:0; min-height:0; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-.task-row :is(.row-priority-shortcut,.row-hidden-shortcut):focus-visible { position:static; width:32px; height:36px; min-height:36px; clip-path:none; overflow:visible; align-self:center; margin-left:8px; opacity:1; flex-shrink:0; }
+.task-row :is(.row-priority-shortcut,.row-hidden-shortcut):focus-visible { position:static; width:44px; height:44px; min-width:44px; min-height:44px; clip-path:none; overflow:visible; align-self:center; margin-left:8px; opacity:1; flex-shrink:0; }
 .task-row :is(.row-priority-shortcut,.row-hidden-shortcut)[aria-hidden="true"] { opacity:0; pointer-events:none; }
 .row-priority-error { display:flex; align-items:center; gap:10px; padding:7px 20px; color:var(--danger,#b42318); font-size:12px; line-height:1.5; }
 .row-priority-error > span { flex:1; overflow-wrap:anywhere; }
-.row-priority-error > button { min-width:32px; min-height:32px; flex-shrink:0; }
+.row-priority-error > button { min-width:44px; min-height:44px; flex-shrink:0; }
 .row-priority-spinner { animation:row-priority-spin 900ms linear infinite; }
 @keyframes row-priority-spin { to { transform:rotate(360deg); } }
 @media (hover:hover) and (pointer:fine) {
   .row-swipe-track > .task-row:hover { background:var(--surface-soft); }
-  .task-row :is(.row-priority-shortcut,.row-hidden-shortcut) { position:static; width:28px; height:36px; min-width:28px; min-height:36px; padding:0; overflow:visible; clip-path:none; align-self:center; margin-left:7px; opacity:0; flex-shrink:0; }
+  .task-row :is(.row-priority-shortcut,.row-hidden-shortcut) { position:static; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; overflow:visible; clip-path:none; align-self:center; margin-left:7px; opacity:0; flex-shrink:0; }
   .task-row:hover :is(.row-priority-shortcut,.row-hidden-shortcut), .task-row:focus-within :is(.row-priority-shortcut,.row-hidden-shortcut) { opacity:1; }
   .task-row :is(.row-priority-shortcut,.row-hidden-shortcut)[aria-hidden="true"] { opacity:0; }
 }

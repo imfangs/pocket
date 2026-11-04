@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
@@ -67,6 +68,6 @@ export default function PocketUpdate({ taskId }: { taskId: string | null }) {
         setBusy(false);
         setHint(result.reason || (result.status === "current" ? "已经是最新版本。" : "稍后再试。"));
       }
-    }}><RefreshCw size={14} className={busy ? "spinning" : undefined} />{busy ? t("检查中…") : t("更新")}</button>
+    }}><AppIcon icon={RefreshCw} kind="auxiliary" className={busy ? "spinning" : undefined} />{busy ? t("检查中…") : t("更新")}</button>
   </div>;
 }

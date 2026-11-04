@@ -30,7 +30,7 @@
 .pocket-toast[data-sonner-toast] [data-content] { min-width:0; flex:1; }
 .pocket-toast[data-sonner-toast] [data-title] { color:inherit; font-weight:500; overflow-wrap:anywhere; }
 .pocket-toast[data-sonner-toast] [data-description] { color:var(--text-secondary); font-size:12px; margin-top:2px; overflow-wrap:anywhere; }
-.pocket-toast[data-sonner-toast] [data-icon] { display:flex; align-items:center; justify-content:center; position:relative; width:15px; height:16px; flex-shrink:0; color:var(--muted); }
+.pocket-toast[data-sonner-toast] [data-icon] { display:flex; align-items:center; justify-content:center; position:relative; width:16px; height:16px; flex-shrink:0; color:var(--muted); }
 .pocket-toast[data-sonner-toast][data-type="success"] [data-icon] { color:var(--positive); }
 .pocket-toast[data-sonner-toast][data-type="error"] [data-icon] { color:var(--danger); }
 .pocket-toast[data-sonner-toast][data-type="warning"] [data-icon] { color:var(--warning); }

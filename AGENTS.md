@@ -26,6 +26,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 截图圈注反馈、摇一摇、反馈草稿与自动投递到开发会话 | [反馈基础设施](docs/design/2026-10-29-feedback-infrastructure.md)、[通用模块](packages/feedback-kit/AGENTS.md)：通用模块不依赖Pocket，认证记录/签名回调/固定目标/幂等回执分层；新反馈与旧标记查询分开，发布启用状态回CURRENT |
 | 认证迟到响应、历史缓存上限、首批同文Query或图片引用CR | [代码质量修复](docs/design/2026-10-28-code-quality.md)：认证代次与缓存epoch独立、双路首读基线、统一缓存写入、完整Markdown权限解析；提交正文回收仍是候选 |
 | 查反馈、PostHog、采集无数据或体验复盘 | 先读私有台账 `.local/feedback-ledger.json` 按反馈ID对照，再按[反馈接续](docs/design/2026-10-26-usage-feedback.md#查反馈与复盘的接续流程)查询和补记，区分已发布与效果确认；[专项验收](docs/QUALITY.md#使用反馈验收)覆盖正式CSP与入库回读。工具版本/认证与事件口径留在使用反馈文档，上线状态回CURRENT |
+| 图标、尺寸/线宽/对齐、触控目标 | [图标规范](docs/design/2026-11-04-icon-system.md)：AppIcon辅助16/操作18/导航20、显式标记/插图例外，普通线宽1.75，Radix/品牌隔离与44px点击区 |
 | 整体视觉、Radix Themes、基础控件/色阶/样式归属 | [整体视觉重整](docs/design/2026-10-19-visual-system.md)：整屏对照、tokens/结构/视觉分工、native行为保护；[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md)：variant几何、错误恢复按钮组合 |
 | Impeccable精修、首次必填披露、空白错误恢复与首字丢失 | [10-28设计审查](docs/design/2026-10-28-impeccable-polish.md)：两路独立评审、局部几何与提示对比、原生input后置预连接；已记忆选择和阅读空间保持 |
 | 首开空白／无加载状态、标题反馈复核 | [加载与标题反馈](docs/design/2026-10-28-feedback-loading.md)：双路首读与缓存分开、沿前后visit定位、原生标题摘要与Pocket回读分开判断 |

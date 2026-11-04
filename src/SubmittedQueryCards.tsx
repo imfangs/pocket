@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -131,11 +132,11 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
         data-submission-id={item.requestId} data-submission-status={item.status} data-feedback-state={accepted ? "accepted" : paused && item.status === "queued" ? "paused" : waiting ? "pending" : item.status}
         data-query-breathing={inlineTargets && item.status === "queued" && !paused && !disabled || undefined}>
         <div className="submitted-query-heading">
-          <span role="status">{accepted && <CheckCircle2 size={13} aria-hidden="true" />}{t(submittedQueryLabel(item, connecting))}</span>
+          <span role="status">{accepted && <AppIcon icon={CheckCircle2} kind="marker" aria-hidden="true" />}{t(submittedQueryLabel(item, connecting))}</span>
           <div className="submitted-query-primary-actions">
             {!inlineTargets && item.text.trim() && <button type="button" className="submitted-query-copy" aria-label={copied === item.requestId ? t("已复制已提交消息") : t("复制已提交消息")}
               title={copied === item.requestId ? t("已复制") : t("复制已提交消息")} onClick={() => void copy(item)}>
-              {copied === item.requestId ? <span>{t("已复制")}</span> : <Copy size={15} aria-hidden="true" />}
+              {copied === item.requestId ? <span>{t("已复制")}</span> : <AppIcon icon={Copy} kind="action" aria-hidden="true" />}
             </button>}
             <button type="button" disabled={disabled || !!checking} title={item.status === "unknown" ? t("核对不会重复发送") : undefined}
               onClick={() => void verify(item)}>{checking === item.requestId ? t("正在核对…") : accepted ? t("刷新历史") : t("核对状态")}</button>

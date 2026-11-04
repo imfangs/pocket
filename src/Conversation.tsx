@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Button } from "./ui/Button";
 import AutoTextarea from "./AutoTextarea";
@@ -783,7 +784,7 @@ export default function Conversation({
         </div>}
         <div className="conversation-live" hidden={earlier.active}>
         {emptyReadState === "loading" && <div className="conversation-read-loading" role="status">
-          <LoaderCircle size={16} className="composer-connection-spinner" aria-hidden="true" />
+          <AppIcon icon={LoaderCircle} kind="auxiliary" className="composer-connection-spinner" aria-hidden="true" />
           <span>{t("正在读取消息…")}</span>
         </div>}
         {emptyReadState === "empty" && (
@@ -796,7 +797,7 @@ export default function Conversation({
           <h3>{t("暂时无法读取会话")}</h3>
           <Button type="button" variant="soft" color="gray" disabled={retryingHistory}
             onClick={() => void recoverConnection()}>
-            <RefreshCw size={15} aria-hidden="true" />
+            <AppIcon icon={RefreshCw} kind="auxiliary" aria-hidden="true" />
             {retryingHistory ? t("正在读取…") : t("重新读取")}
           </Button>
         </div>}
@@ -836,7 +837,7 @@ export default function Conversation({
         </div>}
       </div>
       {(awayFromLatest || earlier.active) && <button type="button" className="conversation-latest" onClick={returnToLatest}>
-        <ArrowDown size={14} aria-hidden="true" />
+        <AppIcon icon={ArrowDown} kind="auxiliary" aria-hidden="true" />
         {!earlier.active && hasNewContent ? t("有新内容 · 返回最新") : t("返回最新消息")}
       </button>}
       </div>
@@ -906,21 +907,21 @@ export default function Conversation({
           disabled={retryingHistory || connecting} title={t(recoveryMessage)}
           aria-label={t("重新读取")}
           onClick={event => { event.stopPropagation(); void recoverConnection(); }}>
-          {retryingHistory || connecting ? <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" /> : <RefreshCw size={12} aria-hidden="true" />}
+          {retryingHistory || connecting ? <AppIcon icon={LoaderCircle} kind="auxiliary" className="composer-connection-spinner" aria-hidden="true" /> : <AppIcon icon={RefreshCw} kind="auxiliary" aria-hidden="true" />}
           <span>{retryingHistory || connecting ? t("重试中…") : /较慢/.test(recoveryMessage) ? t("连接较慢") : t("连接中断")}</span>
           {!retryingHistory && !connecting && <span className="composer-recovery-action">{t("重试")}</span>}
         </button>}
         {inlineAttachmentRecovery && <button type="button" className="composer-recovery composer-attachment-recovery" data-composer-reading-control=""
           disabled={recoveringAttachments} title={t(attachmentRecoveryError)} aria-label={t("重新读取附件")}
           onClick={event => { event.stopPropagation(); void recoverAttachments(); }}>
-          {recoveringAttachments ? <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" /> : <RefreshCw size={12} aria-hidden="true" />}
+          {recoveringAttachments ? <AppIcon icon={LoaderCircle} kind="auxiliary" className="composer-connection-spinner" aria-hidden="true" /> : <AppIcon icon={RefreshCw} kind="auxiliary" aria-hidden="true" />}
           <span>{recoveringAttachments ? t("读取中…") : t("附件未同步")}</span>
           {!recoveringAttachments && <span className="composer-recovery-action">{t("重试")}</span>}
         </button>}
         {!emptyReadRecovery && !inlineRecovery && !inlineAttachmentRecovery && (showConnectionState || !online) &&
           !(online && connecting && connectionOnlyAction && !composer.compact) && <span className="composer-inline-state" role="status" title={t(connectionLabel)} aria-label={t(connectionLabel)}
           data-state={!online || connectionFailed || compatibilityCode ? "warning" : connecting ? "connecting" : "idle"}>
-          {connecting && <LoaderCircle size={12} className="composer-connection-spinner" aria-hidden="true" />}
+          {connecting && <AppIcon icon={LoaderCircle} kind="auxiliary" className="composer-connection-spinner" aria-hidden="true" />}
           <span>{t(inlineConnectionLabel)}</span>
         </span>}
         {!recoveryVisible && !inlineAttachmentRecovery && !showConnectionState && online && !historyError && history?.runtime === "active" && !history.compaction?.active && !history.pendingRequests?.length && <span className="composer-inline-state composer-inline-runtime" role="status" data-state="running">{t("运行中")}</span>}
@@ -930,7 +931,7 @@ export default function Conversation({
           <AttachmentPicker disabled={!targetAvailable || !!draft.requestId || attachments.length >= MAX_ATTACHMENTS} onFiles={addFiles} onPickingChange={composer.setPicking} preserveFocus />
           <button type="button" className="composer-collapse icon-button" aria-label={t("收起输入")} title={t("收起输入")}
             disabled={!composer.canCollapse} onPointerDown={event => { if (event.button === 0 && event.pointerType !== "touch") event.preventDefault(); }} onClick={composer.collapse}>
-            <ChevronDown size={18} aria-hidden="true" />
+            <AppIcon icon={ChevronDown} kind="action" aria-hidden="true" />
           </button>
           <ContextStatus threadId={thread.id} history={compatibilityCode && history ? { ...history, canCompact: false, canAttemptCompact: false } : history}
             compact={composer.compact} disabled={!online || thread.archived || thread.missing || managementBlocked} refresh={load} onInteractionChange={setContextInteraction} />
@@ -952,7 +953,7 @@ export default function Conversation({
                 (enqueue ? !canQueue : !targetAvailable || !history?.canSend)))
             }
           >
-            {restoring || connectionOnlyAction && connecting ? <LoaderCircle size={15} className="composer-connection-spinner" aria-hidden="true" /> : restoreOnlyAction ? <ArchiveRestore size={15} aria-hidden="true" /> : connectionOnlyAction ? <RefreshCw size={15} aria-hidden="true" /> : <Send size={15} />}
+            {restoring || connectionOnlyAction && connecting ? <AppIcon icon={LoaderCircle} kind="action" className="composer-connection-spinner" aria-hidden="true" /> : restoreOnlyAction ? <AppIcon icon={ArchiveRestore} kind="action" aria-hidden="true" /> : connectionOnlyAction ? <AppIcon icon={RefreshCw} kind="action" aria-hidden="true" /> : <AppIcon icon={Send} kind="action" />}
             {restoreOnlyAction ? restoring ? t("取消归档中…") : t("取消归档") : connectionOnlyAction ? connecting ? t("连接中…") : t("重试连接") : sending ? t("提交中…") : draft.requestId ? t("核对发送状态") : managementBlocked ? t("暂不可发送") : sendAndConnect ? t("发送") : enqueue ? t("加入队列") : t("发送")}
           </Button>
         </div>

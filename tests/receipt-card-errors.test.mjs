@@ -34,6 +34,7 @@ function mount(file, initial, request = async () => {}, clipboard = async () => 
     'react-dom': { createPortal: (children, container, key) => ({ type: 'portal', props: { children, container }, key }) },
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
     'lucide-react': { Check: 'check-icon', CheckCircle2: 'check-circle', Copy: 'copy-icon' },
+    './ui/AppIcon': { AppIcon: 'app-icon' },
     './submittedQueries': queries, './submissionFeedback': feedback, './requestError': requestErrors,
     './i18n': { t: sourceTranslation, useLocale: () => 'zh-CN' },
     './AutoTextarea': { default: 'textarea' }, './AttachmentList': { default: 'attachments' },

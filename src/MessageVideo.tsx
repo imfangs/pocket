@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -93,7 +94,7 @@ export default function MessageVideo({ file, threadId, label }: { file: MessageF
     </span>
     <span className="message-video-caption">
       <span className="message-video-name" title={title}>{title}</span>
-      <a href={source.downloadUrl} download={source.name} aria-label={t("下载视频：{{value0}}", { value0: source.name })}><Download size={15} aria-hidden="true" />{t("下载")}</a>
+      <a href={source.downloadUrl} download={source.name} aria-label={t("下载视频：{{value0}}", { value0: source.name })}><AppIcon icon={Download} kind="auxiliary" aria-hidden="true" />{t("下载")}</a>
     </span>
   </span>;
 }

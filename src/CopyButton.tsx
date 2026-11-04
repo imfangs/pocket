@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Check, Copy } from "lucide-react";
@@ -42,7 +43,7 @@ export default function CopyButton({
         }
       }}
     >
-      <span ref={icon} className="copy-feedback-icon" aria-hidden="true">{copied ? <Check size={15} /> : <Copy size={15} />}</span>
+      <span ref={icon} className="copy-feedback-icon" aria-hidden="true">{copied ? <AppIcon icon={Check} kind="action" /> : <AppIcon icon={Copy} kind="action" />}</span>
       <span className="sr-only" role="status">
         {copied ? t("已复制") : ""}
       </span>

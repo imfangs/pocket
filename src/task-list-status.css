@@ -27,9 +27,7 @@
 }
 .task-list-surface .priority-icon {
   flex-shrink:0;
-  width:13px;
   color:var(--pin-highlight);
   fill:color-mix(in srgb, currentColor 16%, transparent);
-  stroke-width:2;
 }
 .task-list-surface .pin-icon[data-pin-source="codex"] { color:var(--row-pin-codex); fill:none; }

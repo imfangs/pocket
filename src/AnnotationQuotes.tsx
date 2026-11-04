@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -37,7 +38,7 @@ function AnnotationQuote({ annotation, index, numbered, changeLayout }: {
           changeLayout(anchor, () => setExpanded(!expanded));
         }}>
         {expanded ? t("收起引用") : t("展开引用")}
-        {expanded ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}
+        {expanded ? <AppIcon icon={ChevronUp} kind="auxiliary" aria-hidden="true" /> : <AppIcon icon={ChevronDown} kind="auxiliary" aria-hidden="true" />}
       </button>}
     </blockquote>
     {annotation.comment?.trim() && <p className="response-annotation-comment">{annotation.comment}</p>}
@@ -66,7 +67,7 @@ export default function AnnotationQuotes({ annotations, changeLayout = updateLay
           changeLayout(anchor, () => setExpanded(!expanded));
         }}>
         {expanded ? t("收起其余引用") : t("展开其余 {{value1}} 处引用", { value1: annotations.length - 2 })}
-        {expanded ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}
+        {expanded ? <AppIcon icon={ChevronUp} kind="auxiliary" aria-hidden="true" /> : <AppIcon icon={ChevronDown} kind="auxiliary" aria-hidden="true" />}
       </button>
     </>}
   </div>;

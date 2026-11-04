@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { useState } from "react";
 import { MessageSquareWarning } from "lucide-react";
@@ -12,14 +13,14 @@ export default function UsageFeedback({ threadId, onStart, pending = false }: { 
   const [feedbackId, setFeedbackId] = useState<string | null>(null), [reason, setReason] = useState<FeedbackReason>("unspecified");
   const [note, setNote] = useState(""), [sent, setSent] = useState(false), [error, setError] = useState("");
   if (onStart || pending) return <section className="usage-feedback" aria-label={t("使用反馈")}><Button variant="soft" color="gray" disabled={pending} onClick={onStart}>
-    <MessageSquareWarning size={14} aria-hidden="true" />{t("刚才不顺")}</Button></section>;
+    <AppIcon icon={MessageSquareWarning} kind="auxiliary" aria-hidden="true" />{t("刚才不顺")}</Button></section>;
   if (!usageConfigured()) return null;
   return <section className="usage-feedback" aria-label={t("使用反馈")}>
     {!feedbackId ? <Button variant="soft" color="gray" onClick={() => {
       const id = usage.feedback(threadId);
       if (id) { setFeedbackId(id); setError(""); }
       else setError("反馈暂时不可用，请稍后再试。");
-    }}><MessageSquareWarning size={14} aria-hidden="true" />{t("刚才不顺")}</Button> : <>
+    }}><AppIcon icon={MessageSquareWarning} kind="auxiliary" aria-hidden="true" />{t("刚才不顺")}</Button> : <>
       <p role="status">{sent ? t("已补充，谢谢。") : t("已标记这段操作，可补充原因。")}</p>
       {!sent && <form onSubmit={event => {
         event.preventDefault();

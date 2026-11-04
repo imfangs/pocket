@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { Code2, Maximize2, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -53,8 +54,8 @@ export default function MermaidBlock({ source, complete }: { source: string; com
     <div className="code-block-header">
       <span>{t("图表")}</span>
       <div className="diagram-actions">
-        {url && <button type="button" className="diagram-source-toggle" aria-pressed={sourceChoice} onClick={() => setSourceChoice(value => !value)}><Code2 size={14} aria-hidden="true" />{t("源码")}</button>}
-        {failure && failure !== "unsupported" && failure !== "limit" && <button type="button" aria-label={t("重试绘制")} onClick={() => { setResult(null); setAttempt(value => value + 1); }}><RotateCcw size={15} aria-hidden="true" /></button>}
+        {url && <button type="button" className="diagram-source-toggle" aria-pressed={sourceChoice} onClick={() => setSourceChoice(value => !value)}><AppIcon icon={Code2} kind="auxiliary" aria-hidden="true" />{t("源码")}</button>}
+        {failure && failure !== "unsupported" && failure !== "limit" && <button type="button" aria-label={t("重试绘制")} onClick={() => { setResult(null); setAttempt(value => value + 1); }}><AppIcon icon={RotateCcw} kind="action" aria-hidden="true" /></button>}
         <CopyButton text={source} label={t("复制图表源码")} />
       </div>
     </div>
@@ -67,7 +68,7 @@ export default function MermaidBlock({ source, complete }: { source: string; com
               onError={() => setResult({ source, width, value: { ok: false, reason: "invalid" } })} />
           </button>
         </div>
-        <span className="diagram-enlarge"><Maximize2 size={14} aria-hidden="true" />{t("放大")}</span>
+        <span className="diagram-enlarge"><AppIcon icon={Maximize2} kind="auxiliary" aria-hidden="true" />{t("放大")}</span>
       </>}
       {note && <span className="diagram-note" role="status">{t(note)}</span>}
     </div>

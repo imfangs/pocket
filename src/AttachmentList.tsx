@@ -1,3 +1,4 @@
+import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { FileText, Image as ImageIcon, Paperclip, RefreshCw, X } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -11,7 +12,7 @@ function Preview({ attachment, image }: { attachment?: PublicAttachment; image: 
   useLocale();
   const url = attachment && safeAttachmentUrl(attachment.previewUrl ?? attachment.url);
   return image && url ? <img className="attachment-preview" src={machineApiPath(url)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-    : <span className="attachment-placeholder" aria-hidden="true">{image ? <ImageIcon size={20} /> : <FileText size={20} />}</span>;
+    : <span className="attachment-placeholder" aria-hidden="true">{image ? <AppIcon icon={ImageIcon} kind="auxiliary" /> : <AppIcon icon={FileText} kind="auxiliary" />}</span>;
 }
 
 export default function AttachmentList({ attachments = [] }: { attachments?: readonly PublicAttachment[] }) {
@@ -48,9 +49,9 @@ export function DraftAttachmentList({ threadId, items, controller, disabled, loc
         {item.error && <small className="attachment-error" role="alert">{t(readableRequestError(item.error, "附件处理未完成，请重试。"))}</small>}
       </span>
       <div className="attachment-controls">
-        {item.status === "failed" && <button type="button" disabled={disabled} aria-label={t("重试上传 {{value0}}", { value0: item.name })} onClick={() => controller.retry(threadId, item.id)}><RefreshCw size={15} /></button>}
+        {item.status === "failed" && <button type="button" disabled={disabled} aria-label={t("重试上传 {{value0}}", { value0: item.name })} onClick={() => controller.retry(threadId, item.id)}><AppIcon icon={RefreshCw} kind="action" /></button>}
         {item.status === "unknown" && <button type="button" disabled={disabled || item.checking} aria-label={t("核对附件 {{value0}}", { value0: item.name })} onClick={() => void controller.check(threadId, item.id)}>{t("核对")}</button>}
-        <button type="button" disabled={disabled && !(localRemovalAllowed && canRemoveLocalAttachment(item)) || item.status === "removing" || item.checking} aria-label={t("移除附件 {{value0}}", { value0: item.name })} onClick={() => void controller.remove(threadId, item.id)}><X size={16} /></button>
+        <button type="button" disabled={disabled && !(localRemovalAllowed && canRemoveLocalAttachment(item)) || item.status === "removing" || item.checking} aria-label={t("移除附件 {{value0}}", { value0: item.name })} onClick={() => void controller.remove(threadId, item.id)}><AppIcon icon={X} kind="action" /></button>
       </div>
     </div>)}
     {(error || items.length > 6) && <p className="attachment-error" role="alert">{error ? t(readableRequestError(error, "附件暂未同步，请重试。")) : t("每条消息最多6个附件，请移除多余附件。")}</p>}
@@ -90,7 +91,7 @@ export function AttachmentPicker({ disabled, onFiles, onPickingChange, preserveF
       }} onClick={() => {
       picking.current = true; onPickingChange?.(true);
       try { input.current?.click(); } catch (error) { finish(); throw error; }
-    }}><Paperclip size={18} aria-hidden="true" /></button>
+    }}><AppIcon icon={Paperclip} kind="action" aria-hidden="true" /></button>
     <input ref={input} type="file" hidden multiple data-attachment-input="" aria-label={t("选择附件")} disabled={disabled}
       onChange={event => { const files = [...(event.target.files ?? [])]; event.target.value = ""; try { if (files.length) onFiles(files); } finally { finish(); } }} />
   </>;
