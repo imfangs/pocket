@@ -34,3 +34,7 @@
 发布源`dd7e01376474ee0ef04fbbb11983ba0546f2bc3a`，UI实现提交`3b72330`。沿用私有个人双机Pages兼容配置，不用通用MyMac profile覆盖现有入口；仅共享网页/Worker更新，无Mac API/Codex/连接器重启或真实发送。最终版本`92bfebf04a0ff1f22e2d2369f8084af11619fe406dd33500db7c4b111dcfa8f2`，Pages`4e4b5c8a-a06e-44cd-856c-201b2c4ee4a3`。单次上传exit0，35/35公开资源和原功能通过；`release-verification.json`额外对照公网version与private client profile一致。
 
 发布认证先只读inspect确认过期/无未决操作，再单次refresh成功且28项scope保持，账号/项目GET核验后发布。无重复上传或待续外部操作。最新源码原全测2,045、净历史候选1,872合成及构建通过；最后epoch相关6双浏览器流程已在最终包复验。上述均不是实体iPhone或目视验证。
+
+## 2026-11-05 水平居中
+
+按用户要求，运行三点改为在消息正文的可用宽度中水平居中。仅给 `.conversation-working` 增加 `justify-content: center`，行高20px、下方8px留白与动画保持；不修改状态判断、恢复代次、消息/输入节点或阅读锚点。验证与发布回执在 `.local/qa/working-dots-center-2026-11-05/`，发布身份完成后追加。

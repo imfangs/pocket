@@ -1,6 +1,7 @@
 .conversation-working {
   display: flex;
   align-items: center;
+  justify-content: center;
   height: 20px;
   margin: 0 0 8px;
   padding-inline: 2px;
