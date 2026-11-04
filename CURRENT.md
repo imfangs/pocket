@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-04本轮接续。三点工作反馈已更新共享网页，脱敏历史368提交本地副本已完成、未公开；129个图标统一尺寸/线宽与角色、纯操作目标44px保持。自部署准备版已部署到两机及共享公网，个人双机配置、原登录/待发/附件与Codex/连接器保持；源码仍未公开。排序已收进标题栏三项单选菜单，按钮图标对应智能/创建/活动，中英筛选恢复单行，模式记忆及桌面会话/草稿保持；英文文案、状态栏和多语言继续生效。左滑等待仅转圈、隐藏、触摸返回及弹窗中性焦点保持。会话信息缓存、原生iOS顶边修复、设置/过程页脚减法与未读优先正文预取保持；连接仍保留详情停留5秒/输入触发。XML兼容、CLI版本warn、顶部下拉、银色扫光、客户端版本、视频、截图反馈及两机投递保持。准确已发布身份见下方版本表。
+维护日期：2026-11-05。三点已水平居中并更新共享网页，脱敏历史368提交本地副本已完成、未公开；129个图标统一尺寸/线宽与角色、纯操作目标44px保持。自部署准备版已部署到两机及共享公网，个人双机配置、原登录/待发/附件与Codex/连接器保持；源码仍未公开。排序已收进标题栏三项单选菜单，按钮图标对应智能/创建/活动，中英筛选恢复单行，模式记忆及桌面会话/草稿保持；英文文案、状态栏和多语言继续生效。左滑等待仅转圈、隐藏、触摸返回及弹窗中性焦点保持。会话信息缓存、原生iOS顶边修复、设置/过程页脚减法与未读优先正文预取保持；连接仍保留详情停留5秒/输入触发。XML兼容、CLI版本warn、顶部下拉、银色扫光、客户端版本、视频、截图反馈及两机投递保持。准确已发布身份见下方版本表。
 
 ## 下一次先看
+
+- **运行三点已居中上线（2026-11-05）。** 仅CSS增加justify-content:center，状态/恢复代次/消息节点不变。2,045全测、24组中英/亮暗/320/390/768双浏览器几何中心误差0、行高20/margin8不变与原6流程通过。源`34e30d4`、build`5419a5505016…`、Pages`71dbcaf2…`。首次deploy在上传前GET401，核对已过期且无未决后单次refresh、原28scope保持、目标GET200恢复；真正上传仅1次，35/35资源/原功能与独立公网version/private双机profile匹配。仅网页，API/Codex/连接器未重启。证据`.local/qa/working-dots-center-2026-11-05/`，设计与原状态保护见[运行三点](docs/design/2026-11-04-conversation-working-dots.md)。本地脱敏历史仍是下条固定边界，不默默改写已验收的bundle。
 
 - **脱敏历史本地副本已完成，三点工作反馈已上线。** [历史记录](docs/research/2026-11-04-sanitized-history-copy.md)：以`dd7e013`为固定源码边界，367个私有main提交全部映射（包含最初365和本轮UI/准备提交）＋1个明确public bootstrap＝368，副本HEAD`2d2fa4a`；初始178个空提交披露，日期/父链/意图一一核对，3,243全对象均可达，无原对象残留/私人值/remote/reflog/alternates，634文件与源清单SHA全匹配。净仓库`.local/exports/pocket-public-history-2026-11-04/`与约3MB同名`.bundle`已验证全量roundtrip；未push或公开。最终完整2,045/公开1,872测试、公开构建、35文件private-marker及独立审查通过。原已有历史/7项private配置保持；正常追加UI/维护提交是授权迭代，未重写原Git。[运行三点](docs/design/2026-11-04-conversation-working-dots.md)源`3b72330`、网页发布源`dd7e013`：最新内容下方3点，仅新鲜原owner真实运行显示，缓存/accepted/排队/等待/断网/终态不假跑；activityEpoch绑定请求起点，堵后台/pageshow旧在途复亮，阅读/节点/焦点/选区保持、reduce静态。59完整浏览器及最后6双浏览器受影响复验、CR通过。build`92bfebf04a0f…`、Pages`4e4b5c8a…`只上传一次，35/35资源、原功能与独立公网version/private双机profile匹配；只共享网页，API/Codex/连接器未重启。无待续外部操作，真机/目视与Alpha公开门槛保留。证据`.local/qa/history-copy-2026-11-04/`、`.local/qa/working-dots-2026-11-04/`。
 
@@ -124,10 +126,10 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `dd7e01376474ee0ef04fbbb11983ba0546f2bc3a`（UI实现`3b72330`）；末尾工作三点/恢复代次、原图标/排序/私有profile/阅读/发送保持 |
+| 公网前端/网关源码 | `34e30d4dd40e7a8870212b6981b6f3c30f0b5862`（运行逻辑`3b72330`）；末尾工作三点水平居中、恢复代次/原图标/排序/私有profile/阅读/发送保持 |
 | 两机API源码 | `da53fa306909dc8a4c3cf97f59d84b779afe23b9`；11-04格得PID68399、豌豆PID9994，后续运维需重查。不可变release、profile/loopback认证200/匿名401及两机公网health已独立读回 |
-| 前端build | 公网与本仓库dist为`92bfebf04a0ff1f22e2d2369f8084af11619fe406dd33500db7c4b111dcfa8f2`；两端API内置前端仍为`1ef5620b64d2…`，手机使用共享公网ged/wandou profile，豌豆本机动态bootstrap是wandou单机 |
-| Pages部署 | `4e4b5c8a-a06e-44cd-856c-201b2c4ee4a3`；11-04 ready=true，35/35公开文件及功能检查通过，只上传一次 |
+| 前端build | 公网与本仓库dist为`5419a550501602fdccd99cc7a7c16c2f9f7a50b43c95a80ae4de91cff7013f1a`；两端API内置前端仍为`1ef5620b64d2…`，手机使用共享公网ged/wandou profile，豌豆本机动态bootstrap是wandou单机 |
+| Pages部署 | `71dbcaf2-469f-409c-8d0e-abd3bc9b6161`；11-04 ready=true，35/35公开文件及功能检查通过，只上传一次 |
 | 本次验证 | 2,032全测、53完整浏览器/设施、共享组件/ARIA/零描边及中英文布局、10+4+2组最终针对复验和独立CR通过，公网manifest另行对照 |
 | 本次证据 | `.local/qa/icon-system-2026-11-04/`：`full-tests-release.log`、`browser-release/`、`media-list/independent-summary.json`、`validation.json`、`deploy.json`、`public-version.json`；两机运行仍用`.local/qa/deploy-selfhost-2026-11-04/` |
 | 本次数据与运行 | 仅共享网页更新，API/Codex/连接器不重启、无用户数据写入；Cloudflare单次续期原28权限保持，无未决认证/部署 |

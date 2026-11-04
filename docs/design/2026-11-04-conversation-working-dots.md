@@ -38,3 +38,5 @@
 ## 2026-11-05 水平居中
 
 按用户要求，运行三点改为在消息正文的可用宽度中水平居中。仅给 `.conversation-working` 增加 `justify-content: center`，行高20px、下方8px留白与动画保持；不修改状态判断、恢复代次、消息/输入节点或阅读锚点。验证与发布回执在 `.local/qa/working-dots-center-2026-11-05/`，发布身份完成后追加。
+
+居中版源`34e30d4`，build`5419a550501602fdccd99cc7a7c16c2f9f7a50b43c95a80ae4de91cff7013f1a`，Pages`71dbcaf2-469f-409c-8d0e-abd3bc9b6161`。2,045全测、24屏双浏览器/中英/亮暗居中误差0、原6状态/阅读/epoch流程通过；行高20px与8px留白不变。上传前账号GET401，确认过期且无未决后单次续期（28scope保持）并目标200核验，随后只真正上传一次。35/35资源及原功能通过，独立公网version/profile一致，无API/Codex/连接器重启或未决发布。
