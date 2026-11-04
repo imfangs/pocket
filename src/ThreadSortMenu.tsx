@@ -1,5 +1,5 @@
 import * as DropdownMenu from "@radix-ui/themes/components/dropdown-menu";
-import { ArrowDownWideNarrow } from "lucide-react";
+import { ArrowDownWideNarrow, CalendarDays, Clock3 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./ui/IconButton";
 import { t, useLocale } from "./i18n";
@@ -7,9 +7,9 @@ import type { ThreadSort } from "./types";
 import "./thread-sort-menu.css";
 
 const choices = [
-  { value: "smart", label: "智能排序" },
-  { value: "created", label: "创建时间" },
-  { value: "activity", label: "活动时间" },
+  { value: "smart", label: "智能排序", Icon: ArrowDownWideNarrow },
+  { value: "created", label: "创建时间", Icon: CalendarDays },
+  { value: "activity", label: "活动时间", Icon: Clock3 },
 ] as const;
 
 export default function ThreadSortMenu({ value, onChange, disabled = false }: {
@@ -25,7 +25,7 @@ export default function ThreadSortMenu({ value, onChange, disabled = false }: {
       <IconButton ref={trigger} type="button" className="thread-sort-trigger icon-button" disabled={disabled}
         data-sort-mode={value} aria-label={t("排序：{{label}}", { label: t(selected.label) })}
         title={t("排序：{{label}}", { label: t(selected.label) })}>
-        <ArrowDownWideNarrow size={18} aria-hidden="true" />
+        <selected.Icon size={18} aria-hidden="true" />
       </IconButton>
     </DropdownMenu.Trigger>
     <DropdownMenu.Content className="thread-sort-menu" align="end" size="2" variant="soft" sideOffset={6}

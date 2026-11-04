@@ -4,11 +4,18 @@ import { createHarness, engines, ids } from './fixture.mjs';
 
 const trigger = page => page.locator('.thread-sort-trigger');
 const menu = page => page.locator('.thread-sort-menu[role="menu"]');
+const iconClass = { smart: 'lucide-arrow-down-wide-narrow', created: 'lucide-calendar-days', activity: 'lucide-clock3' };
+const assertIcon = async (page, mode) => {
+  assert.equal(await trigger(page).locator(`svg.${iconClass[mode]}`).count(), 1);
+  assert.equal(await trigger(page).locator('svg').getAttribute('width'), '18');
+  assert.equal(await trigger(page).locator('svg').getAttribute('aria-hidden'), 'true');
+};
 const select = async (page, mode) => {
   await trigger(page).click(); await menu(page).waitFor();
   await menu(page).locator(`[data-sort-choice="${mode}"]`).click();
   await menu(page).waitFor({ state: 'detached' });
   await page.waitForFunction(mode => document.querySelector('.thread-sort-trigger')?.getAttribute('data-sort-mode') === mode, mode);
+  await assertIcon(page, mode);
 };
 
 for (const engine of engines) {
@@ -17,6 +24,7 @@ for (const engine of engines) {
       const h = await createHarness(engine, { locale, width: 320, visibility: true });
       try {
         const page = await h.open(null);
+        await assertIcon(page, 'smart');
         await page.locator('.running-toggle small').filter({ hasText: '1' }).waitFor();
         await page.locator('.search-toggle').click();
         await page.locator('.search-box input').fill('ged');
@@ -35,6 +43,7 @@ for (const engine of engines) {
         await menu(page).locator('[data-sort-choice="created"]').click();
         await menu(page).waitFor({ state: 'detached' });
         assert.equal(await trigger(page).getAttribute('data-sort-mode'), 'created');
+        await assertIcon(page, 'created');
         await page.locator('.running-toggle').click();
         await select(page, 'activity');
         assert.equal(await page.locator('.running-toggle').getAttribute('aria-pressed'), 'true');
@@ -48,6 +57,7 @@ for (const engine of engines) {
         await select(page, 'created');
         await page.reload(); await trigger(page).waitFor();
         assert.equal(await trigger(page).getAttribute('data-sort-mode'), 'created');
+        await assertIcon(page, 'created');
         assert.equal(await page.locator('.priority-toggle').getAttribute('aria-pressed'), 'true');
         assert.equal(await page.locator('.running-toggle').getAttribute('aria-pressed'), 'true');
         assert.ok(h.calls.filter(call => call.method !== 'GET').every(call => call.path === '/api/sync'));
