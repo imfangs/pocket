@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { NavigatorStore } from "../server/store.mjs";
 import { makeApp } from "../server/index.mjs";
 import { readCodexSource } from "../server/source.mjs";
-import worker from "../edge/worker.mjs";
+import { worker } from "./helpers/worker-profile.mjs";
 
 const one = "11111111-1111-7111-8111-111111111111";
 const two = "22222222-2222-7222-8222-222222222222";

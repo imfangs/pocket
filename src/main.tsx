@@ -4,6 +4,7 @@ import PocketToaster from "./PocketToaster";
 import AccessGate from "./AccessGate";
 import PocketTheme from "./ui/PocketTheme";
 import { currentMachineId, machineStorageKey } from "./machineScope";
+import { defaultMachineId } from "./clientConfig";
 import "@radix-ui/themes/styles.css";
 import "./design-tokens.css";
 import "./styles.css";
@@ -22,7 +23,7 @@ createRoot(document.getElementById("root")!).render(
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", event => {
     if (!["pocket-open-task", "pocket-open-machine-task"].includes(event.data?.type) || !/^[a-f0-9-]{36}$/i.test(event.data.threadId)) return;
-    if ((event.data.machineId ?? "ged") !== currentMachineId()) return;
+    if ((event.data.machineId ?? defaultMachineId) !== currentMachineId()) return;
     try { sessionStorage.setItem(machineStorageKey("pocket.pending-task"), event.data.threadId); } catch {}
     window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: event.data.threadId }));
     event.ports[0]?.postMessage("pocket-task-received");

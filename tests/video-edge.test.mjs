@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../edge/worker.mjs';
+import { worker } from './helpers/worker-profile.mjs';
 const base='https://x.fangs.cc',id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',key='a'.repeat(64);
 const env={NAVIGATOR_MACHINE_KEYS:JSON.stringify({wandou:'b'.repeat(64)}),NAVIGATOR_CONNECTION:{get:async key=>({connected:true,machineId:key==='origin'?'ged':'wandou',publicOrigin:`https://${key==='origin'?'ged':'wandou'}.trycloudflare.com`})}};
 function fixture(t,response){const original=globalThis.fetch,calls=[];globalThis.fetch=async(url,options)=>{calls.push({url:String(url),options});return response(url,options);};t.after(()=>{globalThis.fetch=original;});return calls;}

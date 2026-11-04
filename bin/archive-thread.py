@@ -18,8 +18,7 @@ from bundled_cli import bundled_cli, desktop_app, verify_cli, BundledCLIError
 from bridge_config import load_bridge_config
 
 CONFIG = load_bridge_config()
-FBT_ARCHIVE = Path(CONFIG["ipcModuleDirectory"]).resolve().parents[1] / "codex-threads/scripts"
-sys.path.insert(0, str(FBT_ARCHIVE))
+sys.path.insert(0, CONFIG["metadataModuleDirectory"])
 from archive_cli import ArchiveError, Store, identity
 
 TAIL_BYTES = 2 * 1024 * 1024

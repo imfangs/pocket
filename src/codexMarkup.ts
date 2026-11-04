@@ -1,5 +1,6 @@
 import { directiveAttributes, directivePattern, directiveIsEscaped, incompleteDirectivePattern, localFileReference, protectedMarkdownRanges } from "../shared/codex-directives.mjs";
 import { currentMachineId, isMachineId, machineTaskUrl, type MachineId } from "./machineScope.ts";
+import { defaultMachineId } from "./clientConfig.ts";
 import { readableHeartbeatMessage } from "./heartbeatMessage.ts";
 import { readableSubagentNotification } from "./subagentNotification.ts";
 import { sourceTranslation, type DisplayTranslator } from "./displayTranslation.ts";
@@ -14,14 +15,14 @@ export function pocketTaskTarget(value: string, current: MachineId | null = curr
     const url = new URL(value, origin), ids = url.searchParams.getAll("task"), scope = url.searchParams.getAll("machine");
     if (url.pathname !== "/" || url.hash || ids.length !== 1 || !taskId.test(ids[0]) || scope.length > 1 ||
         [...url.searchParams.keys()].some(key => key !== "task" && key !== "machine")) return null;
-    const machine = scope.length ? scope[0] : "ged";
+    const machine = scope.length ? scope[0] : defaultMachineId;
     return isMachineId(machine) ? { threadId: ids[0], machine } : null;
   } catch { return null; }
 }
 export function pocketTaskUrl(value: string, current: MachineId | null = currentMachineId()) {
   const target = pocketTaskTarget(value, current);
   if (!target) return null;
-  return target.machine === "ged" && current !== "ged" ? `/?machine=ged&task=${target.threadId}` : machineTaskUrl(target.threadId, target.machine);
+  return target.machine === defaultMachineId && current !== defaultMachineId ? `/?machine=${encodeURIComponent(defaultMachineId)}&task=${target.threadId}` : machineTaskUrl(target.threadId, target.machine);
 }
 
 const plain = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*_{}\[\]()#+.!|~-]/g, "\\$&");

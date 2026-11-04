@@ -2,6 +2,8 @@
 
 简体中文 · [English](README.en.md)
 
+自部署 Alpha 准备与安装方式见 [SELF_HOSTING](docs/SELF_HOSTING.md)，维护者环境的历史说明保留在下文。公开源码导出会排除个人运维配置和历史材料。
+
 把 Mac 上的 Codex 带到手机，随时查看对话、接着工作。多机入口：**https://x.fangs.cc**；格得本机另配置 **https://threads.local**（当前在线状态见 CURRENT）。
 
 原名任务架 / Codex Navigator，2026-09-28 更名为 Pocket。仓库目录、服务与数据标识沿用原值，既有口令、已保存数据及备份保持兼容。

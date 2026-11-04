@@ -7,6 +7,8 @@ import "./machine-picker.css";
 export default function MachinePicker() {
   useLocale();
   const [error, setError] = useState("");
+  if (machines.length === 1 && currentMachineId() === machines[0].id)
+    return <div className="machine-picker"><span><Laptop size={16} aria-hidden="true" /> {machines[0].label}</span></div>;
   return <div className="machine-picker">
     <label><Laptop size={16} aria-hidden="true" /><span className="sr-only">{t("选择电脑")}</span>
       <select aria-label={t("选择电脑")} value={currentMachineId() ?? ""} onChange={event => {

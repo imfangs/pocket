@@ -11,11 +11,12 @@ test('Node and Python use the same explicit machine config and never silently fa
   const dir = mkdtempSync(join(tmpdir(), 'pocket-machine-config-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, 'bridge.json'), config = { python: '/fixture/python', ipcModuleDirectory: '/fixture/ipc', appPath: '/fixture/Codex.app' };
+  const expected = { ...config, metadataModuleDirectory: resolve('vendor/codex-bridge') };
   writeFileSync(path, JSON.stringify(config));
-  assert.deepEqual(readBridgeConfig(path), config);
+  assert.deepEqual(readBridgeConfig(path), expected);
   const run = override => execFileSync('python3', ['-c', 'import json; from bridge_config import load_bridge_config; print(json.dumps(load_bridge_config()))'],
     { env: { ...process.env, PYTHONPATH: resolve('bin'), PYTHONDONTWRITEBYTECODE: '1', NAVIGATOR_BRIDGE_CONFIG: override }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  assert.deepEqual(JSON.parse(run(path)), config);
+  assert.deepEqual(JSON.parse(run(path)), expected);
   for (const invalid of ['relative.json', join(dir, 'missing.json')]) {
     assert.throws(() => readBridgeConfig(invalid));
     assert.throws(() => run(invalid));

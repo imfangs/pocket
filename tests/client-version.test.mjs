@@ -108,7 +108,7 @@ test('an injected production build hash reaches the actual API module rather tha
     const client=createApiClient(()=> 'ged',async (_url,options)=>{headers.push(new Headers(options.headers).get('X-Pocket-Client-Version'));return new Response('{}',{headers:{'X-Pocket-Machine':'ged'}});},()=>{});
     await client.api('/api/catalog');await client.api('/api/auth/login','POST',{});
     process.stdout.write(JSON.stringify(headers));`;
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, ['--import', new URL('./helpers/client-profile.mjs',import.meta.url).href, '--input-type=module', '-e', script], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), [hash, hash]);
 });

@@ -76,7 +76,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 豌豆CLI0.164升级、空输入被附件读取错误撑高 | [升级与附件恢复](docs/design/2026-10-25-wandou-update-and-attachment-recovery.md)：真实CLI验证、数据/scope保留、软读取错误与附件保护 |
 | 发送体感慢、豌豆后端更新机制或10-25桌面升级差异 | [更新与发送复核](docs/research/2026-10-25-updates-and-send-experience.md)：实际发布路径、CLI待验证、已复现等待点；调查不等于已修复 |
 | 本机运行、连接器或公网发布 | [手机链路](docs/MOBILE.md)；对应 `config/local-service.json`、`config/tunnel-service.json`、`config/pages-site.json` |
-| 原生 App、竞品或开源方向 | [调研输入](docs/research/2026-09-29-external-research-intake.md)、[开源准备度](docs/research/2026-09-27-open-source-readiness.md)，按具体问题再展开来源 |
+| 原生 App、竞品或开源方向 | [本轮自部署准备](docs/research/2026-11-04-self-hosted-open-source-readiness.md)、[安装指南](docs/SELF_HOSTING.md)：独立桥接/公开依赖/配置/诊断/源码候选与真实新Mac发布门槛；9月[旧准备度](docs/research/2026-09-27-open-source-readiness.md)仅保留旧判断；[调研输入](docs/research/2026-09-29-external-research-intake.md)按需查 |
 
 ## 代码入口
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker from "../edge/worker.mjs";
+import { worker } from "./helpers/worker-profile.mjs";
 import { readResponseKind } from '../shared/read-response.mjs';
 const env = {
   NAVIGATOR_CONNECTION: {

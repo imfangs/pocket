@@ -22,7 +22,10 @@ const equal = (a, b) =>
   timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const cookieName = "navigator_session";
 export class AccessControl {
-  constructor(directory, db) {
+  constructor(directory, db, options = {}) {
+    const minimum = options.minimumPassphraseLength === undefined ? 4 : options.minimumPassphraseLength;
+    if (!Number.isInteger(minimum) || minimum < 4 || minimum > 128) throw new Error("Invalid Pocket passphrase policy");
+    this.minimumPassphraseLength = minimum;
     this.db = db;
     this.configPath = join(directory, "access.json");
     this.passphrasePath = join(directory, "initial-passphrase.txt");
@@ -32,16 +35,19 @@ export class AccessControl {
       "CREATE TABLE IF NOT EXISTS auth_sessions(token_hash TEXT PRIMARY KEY,expires_at INTEGER NOT NULL,created_at INTEGER NOT NULL)",
     );
     if (!existsSync(this.configPath))
-      this.setPassphrase(randomBytes(9).toString("base64url"));
+      this.setPassphrase(randomBytes(Math.max(9, Math.ceil(minimum * 3 / 4))).toString("base64url"));
     this.config();
   }
   config() {
-    const c = JSON.parse(readFileSync(this.configPath, "utf8"));
+    let c;
+    try { c = JSON.parse(readFileSync(this.configPath, "utf8")); }
+    catch { throw new Error("登录配置损坏，保持拒绝访问"); }
     if (
-      c.version !== 1 ||
-      !c.salt ||
-      !/^[a-f0-9]{64}$/.test(c.hash) ||
-      !/^[a-f0-9]{64}$/.test(c.localToken)
+      !c || typeof c !== "object" || Array.isArray(c) || c.version !== 1 ||
+      typeof c.salt !== "string" || !c.salt ||
+      typeof c.hash !== "string" || !/^[a-f0-9]{64}$/.test(c.hash) ||
+      typeof c.localToken !== "string" || !/^[a-f0-9]{64}$/.test(c.localToken) ||
+      c.passwordPolicyMinimum !== undefined && (!Number.isInteger(c.passwordPolicyMinimum) || c.passwordPolicyMinimum < 4 || c.passwordPolicyMinimum > 128)
     )
       throw new Error("登录配置损坏，保持拒绝访问");
     return c;
@@ -52,15 +58,16 @@ export class AccessControl {
   setPassphrase(passphrase) {
     if (
       typeof passphrase !== "string" ||
-      passphrase.trim().length < 4 ||
+      passphrase.trim().length < this.minimumPassphraseLength ||
       passphrase.length > 128
     )
-      throw new AppError("口令需为 4–128 个字符");
+      throw new AppError(`口令需为 ${this.minimumPassphraseLength}–128 个字符`);
     const value = passphrase.trim(),
       salt = randomBytes(16).toString("hex");
     const old = existsSync(this.configPath) ? this.config() : null;
     const c = {
       version: 1,
+      passwordPolicyMinimum: this.minimumPassphraseLength,
       salt,
       hash: scryptSync(value, salt, 32).toString("hex"),
       localToken: old?.localToken || randomBytes(32).toString("hex"),
@@ -146,11 +153,12 @@ export function readConnection(directory) {
     const c = JSON.parse(
       readFileSync(join(directory, "connection.json"), "utf8"),
     );
+    if (!c || typeof c !== "object" || Array.isArray(c) || typeof c.publicOrigin !== "string") throw new Error("Invalid connection");
     const url = new URL(c.publicOrigin);
     if (
       url.protocol === "https:" &&
-      url.hostname.endsWith(".trycloudflare.com") &&
-      url.pathname === "/"
+      /^[a-z0-9-]+\.trycloudflare\.com$/.test(url.hostname) &&
+      !url.username && !url.password && !url.port && !url.search && !url.hash && url.pathname === "/"
     )
       return { ...c, publicOrigin: url.origin };
   } catch {}

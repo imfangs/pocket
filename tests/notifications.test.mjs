@@ -17,7 +17,7 @@ function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(),'pocket-push-')), store = new NavigatorStore(directory);
   store.sync({threads:[{id,title:'Private task title',archived:false,updatedAt:1000}],projects:[],sourceInfo:{}});
   const state = { now:1000000, history:{source:'desktop',runtime:'active',latestTurnId:'turn-1',latestTurnStatus:'inProgress',pendingRequests:[]}, sends:[] };
-  const options = {now:()=>state.now,send:async(...args)=>{state.sends.push(args);if(state.error)throw state.error;}};
+  const options = {machineId:'ged',now:()=>state.now,send:async(...args)=>{state.sends.push(args);if(state.error)throw state.error;}};
   const desktop = {history:async()=>state.history}, service = new Notifications(store,desktop,options);
   t.after(()=>{service.stop();store.close();rmSync(directory,{recursive:true,force:true});});
   return {store,service,state,directory,options,desktop};

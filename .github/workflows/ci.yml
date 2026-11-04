@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-synthetic:
+    name: macOS synthetic API and browser checks
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up the checked Node major
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14'
+      - name: Install the public locked dependency graph
+        run: npm ci --registry=https://registry.npmjs.org --audit=false --fund=false
+      - name: Select the CI Python without personal configuration
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          import { mkdirSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
+          import { resolve } from 'node:path';
+          import { readBridgeConfig } from './server/bridge-config.mjs';
+          const config = readBridgeConfig();
+          config.python = execFileSync('python3', ['-c', 'import sys;print(sys.executable)'], { encoding: 'utf8' }).trim();
+          if (!existsSync(config.ipcModuleDirectory)) throw new Error('The public desktop IPC module is not present');
+          mkdirSync('.local/ci', { recursive: true });
+          const target = resolve('.local/ci/bridge.json');
+          writeFileSync(target, JSON.stringify(config), { mode: 0o600 });
+          appendFileSync(process.env.GITHUB_ENV, `NAVIGATOR_BRIDGE_CONFIG=${target}\n`);
+          JS
+      - name: Synthetic Node and Python contracts
+        run: node .github/scripts/test-synthetic.mjs
+      - name: Build the frontend
+        run: npm run build
+      - name: Install the locked browser engines
+        run: ./node_modules/.bin/playwright install chromium webkit
+      - name: Browser interactions on synthetic data
+        env:
+          POCKET_BROWSER_DIST: ${{ github.workspace }}/dist
+        run: npm run test:browser
+      - name: Keep the current browser reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-browser-checks-${{ github.sha }}
+          path: .local/qa/browser-smoke/
+          if-no-files-found: warn
+          retention-days: 7

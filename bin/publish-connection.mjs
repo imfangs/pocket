@@ -7,7 +7,12 @@ const failure = (code) => Object.assign(new Error(code), { code });
 export async function publishConnection(connection, options = {}) {
   if (!connection.connected || !connection.publicOrigin)
     throw failure("tunnel_not_connected");
-  const config = options.config || JSON.parse(readFileSync(new URL("../config/relay.json", import.meta.url), "utf8"));
+  let config=options.config;
+  if(!config) {
+    try { config=JSON.parse(readFileSync(process.env.NAVIGATOR_RELAY_CONFIG || new URL('../config/relay.json',import.meta.url),'utf8')); }
+    catch { throw failure('registration_config_missing'); }
+  }
+  // Existing private relay profiles predate the field. New templates set it.
   const machineId = config.machineId === undefined ? process.env.NAVIGATOR_MACHINE_ID ?? "ged" : config.machineId;
   if (typeof machineId !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(machineId))
     throw failure("registration_machine_invalid");

@@ -26,6 +26,9 @@ import { MessageFiles } from "./message-files.mjs";
 import { dispatchResponse } from "./dispatch-response.mjs";
 import { isIP } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
+import { isMain } from "../bin/is-main.mjs";
+import { readDeploymentConfig, normalizeDeploymentConfig, readClientProfile } from "./deployment-config.mjs";
+import { normalizeClientConfig, serializeClientConfig } from "../shared/client-config.mjs";
 
 const exec = promisify(execFile);
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -42,9 +45,19 @@ const safeEqual = (a, b) =>
   typeof a === "string" &&
   Buffer.byteLength(a) === Buffer.byteLength(b) &&
   timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const loopbackSocket = req => {
+  const address = req.socket?.remoteAddress;
+  if (address === "::1") return true;
+  const ipv4 = typeof address === "string" ? address.replace(/^::ffff:/i, "") : "";
+  return isIP(ipv4) === 4 && ipv4.startsWith("127.");
+};
 export function makeApp(options = {}) {
-  const machineId = options.machineId ?? process.env.NAVIGATOR_MACHINE_ID ?? "ged";
+  const deployment = options.deploymentConfig === undefined ? readDeploymentConfig() : normalizeDeploymentConfig(options.deploymentConfig);
+  const machineId = options.machineId ?? process.env.NAVIGATOR_MACHINE_ID ?? deployment.machineId ?? "ged";
   if (typeof machineId !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(machineId)) throw new Error("Invalid Pocket machine ID");
+  const clientProfile = normalizeClientConfig(options.clientConfig === undefined ? readClientProfile() || { schemaVersion: 1, defaultMachine: machineId,
+    machines: [{ id: machineId, label: options.machineLabel === undefined ? "My Mac" : options.machineLabel }], publicOrigin: deployment.publicOrigin } : options.clientConfig);
+  const clientScript = serializeClientConfig(clientProfile);
   const store = new NavigatorStore(
     options.dataDir ||
       process.env.NAVIGATOR_DATA_DIR ||
@@ -54,7 +67,7 @@ export function makeApp(options = {}) {
     options.codexHome ||
     process.env.NAVIGATOR_CODEX_HOME ||
     join(homedir(), ".codex");
-  const auth = new AccessControl(store.directory, store.db);
+  const auth = new AccessControl(store.directory, store.db, { minimumPassphraseLength: deployment.minimumPassphraseLength });
   const openThread =
     options.openThread ||
     ((id) =>
@@ -97,15 +110,18 @@ export function makeApp(options = {}) {
   lifecycle.onBlockedChange = () => taskStatuses.invalidate();
   const csrf = randomBytes(24).toString("hex");
   const hosts = new Set(
-    options.hosts || ["127.0.0.1", "localhost", "[::1]", "threads.local"],
+    options.hosts || deployment.allowedHosts,
   );
   const dist = options.dist || join(root, "dist");
+  let sourceReady = false, sourceCheckedAt = null;
   function sync() {
     try {
       const data = pocketContent.source(readSource());
       store.sync(data);
+      sourceReady = true; sourceCheckedAt = Date.now();
       return data.sourceInfo;
     } catch (e) {
+      sourceReady = false; sourceCheckedAt = Date.now();
       pocketContent.sourceUnavailable();
       store.failSync(e);
       throw e;
@@ -173,21 +189,38 @@ export function makeApp(options = {}) {
     );
     try {
       const host = req.headers.host;
-      if (!host || !/^([a-z0-9.-]+|\[::1\])(:\d+)?$/i.test(host))
+      if (!host || !/^([a-z0-9.-]+|\[[a-f0-9:.]+\])(:\d+)?$/i.test(host))
         throw new AppError("不允许的 Host", 403);
-      const url = new URL(req.url, `http://${host}`);
-      const connection = options.connection || readConnection(store.directory);
-      const publicHost = connection.publicOrigin
-        ? new URL(connection.publicOrigin).hostname
-        : null;
-      if (!hosts.has(url.hostname) && url.hostname !== publicHost)
+      let url, base;
+      try { base = new URL(`http://${host}`); url = new URL(req.url, base); }
+      catch { throw new AppError("不允许的 Host", 403); }
+      if (url.origin !== base.origin) throw new AppError("不允许的请求地址", 403);
+      const storedConnection = options.connection || readConnection(store.directory);
+      const connection = deployment.publicOrigin ? {
+        publicOrigin: deployment.publicOrigin, temporary: false, configured: true,
+        transport: "reverse-proxy", reachability: "not_checked",
+      } : storedConnection;
+      // A private, validated registration admits exactly its transport origin,
+      // never the entire Quick Tunnel hostname suffix or an arbitrary header.
+      const publicOrigins = new Set(connection.publicOrigin ? [connection.publicOrigin] : []);
+      if (deployment.publicOrigin && storedConnection.connected === true && storedConnection.publicOrigin) {
+        const transport = new URL(storedConnection.publicOrigin);
+        if (transport.protocol === "https:" && /^[a-z0-9-]+\.trycloudflare\.com$/.test(transport.hostname) &&
+            !transport.username && !transport.password && !transport.port && transport.pathname === "/" && !transport.search && !transport.hash)
+          publicOrigins.add(transport.origin);
+      }
+      const publicHosts = new Set([...publicOrigins].map(value => new URL(value).hostname));
+      if (!hosts.has(url.hostname) && !publicHosts.has(url.hostname))
         throw new AppError("不允许的 Host", 403);
       const forwarded = req.headers["x-forwarded-proto"];
       if (forwarded && !["http", "https"].includes(forwarded))
         throw new AppError("无效的转发协议", 403);
-      const origin = `${forwarded || "http"}://${host}`;
+      const origin = new URL(`${forwarded || "http"}://${host}`).origin;
+      const directLoopback = ["127.0.0.1", "localhost", "[::1]"].includes(base.hostname) && loopbackSocket(req) && !forwarded && !req.headers["cf-connecting-ip"];
+      if (deployment.publicOrigin && publicHosts.has(base.hostname) &&
+          !directLoopback && !publicOrigins.has(origin)) throw new AppError("不允许的入口协议或端口", 403);
       const protectedRequest =
-        url.pathname.startsWith("/api/") ||
+        url.pathname.startsWith("/api/") || url.pathname === "/client-config.js" ||
         !["GET", "HEAD"].includes(req.method);
       if (
         protectedRequest &&
@@ -212,6 +245,10 @@ export function makeApp(options = {}) {
         )
           throw new AppError("请求已过期，请刷新页面", 403);
       }
+      if (method === "GET" && path === "/client-config.js") {
+        res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" });
+        return res.end(clientScript);
+      }
       if (method === "GET" && path === "/api/health")
         return json(res, 200, {
           ok: true,
@@ -220,6 +257,7 @@ export function makeApp(options = {}) {
         });
       const localBearerAllowed =
         ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
+        loopbackSocket(req) &&
         !req.headers["cf-connecting-ip"] &&
         !forwarded;
       if (method === "GET" && path === "/api/auth/status")
@@ -229,7 +267,7 @@ export function makeApp(options = {}) {
       if (method === "POST" && path === "/api/auth/login") {
         const input = await body(req, 2048);
         const cfIp =
-          url.hostname === publicHost ? req.headers["cf-connecting-ip"] : null;
+          publicHosts.has(url.hostname) ? req.headers["cf-connecting-ip"] : null;
         const ip =
           typeof cfIp === "string" && isIP(cfIp)
             ? cfIp
@@ -259,6 +297,14 @@ export function makeApp(options = {}) {
         throw new AppError("请先输入口令", 401);
       if (method === "GET" && path === "/api/feedback/config")
         return json(res, 200, feedback?.configuration() || { enabled: false });
+      if (method === "GET" && path === "/api/deployment/status") {
+        const recorded = auth.config().passwordPolicyMinimum;
+        return json(res, 200, { schemaVersion: 1, configured: deployment.configured, machineId,
+          publicOriginConfigured: !!deployment.publicOrigin, allowedHostCount: hosts.size,
+          authentication: { minimumPassphraseLength: auth.minimumPassphraseLength,
+            storedPolicyRecorded: recorded !== undefined, storedPolicyMeetsMinimum: recorded === undefined ? null : recorded >= auth.minimumPassphraseLength },
+          readiness: { storage: true, source: sourceReady, sourceCheckedAt, desktop: "not_checked", publicEntry: "not_checked" } });
+      }
       if (path === "/api/feedback" && method === "POST") {
         if (!feedback) throw new AppError("反馈服务尚未配置", 503);
         return json(res, 200, await feedback.core.submit(await body(req, 6 * 1024 * 1024)));
@@ -633,10 +679,7 @@ export function makeApp(options = {}) {
   server.on("close", close);
   return { server, store, sync, auth, lifecycle, rename, feedback, stopVideoStreams };
 }
-if (
-  process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+if (isMain(import.meta.url)) {
   const { server, stopVideoStreams } = makeApp();
   const port = Number(process.env.PORT || 4397);
   server.listen(port, "127.0.0.1", () =>

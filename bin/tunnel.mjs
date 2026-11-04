@@ -9,8 +9,11 @@ import { connectionHealth } from "./connection-state.mjs";
 const directory =
   process.env.NAVIGATOR_DATA_DIR ||
   join(homedir(), "Library/Application Support/CodexNavigator");
-const origin = "http://127.0.0.1:4397",
+const origin = process.env.NAVIGATOR_API_ORIGIN || "http://127.0.0.1:4397",
   port = Number(process.env.PORT || 4399);
+const localOrigin=new URL(origin);
+if(localOrigin.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(localOrigin.hostname)||localOrigin.username||localOrigin.password||localOrigin.pathname!=='/'||localOrigin.search||localOrigin.hash)
+  throw new Error('The tunnel API origin must be a bare loopback HTTP origin');
 mkdirSync(directory, { recursive: true, mode: 0o700 });
 const state = {
   publicOrigin: null,
@@ -75,7 +78,7 @@ const env = Object.fromEntries(
   ),
 );
 const child = spawn(
-  "/opt/homebrew/bin/cloudflared",
+  process.env.CLOUDFLARED || "cloudflared",
   [
     "tunnel",
     "--no-autoupdate",

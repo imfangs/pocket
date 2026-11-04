@@ -19,8 +19,7 @@ from bundled_cli import bundled_cli, verify_cli, BundledCLIError
 from bridge_config import load_bridge_config
 
 CONFIG = load_bridge_config()
-FBT_METADATA = Path(CONFIG["ipcModuleDirectory"]).resolve().parents[1] / "codex-threads/scripts"
-sys.path.insert(0, str(FBT_METADATA))
+sys.path.insert(0, CONFIG["metadataModuleDirectory"])
 from archive_cli import ArchiveError, identity
 from metadata_cli import StdioServer
 

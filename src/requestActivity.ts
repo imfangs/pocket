@@ -55,7 +55,7 @@ export function createRequestActivity() {
     },
     begin({ machine, path, method }: ActivityInput) {
       const scope = requestScope(path, method);
-      if (!scope || machine !== "ged" && machine !== "wandou") return idle;
+      if (!scope || typeof machine !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(machine)) return idle;
       const token = Symbol();
       // Store only routing scope and an opaque token, never the path, body,
       // headers, credentials, server result, or request/receipt identity.

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker from "../edge/worker.mjs";
+import { worker } from "./helpers/worker-profile.mjs";
 
 const origin = "https://x.fangs.cc";
 const keys = JSON.stringify({ wandou: "b".repeat(64), studio: "c".repeat(64) });

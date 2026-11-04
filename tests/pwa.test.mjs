@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import profile from "./fixtures/client-profile.json" with { type: "json" };
 
 test('public shell upgrade retains deep links on offline retry and never adds private resources to the cache', async () => {
   const handlers = {}, stored = new Map([['navigator-public-shell-v8', new Map([['/offline.html', 'old shell']])], ['unrelated-cache', new Map()]]);
@@ -14,13 +15,13 @@ test('public shell upgrade retains deep links on offline retry and never adds pr
   };
   const self = { location: { origin: 'https://example.test' }, addEventListener: (type, listener) => { handlers[type] = listener; },
     skipWaiting: async () => { skipped++; }, clients: { claim: async () => { claimed++; } } };
-  vm.runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), { URL, Response, caches, self, fetch: async request => { fetched = request.url; throw new Error('offline'); } });
+  vm.runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), { POCKET_CLIENT_CONFIG:profile, URL, Response, caches, self, fetch: async request => { fetched = request.url; throw new Error('offline'); } });
   let pending; handlers.install({ waitUntil: value => { pending = value; } }); await pending;
   handlers.activate({ waitUntil: value => { pending = value; } }); await pending;
   assert.equal(stored.has('navigator-public-shell-v8'), false); assert.equal(stored.has('unrelated-cache'), true);
   assert.equal(skipped, 1); assert.equal(claimed, 1);
   const resources = [...stored.values()].flatMap(cache => [...cache.keys()]);
-  assert.ok(stored.has('navigator-public-shell-v12'));
+  assert.ok(stored.has('navigator-public-shell-v13'));
   assert.ok(resources.includes('/offline.html')); assert.ok(resources.includes('/language.js'));
   assert.ok(resources.every(path => !path.startsWith('/api/')));
   const original = 'https://example.test/?task=aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
@@ -59,11 +60,11 @@ test("worker handles real fetch failures and 502 navigations with only the publi
   };
   vm.runInNewContext(
     readFileSync(new URL("../public/sw.js", import.meta.url), "utf8"),
-    context,
+    { ...context,POCKET_CLIENT_CONFIG:profile },
   );
   let installing;handlers.install({waitUntil:p=>installing=p});await installing;
-  assert.ok(cached.includes('/language.js'));
-  assert.ok(cached.length>0&&cached.every(path=>path==='/offline.html'||path==='/theme.js'||path==='/language.js'||path==='/startup.css'||path==='/manifest.webmanifest'||path.startsWith('/icons/')));
+  assert.ok(cached.includes('/language.js') && cached.includes('/client-config.js'));
+  assert.ok(cached.length>0&&cached.every(path=>path==='/offline.html'||path==='/theme.js'||path==='/language.js'||path==='/client-config.js'||path==='/startup.css'||path==='/manifest.webmanifest'||path.startsWith('/icons/')));
   const navigation = async () => {
     let promise;
     handlers.fetch({
@@ -103,7 +104,7 @@ test('push shows a notification without caching private data and click reuses a 
  const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
  const self={location:{origin:'https://example.test'},addEventListener:(name,fn)=>handlers[name]=fn,
   registration:{showNotification:async(...args)=>shown.push(args)},clients:{matchAll:async()=>[{url:'https://example.test/',postMessage:(m,ports)=>{messages.push(m);if(acknowledge)ports[0].ack();},focus:async()=>focused++,navigate:async url=>navigated.push(url)}],openWindow:async url=>opened.push(url)}};
- vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,URL,MessageChannel:Channel,setTimeout:(fn)=>setTimeout(fn,10),clearTimeout});
+ vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL,MessageChannel:Channel,setTimeout:(fn)=>setTimeout(fn,10),clearTimeout});
  let pending;handlers.push({data:{json:()=>({threadId:id,eventId:'event-1',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;
  assert.equal(shown[0][0],'Pocket');assert.equal(shown[0][1].data.threadId,id);assert.equal(shown[0][1].data.machineId,'ged');
  handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;
@@ -119,7 +120,7 @@ test('push clicks choose the correct machine even for identical thread IDs and n
  class Channel {constructor(){this.port1={close(){}};this.port2={ack:()=>this.port1.onmessage({data:'pocket-task-received'})};}}
  const client=machine=>({url:`https://example.test/?machine=${machine}`,focus:async()=>{},postMessage:(message,ports)=>{messages.push({machine,...message});ports[0].ack()},navigate:async()=>{throw Error('Existing drafts must not be replaced')}});
  const self={location:{origin:'https://example.test'},addEventListener:(name,fn)=>handlers[name]=fn,registration:{showNotification:async(...args)=>shown.push(args)},clients:{matchAll:async()=>[client('ged'),client('wandou')],openWindow:async url=>opened.push(url)}};
- vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,URL,MessageChannel:Channel,setTimeout,clearTimeout});
+ vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL,MessageChannel:Channel,setTimeout,clearTimeout});
  let pending;
  for(const machineId of ['ged','wandou']) {handlers.push({data:{json:()=>({threadId:id,machineId,eventId:'same-event',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;}
  assert.deepEqual(shown.map(([title])=>title),['Pocket','Pocket']);

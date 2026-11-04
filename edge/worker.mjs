@@ -1,4 +1,5 @@
-const defaultMachine = "ged";
+const defaultMachine = "local";
+const publicEntryOrigin = null;
 const validMachine = (id) => typeof id === "string" && /^[a-z][a-z0-9-]{0,31}$/.test(id);
 const validVerifier = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const machineCookie = (id) => id === defaultMachine ? "navigator_session" : `navigator_session_${id}`;
@@ -152,7 +153,8 @@ export default {
     const route = explicit ? url.pathname.match(/^\/api\/machines\/([^/]+)(\/.*)$/) : null;
     const machineId = explicit ? route?.[1] || url.pathname.split("/")[3] || "invalid" : defaultMachine;
     const error = (status, message, code = "relay_not_forwarded") => json(status, { error: message, code }, machineId);
-    if (url.hostname !== "x.fangs.cc" && !url.hostname.endsWith(".pages.dev"))
+    const configuredEntry = env.NAVIGATOR_PUBLIC_ORIGIN || publicEntryOrigin;
+    if (configuredEntry ? url.origin !== configuredEntry : !url.hostname.endsWith(".pages.dev"))
       return error(403, "不允许的入口");
     if (url.pathname === "/api/relay/register")
       return registerConnection(request, env, url);

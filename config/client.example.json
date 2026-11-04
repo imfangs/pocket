@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "defaultMachine": "local",
+  "machines": [{ "id": "local", "label": "My Mac" }],
+  "publicOrigin": null
+}

@@ -1,8 +1,9 @@
-import config from "../config/usage-analytics.json";
+import configuredAnalytics from "../config/usage-analytics.json";
 import { currentMachineId } from "./machineScope";
 import { createUsageJournal, type UsageProperties } from "./usageJournal";
 import type { PostHog } from "posthog-js";
 import { CLIENT_VERSION } from "./clientVersion";
+const config: {enabled:boolean;projectKey:string;apiHost:string;uiHost:string;origins:string[];environment:string} = configuredAnalytics;
 
 let active = false, initialized = false, generation = 0, sdk: PostHog | null = null;
 const pending: { event: string; properties: UsageProperties; timestamp: Date }[] = [];
@@ -53,7 +54,7 @@ export function startUsageAnalytics() {
       person_profiles: "never", persistence: "localStorage",
       disable_session_recording: false,
       enable_recording_console_log: false,
-      session_recording: { recordHeaders: false, recordBody: false },
+      session_recording: { recordHeaders: false, recordBody: false, maskAllInputs: true, maskTextSelector: "*" },
     });
     initialized = true;
     posthog.opt_in_capturing({ captureEventName: false });

@@ -28,7 +28,7 @@ function stateOf(history) {
     active: history.runtime === 'active' };
 }
 export class Notifications {
-  constructor(store, desktop, { send = webpush.sendNotification.bind(webpush), now = Date.now, subject = 'https://x.fangs.cc', machineId = 'ged' } = {}) {
+  constructor(store, desktop, { send = webpush.sendNotification.bind(webpush), now = Date.now, subject = process.env.NAVIGATOR_PUSH_SUBJECT || 'https://pocket.invalid', machineId = 'local' } = {}) {
     if (typeof machineId !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(machineId)) throw new Error('Invalid Pocket machine ID');
     Object.assign(this, { store, desktop, send, now, subject, machineId, stopped: false });
     const path = join(store.directory, 'web-push-keys.json');

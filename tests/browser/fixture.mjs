@@ -4,6 +4,8 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { chromium, webkit } from 'playwright';
 import { parseStaticHeaders } from './headers.mjs';
+import clientProfile from '../fixtures/client-profile.json' with { type: 'json' };
+import { serializeClientConfig } from '../../shared/client-config.mjs';
 
 export const origin = 'https://pocket.test';
 export const ids = { regular: 'a7100000-0000-4000-8000-000000000001', empty: 'a7100000-0000-4000-8000-000000000002' };
@@ -15,7 +17,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 // A browser adapter around a small synthetic Pocket service. All browser
 // requests are intercepted; no HTTP server, real API, credentials or native
 // desktop operation is involved. Unknown endpoints are test failures.
-export async function createHarness(engine, { history = false, width = 390, visibility = false, archivedHidden = false, locale = 'zh-CN',
+export async function createHarness(engine, { history = false, width = 390, visibility = false, archivedHidden = false, locale = 'zh-CN', clientConfiguration = clientProfile,
   directory = process.env.POCKET_BROWSER_DIST || '.local/qa/browser-dist', launch = options => ({ chromium, webkit })[engine].launch(options) } = {}) {
   const dist = realpathSync(directory);
   const manifest = JSON.parse(readFileSync(resolve(dist, 'pocket-version.json')));
@@ -35,7 +37,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
     const now = Date.now();
     const allHistory = Array.from({ length: 240 }, (_, index) => ({ id: `history-${index}`, role: index % 2 ? 'assistant' : 'user',
       text: `历史消息 ${index}。用于验证阅读位置的合成内容。`, phase: index % 2 ? 'final' : undefined, timestamp: now - 240000 + index, turnId: `turn-${index >> 1}` }));
-    const machines = new Map(['ged', 'wandou'].map(machine => [machine, new Map(Object.entries(ids).map(([name, id]) => [id, {
+    const machines = new Map(clientConfiguration.machines.map(({id:machine}) => [machine, new Map(Object.entries(ids).map(([name, id]) => [id, {
       id, title: `${machine} 合成${name === 'empty' ? '空' : '已有'}会话`, receipts: new Map(), queue: [],
       archived: archivedHidden && name === 'empty', pocketHidden: archivedHidden && name === 'empty',
       pocketPriority: visibility && name === 'regular', codexPinned: visibility && name === 'regular',
@@ -45,10 +47,10 @@ export async function createHarness(engine, { history = false, width = 390, visi
         { id: id + '-a', role: 'assistant', phase: 'final', text: '已有的合成回复', turnId: 'initial', timestamp: now - 1000 },
       ],
     }]))]));
-    const hiddenRevisions = new Map(['ged', 'wandou'].map(machine => [machine, 0]));
+    const hiddenRevisions = new Map(clientConfiguration.machines.map(({id:machine}) => [machine, 0]));
     let hiddenFailure = null;
     let closed = false;
-    const state = (id = ids.regular, machine = 'ged') => machines.get(machine).get(id);
+    const state = (id = ids.regular, machine = clientConfiguration.defaultMachine) => machines.get(machine).get(id);
     const content = (thread, machine) => ({ known: true, scope: 'smoke-' + machine, revision: thread.messages.length,
       version: createHash('sha256').update(JSON.stringify(thread.messages)).digest('hex'), messageId: thread.messages.at(-1)?.id ?? null });
     const projectThread = (thread, machine) => ({
@@ -81,6 +83,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
       const request = route.request(), url = new URL(request.url());
       const fail = async message => { unexpected.push(message); await route.abort(); };
       if (url.origin !== origin) return fail(`External request: ${request.method()} ${url.origin}${url.pathname}`);
+      if (url.pathname === '/client-config.js') return route.fulfill({ status: 200, contentType: 'application/javascript', headers: headersFor(url.pathname), body: serializeClientConfig(clientConfiguration) });
       if (!url.pathname.startsWith('/api/')) {
         try {
           const file = realpathSync(resolve(dist, '.' + decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)));
@@ -89,7 +92,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
             headers: headersFor(url.pathname), body: readFileSync(file) });
         } catch (error) { if (!closed) return fail(`Missing build asset: ${url.pathname}: ${error.code || error.message}`); return; }
       }
-      const match = /^\/api\/machines\/(ged|wandou)(\/.*)$/.exec(url.pathname), machine = match?.[1] || 'ged';
+      const match = /^\/api\/machines\/([a-z][a-z0-9-]{0,31})(\/.*)$/.exec(url.pathname), machine = match?.[1] || clientConfiguration.defaultMachine;
       const path = match ? '/api' + match[2] : url.pathname, method = request.method();
       const task = /^\/api\/tasks\/([^/]+)\/(.+)$/.exec(path), thread = task && state(task[1], machine);
       const action = task?.[2] || path.slice(5), call = { machine, method, path, action, startedAt: Date.now() };
@@ -146,8 +149,8 @@ export async function createHarness(engine, { history = false, width = 390, visi
     return {
       calls, errors, unexpected, build: manifest.id,
       count: action => calls.filter(call => call.action === action).length,
-      metadata(threadId = ids.regular, machine = 'ged') { return { ...projectThread(state(threadId, machine), machine), runtime: state(threadId, machine).runtime }; },
-      setRuntime(threadId, runtime, machine = 'ged') {
+      metadata(threadId = ids.regular, machine = clientConfiguration.defaultMachine) { return { ...projectThread(state(threadId, machine), machine), runtime: state(threadId, machine).runtime }; },
+      setRuntime(threadId, runtime, machine = clientConfiguration.defaultMachine) {
         assert.ok(['idle', 'running', 'waiting_input', 'waiting_approval', 'unknown'].includes(runtime));
         state(threadId, machine).runtime = runtime;
       },
@@ -156,7 +159,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
         const gate = { ...deferred(), repeat }; gates.set(action, gate);
         return { release: () => { if (gates.get(action) === gate) gates.delete(action); gate.resolve(); } };
       },
-      async open(threadId = ids.regular, machine = 'ged') {
+      async open(threadId = ids.regular, machine = clientConfiguration.defaultMachine) {
         const page = await context.newPage(); page.setDefaultTimeout(8000);
         page.on('pageerror', error => errors.push(error.message));
         page.on('dialog', dialog => { unexpected.push(`Unexpected native dialog: ${dialog.type()}`); void dialog.dismiss(); });

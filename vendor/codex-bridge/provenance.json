@@ -1,0 +1,40 @@
+{
+  "source": "Ogion FBT local tools",
+  "sourceCommit": "1eda402b85c0726ec9412b1c5d207c35da64fc25",
+  "copiedAt": "2026-11-04",
+  "scope": "Four Python stdlib transport/validation helpers only; no binaries, credentials, watcher, or FBT runtime",
+  "files": [
+    {
+      "file": "app_ipc.py",
+      "sourcePath": "codex-retry/scripts/app_ipc.py",
+      "sha256": "3cd176b20240a588533f7da4a8dba8cc704e3eec678db7054945af7c51a839a3",
+      "modified": false,
+      "sourceMatchesCommit": true,
+      "compatibilitySourcePath": "experimental/codex-retry/scripts/app_ipc.py"
+    },
+    {
+      "file": "contracts.py",
+      "sourcePath": "codex-retry/scripts/contracts.py",
+      "sha256": "40cddd92faca1197ba39c896260a119ea5055dc32447109379b9b31644e36d5f",
+      "modified": false,
+      "sourceMatchesCommit": true,
+      "compatibilitySourcePath": "experimental/codex-retry/scripts/contracts.py"
+    },
+    {
+      "file": "archive_cli.py",
+      "sourcePath": "codex-threads/scripts/archive_cli.py",
+      "sha256": "53e9877959a595be3be7ef41e833124348a2493196c8b91c1166caa0b4109019",
+      "modified": false,
+      "sourceMatchesCommit": true,
+      "compatibilitySourcePath": "experimental/codex-threads/scripts/archive_cli.py"
+    },
+    {
+      "file": "metadata_cli.py",
+      "sourcePath": "codex-threads/scripts/metadata_cli.py",
+      "sha256": "e07c67c1b4656d806058a9cd851e6976cf2c6fc7c77d68acde4b21bd7928e8c1",
+      "modified": false,
+      "sourceMatchesCommit": true,
+      "compatibilitySourcePath": "experimental/codex-threads/scripts/metadata_cli.py"
+    }
+  ]
+}
