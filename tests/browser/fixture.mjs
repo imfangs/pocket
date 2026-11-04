@@ -147,6 +147,10 @@ export async function createHarness(engine, { history = false, width = 390, visi
       calls, errors, unexpected, build: manifest.id,
       count: action => calls.filter(call => call.action === action).length,
       metadata(threadId = ids.regular, machine = 'ged') { return { ...projectThread(state(threadId, machine), machine), runtime: state(threadId, machine).runtime }; },
+      setRuntime(threadId, runtime, machine = 'ged') {
+        assert.ok(['idle', 'running', 'waiting_input', 'waiting_approval', 'unknown'].includes(runtime));
+        state(threadId, machine).runtime = runtime;
+      },
       failNextHidden(status = 503) { hiddenFailure = status; },
       pause(action, { repeat = false } = {}) {
         const gate = { ...deferred(), repeat }; gates.set(action, gate);

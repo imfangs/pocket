@@ -10,6 +10,7 @@ import "./styles.css";
 import "./pwa.css";
 import "./polish.css";
 import "./motion.css";
+import "./english-polish.css";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <PocketTheme>

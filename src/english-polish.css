@@ -1,0 +1,31 @@
+/* English labels need more room than the two-character Chinese status labels.
+   Keep their right edge aligned without borrowing space from the title. */
+:root:lang(en) .task-list-surface .row-status-slot {
+  flex-basis:8em;
+  width:8em;
+}
+
+/* At phone widths the English filters and sort actions form two deliberate
+   groups. Search shares the sort row; it never squeezes Following onto it. */
+@media (max-width:760px) {
+  :root:lang(en) .filter-row:has(.unread-toggle) {
+    display:grid;
+    grid-template-columns:repeat(3,max-content) minmax(0,1fr);
+    grid-template-rows:auto auto;
+    column-gap:2px;
+    row-gap:6px;
+  }
+  :root:lang(en) .filter-row:has(.unread-toggle) .activity-filters { display:contents; }
+  :root:lang(en) .filter-row:has(.unread-toggle) .thread-sort-controls {
+    grid-row:2;
+    grid-column:1 / span 3;
+    justify-self:start;
+    margin-left:0;
+  }
+  :root:lang(en) .filter-row:has(.unread-toggle) .list-controls {
+    grid-row:2;
+    grid-column:1 / -1;
+    justify-self:end;
+    align-self:center;
+  }
+}
