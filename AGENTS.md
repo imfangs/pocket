@@ -75,7 +75,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 共享桌面队列等能力补齐 | [能力对照](docs/DESKTOP-PARITY.md)、[原实例控制入口](docs/research/2026-09-29-desktop-control-entrypoints.md)；先核对当前 App 与 `config/desktop-bridge.json` |
 | 豌豆CLI0.164升级、空输入被附件读取错误撑高 | [升级与附件恢复](docs/design/2026-10-25-wandou-update-and-attachment-recovery.md)：真实CLI验证、数据/scope保留、软读取错误与附件保护 |
 | 发送体感慢、豌豆后端更新机制或10-25桌面升级差异 | [更新与发送复核](docs/research/2026-10-25-updates-and-send-experience.md)：实际发布路径、CLI待验证、已复现等待点；调查不等于已修复 |
-| 本机运行、连接器或公网发布 | [手机链路](docs/MOBILE.md)；对应 `config/local-service.json`、`config/tunnel-service.json`、`config/pages-site.json` |
+| 本机运行、连接器或公网发布 | [个人部署兼容](docs/design/2026-11-04-selfhost-personal-deployment.md)：不可变API/稳定FBT source、ged/wandou profile、原登录/交付保留与分层验收；[手机链路](docs/MOBILE.md)，具体运行/个人Pages配置从CURRENT进入 |
 | 原生 App、竞品或开源方向 | [本轮自部署准备](docs/research/2026-11-04-self-hosted-open-source-readiness.md)、[安装指南](docs/SELF_HOSTING.md)：独立桥接/公开依赖/配置/诊断/源码候选与真实新Mac发布门槛；9月[旧准备度](docs/research/2026-09-27-open-source-readiness.md)仅保留旧判断；[调研输入](docs/research/2026-09-29-external-research-intake.md)按需查 |
 
 ## 代码入口

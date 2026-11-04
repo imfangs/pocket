@@ -1,10 +1,12 @@
 # Pocket 当前状态
 
-维护日期：2026-11-04。排序已收进标题栏三项单选菜单，中英筛选恢复单行，模式记忆及桌面会话/草稿保持；英文文案、状态栏和多语言继续生效。左滑等待仅转圈、隐藏、触摸返回及弹窗中性焦点保持。会话信息缓存、原生iOS顶边修复、设置/过程页脚减法与未读优先正文预取保持；连接仍保留详情停留5秒/输入触发。XML兼容、CLI版本warn、顶部下拉、银色扫光、客户端版本、视频、截图反馈及两机投递保持。准确已发布身份见下方版本表。
+维护日期：2026-11-04。自部署准备版已部署到两机及共享公网，个人双机配置、原登录/待发/附件与Codex/连接器保持；源码仍未公开。排序已收进标题栏三项单选菜单，中英筛选恢复单行，模式记忆及桌面会话/草稿保持；英文文案、状态栏和多语言继续生效。左滑等待仅转圈、隐藏、触摸返回及弹窗中性焦点保持。会话信息缓存、原生iOS顶边修复、设置/过程页脚减法与未读优先正文预取保持；连接仍保留详情停留5秒/输入触发。XML兼容、CLI版本warn、顶部下拉、银色扫光、客户端版本、视频、截图反馈及两机投递保持。准确已发布身份见下方版本表。
 
 ## 下一次先看
 
-- **第一轮自部署开源准备已完成（2026-11-04，未公开/未激活原服务）。** 用户授权“直接优化一波”，当前准备为macOS单拥有者Alpha。已实现bundled桥接与独立配置、120条公开npm/SHA512且版本/图不变、local/MyMac默认公开投影、可信自有HTTPS/Host/Origin/CSRF、setup/doctor/用户服务、强新口令与旧会话保持、源码白名单/FD安全导出、MIT/第三方库存/中英安装文档/固定Action CI。全测2,028、浏览器51、CI合成2,001、协议154+配置10及导出包10HTTP检查通过；独立导出613文件哈希匹配、隔离公开依赖图编译成功、setup幂等/doctor空App拒绝/5个Python入口不需FBT。安全复核3项导出/锁/服务边界均修复，失败与正确结果分层保留。证据`.local/qa/oss-readiness-2026-11-04/`，代码与发布门槛见[新评估](docs/research/2026-11-04-self-hosted-open-source-readiness.md)。公开前仍需真实新Mac/iPhone、实际代理/升级回滚验收、react-remove-scroll-bar2.3.8原始许可文本/公共基线审查及正式repo/tag。源码已本地存档`c5caeaddef890bf0e66c834327e6839bcc9fc261`，冻结613文件到`.local/exports/pocket-0.1.0-alpha.1-source-c5caead.tar.gz`（SHA256见私有frozen-source回执，约1.9MB，published:false/sourceDirty:false）。个人兼容配置已保存在`.local/compatibility/oss-preparation-2026-11-04/`但未激活，旧desktop-bridge.json/原凭据未改、API/Codex/连接器未重启；线上仍下方`59f117…`排序版，不能把源码准备记成已发布。
+- **自部署准备版个人部署已上线并回读。** [部署契约](docs/design/2026-11-04-selfhost-personal-deployment.md)：API两机不可变`da53fa3`，网页/Worker`7e24660`、build`1ef5620b64d2…`、Pages`2dff18cb…`。个人ged/wandou profile和cookie/偏好保持，未启用通用强新口令或重置原账号；VAPID、access、relay/反馈、原auth_sessions、source scope、直发策略、交付/附件及隐藏/关注一致，格得原1条queued保持、豌豆0。两机stop/unloaded/up各一次成功，Codex/连接器/本域代理不重启，旧源码和停机备份保留。2,029全测、51浏览器＋4双机链路、豌豆161+6HTTP及恢复mock通过；35/35公网资源与功能、公开version/profile另行对照。格得真实公网登录/只读/退出及cookie属性通过；豌豆无持久明文，fresh公网登录未做，旧session/凭据保持和loopback认证200/公网health200+匿名401通过，不伪称该层通过。已完成单次上传和切换，无待续认证/部署。证据`.local/qa/deploy-selfhost-2026-11-04/`。
+
+- **第一轮自部署开源准备已完成（2026-11-04，源码未公开；个人激活见上条）。** 用户授权“直接优化一波”，当前准备为macOS单拥有者Alpha。已实现bundled桥接与独立配置、120条公开npm/SHA512且版本/图不变、local/MyMac默认公开投影、可信自有HTTPS/Host/Origin/CSRF、setup/doctor/用户服务、强新口令与旧会话保持、源码白名单/FD安全导出、MIT/第三方库存/中英安装文档/固定Action CI。全测2,028、浏览器51、CI合成2,001、协议154+配置10及导出包10HTTP检查通过；独立导出613文件哈希匹配、隔离公开依赖图编译成功、setup幂等/doctor空App拒绝/5个Python入口不需FBT。安全复核3项导出/锁/服务边界均修复，失败与正确结果分层保留。证据`.local/qa/oss-readiness-2026-11-04/`，代码与发布门槛见[新评估](docs/research/2026-11-04-self-hosted-open-source-readiness.md)。公开前仍需真实新Mac/iPhone、实际代理/升级回滚验收、react-remove-scroll-bar2.3.8原始许可文本/公共基线审查及正式repo/tag。源码已本地存档`c5caeaddef890bf0e66c834327e6839bcc9fc261`，冻结613文件到`.local/exports/pocket-0.1.0-alpha.1-source-c5caead.tar.gz`（SHA256见私有frozen-source回执，约1.9MB，published:false/sourceDirty:false）。个人兼容配置已保存在`.local/compatibility/oss-preparation-2026-11-04/`，本轮后续已用于私有激活；原desktop-bridge.json/凭据未改，API升级与公开壳见上条，Codex/连接器未重启。此处源码导出仍非公开发布。
 
 - **紧凑排序菜单已上线。** [契约](docs/design/2026-11-04-compact-sort-menu.md)：加号左侧单个排序图标，智能/创建时间/活动时间勾选，显式选择幂等并记住模式；分类/项目/活动筛选/搜索及桌面当前会话、草稿和消息节点保持。移除常驻两个排序按钮和英文第二排，筛选44px；中英320px和英文390/768px多出56px阅读空间，其他原单行再少6px。英文极窄128/32计数及双选中也不换行；菜单使用标准勾选占位与软色高亮，最小对比5.206:1。最终2,003全测、49项正式浏览器/设施及独立复核通过，34/34公共资源、原功能和公网版本匹配；只上传一次至Pages`67bcc4ba…`，源`c2668cd`、build`59f117acba96…`。无API/Codex/连接器重启或真实写入，既有认证有效，无待续部署。证据`.local/qa/sort-menu-2026-11-04/`。
 
@@ -114,15 +116,15 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `c2668cd336c83124b9a18d5bce78b7c980652407`；紧凑排序菜单与单行筛选，原rank、阅读/发送/多语言及网关保持 |
-| 两机API源码 | `f29bf5ba33b52dbbc71bb006a8de57b156021db9`；11-03格得PID34223、豌豆PID54002，后续运维需重查。隐藏projection、认证200/401及两机公网health已独立读回 |
-| 前端build | 公网与本仓库dist为`59f117acba966fe50a7b5b649847018548bd8ebd1f003ef7a5198d41476ccbd6`。豌豆内置网页随隐藏API包为`8a5b74f8bf33…`，手机使用共享公网壳 |
-| Pages部署 | `67bcc4ba-9e8a-47b0-be68-cb9449a1f336`；11-04 ready=true，34/34公开文件及功能检查通过，只上传一次 |
-| 本次验证 | 2,003全测、49正式CSP浏览器/设施、12组中英布局及最终窄屏/草稿/菜单复验、最小对比5.206、独立CR；原节点/选区与新建焦点保持，公开版本与本地构建匹配 |
-| 本次证据 | `.local/qa/sort-menu-2026-11-04/`：`full-tests-release.log`、`browser-release/`、`qa/summary.json`、`qa/contrast-final.json`、`validation.json`、`deploy.json`、`public-version.json`；上一轮两机发布证据仍在`.local/qa/hidden-2026-11-03/release/` |
-| 本次数据与运行 | 仅网页单次上传，无API/Codex/连接器重启或真实隐藏/归档/发送操作；当前Cloudflare认证有效、目标HTTP200，没有新增续期/权限或未决部署 |
+| 公网前端/网关源码 | `7e24660b1c20cc5e04eeebc6c5d6ec8928746587`；自部署准备及私有双机profile；原rank、阅读/发送/多语言保持 |
+| 两机API源码 | `da53fa306909dc8a4c3cf97f59d84b779afe23b9`；11-04格得PID68399、豌豆PID9994，后续运维需重查。不可变release、profile/loopback认证200/匿名401及两机公网health已独立读回 |
+| 前端build | 公网、本仓库dist与两端release内置包为`1ef5620b64d244c0f0c1d909b192f5fb0deb72d2941e89ff415bd816b658a7c0`；共享公网为ged/wandou profile，豌豆本机动态bootstrap是wandou单机 |
+| Pages部署 | `2dff18cb-ab4c-4788-a86f-d76087080b6c`；11-04 ready=true，35/35公开文件及功能检查通过，只上传一次 |
+| 本次验证 | 2,029全测、51私有包浏览器/设施＋4双机链路，豌豆161+6HTTP、停机/恢复mock及独立CR；两机真实鉴权/路由和格得fresh公网登录分层，详见部署契约 |
+| 本次证据 | `.local/qa/deploy-selfhost-2026-11-04/`：`full-tests.log`、`browser-only/`、`local-switch-result.json`、`remote-switch-output.json`、`pages-deploy.json`、`release-summary.json`、`public-version.json` |
+| 本次数据与运行 | 2机API各正常stop/up，原1条queued和其他受保护记录保持；原Codex/连接器/凭据不重置。Cloudflare单次续期、原28权限保持；网页单次上传，无未决认证/部署 |
 
-表中`67bcc4ba…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
+表中`2dff18cb…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
 ## 必须保持的产品决定
 
@@ -155,9 +157,9 @@
 
 - **2026-10-28 KV续约降频已上线并回读**：同址续约10分钟、KV/回执30分钟；60秒检查/失败重试和换址登记保持。网关源 `3b42e1f` / Pages `d56d7385-69ef-4e9b-9c7f-d0f238145600`，从已发布 `2804dbd` 的代码隔离构建，前端build仍为 `de9b820e…`，未夹带并行缓存开发。1482项全测、构建、30/30公开资源及功能检查通过。格得连接器PID12894实测654.228秒续约；豌豆5分钟不重复写，首次定时提交遇既有网络错误，下一分钟自动重试成功，实际721.807秒；保留失败与恢复，未记成无故障首续约。两机新租约均1800秒，公网health/身份与匿名catalog401通过，API/Codex未重启。三路全天写量下降仍为估计。契约见[手机链路](docs/MOBILE.md)，完整版本/时间与原始证据见[续约验收](.local/qa/kv-renewal-2026-10-28/README.md)；其它前端发布条目按各自事实源接续。
 
-- 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；用项目的 `config/local-service.json`、`config/pages-site.json` 和FBT既有服务/发布工具。前端样式修改只发布网页。
+- 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；API用稳定`config/local-service.json`（指向不可变release）和FBT local。个人Pages更新必须用`.local/compatibility/oss-preparation-2026-11-04/pages-site-compatible.json`，它显式引导ged/wandou profile；不要裸用通用build默认local覆盖现有站点。源代码内公开模板不含私人profile。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 豌豆b896 API继续引用已验证的`6b15fabc04a012729c456fbea8e1c16a8f3f281e/node_modules`，本次a5b3保留为直接回退；更早08a7/0b5只按实际引用处理。根锁文件与依赖manifest未变，本次未安装依赖。连接器10-28的独立最小release `tunnel-kv-10m-3b42e1f2de6cc99f8f59d57dfb354df19fcd8f18`仍保持，PID16387未重启。旧release与私有配置备份按实际引用保留，不能按旧日期删除。
+- 豌豆当前da53 release建立node_modules只读overlay，共享已验证`6b15fabc04a012729c456fbea8e1c16a8f3f281e`依赖并新增精确i18next26.7.1，原版本/合同不变。直接回退为f29 release；更早release仅按实际引用处理。当前/回退/依赖及私有profile/停止快照保留。连接器仍运行既有独立版本，11-04比对PID/配置/凭据保持；不能按旧日期删除其依赖。
 - Pages认证失败先按[FBT认证恢复](/Users/fangs/workspace/fbt/workflows/pages-site/docs/auth-recovery.md)识别生效来源与未决记录，恢复后核对上传阶段；已上传但验证未过使用原部署 `resume --resume-verification`。不要用可能隐式续期的whoami试探未知refresh。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。
