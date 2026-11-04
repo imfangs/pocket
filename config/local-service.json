@@ -1,15 +1,18 @@
 {
   "name": "codex-navigator",
-  "working_directory": "..",
+  "working_directory": "/Users/fangs/workspace/side/codex-navigator/.local/releases/da53fa306909dc8a4c3cf97f59d84b779afe23b9",
   "command": [
     "/opt/homebrew/bin/node",
-    "{cwd}/server/index.mjs"
+    "/Users/fangs/workspace/side/codex-navigator/.local/releases/da53fa306909dc8a4c3cf97f59d84b779afe23b9/server/index.mjs"
   ],
   "port": 4397,
   "domain": "threads.local",
   "https": true,
   "environment": {
-    "PORT": "4397"
+    "PORT": "4397",
+    "NAVIGATOR_CLIENT_CONFIG": "/Users/fangs/workspace/side/codex-navigator/.local/compatibility/oss-preparation-2026-11-04/client-profile.json",
+    "NAVIGATOR_BRIDGE_CONFIG": "/Users/fangs/workspace/side/codex-navigator/.local/compatibility/oss-preparation-2026-11-04/desktop-bridge.json",
+    "NAVIGATOR_PUSH_SUBJECT": "https://x.fangs.cc"
   },
   "health": {
     "path": "/api/health",
