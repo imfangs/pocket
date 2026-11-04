@@ -116,6 +116,49 @@ test('activity sort persists across projects, priority returns and archive navig
     { ...prefs, scope: 'archived', sort: 'activity' });
 });
 
+test('sort menu selections are explicit and idempotent while retaining independent navigation dimensions', () => {
+  const modes = ['smart', 'created', 'activity'];
+  for (const initialSort of modes) for (const selectedSort of modes) {
+    const returnTarget = Object.freeze({ scope: 'all', project: 'reports' });
+    const initial = Object.freeze({ ...prefs, scope: 'priority', activity: 'running', sort: initialSort,
+      priorityReturn: returnTarget });
+    const selected = changeNavigation(initial, { type: 'setSort', sort: selectedSort });
+    assert.deepEqual(selected, { ...initial, sort: selectedSort });
+    assert.equal(selected.priorityReturn, returnTarget);
+    assert.equal(initial.sort, initialSort);
+    if (selectedSort === initialSort) assert.equal(selected, initial);
+    assert.equal(changeNavigation(selected, { type: 'setSort', sort: selectedSort }), selected);
+    assert.deepEqual(normalizeNavigationPrefs(JSON.parse(JSON.stringify(selected))), selected);
+  }
+  const project = { ...prefs, project: 'reports', activity: 'unread' };
+  assert.deepEqual(changeNavigation(project, { type: 'setSort', sort: 'activity' }), { ...project, sort: 'activity' });
+});
+
+test('explicit sort choices preserve collection scope and its existing chronological smart fallback', () => {
+  for (const scope of ['archived', 'hidden']) {
+    const rows = [
+      { ...base, id: 'recent-message', archived: scope === 'archived', pocketHidden: scope === 'hidden',
+        createdAt: now - 20000, lastMessageAt: now, pocketPriority: false },
+      { ...base, id: 'newer-creation', archived: scope === 'archived', pocketHidden: scope === 'hidden',
+        createdAt: now - 1, lastMessageAt: now - 10000, pocketPriority: true, codexPinned: true },
+    ];
+    const initial = normalizeNavigationPrefs({ ...prefs, scope, sort: 'activity' });
+    for (const sort of ['smart', 'created', 'activity']) {
+      const selected = changeNavigation(initial, { type: 'setSort', sort });
+      assert.deepEqual(selected, { ...initial, sort });
+      assert.deepEqual(normalizeNavigationPrefs(JSON.parse(JSON.stringify(selected))), selected);
+      assert.deepEqual(ids(select(rows, selected)), sort === 'created'
+        ? ['newer-creation', 'recent-message'] : ['recent-message', 'newer-creation']);
+    }
+  }
+});
+
+test('unsupported explicit menu values cannot corrupt sorting or other stored dimensions', () => {
+  const initial = Object.freeze({ ...prefs, project: 'reports', activity: 'running', sort: 'created' });
+  for (const sort of [undefined, null, '', 'updated', 'title', 'pinned', {}, 1])
+    assert.equal(changeNavigation(initial, { type: 'setSort', sort }), initial);
+});
+
 test('priority shortcut lists only Pocket attention and restores the previous project without reverting other dimensions', () => {
   const rows = [
     { ...base, id: 'report-priority', pocketPriority: true, createdAt: now - 20000 },

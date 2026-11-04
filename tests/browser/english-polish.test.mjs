@@ -12,7 +12,7 @@ const shape = async element => element.evaluate(node => {
 const fits = box => assert.ok(box.textLeft >= box.left - 1 && box.textRight <= box.right + 1, JSON.stringify(box));
 
 for (const engine of engines) {
-  test(`${engine}: English status text and deliberate phone control groups keep separate reading space`, { timeout: 30000 }, async () => {
+  test(`${engine}: English status text and one-row phone filters keep separate reading space`, { timeout: 30000 }, async () => {
     for (const width of [320, 390]) {
       const h = await createHarness(engine, { width, locale: 'en-US' });
       try {
@@ -29,13 +29,14 @@ for (const engine of engines) {
           assert.ok(Math.abs(box.top - first.top) <= 1, `${width}: ${selector} moved to another filter row`);
           assert.ok(box.width >= 44 && box.height >= 44);
         }
-        const sort = await shape(controls.locator('.thread-sort-controls'));
+        const sort = await shape(controls.locator('.thread-sort-trigger'));
         const search = await shape(controls.locator('.search-toggle'));
         const toolbar = await shape(controls.locator('.filter-row'));
-        assert.ok(sort.top >= first.bottom);
-        assert.ok(search.left >= sort.right - 1, 'Search and sort must not overlap');
+        assert.ok(sort.bottom <= first.top + 1, 'Sorting must stay in the title bar');
+        assert.ok(sort.width >= 44 && sort.height >= 44);
         assert.ok(search.left >= toolbar.left - 1 && search.right <= toolbar.right + 1, 'Search must align with the toolbar gutter');
-        assert.ok(Math.abs((search.top + search.bottom - sort.top - sort.bottom) / 2) <= 1);
+        assert.ok(Math.abs((search.top + search.bottom - first.top - first.bottom) / 2) <= 1);
+        assert.ok(toolbar.height <= 45, 'The filters must not reserve a second row');
         assert.ok(await controls.locator('.search-toggle').evaluate(node => {
           const box = node.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
           return node.contains(hit);

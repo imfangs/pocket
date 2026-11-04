@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
 import TaskListPanel from "./TaskListPanel";
+import ThreadSortMenu from "./ThreadSortMenu";
 import CollectionReadFeedback from "./CollectionReadFeedback";
 import Inspector from "./Inspector";
 import BootSplash from "./BootSplash";
@@ -562,10 +563,11 @@ export default function App({
     }
   };
   const updateNavigation = (change: NavigationChange, clearSearch = false) => void guard(async () => {
+    if (change.type === "setSort" && change.sort === sort) return;
     restoreScroll.current = 0;
     setNavigation(previous => changeNavigation(previous, change));
     if (clearSearch) { setQuery(""); setSearchOpen(false); }
-    setSelected(null);
+    if (change.type !== "setSort") setSelected(null);
     setMobile(false);
     refreshAfterActivity();
   });
@@ -682,6 +684,8 @@ export default function App({
                 <span className="workspace-count">{!hasCatalog || activity === "unread" && !unreadKnown || activity === "running" && !runtimeKnown ? "—" : listThreads.length + pendingCreationRows.length}</span>
               </h1>
             </div>
+            <ThreadSortMenu value={sort} onChange={sort => updateNavigation({ type: "setSort", sort })}
+              disabled={narrow && (!!current || mobile)} />
             <Button variant="soft" color="gray" type="button"
               className="new-conversation-button"
               aria-label={tr("新建会话")}
@@ -719,19 +723,6 @@ export default function App({
                 onClick={() => updateNavigation({ type: "togglePriority" })}>
                 <Star size={15} aria-hidden="true" /><span>{tr("关注")}</span>
               </button>}
-              <div className="thread-sort-controls" role="group" aria-label={tr("会话排序")}>
-                {([
-                  { sort: "created", label: "创建", title: "按创建时间从新到旧排列" },
-                  { sort: "activity", label: "活动", title: "按最后消息时间从新到旧排列" },
-                ] as const).map(option => (
-                  <button key={option.sort} className={`needs-input-toggle ${option.sort}-toggle`}
-                    data-inbox={sort === option.sort} aria-pressed={sort === option.sort}
-                    title={sort === option.sort ? tr("恢复智能排序") : tr(option.title)}
-                    onClick={() => updateNavigation({ type: "sort", sort: option.sort })}>
-                    <span>{tr(option.label)}</span>
-                  </button>
-                ))}
-              </div>
             </div>
             <div className="list-controls">
               <IconButton type="button"

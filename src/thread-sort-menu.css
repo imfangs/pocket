@@ -1,0 +1,8 @@
+.heading-line > .thread-sort-trigger { flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin:0; color:var(--muted); }
+.thread-sort-trigger:not([data-sort-mode="smart"]), .thread-sort-trigger[data-state="open"] { color:var(--accent); }
+.thread-sort-trigger[data-state="open"] { background:var(--accent-soft); }
+.thread-sort-menu { min-width:184px; max-width:calc(100vw - 24px); }
+.thread-sort-menu .rt-DropdownMenuRadioItem { min-height:44px; font-size:14px; }
+.thread-sort-menu .rt-DropdownMenuRadioItem[data-state="checked"] { font-weight:550; }
+.thread-sort-menu .rt-DropdownMenuRadioItem[data-state="checked"]:not([data-highlighted]) { color:var(--accent); }
+.thread-sort-menu .rt-DropdownMenuRadioItem[data-highlighted] { color:var(--ink); }

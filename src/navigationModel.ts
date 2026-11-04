@@ -69,6 +69,7 @@ export type NavigationChange = { type: "scope"; scope: NavigationScope }
   | { type: "project"; project: string }
   | { type: "activity"; activity: Exclude<ActivityFilter, "all"> }
   | { type: "sort"; sort?: Exclude<ThreadSort, "smart"> }
+  | { type: "setSort"; sort: ThreadSort }
   | { type: "togglePriority" }
   | { type: "clearActivity" };
 
@@ -86,6 +87,13 @@ export function changeNavigation(current: NavigationPrefs, change: NavigationCha
   if (change.type === "sort") {
     const sort = change.sort ?? "created";
     return { ...current, sort: current.sort === sort ? "smart" : sort };
+  }
+  // A checked menu item is an explicit selection, unlike the legacy chips.
+  // Re-selecting it cannot reset sorting or disturb independent dimensions.
+  if (change.type === "setSort") {
+    const sort = change.sort;
+    if (sort !== "smart" && sort !== "created" && sort !== "activity" || sort === current.sort) return current;
+    return { ...current, sort };
   }
   if (change.type === "clearActivity") return { ...current, activity: "all" };
   if (collectionOnly(current.scope)) return current;
