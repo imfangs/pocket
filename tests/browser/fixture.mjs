@@ -48,6 +48,8 @@ export async function createHarness(engine, { history = false, width = 390, visi
       ],
     }]))]));
     const hiddenRevisions = new Map(clientConfiguration.machines.map(({id:machine}) => [machine, 0]));
+    const historyPatches = new Map();
+    let historyFailure = null;
     let hiddenFailure = null;
     let closed = false;
     const state = (id = ids.regular, machine = clientConfiguration.defaultMachine) => machines.get(machine).get(id);
@@ -105,7 +107,13 @@ export async function createHarness(engine, { history = false, width = 390, visi
       else if (method === 'GET' && path === '/api/notifications') data = { publicKey: '' };
       else if (method === 'GET' && path === '/api/feedback/config') data = { enabled: false };
       else if (method === 'GET' && path === '/api/tasks/create-options') data = { available: true, locations: [{ id: 'synthetic-location', cwd: '/synthetic', name: '合成项目', projectId: 'fixture', projectName: '合成项目', model: 'gpt-6-astra', effort: 'ultra' }] };
-      else if (thread && method === 'GET' && ['history', 'transcript'].includes(action)) data = transcript(thread, machine, action === 'transcript');
+      else if (thread && method === 'GET' && ['history', 'transcript'].includes(action)) {
+        data = transcript(thread, machine, action === 'transcript');
+        if (action === 'history') {
+          if (historyFailure) { status = historyFailure; data = { error: '合成会话状态读取失败' }; historyFailure = null; }
+          else data = { ...data, ...historyPatches.get(machine + ':' + thread.id) };
+        }
+      }
       else if (thread && method === 'GET' && action === 'attachments') data = { attachments: [] };
       else if (thread && method === 'GET' && action === 'automations') data = { available: true, stale: false, timeZone: 'Asia/Shanghai', automations: [] };
       else if (thread && method === 'GET' && action === 'model-settings') data = { threadId: thread.id, source: 'saved', current: { model: 'gpt-6-astra', effort: 'ultra' }, revision: null, models: [], canChange: false, checkedAt: Date.now() };
@@ -154,6 +162,10 @@ export async function createHarness(engine, { history = false, width = 390, visi
         assert.ok(['idle', 'running', 'waiting_input', 'waiting_approval', 'unknown'].includes(runtime));
         state(threadId, machine).runtime = runtime;
       },
+      patchHistory(threadId, patch, machine = clientConfiguration.defaultMachine) {
+        historyPatches.set(machine + ':' + threadId, patch);
+      },
+      failNextHistory(status = 503) { historyFailure = status; },
       failNextHidden(status = 503) { hiddenFailure = status; },
       pause(action, { repeat = false } = {}) {
         const gate = { ...deferred(), repeat }; gates.set(action, gate);

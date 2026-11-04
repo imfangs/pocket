@@ -14,6 +14,8 @@ import { readableRequestError } from "./requestError";
 import "./conversation-recovery.css";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
+import ConversationActivity from "./ConversationActivity";
+import { conversationIsWorking } from "./conversationWorking";
 import ProgressDisclosure from "./ProgressDisclosure";
 import { useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
@@ -127,6 +129,7 @@ export default function Conversation({
     [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false),
     [error, setError] = useState(""),
     [historyError, setHistoryError] = useState(""),
+    [activityObserved, setActivityObserved] = useState(false),
     [notice, setNotice] = useState(""),
     [awayFromLatest, setAwayFromLatest] = useState(() => historyCache.get(thread.id)?.nearBottom === false),
     [hasNewContent, setHasNewContent] = useState(false);
@@ -135,6 +138,7 @@ export default function Conversation({
   const receivedHistory = useRef(!!history), receivedTranscript = useRef(!!transcript);
   const receivedContent = useRef(!!history?.messages.length || !!transcript?.messages.length);
   const networkObserved = useRef({ history: false, transcript: false });
+  const activityEpoch = useRef(0);
   useEffect(() => {
     const machine = currentMachineId(); let active = true;
     if (!machine || !readingScope || !readingCache) return;
@@ -341,6 +345,17 @@ export default function Conversation({
     window.addEventListener("offline", update);
     return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
   }, []);
+  useEffect(() => {
+    // A background/BFCache snapshot is reading context, not a current claim
+    // that the remote owner is still working when this page becomes visible.
+    const invalidate = () => { activityEpoch.current++; setActivityObserved(false); };
+    document.addEventListener("visibilitychange", invalidate);
+    window.addEventListener("pageshow", invalidate);
+    return () => {
+      document.removeEventListener("visibilitychange", invalidate);
+      window.removeEventListener("pageshow", invalidate);
+    };
+  }, []);
   const targetAvailable = !thread.archived && !thread.missing && !managementBlocked;
   useEffect(() => {
     if (!targetAvailable) return;
@@ -362,6 +377,10 @@ export default function Conversation({
   const connectionHint = managementHint || (thread.archived ? hasRestoreAction ? undefined : "已归档，取消归档后可继续对话。"
     : !targetAvailable ? "会话暂不可用" : history?.source === "desktop" ? desktopHint : undefined);
   const connectionFailed = !!connectionError || staleConnection || observedConnection.status === "failed";
+  const working = conversationIsWorking(history, { observed: activityObserved,
+    online, available: targetAvailable && !compatibilityCode && !showingDiskPreview && !earlier.active,
+    connectionPending: connecting || connectionFailed, readFailed: !!historyError,
+    recordedTiming: transcript?.turnTiming });
   const connectionLabel = !online ? "离线" : connecting ? "连接中…"
     : compatibilityCode ? connectionFailureHint(compatibilityCode)
     : connectionFailed ? connectionFailureHint(connectionFailureCode)
@@ -473,10 +492,18 @@ export default function Conversation({
   }, [thread.id, historyCache, readTranscript]);
   useEffect(() => {
     if (managementBlocked) { setLoading(false); return; }
+    let readingActivityEpoch = activityEpoch.current;
     const subscription = startConversationFeed({
-      request: (signal) => api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal }),
+      request: (signal) => {
+        // The feed owns one request at a time. A read already in flight when
+        // pageshow queued its successor may still supply reading context, but
+        // cannot renew the running animation for the restored page.
+        readingActivityEpoch = activityEpoch.current;
+        return api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal });
+      },
       onData(data) {
         networkObserved.current.history = true;
+        setActivityObserved(readingActivityEpoch === activityEpoch.current);
         receivedHistory.current = true;
         receivedContent.current ||= data.messages.length > 0;
         if (data.messages.length || receivedTranscript.current) setCachedPreview(null);
@@ -512,6 +539,7 @@ export default function Conversation({
         }
       },
       onError(error) {
+        setActivityObserved(false);
         recordUsageFailure("history", error, thread.id);
         setHistoryError(readableRequestError(error, "暂时无法读取，请重试。"));
         setLoading(false);
@@ -537,7 +565,7 @@ export default function Conversation({
     }
     previousLatest.current = latest ? { id: latest.id, text: latest.text } : null;
     restoreScroll.current = null;
-  }, [shownMessages, visibleSubmissions, shownOutbox, queryTargets, progress.entries, progress.readingProtected, earlier.active]);
+  }, [shownMessages, visibleSubmissions, shownOutbox, queryTargets, progress.entries, progress.readingProtected, earlier.active, working]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
@@ -826,6 +854,7 @@ export default function Conversation({
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
         <SubmittedQueryCards items={visibleSubmissions} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
           disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} />
+        {working && <ConversationActivity turnId={history!.activeTurnId!} />}
         </div>
         {earlier.active && <div className="earlier-history-messages">
           {earlier.messages.map(message => <EarlierHistoryMessage key={message.id} threadId={thread.id} message={message} />)}
