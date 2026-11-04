@@ -21,6 +21,8 @@ The published archive of `react-remove-scroll-bar@2.3.8` declares MIT but does n
 | IDB | Browser reading/feedback storage; [ISC text](public/idb-LICENSE.txt) |
 | i18next | Local interface translation; [MIT text](public/i18next-license.txt) |
 | Feedback dependencies | Annotorious BSD, Modern Screenshot MIT, IDB ISC and Standard Webhooks MIT; [detailed notices and exact sources](packages/feedback-kit/THIRD_PARTY_NOTICES.md) |
+| Architecture viewer | Archify 2.17 diagram/runtime, separate from the application bundle; [MIT text](docs/assets/ARCHIFY-LICENSE.txt) and [artifact provenance](docs/assets/README.md) |
+| Architecture font | Embedded JetBrains Mono subsets used by the standalone HTML/SVG diagram; [SIL OFL 1.1 text](docs/assets/JetBrainsMono-OFL.txt) |
 
 The feedback notice file is also emitted by the frontend build. Keep the corresponding license material beside redistributed source and compiled artifacts; the existing individual notices do not eliminate the whole-application inventory check.
 

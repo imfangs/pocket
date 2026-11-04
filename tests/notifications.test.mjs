@@ -63,7 +63,7 @@ test('gone endpoints are removed; transient delivery failure has bounded retry a
 });
 test('Web Push payload is encrypted and VAPID authentication is included',t=>{
   const {service:s}=fixture(t),sub=subscription(),payload=JSON.stringify({body:'任务已完成'});
-  const request=webpush.generateRequestDetails(sub,payload,{vapidDetails:{subject:'https://x.fangs.cc',...s.keys}});
+  const request=webpush.generateRequestDetails(sub,payload,{vapidDetails:{subject:'https://pocket.example.com',...s.keys}});
   assert.equal(request.headers['Content-Encoding'],'aes128gcm');assert.ok(request.headers.Authorization);assert.ok(!request.body.includes(Buffer.from(payload)));
 });
 test('a fallback read cannot consume a new source revision and permanently lose the completion',async t=>{

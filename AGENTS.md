@@ -77,7 +77,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 豌豆CLI0.164升级、空输入被附件读取错误撑高 | [升级与附件恢复](docs/design/2026-10-25-wandou-update-and-attachment-recovery.md)：真实CLI验证、数据/scope保留、软读取错误与附件保护 |
 | 发送体感慢、豌豆后端更新机制或10-25桌面升级差异 | [更新与发送复核](docs/research/2026-10-25-updates-and-send-experience.md)：实际发布路径、CLI待验证、已复现等待点；调查不等于已修复 |
 | 本机运行、连接器或公网发布 | [个人部署兼容](docs/design/2026-11-04-selfhost-personal-deployment.md)：不可变API/稳定FBT source、ged/wandou profile、原登录/交付保留与分层验收；[手机链路](docs/MOBILE.md)，具体运行/个人Pages配置从CURRENT进入 |
-| 原生 App、竞品或开源方向 | [本轮自部署准备](docs/research/2026-11-04-self-hosted-open-source-readiness.md)、[安装指南](docs/SELF_HOSTING.md)：独立桥接/公开依赖/配置/诊断/源码候选与真实新Mac发布门槛；9月[旧准备度](docs/research/2026-09-27-open-source-readiness.md)仅保留旧判断；[调研输入](docs/research/2026-09-29-external-research-intake.md)按需查 |
+| 原生 App、竞品或开源方向 | [README](README.md)含可复制Agent搭建指令/前置条件/架构；[隐私边界复核](docs/research/2026-11-04-open-source-privacy-boundary.md)：实际导出漏出的测试域名、原Git历史不宜公开、私有数据位置、privacy:check/索引与重命名/导出清单；[本轮自部署准备](docs/research/2026-11-04-self-hosted-open-source-readiness.md)、[安装指南](docs/SELF_HOSTING.md)承载配置/独立桥接与真实新Mac发布门槛。公开基线只能取新版已复核白名单导出，不能公开维护仓库或沿用旧613文件候选；9月[旧准备度](docs/research/2026-09-27-open-source-readiness.md)仅保留旧判断 |
 
 ## 代码入口
 

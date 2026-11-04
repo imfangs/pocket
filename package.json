@@ -12,7 +12,8 @@
     "test:browser": "node tests/browser/run.mjs",
     "setup": "node bin/pocket.mjs setup",
     "doctor": "node bin/pocket.mjs doctor",
-    "package:source": "node bin/package-source.mjs"
+    "package:source": "node bin/package-source.mjs",
+    "privacy:check": "node bin/privacy-check.mjs"
   },
   "dependencies": {
     "@annotorious/annotorious": "3.9.5",

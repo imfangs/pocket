@@ -207,8 +207,8 @@ test("the existing gateway preserves explicit hidden state and same-origin sessi
     return new Response(JSON.stringify({ pocketHidden: true, hiddenRevision: 1 }), { headers: { "Content-Type": "application/json" } });
   };
   try {
-    const response = await worker.fetch(new Request(`https://x.fangs.cc/api/tasks/${one}/hidden`, {
-      method: "POST", headers: { Origin: "https://x.fangs.cc", "Content-Type": "application/json", Cookie: "navigator_session=fixture", "X-Navigator-Token": "fixture-csrf" },
+    const response = await worker.fetch(new Request(`https://pocket.example.com/api/tasks/${one}/hidden`, {
+      method: "POST", headers: { Origin: "https://pocket.example.com", "Content-Type": "application/json", Cookie: "navigator_session=fixture", "X-Navigator-Token": "fixture-csrf" },
       body: '{"hidden":true}',
     }), { NAVIGATOR_CONNECTION: { get: async () => ({ connected: true, publicOrigin: "https://sample.trycloudflare.com" }) } });
     assert.equal(response.status, 200); assert.equal(seen.url, `https://sample.trycloudflare.com/api/tasks/${one}/hidden`);

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { worker } from "./helpers/worker-profile.mjs";
 
-const origin = "https://x.fangs.cc";
+const origin = "https://pocket.example.com";
 const keys = JSON.stringify({ wandou: "b".repeat(64), studio: "c".repeat(64) });
 function fixture(t, respond = () => new Response('{}', { headers: { "X-Pocket-Machine": "wandou" } })) {
   const calls = [], reads = [], originalFetch = globalThis.fetch;

@@ -19,7 +19,7 @@ test("client versions cross the gateway as optional bounded diagnostics, never a
   };
   try {
     for (const version of ['a'.repeat(64), '1.2.3+build.4', undefined, 'bad/version', 'a'.repeat(161)]) {
-      const response = await worker.fetch(new Request('https://x.fangs.cc/api/catalog', {
+      const response = await worker.fetch(new Request('https://pocket.example.com/api/catalog', {
         headers: version === undefined ? {} : { 'X-Pocket-Client-Version': version },
       }), env);
       assert.equal(response.status, 200);
@@ -42,10 +42,10 @@ test("stable gateway forwards only approved API headers and never exposes local 
   };
   try {
     const r = await worker.fetch(
-      new Request("https://x.fangs.cc/api/auth/login", {
+      new Request("https://pocket.example.com/api/auth/login", {
         method: "POST",
         headers: {
-          Origin: "https://x.fangs.cc",
+          Origin: "https://pocket.example.com",
           "Content-Type": "application/json",
           Authorization: "Bearer never-forward",
           Cookie: "navigator_session=old",
@@ -77,13 +77,13 @@ test("gateway rejects cross-site requests and arbitrary upstream targets before 
   };
   try {
     let r = await worker.fetch(
-      new Request("https://x.fangs.cc/api/catalog", {
+      new Request("https://pocket.example.com/api/catalog", {
         headers: { Origin: "https://evil.example" },
       }),
       env,
     );
     assert.equal(r.status, 403);
-    r = await worker.fetch(new Request("https://x.fangs.cc/api/catalog"), {
+    r = await worker.fetch(new Request("https://pocket.example.com/api/catalog"), {
       NAVIGATOR_CONNECTION: {
         get: async () => ({
           connected: true,
@@ -109,23 +109,23 @@ test("attachment uploads retain their stream and get time for mobile transfer an
   const id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   try {
     const attachment=`/api/tasks/${id}/attachments/${id}`;
-    const put=await worker.fetch(new Request('https://x.fangs.cc'+attachment+'?name=photo.heic', {
-      method:'PUT',headers:{Origin:'https://x.fangs.cc','Content-Type':'image/heic'},body:'synthetic original bytes'
+    const put=await worker.fetch(new Request('https://pocket.example.com'+attachment+'?name=photo.heic', {
+      method:'PUT',headers:{Origin:'https://pocket.example.com','Content-Type':'image/heic'},body:'synthetic original bytes'
     }),env);
     assert.equal(put.status,200);
     assert.equal(calls[0].bytes,'synthetic original bytes');
     assert.ok(calls[0].url.endsWith(attachment+'?name=photo.heic'));
     assert.equal(budgets[0],180000);
     for (const [method,path] of [['GET',attachment+'?metadata=1'],['POST',`/api/tasks/${id}/messages`],['PUT','/api/unsupported']])
-      await worker.fetch(new Request('https://x.fangs.cc'+path,{method,headers:{Origin:'https://x.fangs.cc'}}),env);
+      await worker.fetch(new Request('https://pocket.example.com'+path,{method,headers:{Origin:'https://pocket.example.com'}}),env);
     assert.deepEqual(budgets.slice(1),[20000,20000,20000]);
   } finally { globalThis.fetch=originalFetch; AbortSignal.timeout=originalTimeout; }
 });
 
 test("gateway distinguishes requests it never forwarded from ambiguous upstream failures", async () => {
   const original = globalThis.fetch;
-  const request = () => new Request("https://x.fangs.cc/api/tasks", {
-    method: "POST", headers: { Origin: "https://x.fangs.cc", "Content-Type": "application/json" }, body: '{}',
+  const request = () => new Request("https://pocket.example.com/api/tasks", {
+    method: "POST", headers: { Origin: "https://pocket.example.com", "Content-Type": "application/json" }, body: '{}',
   });
   let calls = 0;
   globalThis.fetch = async () => { calls++; return new Response("upstream failed", { status: 503 }); };
@@ -161,8 +161,8 @@ test('conditional read headers and bodyless responses survive the public gateway
     for (const [method, path] of [['GET', '/api/catalog'], ['POST', '/api/sync'],
       ['GET', `/api/tasks/${id}/transcript`], ['GET', `/api/tasks/${id}/history`]]) {
       assert.ok(readResponseKind(path, method), 'standalone Worker allowlist agrees with the shared protocol');
-      const response = await worker.fetch(new Request(`https://x.fangs.cc${path}`, { method,
-        headers: { Origin: 'https://x.fangs.cc', Cookie: 'navigator_session=fixture',
+      const response = await worker.fetch(new Request(`https://pocket.example.com${path}`, { method,
+        headers: { Origin: 'https://pocket.example.com', Cookie: 'navigator_session=fixture',
           'If-None-Match': etag, 'X-Pocket-Read-Version': etag, 'X-Navigator-Token': 'csrf' } }), env);
       assert.equal(response.status, method === 'POST' ? 204 : 304);
       assert.equal(await response.text(), '');
@@ -193,16 +193,16 @@ test('gateway keeps conditional reads isolated from writes, receipt lookups, red
   try {
     for (const [method, path] of [['POST', '/api/tasks'], ['GET', `/api/tasks/${id}/messages/${id}`],
       ['GET', `/api/tasks/${id}/attachments`], ['GET', '/api/sync']]) {
-      const response = await worker.fetch(new Request(`https://x.fangs.cc${path}`, { method,
-        headers: { Origin: 'https://x.fangs.cc', 'If-None-Match': etag, 'X-Pocket-Read-Version': etag } }), env);
+      const response = await worker.fetch(new Request(`https://pocket.example.com${path}`, { method,
+        headers: { Origin: 'https://pocket.example.com', 'If-None-Match': etag, 'X-Pocket-Read-Version': etag } }), env);
       assert.equal(response.status, 503);
       assert.equal(calls.at(-1).headers.get('If-None-Match'), null);
       assert.equal(calls.at(-1).headers.get('X-Pocket-Read-Version'), null);
     }
     status = 302;
-    assert.equal((await worker.fetch(new Request('https://x.fangs.cc/api/catalog'), env)).status, 503);
+    assert.equal((await worker.fetch(new Request('https://pocket.example.com/api/catalog'), env)).status, 503);
     status = 304; machine = 'wandou';
-    assert.equal((await worker.fetch(new Request('https://x.fangs.cc/api/catalog'), env)).status, 503);
+    assert.equal((await worker.fetch(new Request('https://pocket.example.com/api/catalog'), env)).status, 503);
   } finally { globalThis.fetch = original; }
 });
 
@@ -215,7 +215,7 @@ test('history page reads preserve the opaque cursor and get a bounded longer rea
       headers: { 'Content-Type': 'application/json', 'X-Pocket-Machine': 'ged' },
     });
   });
-  const response = await worker.fetch(new Request('https://x.fangs.cc/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/transcript-page?before=signed_opaque.cursor&limit=40', {
+  const response = await worker.fetch(new Request('https://pocket.example.com/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/transcript-page?before=signed_opaque.cursor&limit=40', {
     headers: { Cookie: 'navigator_session=page-test' },
   }), env);
   assert.equal(response.status, 200);

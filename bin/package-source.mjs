@@ -5,10 +5,13 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isMain } from './is-main.mjs';
+import { privateSourceMarkers, privateSourcePathReason, sourcePrivacyFindings } from './source-privacy.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const top=new Set(['package.json','package-lock.json','.npmrc','.gitignore','.node-version','tsconfig.json','vite.config.ts','index.html','LICENSE','CONTRIBUTING.md','SECURITY.md','PRIVACY.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_DEPENDENCIES.json','THIRD_PARTY_LICENSES.txt']);
-const docs=new Set(['docs/SELF_HOSTING.md','docs/SELF_HOSTING.zh-CN.md','docs/COMPATIBILITY.md','docs/UPGRADING.md']);
-const prefixes=['src/','server/','shared/','bin/','public/','vendor/','packages/','.github/','tests/'];
+const docs=new Set(['docs/SELF_HOSTING.md','docs/SELF_HOSTING.zh-CN.md','docs/COMPATIBILITY.md','docs/UPGRADING.md',
+  'docs/assets/pocket-architecture.svg','docs/assets/pocket-architecture.html','docs/assets/pocket-architecture.json','docs/assets/README.md',
+  'docs/assets/ARCHIFY-LICENSE.txt','docs/assets/JetBrainsMono-OFL.txt']);
+const prefixes=['src/','server/','shared/','bin/','edge/','public/','vendor/','packages/','.github/','tests/'];
 const digest=value=>createHash('sha256').update(value).digest('hex');
 function readSource(name) {
   const path=join(root,name), before=lstatSync(path);
@@ -32,27 +35,33 @@ export function packageSource(directory) {
   }
   const paths=gitRoot ? execFileSync('git',['ls-files','--cached','--others','--exclude-standard'],{cwd:root,encoding:'utf8'}).trim().split('\n') : previous?.files?.map(file=>file.path);
   if(!paths) throw new Error('Source packaging requires a repository or an exported source manifest');
-  mkdirSync(directory,{recursive:true,mode:0o700});
-  const copied=[];
+  const markers=privateSourceMarkers(root), entries=new Map();
   for(const name of paths) {
     if(typeof name!=='string'||name.includes('\\')||/[\p{Cc}]/u.test(name)||name.split('/').some(part=>!part||part==='.'||part==='..')) throw new Error('Invalid source manifest path');
-    if(!(top.has(name)||docs.has(name)||prefixes.some(prefix=>name.startsWith(prefix))) || /(?:^|\/)(?:node_modules|dist|\.local|__pycache__)(?:\/|$)/.test(name) || /\.(?:sqlite(?:-wal|-shm)?|log|pyc)$/.test(name)) continue;
+    if(!(top.has(name)||docs.has(name)||prefixes.some(prefix=>name.startsWith(prefix))) || privateSourcePathReason(name)) continue;
     const source=join(root,name);
     if(!existsSync(source) || !lstatSync(source).isFile()) continue;
     if(!realpathSync(source).startsWith(realpathSync(root)+'/')) throw new Error('Source file escapes the repository');
-    const target=join(directory,name);mkdirSync(dirname(target),{recursive:true});writeFileSync(target,readSource(name));copied.push(name);
+    entries.set(name,readSource(name));
   }
-  mkdirSync(join(directory,'config'),{recursive:true});
   for(const name of ['client','desktop-bridge','relay']) {
     const source=readSource(`config/${name}.example.json`);
-    writeFileSync(join(directory,`config/${name}.example.json`),source);
-    if(name==='desktop-bridge') writeFileSync(join(directory,'config/desktop-bridge.json'),source);
+    entries.set(`config/${name}.example.json`,source);
+    if(name==='desktop-bridge') entries.set('config/desktop-bridge.json',source);
   }
-  writeFileSync(join(directory,'config/usage-analytics.json'),JSON.stringify({enabled:false,projectKey:'',apiHost:'https://us.i.posthog.com',uiHost:'https://us.posthog.com',origins:[],environment:'self-hosted'},null,2)+'\n');
-  const readme=readSource('README.en.md');writeFileSync(join(directory,'README.md'),readme);writeFileSync(join(directory,'README.en.md'),readme);
-  writeFileSync(join(directory,'AGENTS.md'),'# Pocket development\n\nRead README.md, SECURITY.md and docs/SELF_HOSTING.md. Keep user data, credentials, logs and screenshots outside Git. Use synthetic fixtures for tests; never write Codex SQLite or replay unknown requests. Preserve request identity, owner/model permissions, and input/reading state. Run npm test, npm run build and npm run test:browser before shipping code changes. Desktop control requires the supported macOS/Codex combination described in docs/COMPATIBILITY.md.\n');
+  entries.set('config/usage-analytics.json',JSON.stringify({enabled:false,projectKey:'',apiHost:'https://us.i.posthog.com',uiHost:'https://us.posthog.com',origins:[],environment:'self-hosted'},null,2)+'\n');
+  const readme=readSource('README.en.md').toString('utf8').replace(/\]\(README\.md\)/g,'](README.zh-CN.md)');
+  entries.set('README.md',readme);entries.set('README.en.md',readme);
+  entries.set('README.zh-CN.md',readSource(existsSync(join(root,'README.zh-CN.md')) ? 'README.zh-CN.md' : 'README.md'));
+  entries.set('AGENTS.md','# Pocket development\n\nRead README.md, SECURITY.md and docs/SELF_HOSTING.md. Keep user data, credentials, logs and screenshots outside Git. Use synthetic fixtures for tests; never write Codex SQLite or replay unknown requests. Preserve request identity, owner/model permissions, and input/reading state. For portable checks run node .github/scripts/test-synthetic.mjs and npm run build; run npm run test:browser for UI changes. For release acceptance run npm test on a supported isolated Mac, including the seven installed-desktop suites, and report native controls separately. Desktop control requires the supported macOS/Codex combination described in docs/COMPATIBILITY.md.\n');
+  // Scan exact outgoing bytes before creating any output. Findings name the
+  // file and category only; private markers never enter the release receipt.
+  const findings=[...entries].flatMap(([name,bytes])=>sourcePrivacyFindings(name,Buffer.from(bytes),markers));
+  if(findings.length) throw new Error('Source privacy guard rejected: '+JSON.stringify(findings));
+  mkdirSync(directory,{recursive:true,mode:0o700});
+  for(const [name,bytes] of entries) { const target=join(directory,name);mkdirSync(dirname(target),{recursive:true});writeFileSync(target,bytes); }
   const files=[];
-  for(const name of [...new Set([...copied,'config/client.example.json','config/desktop-bridge.example.json','config/desktop-bridge.json','config/relay.example.json','config/usage-analytics.json','README.md','README.en.md','AGENTS.md'])].sort()) {
+  for(const name of [...entries.keys()].sort()) {
     const path=join(directory,name);if(existsSync(path)) files.push({path:name,sha256:digest(readFileSync(path))});
   }
   const manifest={schemaVersion:1,version:JSON.parse(readSource('package.json').toString('utf8')).version,

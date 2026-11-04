@@ -2,5 +2,5 @@
   "schemaVersion": 1,
   "defaultMachine": "ged",
   "machines": [{"id":"ged","label":"格得 Mac"},{"id":"wandou","label":"豌豆 Mac"}],
-  "publicOrigin": "https://x.fangs.cc"
+  "publicOrigin": "https://pocket.example.com"
 }

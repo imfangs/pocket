@@ -20,11 +20,26 @@ The service listens on `127.0.0.1:4397`. Startup prints the protected local pass
 
 Setup writes an ignored `.local/pocket/config.json` plus an explicit bridge profile. It is idempotent and does not overwrite an existing configuration. Use `--config /absolute/path/config.json` for a separate installation. For isolated trials, always supply different `--data-dir` and `--codex-home`; never test writes against real Codex storage.
 
+The defaults are source-external `~/Library/Application Support/CodexNavigator/` for Pocket data and `~/.codex/` for original Codex source. Local configuration, bridge paths and service logs stay in ignored `.local/pocket/`. Keep custom data, backups and secret configuration outside the source checkout; [PRIVACY.md](../PRIVACY.md) lists individual files, browser storage and third-party transmission boundaries.
+
 ```sh
 npm run setup -- --data-dir /absolute/private/pocket-data \
   --codex-home /absolute/path/to/.codex --port 4397 \
   --machine-id local --label "My Mac"
 ```
+
+Carry the same config through every subsequent command. For a nondefault configuration:
+
+```sh
+npm run setup -- --config /absolute/private/pocket/config.json
+npm run build
+npm run doctor -- --config /absolute/private/pocket/config.json
+npm start -- --config /absolute/private/pocket/config.json
+```
+
+Stop the foreground process with Ctrl+C. Before creating a second installation, inspect the selected configuration and existing services; preserve their data, port and request identities. An existing config causes setup to return `created:false`: new flags are ignored, including a changed origin or data directory.
+
+For local acceptance, check `GET /api/health` succeeds and `GET /api/catalog` without authentication returns 401. After your local login, verify list and message reads. Report `doctor`'s environment checks separately from actual desktop controls and phone connectivity. Read-only acceptance does not require a model request; a real send needs a chosen, authorized test conversation, and an unknown result must be checked against its original receipt before retrying.
 
 ## Phone access through your own HTTPS proxy
 
@@ -64,6 +79,8 @@ node bin/pocket.mjs service status
 node bin/pocket.mjs service uninstall --apply
 ```
 
+Append `--config /absolute/private/pocket/config.json` to each command for a nondefault config, including `status` and `uninstall`. There is no `service stop` subcommand: foreground instances stop with Ctrl+C; `service uninstall --apply` stops and unregisters the owned background instance while preserving its data.
+
 The LaunchAgent uses the detected Node executable, the chosen config file and private logs. Uninstall removes only that owned service registration. It preserves Pocket configuration/data, attachments and all original Codex data. To remove code, stop the service first and handle your repository and data explicitly.
 
 ## Password maintenance
@@ -82,6 +99,7 @@ Rotation revokes sessions and notification registrations. It does not delete que
 
 - Unsupported Node/Python: install the declared version; a model subscription cannot fix a missing local runtime.
 - Desktop/source unavailable: open Codex and check the exact local layout. Do not invent another database filename or edit Codex SQLite.
+- Codex installed outside the standard applications folders: set `appPath` in the selected private `bridge.json` to its actual signed bundle, check the chosen Python executable, then rerun doctor with the same Pocket config. Keep these machine-specific absolute paths out of public source.
 - Host/Origin rejection: fix the configured HTTPS origin and trusted proxy headers; do not remove security guards.
 - Busy original conversation: read-only history can remain available while mutation waits for the original desktop writer. Some archive/restore operations may remain pending.
 - Unconfirmed send/creation: preserve its original request ID, check the receipt, and do not submit it again as a new request.

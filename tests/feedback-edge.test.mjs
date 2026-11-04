@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { worker } from './helpers/worker-profile.mjs';
 
-const origin = 'https://x.fangs.cc';
+const origin = 'https://pocket.example.com';
 const signatures = { 'webhook-id': 'fixture', 'webhook-timestamp': '123', 'webhook-signature': 'v1,fixture' };
 function fixture(t) {
   const calls = [], original = globalThis.fetch;

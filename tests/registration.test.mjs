@@ -10,7 +10,7 @@ import { connectionHealth } from "../bin/connection-state.mjs";
 
 const token = "a".repeat(64);
 const hash = createHash("sha256").update(token).digest("hex");
-const endpoint = "https://x.fangs.cc/api/relay/register";
+const endpoint = "https://pocket.example.com/api/relay/register";
 const connection = { connected: true, publicOrigin: "https://sample.trycloudflare.com" };
 const request = (body = connection, authorization = `Bearer ${token}`, extra = {}) =>
   new Request(endpoint, { method: "POST", headers: { "Content-Type": "application/json", Authorization: authorization, ...extra }, body: JSON.stringify(body) });
@@ -54,14 +54,14 @@ test("publisher uses only the private registration key and verifies receipts wit
   writeFileSync(join(dataDir, "relay-registration.json"), JSON.stringify({ token }), {mode:0o600});
   const stored = [];
   const env = { NAVIGATOR_REGISTRATION_SHA256: hash, NAVIGATOR_CONNECTION: {put:async (...args)=>stored.push(args)} };
-  const options = {dataDir, config:{publicOrigin:"https://x.fangs.cc"}, fetch:async (url,init)=>{
+  const options = {dataDir, config:{publicOrigin:"https://pocket.example.com"}, fetch:async (url,init)=>{
     assert.equal(String(url), endpoint);
     assert.equal(init.redirect, "error");
     assert.equal(init.headers.Origin, undefined);
     return worker.fetch(new Request(url,init),env);
   }};
   const receipt = await publishConnection(connection,options);
-  assert.equal(receipt.entryOrigin,"https://x.fangs.cc");
+  assert.equal(receipt.entryOrigin,"https://pocket.example.com");
   assert.equal(stored.length,1);
   await assert.rejects(publishConnection(connection,{...options,fetch:async()=>new Response("bad",{status:401})}), {code:"registration_http_401"});
   await assert.rejects(publishConnection(connection,{...options,fetch:async()=>new Response('{}')}), {code:"registration_receipt_invalid"});
@@ -118,10 +118,10 @@ test("publisher selects config or environment machine, includes it in registrati
   });
   delete process.env.NAVIGATOR_MACHINE_ID;
   writeFileSync(join(dataDir, "relay-registration.json"), JSON.stringify({ token }), { mode: 0o600 });
-  const validReceipt = { ok: true, entryOrigin: "https://x.fangs.cc", publicOrigin: connection.publicOrigin,
+  const validReceipt = { ok: true, entryOrigin: "https://pocket.example.com", publicOrigin: connection.publicOrigin,
     publishedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 900000).toISOString() };
   const selected = [];
-  const options = { dataDir, config: { publicOrigin: "https://x.fangs.cc" }, fetch: async (url, init) => {
+  const options = { dataDir, config: { publicOrigin: "https://pocket.example.com" }, fetch: async (url, init) => {
     assert.equal(String(url), endpoint);
     const input = JSON.parse(init.body); selected.push(input.machineId);
     return Response.json({ ...validReceipt, machineId: input.machineId }, { headers: { "X-Pocket-Machine": input.machineId } });
@@ -156,7 +156,7 @@ test("a remote publisher registers directly into its own short-lived KV route", 
   writeFileSync(join(dataDir, "relay-registration.json"), JSON.stringify({ token: remoteToken }), { mode: 0o600 });
   const writes = [], env = { NAVIGATOR_REGISTRATION_SHA256: hash, NAVIGATOR_MACHINE_KEYS: JSON.stringify({ wandou: remoteHash }),
     NAVIGATOR_CONNECTION: { put: async (...args) => writes.push(args) } };
-  const result = await publishConnection(connection, { dataDir, config: { publicOrigin: "https://x.fangs.cc", machineId: "wandou" },
+  const result = await publishConnection(connection, { dataDir, config: { publicOrigin: "https://pocket.example.com", machineId: "wandou" },
     fetch: async (url, init) => worker.fetch(new Request(url, init), env) });
   assert.equal(result.machineId, "wandou");
   assert.equal(writes.length, 1);

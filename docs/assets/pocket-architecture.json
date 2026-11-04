@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Pocket \u00b7 Your Codex, within reach",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1390,
+      850
+    ]
+  },
+  "components": [
+    {
+      "id": "phone",
+      "type": "frontend",
+      "label": "Pocket PWA",
+      "sublabel": "Phone / browser",
+      "pos": [
+        50,
+        270
+      ],
+      "size": [
+        180,
+        80
+      ]
+    },
+    {
+      "id": "browser-cache",
+      "type": "database",
+      "label": "Reading cache",
+      "sublabel": "Browser IndexedDB",
+      "pos": [
+        50,
+        510
+      ],
+      "size": [
+        180,
+        80
+      ]
+    },
+    {
+      "id": "https-entry",
+      "type": "security",
+      "label": "Your HTTPS entry",
+      "sublabel": "Proxy / private Tailnet",
+      "pos": [
+        320,
+        270
+      ],
+      "size": [
+        180,
+        80
+      ]
+    },
+    {
+      "id": "pocket-api",
+      "type": "backend",
+      "label": "Pocket API",
+      "sublabel": "Node.js \u00b7 loopback only",
+      "tag": "AUTH + ORIGIN + CSRF",
+      "pos": [
+        630,
+        270
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "pocket-data",
+      "type": "database",
+      "label": "Pocket private data",
+      "sublabel": "SQLite / files / receipts",
+      "pos": [
+        630,
+        510
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "codex-source",
+      "type": "database",
+      "label": "Codex source",
+      "sublabel": "Original history / metadata",
+      "pos": [
+        630,
+        80
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "desktop-bridge",
+      "type": "backend",
+      "label": "Bundled bridge",
+      "sublabel": "Python \u00b7 local IPC / CLI",
+      "pos": [
+        880,
+        270
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "codex-desktop",
+      "type": "external",
+      "label": "Codex desktop",
+      "sublabel": "Original conversation owner",
+      "pos": [
+        880,
+        510
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "model-provider",
+      "type": "cloud",
+      "label": "Model provider",
+      "sublabel": "Codex login / model settings",
+      "pos": [
+        1180,
+        510
+      ],
+      "size": [
+        170,
+        80
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "YOUR DEVICE",
+      "wraps": [
+        "phone",
+        "browser-cache"
+      ],
+      "pad": 26
+    },
+    {
+      "kind": "security-group",
+      "label": "YOUR MAC \u00b7 PRIVATE LOCAL STATE",
+      "wraps": [
+        "pocket-api",
+        "pocket-data",
+        "codex-source",
+        "desktop-bridge",
+        "codex-desktop"
+      ],
+      "pad": 28
+    }
+  ],
+  "connections": [
+    {
+      "id": "phone-https",
+      "from": "phone",
+      "to": "https-entry",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "entry-api",
+      "from": "https-entry",
+      "to": "pocket-api",
+      "label": "Proxy to loopback",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-bridge",
+      "from": "pocket-api",
+      "to": "desktop-bridge",
+      "label": "Local calls",
+      "variant": "emphasis"
+    },
+    {
+      "id": "bridge-owner",
+      "from": "desktop-bridge",
+      "to": "codex-desktop",
+      "label": "Original owner / CLI",
+      "variant": "emphasis",
+      "labelAt": [
+        975,
+        430
+      ]
+    },
+    {
+      "id": "codex-model",
+      "from": "codex-desktop",
+      "to": "model-provider",
+      "label": "Model requests",
+      "variant": "emphasis"
+    },
+    {
+      "id": "phone-cache",
+      "from": "phone",
+      "to": "browser-cache",
+      "label": "Bounded read projection",
+      "labelAt": [
+        140,
+        430
+      ]
+    },
+    {
+      "id": "api-data",
+      "from": "pocket-api",
+      "to": "pocket-data",
+      "label": "Queue / preferences",
+      "labelAt": [
+        725,
+        430
+      ]
+    },
+    {
+      "id": "api-source",
+      "from": "pocket-api",
+      "to": "codex-source",
+      "label": "Read-only history"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Your infrastructure",
+      "items": [
+        "Serve the PWA and API from your own HTTPS entry.",
+        "Cloudflare relay is an optional advanced adapter."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "One original owner",
+      "items": [
+        "Codex keeps model access, execution and permissions.",
+        "Pocket adds mobile reading, controls and reliable delivery."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Explicit data boundary",
+      "items": [
+        "Private Mac data stays outside the source repository.",
+        "HTTPS proxies can observe transit; no application E2EE."
+      ]
+    }
+  ]
+}

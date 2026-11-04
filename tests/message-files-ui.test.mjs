@@ -37,14 +37,14 @@ test('only the current thread and exact issued file route can authorize a file c
     const html = markdown(text, extra);
     assert.match(html, /文件保存在电脑上/); assert.doesNotMatch(html, /<button|href=/);
   }
-  for (const url of [file.url + '?download=1', file.url + '#file', file.url.replace(threadId, other), file.url.replace('/files/', '/images/'), file.url.replace('f'.repeat(64), 'f'.repeat(63)), '/api/machines/wandou' + file.url.slice(4), 'https://x.fangs.cc' + file.url, 'javascript:bad', '//elsewhere.example/file']) {
+  for (const url of [file.url + '?download=1', file.url + '#file', file.url.replace(threadId, other), file.url.replace('/files/', '/images/'), file.url.replace('f'.repeat(64), 'f'.repeat(63)), '/api/machines/wandou' + file.url.slice(4), 'https://pocket.example.com' + file.url, 'javascript:bad', '//elsewhere.example/file']) {
     const html = markdown(text, { files: { [path]: { ...file, url } } });
     assert.match(html, /文件保存在电脑上/, url); assert.doesNotMatch(html, /<button|href=/, url);
   }
 });
 
 test('forged raw, absolute and render-token URLs cannot borrow a different reference capability', () => {
-  const html = markdown([text, `[raw](${file.url})`, `[absolute](https://x.fangs.cc${file.url})`, '[token](pocket-file-reference:0)', '[safe](https://example.com/article)'].join('\n\n'));
+  const html = markdown([text, `[raw](${file.url})`, `[absolute](https://pocket.example.com${file.url})`, '[token](pocket-file-reference:0)', '[safe](https://example.com/article)'].join('\n\n'));
   assert.equal((html.match(/class="message-file-button"/g) ?? []).length, 1);
   assert.match(html, /href="https:\/\/example.com\/article"/);
   assert.doesNotMatch(html, /href="[^\"]*(?:\/files\/|pocket-file-reference)/);

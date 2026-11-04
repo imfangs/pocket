@@ -35,6 +35,10 @@ jobs:
           python-version: '3.14'
       - name: Install the public locked dependency graph
         run: npm ci --registry=https://registry.npmjs.org --audit=false --fund=false
+      - name: Check the public source privacy boundary
+        run: |
+          npm run package:source -- --out .local/ci/public-source
+          npm run privacy:check -- --root "$PWD/.local/ci/public-source"
       - name: Select the CI Python without personal configuration
         shell: bash
         run: |

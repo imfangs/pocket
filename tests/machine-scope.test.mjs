@@ -25,27 +25,27 @@ test('scoped task links preserve old ged identity and do not route unknown machi
  assert.equal(pocketTaskUrl(`/?task=${id}`,'wandou'),`/?machine=ged&task=${id}`);
  assert.equal(pocketTaskUrl(pocketTaskUrl(`/?task=${id}`,'wandou'),'wandou'),`/?machine=ged&task=${id}`);
  for(const url of [`/?machine=oops&task=${id}`,`/?machine=wandou&machine=ged&task=${id}`,`/?task=${id}&extra=1`,`codex://threads/../../escape`])assert.equal(pocketTaskTarget(url,'ged'),null);
- const next=new URL(machineNavigationUrl(`https://x.fangs.cc/?machine=ged&task=${id}#old`,'wandou'));assert.equal(next.origin,'https://x.fangs.cc');assert.equal(next.search,'?machine=wandou');assert.equal(next.hash,'');
+ const next=new URL(machineNavigationUrl(`https://pocket.example.com/?machine=ged&task=${id}#old`,'wandou'));assert.equal(next.origin,'https://pocket.example.com');assert.equal(next.search,'?machine=wandou');assert.equal(next.hash,'');
 });
 test('only actual local Node entrypoints route remote selection through the public Worker',()=>{
  for(const origin of ['https://threads.local','http://localhost:4397','http://127.0.0.1:4397','http://[::1]:4397']) {
-  assert.equal(machineNavigationUrl(origin+'/?task='+id,'wandou'),'https://x.fangs.cc/?machine=wandou');
+  assert.equal(machineNavigationUrl(origin+'/?task='+id,'wandou'),'https://pocket.example.com/?machine=wandou');
   assert.equal(new URL(machineNavigationUrl(origin+'/?machine=wandou','ged')).origin,new URL(origin).origin);
  }
  assert.equal(machineNavigationUrl('https://fixture.example/?task='+id,'wandou'),'https://fixture.example/?machine=wandou');
- assert.equal(machineNavigationUrl('https://x.fangs.cc/','wandou',id),'https://x.fangs.cc/?machine=wandou&task='+id);
+ assert.equal(machineNavigationUrl('https://pocket.example.com/','wandou',id),'https://pocket.example.com/?machine=wandou&task='+id);
 });
 test('current machine is fixed for the document and remembered wandou entry gains an explicit URL',()=>{
  const prior=global.window,storage=new Map([['pocket.machine.v1','wandou']]),navigation=[];
- const location={href:'https://x.fangs.cc/',search:'',origin:'https://x.fangs.cc',assign:url=>navigation.push(url)};
+ const location={href:'https://pocket.example.com/',search:'',origin:'https://pocket.example.com',assign:url=>navigation.push(url)};
  global.window={location,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},history:{state:null,replaceState(_state,_unused,url){location.href=url;location.search=new URL(url).search}}};
  try{
   assert.equal(currentMachineId(),'wandou');assert.equal(location.search,'?machine=wandou');
-  location.href='https://x.fangs.cc/?machine=ged';location.search='?machine=ged';assert.equal(currentMachineId(),'wandou');
+  location.href='https://pocket.example.com/?machine=ged';location.search='?machine=ged';assert.equal(currentMachineId(),'wandou');
   const unregister=registerReloadGuard(()=> '还有未完成的输入，请处理后再更新。');
   assert.equal(changeMachine('ged'),'还有未完成的输入，请处理后再切换电脑。');assert.deepEqual(navigation,[]);assert.equal(storage.get('pocket.machine.v1'),'wandou');unregister();
   const release=holdReload('上传尚未完成，请稍后更新。');assert.equal(changeMachine('ged'),'上传尚未完成，请稍后切换电脑。');assert.deepEqual(navigation,[]);release();
-  assert.equal(changeMachine('ged'),null);assert.deepEqual(navigation,['https://x.fangs.cc/?machine=ged']);assert.equal(storage.get('pocket.machine.v1'),'ged');
+  assert.equal(changeMachine('ged'),null);assert.deepEqual(navigation,['https://pocket.example.com/?machine=ged']);assert.equal(storage.get('pocket.machine.v1'),'ged');
   // Existing device-specific producers all use the same scoped key, not just
   // the helper's independently tested key generator.
   const memory=new Map([['pocket.creation-location.v1',JSON.stringify({cwd:'/ged',locationId:'g'})],['pocket.activity.v1',JSON.stringify([[id,{visitedAt:Date.now()}]])],['pocket.pending-creation-ids.v1',JSON.stringify([id])],['pocket.ignored-questions.v1',JSON.stringify({version:1,ignored:[JSON.stringify([id,'q'])]})]]);

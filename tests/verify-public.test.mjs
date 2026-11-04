@@ -17,6 +17,7 @@ const execute = promisify(execFile);
 const script = fileURLToPath(new URL('../bin/verify-public.mjs', import.meta.url));
 const policy = readFileSync(new URL('../public/_headers', import.meta.url), 'utf8')
   .match(/Content-Security-Policy: (.+)/)[1];
+const analyticsEnabled = JSON.parse(readFileSync(new URL('../config/usage-analytics.json', import.meta.url), 'utf8')).enabled === true;
 
 async function serve(t, handler, tls) {
   const requests = [];
@@ -48,7 +49,7 @@ test('the real CLI reads four anonymous GETs, ignores curlrc credentials, and de
   await writeFile(join(temp, '.curlrc'), 'header = "Authorization: Bearer private-canary"\nheader = "Cookie: session=private-canary"\ninsecure\nlocation\n');
   const fixture = await serve(t, validResponse);
   const { stdout } = await verify(fixture.base, { ...process.env, CURL_HOME: temp });
-  assert.deepEqual(JSON.parse(stdout), { ok: true, anonymousProtected: true, manifest: true, documentCsp: true, analyticsConnections: 'allowed' });
+  assert.deepEqual(JSON.parse(stdout), { ok: true, anonymousProtected: true, manifest: true, documentCsp: true, analyticsConnections: analyticsEnabled ? 'allowed' : 'disabled' });
   assert.deepEqual(fixture.requests.map(r => r.path), ['/', '/api/catalog', '/api/export', '/manifest.webmanifest']);
   assert.ok(fixture.requests.every(r => r.method === 'GET' && !r.headers.authorization && !r.headers.cookie));
 });

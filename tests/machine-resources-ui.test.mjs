@@ -6,7 +6,7 @@ import {createServer} from 'vite';
 import {fileURLToPath} from 'node:url';
 const previous=global.window;
 const events=new EventTarget();
-global.window={location:{search:'?machine=wandou',href:'https://x.fangs.cc/?machine=wandou',origin:'https://x.fangs.cc'},localStorage:{getItem:()=>null},
+global.window={location:{search:'?machine=wandou',href:'https://pocket.example.com/?machine=wandou',origin:'https://pocket.example.com'},localStorage:{getItem:()=>null},
  addEventListener:events.addEventListener.bind(events),removeEventListener:events.removeEventListener.bind(events),dispatchEvent:events.dispatchEvent.bind(events)};
 const vite=await createServer({configFile:false,root:fileURLToPath(new URL('..',import.meta.url)),esbuild:{jsx:'automatic'},optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false},appType:'custom'});
 const [{default:MessageImage},{default:AttachmentList},{default:MessageMarkdown},{default:MachinePicker}]=await Promise.all([vite.ssrLoadModule('/src/MessageImage.tsx'),vite.ssrLoadModule('/src/AttachmentList.tsx'),vite.ssrLoadModule('/src/MessageMarkdown.tsx'),vite.ssrLoadModule('/src/MachinePicker.tsx')]);

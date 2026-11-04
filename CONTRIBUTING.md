@@ -14,7 +14,7 @@ node .github/scripts/test-synthetic.mjs
 POCKET_BROWSER_DIST="$PWD/dist" npm run test:browser
 ```
 
-The synthetic test entry excludes the two contract files that start the installed Codex bundled CLI. It prints their names and preserves the test guard that blocks real desktop opening. This check does not certify the installed desktop protocol. Run `npm test` on a supported Mac to include those isolated native CLI contracts; their fixtures must keep separate Codex homes, workspaces and credentials. Do not point tests at your real conversation storage.
+The synthetic entry prints the name and dependency reason for each of seven separate installed-desktop contract suites. Creation, rename and archive suites run the installed bundled CLI in isolated homes. Desktop/model/read-state protocol suites use synthetic IPC peers but retain the production installed-App identity preflight, so they also require a supported Codex installation. Entire mixed suites remain in `npm test`, including their helper-only cases; synthetic success does not claim that coverage. Pure mock/data/API suites, bundled-layout fixtures and injected task-status contracts continue to run in the synthetic entry, with the guard against real desktop opening preserved. Run `npm test` on a supported Mac for all contracts; keep native fixtures' Codex homes, workspaces and credentials separate from your real conversation storage.
 
 ## Changes and review
 
@@ -28,6 +28,8 @@ Preserve these product contracts:
 - Preserve drafts, active text selections, reading position and meaningful keyboard focus. A styling change must not remount an input or hide a recovery action.
 - Translate product-owned labels, never user text, model responses, filenames or model names. Keep variables and plural forms intact in all language catalogs.
 - Keep credentials, real messages, feedback images and working data outside source and public build output. Use clearly synthetic fixtures in tests and demonstrations.
+
+Before committing in a clean public checkout, run `npm run privacy:check -- --staged` after staging to check the actual Git index. Before redistributing source, use `npm run package:source -- --out /absolute/new/source-directory`, then `npm run privacy:check -- --root /absolute/new/source-directory`. The exporter scans its outgoing bytes and excludes private runtime paths. The guard detects known local private values and file boundaries; it is not a complete secret or Git-history audit. Additional private values can be supplied with an external `--deny-file /absolute/private/deny.json` containing a `values` array; keep that file outside Git.
 
 Before proposing a dependency change, record why it is needed, pin the resulting lockfile, retain its license and provenance, and test the affected behavior. The repository's vendored Pele renderer has a fixed source and repeatable build; follow [its documentation](vendor/pele/README.md) rather than replacing its archive silently.
 

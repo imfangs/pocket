@@ -47,7 +47,7 @@ test('image syntax preserves its descriptive alt while downloads retain the real
 test('video routes are derived only after the original file capability and thread pass validation', () => {
   for (const candidate of [null, {}, { ...file, url: file.url + '?video=1' }, { ...file, url: file.url + '#video' },
     { ...file, url: file.url.replace(threadId, other) }, { ...file, url: '/api/machines/wandou' + file.url.slice(4) },
-    { ...file, url: 'https://x.fangs.cc' + file.url }, { ...file, name: '../movie.mp4' }, { ...file, name: 'movie.mp4\n' }]) {
+    { ...file, url: 'https://pocket.example.com' + file.url }, { ...file, name: '../movie.mp4' }, { ...file, name: 'movie.mp4\n' }]) {
     assert.equal(count(markdown(`![片段](<${path}>)`, { files: { [path]: candidate } })), 0);
   }
   assert.equal(count(markdown(`![片段](<${path}>)`, { threadId: other })), 0);
@@ -56,7 +56,7 @@ test('video routes are derived only after the original file capability and threa
 
 test('raw file URLs and forged internal tokens cannot borrow a registered video capability', () => {
   const text = [`![real](<${path}>)`, `![raw](${file.url})`, `[raw](${file.url})`,
-    `![absolute](https://x.fangs.cc${file.url}?video=1)`, `[absolute](https://x.fangs.cc${file.url}?video=1)`,
+    `![absolute](https://pocket.example.com${file.url}?video=1)`, `[absolute](https://pocket.example.com${file.url}?video=1)`,
     '![token](pocket-video-reference:0)', '[token](pocket-file-reference:0)',
     '![remote](https://example.test/movie.mp4)'].join('\n\n');
   const html = markdown(text);
