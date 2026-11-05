@@ -4,6 +4,8 @@
 
 ## 下一次先看
 
+- **最终集成已验收：统一XML展示、排序语义与消息区焦点（2026-11-05，待共享网页发布）。** XML源`9174460`：[记录](docs/design/2026-11-05-structured-message-presentation.md)，known heartbeat/subagent纯registry、严格schema+continuation/代码citation保护/第一引用表、安全details及unknown XML inert，普通rawHTML仍旧隐藏，角色/id/raw/文件授权不变；指定「每日 - 修炼」实际Pocket700字从整条XMLcode恢复正文+折叠，两个cwd外文件明确Mac提示、0媒体请求。排序源`690efc4`：Sparkles/CalendarPlus/History＋智能/创建/活动短标签，44px高/默认透明/一行/记忆和过滤草稿保持，6浏览器+24手机几何通过。蓝框源`b5ee81a`：UA focus-visible保留问题实证，region scope pointer/touch/programmatic无框、真实keyboard有框，不blur/prevent/改节点，24相关+4双浏览器过、8组基线滚动一致。最终完整2,058、实际整包71浏览器/设施、构建通过；XML17独立CR/80针对/6flow过，真实材料只privateQA。证据`.local/qa/frontend-integration-2026-11-05/`及三子目录；下一步用个人双机profile只发布网页，不更新API/Codex/连接器，公开历史仍是固定旧边界，不改bundle。
+
 - **REA与安全扫描已完成（2026-11-05，只读代码，待处理项明确）。** [记录](docs/research/2026-11-05-rea-security-scan.md)：本机REA6.4无专门GitHub secret入口；本地解析492JS/0失败，图partial/facts非漏洞数。Gitleaks8.30全历史/目录三组各16命中，15源码SHA256＋1sessionStorage键名，独立重hash292文件均一致确认误报；原exit1保留不放宽规则。脱敏候选2d2fa4a的3,243对象/10私人规则/30编码变体零命中，未上传源码/测试真实tokens。生产依赖audit0，开发vite7.3.6/source-map-js1.2.1有2high包汇总，升级与验证待授权实施；条件Low：image父目录本地写入竞态、直接反代保留CF-Connecting-IP可改变登录IP预算，两者合成复现但无匿名接管/密码破解，70入口边界测试通过。未修安全业务/改历史/重启或生产攻击；不是完整渗透/公开认证。证据`.local/qa/rea-security-scan-2026-11-05/`，当前渲染修复另行接续。
 
 - **运行三点已居中上线（2026-11-05）。** 仅CSS增加justify-content:center，状态/恢复代次/消息节点不变。2,045全测、24组中英/亮暗/320/390/768双浏览器几何中心误差0、行高20/margin8不变与原6流程通过。源`34e30d4`、build`5419a5505016…`、Pages`71dbcaf2…`。首次deploy在上传前GET401，核对已过期且无未决后单次refresh、原28scope保持、目标GET200恢复；真正上传仅1次，35/35资源/原功能与独立公网version/private双机profile匹配。仅网页，API/Codex/连接器未重启。证据`.local/qa/working-dots-center-2026-11-05/`，设计与原状态保护见[运行三点](docs/design/2026-11-04-conversation-working-dots.md)。本地脱敏历史仍是下条固定边界，不默默改写已验收的bundle。
