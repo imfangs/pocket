@@ -281,5 +281,6 @@
   "在 Codex 打开 {{title}}": "Open {{title}} in Codex",
   "智能排序": "Smart",
   "活动时间": "Activity",
-  "排序：{{label}}": "Sort: {{label}}"
+  "排序：{{label}}": "Sort: {{label}}",
+  "智能": "Smart"
 }
