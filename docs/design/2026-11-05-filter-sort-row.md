@@ -19,3 +19,9 @@ CSS由 `src/filter-sort-row.css` 局部管理位置与手机适配，排序菜�
 实际 Chromium/WebKit DOM 共80组：中英、320/390px、三排序模式、128未读/32运行计数，以及未读+关注/运行+关注的真实选中加粗。所有组均为44px单排，页面无横溢出，图标16px且文字字形与计数完整。英文最紧的创建排序组合：320px行左右6px、末端余3.9px；390px左右20px、末端余5.3px。长标题仍省略，搜索/新建不交叠。
 
 证据在 `.local/qa/filter-sort-row-2026-11-05/`：`build.log`、`browser.log`、`geometry.json`、`geometry-summary.json`、`geometry.log`、`icons-focus.log`。使用合成API与正式CSP，未真实发送、截图、部署或修改Mac服务。DOM/字体/点击与焦点验证不等于实体iPhone或主屏幕PWA目视验收；准确集成及发布结果回 [CURRENT](../../CURRENT.md)。
+
+## 最终集成与发布
+
+发布源`215d145`，功能实现`26cd368`；最终2,058全测、73实际浏览器/设施与私有双机profile Pages构建通过。build`57da0bf3215dff492991edcf34f67f29e7d13614965c49fa30c49f8c109a8e30`，Pages`9e4e30c9-66bf-43c6-b1cf-df0bdcf89027`。单次上传exit0，35/35公开资源与原功能通过，独立公网version/profile一致；仅网页/Worker，无API/Codex/连接器重启或真实发送。旧公开历史bundle不随本轮网页更新改写。
+
+本次认证先只读确认过期且无未决，再单次refresh（28scope保持）、目标GET200后发布。验收回执在`.local/qa/filter-sort-row-2026-11-05/integration/release-verification.json`。它没有验证实体iPhone动态字体放大后的任意布局；当前明确覆盖中英320/390/128-32计数、选中加粗与正常字体。
