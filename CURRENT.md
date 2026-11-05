@@ -129,6 +129,8 @@
 
 开发按新的用户反馈继续，不恢复旧“持续打磨 Pocket”heartbeat：2026-09-30用户取消，10-01回读为PAUSED。这与Pocket服务、用户已提交队列和通知的运行无关。Claude接入仍延缓；Happy/HAPI只作为阅读模型的参考，没有迁入其runner/hub。
 
+2026-11-05新增[对外价值与竞品复核](docs/research/2026-11-05-pocket-value-and-differentiation.md)：更新HAPI已能导入/同步旧Codex会话的事实，加入官方Remote与Bridge直接对照；建议macOS单拥有者Alpha与外部同场景验证，未做竞品实机、用户招募或公开发布，不改变当前开发优先级。
+
 ## 最近已验证版本
 
 | 范围 | 已核对记录 |

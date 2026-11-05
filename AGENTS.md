@@ -83,7 +83,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 豌豆CLI0.164升级、空输入被附件读取错误撑高 | [升级与附件恢复](docs/design/2026-10-25-wandou-update-and-attachment-recovery.md)：真实CLI验证、数据/scope保留、软读取错误与附件保护 |
 | 发送体感慢、豌豆后端更新机制或10-25桌面升级差异 | [更新与发送复核](docs/research/2026-10-25-updates-and-send-experience.md)：实际发布路径、CLI待验证、已复现等待点；调查不等于已修复 |
 | 本机运行、连接器或公网发布 | [个人部署兼容](docs/design/2026-11-04-selfhost-personal-deployment.md)：不可变API/稳定FBT source、ged/wandou profile、原登录/交付保留与分层验收；[手机链路](docs/MOBILE.md)，具体运行/个人Pages配置从CURRENT进入 |
-| 原生 App、竞品或开源方向 | [README](README.md)含可复制Agent搭建指令/前置条件/架构；[脱敏历史副本](docs/research/2026-11-04-sanitized-history-copy.md)与[公共历史说明](docs/PUBLIC_HISTORY.md)：原历史保持、全量隔离filter/匿名meta/空提交/净bundle与最新源码bootstrap，最终身份回CURRENT；[隐私边界复核](docs/research/2026-11-04-open-source-privacy-boundary.md)承载误入域名、原Git不宜公开与数据/索引/导出边界；[自部署准备](docs/research/2026-11-04-self-hosted-open-source-readiness.md)、[安装指南](docs/SELF_HOSTING.md)承载桥接/配置/新Mac发布门槛。公开只使用经复核的新导出或脱敏副本，不能公开维护仓库或旧613文件候选 |
+| 原生 App、竞品或开源方向 | [对外价值与差异化复核](docs/research/2026-11-05-pocket-value-and-differentiation.md)：HAPI已支持Codex旧会话导入/同步，官方Remote与Bridge是直接对照；原桌面运行归属/列表组织/手机体验为待实机验证的差异，不宣称完全同步或独家。[README](README.md)含可复制Agent搭建指令/前置条件/架构；[脱敏历史副本](docs/research/2026-11-04-sanitized-history-copy.md)与[公共历史说明](docs/PUBLIC_HISTORY.md)：原历史保持、全量隔离filter/匿名meta/空提交/净bundle与最新源码bootstrap，最终身份回CURRENT；[隐私边界复核](docs/research/2026-11-04-open-source-privacy-boundary.md)承载误入域名、原Git不宜公开与数据/索引/导出边界；[自部署准备](docs/research/2026-11-04-self-hosted-open-source-readiness.md)、[安装指南](docs/SELF_HOSTING.md)承载桥接/配置/新Mac发布门槛。公开只使用经复核的新导出或脱敏副本，不能公开维护仓库或旧613文件候选 |
 
 ## 代码入口
 
