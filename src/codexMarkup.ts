@@ -4,6 +4,7 @@ import { defaultMachineId } from "./clientConfig.ts";
 import { readableHeartbeatMessage } from "./heartbeatMessage.ts";
 import { readableSubagentNotification } from "./subagentNotification.ts";
 import { sourceTranslation, type DisplayTranslator } from "./displayTranslation.ts";
+import { messageMarkdownProtectedRanges } from "./messageDetails.ts";
 
 const taskId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export function pocketTaskTarget(value: string, current: MachineId | null = currentMachineId()): { threadId: string; machine: MachineId } | null {
@@ -34,7 +35,7 @@ export function readableCodexMarkdown(source: string, translate: DisplayTranslat
   source = readableSubagentNotification(source, translate);
   source = readableHeartbeatMessage(source, translate);
   if (!/<(?:oai-mem-citation|citation_entries|rollout_ids)|&lt;|:(?:created-thread|code-comment|codex-|inbox-item|archive-thread|automation)|/.test(source)) return source;
-  const protectedRanges = protectedMarkdownRanges(source);
+  const protectedRanges = [...protectedMarkdownRanges(source), ...messageMarkdownProtectedRanges(source)];
   const componentProtectedRanges = protectedMarkdownRanges(source, true);
   const edits: { start: number; end: number; text: string }[] = [];
   const replace = (pattern: RegExp, render: (match: RegExpMatchArray) => string | null, allowHtml = false) => {

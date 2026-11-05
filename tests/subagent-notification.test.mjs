@@ -183,12 +183,15 @@ test('subagent JSON and internal code remain exact even when they contain litera
   }
 });
 
-test('protected or ordinary trailing content does not become a removable subagent citation suffix', () => {
+test('ordinary and protected Markdown continuations share the subagent display projection', () => {
   for (const tail of ['\n普通后文', `\n\n\`\`\`xml\n${citationFooter}\n\`\`\``,
     `\n\`${citationFooter}\``, `\n\n    ${citationFooter}`, citationFooter + '\n普通后文']) {
     const source = envelope() + tail;
-    assert.equal(subagentNotification(source), null);
-    assert.ok(subagentNotificationFallback(source).includes(source.trim()));
+    const notification = subagentNotification(source);
+    assert.equal(notification.text, report); assert.ok(notification.continuation);
+    assert.equal(subagentNotificationFallback(source), null);
+    if (tail === citationFooter + '\n普通后文') assert.equal(notification.continuation, '普通后文');
+    else assert.ok(notification.continuation.includes(tail.replace(/^\n+/, '')));
   }
 });
 

@@ -24,8 +24,8 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
 }) {
   const locale = useLocale();
   const notification = useMemo(() => subagentNotification(message.text), [message.text]);
-  const presentation = useMemo(() => {
-    if (notification) return { text: notification.text, copyText: [t(notification.label), notification.text].filter(Boolean).join("\n\n"), annotations: [] };
+  const presentation = useMemo<ReturnType<typeof presentUserMessage>>(() => {
+    if (notification) return { text: notification.text, copyText: [t(notification.label), notification.text, notification.continuation].filter(Boolean).join("\n\n"), annotations: [] };
     if (message.role === "user") return presentUserMessage(message.text, t);
     const text = readableCodexMarkdown(message.text, t);
     return { text, copyText: text, annotations: [], automationInstructions: undefined };
@@ -67,6 +67,9 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
         text={displayText}
         codex={false}
       />)}
+      {(notification?.continuation || presentation.automationContinuation) && <MessageMarkdown
+        text={notification?.continuation || presentation.automationContinuation!} images={message.images}
+        files={message.role === "assistant" && !message.truncated ? message.files : undefined} threadId={threadId} codex={false} />}
       {presentation.annotations.length > 0 && <AnnotationQuotes annotations={presentation.annotations} changeLayout={changeLayout} />}
       <AttachmentList attachments={message.attachments} />
       {message.truncated && <small>{t("内容较长，此处已截取。")}</small>}

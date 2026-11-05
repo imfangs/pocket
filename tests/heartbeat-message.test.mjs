@@ -194,13 +194,16 @@ test('citation stripping never pre-cleans code or literal tags inside heartbeat 
   }
 });
 
-test('ordinary trailing text or protected citation examples retain the original heartbeat fallback', () => {
+test('ordinary and protected Markdown continuations keep the known heartbeat without promoting citations', () => {
   for (const tail of ['\n后续普通文字', `\n\n\`\`\`xml\n${citationFooter}\n\`\`\``,
     '\n`<oai-mem-citation>literal-example</oai-mem-citation>`',
     '\n\n    <oai-mem-citation>literal-example</oai-mem-citation>', `${citationFooter}\n后续普通文字`]) {
     const source = result() + tail;
-    assert.equal(heartbeatMessage(source), null);
-    assert.ok(heartbeatFallback(source).includes(source.trim()));
+    const message = heartbeatMessage(source);
+    assert.equal(message.kind, 'result'); assert.equal(message.text, summary);
+    assert.ok(message.continuation); assert.equal(heartbeatFallback(source), null);
+    if (tail === `${citationFooter}\n后续普通文字`) assert.equal(message.continuation, '后续普通文字');
+    else assert.ok(message.continuation.includes(tail.replace(/^\n+/, '')));
   }
 });
 

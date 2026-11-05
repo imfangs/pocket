@@ -2,9 +2,9 @@ import { t, useLocale } from "./i18n";
 import MarkdownCode from "./MarkdownCode";
 import MessageImage from "./MessageImage";
 import MessageFile, { registeredMessageFile } from "./MessageFile";
-import { createContext, memo, useContext, useMemo, type ReactNode } from "react";
+import { createContext, Fragment, memo, useContext, useMemo, type ReactNode } from "react";
 import { localFileReference } from "../shared/codex-directives.mjs";
-import { isMessageVideo } from "../shared/message-media.mjs";
+import { isMessageAudio, isMessageVideo } from "../shared/message-media.mjs";
 import type { MessageFileReference, MessageFiles } from "./conversationFeed";
 import { pocketTaskTarget, pocketTaskUrl, readableCodexMarkdown } from "./codexMarkup";
 import { changeMachine, currentMachineId } from "./machineScope";
@@ -12,11 +12,14 @@ import { toast } from "sonner";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMermaid from "./mermaidMarkdown";
+import { messageDetailsParts, messageReferenceDefinitions } from "./messageDetails";
+import { displayMessageMarkdown } from "./messageEnvelope";
+import "./message-details.css";
 
 const plugins = [remarkGfm, remarkMermaid];
 const imageRoute = /^\/api\/tasks\/[a-f0-9-]{36}\/images\/[a-f0-9]{64}$/i;
-type Props = { text: string; images?: Record<string, string>; files?: MessageFiles; threadId?: string; codex?: boolean };
-type VideoReference = { file: MessageFileReference | null; href: string };
+type Props = { text: string; images?: Record<string, string>; files?: MessageFiles; threadId?: string; codex?: boolean; detailsDepth?: number; referenceDefinitions?: string };
+type VideoReference = { file: MessageFileReference | null; href: string; kind?: "video" | "audio" | "image" };
 const FileLinksContext = createContext<{
   links: Map<string, MessageFileReference | null>; videos: Map<string, VideoReference>; threadId?: string;
 }>({ links: new Map(), videos: new Map() });
@@ -69,10 +72,11 @@ function MarkdownMedia({ src, alt }: { src?: string | Blob; alt?: string }) {
   if (video) {
     // A linked thumbnail retains its outer link's action. Even a capability
     // registered elsewhere must not put native controls inside an anchor.
-    if (insideLink) return <span>{alt || video.file?.name || t("视频")}</span>;
+    const label = video.kind === "audio" ? "音频" : video.kind === "image" ? "图片" : "视频";
+    if (insideLink) return <span>{alt || video.file?.name || t(label)}</span>;
     if (video.file && threadId) return <MessageFile key={`${threadId}/${video.file.url}`} file={video.file} threadId={threadId} label={alt} />;
-    return <span className="markdown-image-reference">{alt || t("视频")}
-      {video.href ? <a href={video.href} target="_blank" rel="noopener noreferrer">{t("查看视频")}</a>
+    return <span className="markdown-image-reference">{alt || t(label)}
+      {video.href ? <a href={video.href} target="_blank" rel="noopener noreferrer">{t(video.kind === "audio" ? "查看文件" : "查看视频")}</a>
         : <small>{t("文件保存在电脑上")}</small>}
     </span>;
   }
@@ -101,9 +105,10 @@ const components: Components = {
   },
 };
 
-export default memo(function MessageMarkdown({ text, images, files, threadId, codex = true }: Props) {
+export default memo(function MessageMarkdown({ text, images, files, threadId, codex = true, detailsDepth = 0, referenceDefinitions }: Props) {
   const locale = useLocale();
-  const markdown = useMemo(() => codex ? readableCodexMarkdown(text, t) : text, [text, codex, locale]);
+  const markdown = useMemo(() => displayMessageMarkdown(codex ? readableCodexMarkdown(text, t) : text), [text, codex, locale]);
+  const definitions = useMemo(() => referenceDefinitions ?? messageReferenceDefinitions(markdown), [referenceDefinitions, markdown]);
   // Only the exact source reference can mint a render token. A raw or forged
   // /api/.../files URL never inherits another link's registered capability.
   const fileLinks = new Map<string, MessageFileReference | null>();
@@ -122,6 +127,16 @@ export default memo(function MessageMarkdown({ text, images, files, threadId, co
         videoLinks.set(token, { file: file && isMessageVideo(file.name) ? file : null, href: publicUrl(value) });
         return token;
       }
+      if (file && isMessageAudio(file.name) || isMessageAudio(value)) {
+        const token = `pocket-video-reference:${videoLinks.size}`;
+        videoLinks.set(token, { file: file && isMessageAudio(file.name) ? file : null, href: publicUrl(value), kind: "audio" });
+        return token;
+      }
+      if (localFileReference(value) || localFileReference(value, true)) {
+        const token = `pocket-video-reference:${videoLinks.size}`;
+        videoLinks.set(token, { file: null, href: "", kind: "image" });
+        return token;
+      }
     }
     if (key === "href") {
       const task = pocketTaskUrl(value);
@@ -134,16 +149,21 @@ export default memo(function MessageMarkdown({ text, images, files, threadId, co
     }
     return publicUrl(value);
   };
+  const parts = useMemo(() => messageDetailsParts(markdown, detailsDepth), [markdown, detailsDepth]);
+  const renderMarkdown = (value: string) => <Markdown remarkPlugins={plugins} components={components} urlTransform={urlTransform} skipHtml>{definitions ? `${definitions}\n\n${value}` : value}</Markdown>;
   return (
     <div className="message-text message-markdown">
       <FileLinksContext.Provider value={{ links: fileLinks, videos: videoLinks, threadId }}>
-        <Markdown remarkPlugins={plugins} components={components} urlTransform={urlTransform} skipHtml>
-          {markdown}
-        </Markdown>
+        {parts.map((part, index) => part.kind === "markdown" ? <Fragment key={index}>{renderMarkdown(part.text)}</Fragment>
+          : <details className="message-details" key={index} open={part.open || undefined}
+            onToggle={() => window.dispatchEvent(new Event("pocket-reading-visibility-change"))}>
+            <summary>{part.summary}</summary>
+            <MessageMarkdown text={part.text} images={images} files={files} threadId={threadId} codex={false} detailsDepth={detailsDepth + 1} referenceDefinitions={definitions} />
+          </details>)}
       </FileLinksContext.Provider>
     </div>
   );
-}, (before, after) => before.text === after.text && before.codex === after.codex && before.threadId === after.threadId &&
+}, (before, after) => before.text === after.text && before.codex === after.codex && before.threadId === after.threadId && before.detailsDepth === after.detailsDepth && before.referenceDefinitions === after.referenceDefinitions &&
   Object.keys(before.images || {}).length === Object.keys(after.images || {}).length &&
   Object.entries(before.images || {}).every(([source, url]) => after.images?.[source] === url) &&
   Object.keys(before.files || {}).length === Object.keys(after.files || {}).length &&

@@ -1,0 +1,12 @@
+.message-details { margin-block: 12px; color: var(--ink); }
+.message-details > summary {
+  min-height: 44px;
+  display: list-item;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+  padding-block: 10px;
+  overflow-wrap: anywhere;
+}
+.message-details > .message-markdown { padding: 4px 0 4px 12px; border-left: 1px solid var(--line); }
