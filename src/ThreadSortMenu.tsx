@@ -26,7 +26,7 @@ export default function ThreadSortMenu({ value, onChange, disabled = false }: {
       <IconButton ref={trigger} type="button" className="thread-sort-trigger icon-button" disabled={disabled}
         data-sort-mode={value} aria-label={t("排序：{{label}}", { label: t(selected.label) })}
         title={t("排序：{{label}}", { label: t(selected.label) })}>
-        <AppIcon icon={selected.Icon} kind="action" aria-hidden="true" />
+        <AppIcon icon={selected.Icon} kind="auxiliary" aria-hidden="true" />
         <span className="thread-sort-current" aria-hidden="true">{t(selected.shortLabel)}</span>
       </IconButton>
     </DropdownMenu.Trigger>

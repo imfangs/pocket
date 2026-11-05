@@ -1,4 +1,4 @@
-.heading-line > .thread-sort-trigger.icon-button { display:inline-flex; flex:none; width:auto; min-width:44px; height:44px; min-height:44px; align-items:center; justify-content:center; gap:6px; padding:0 8px; margin:0; color:var(--muted); font-size:13px; font-weight:500; }
+.activity-filters > .thread-sort-trigger.icon-button { display:inline-flex; flex:0 0 auto; width:auto; min-width:44px; height:44px; min-height:44px; align-items:center; justify-content:center; gap:5px; padding:0 5px; margin:0; color:var(--text-secondary); font-size:13px; font-weight:500; }
 .thread-sort-current { min-width:0; white-space:nowrap; line-height:1.5; }
 .thread-sort-trigger:not([data-sort-mode="smart"]), .thread-sort-trigger[data-state="open"] { color:var(--accent); }
 .thread-sort-trigger[data-state="open"] { background:var(--accent-soft); }

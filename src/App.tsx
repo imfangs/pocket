@@ -5,6 +5,8 @@ import { Button } from "./ui/Button";
 import {
   Menu,
   Search,
+  CircleDot,
+  CirclePlay,
   Star,
   RefreshCw,
   X,
@@ -19,6 +21,7 @@ import Sidebar from "./Sidebar";
 import TaskList from "./TaskList";
 import TaskListPanel from "./TaskListPanel";
 import ThreadSortMenu from "./ThreadSortMenu";
+import "./filter-sort-row.css";
 import CollectionReadFeedback from "./CollectionReadFeedback";
 import Inspector from "./Inspector";
 import BootSplash from "./BootSplash";
@@ -89,7 +92,7 @@ export default function App({
   appearanceActions?: React.ReactNode;
   logoutAction?: React.ReactNode;
 }) {
-  useLocale();
+  const locale = useLocale();
   useEffect(startUsageAnalytics, []);
   const [navigation, setNavigation] = useState(readPrefs);
   const { scope, project, activity, sort } = navigation;
@@ -685,8 +688,17 @@ export default function App({
                 <span className="workspace-count">{!hasCatalog || activity === "unread" && !unreadKnown || activity === "running" && !runtimeKnown ? "—" : listThreads.length + pendingCreationRows.length}</span>
               </h1>
             </div>
-            <ThreadSortMenu value={sort} onChange={sort => updateNavigation({ type: "setSort", sort })}
-              disabled={narrow && (!!current || mobile)} />
+            <IconButton type="button"
+              ref={searchToggle}
+              className="icon-button search-toggle"
+              aria-label={searchOpen ? tr("收起搜索") : tr("展开搜索")}
+              aria-expanded={searchOpen}
+              aria-controls="task-search-box"
+              aria-keyshortcuts="Control+K Meta+K"
+              onClick={searchOpen ? closeSearch : openSearch}
+            >
+              <AppIcon icon={Search} kind="action" /><span>{tr("搜索")}</span><kbd aria-hidden="true">⌘ K</kbd>
+            </IconButton>
             <Button variant="soft" color="gray" type="button"
               className="new-conversation-button"
               aria-label={tr("新建会话")}
@@ -707,36 +719,26 @@ export default function App({
           <div className="filter-row">
             <div className="activity-filters">
               {scope !== "archived" && scope !== "hidden" && ([
-                { activity: "unread", label: "未读", count: unreadKnown ? unreadCount : "—" },
-                { activity: "running", label: "运行中", count: runtimeKnown ? runningCount : "—" },
+                { activity: "unread", label: "未读", Icon: CircleDot, count: unreadKnown ? unreadCount : "—" },
+                { activity: "running", label: "运行中", Icon: CirclePlay, count: runtimeKnown ? runningCount : "—" },
               ] as const).map(filter => (
                 <button key={filter.activity} className={`needs-input-toggle ${filter.activity}-toggle`}
                   data-inbox={activity === filter.activity} aria-pressed={activity === filter.activity}
                   title={activity === filter.activity ? tr("取消{{label}}筛选", { label: tr(filter.label) }) : tr("查看{{label}}的会话", { label: tr(filter.label) })}
                   onClick={() => updateNavigation({ type: "activity", activity: filter.activity })}>
-                  <span className={`${filter.activity}-dot`} aria-hidden="true" />
+                  <AppIcon icon={filter.Icon} kind="auxiliary" aria-hidden="true" />
                   <span>{tr(filter.label)}</span><small>{filter.count}</small>
                 </button>
               ))}
               {scope !== "archived" && scope !== "hidden" && <button className="needs-input-toggle priority-toggle"
                 data-inbox={scope === "priority"} aria-pressed={scope === "priority"}
+                aria-label={scope === "priority" ? tr("返回{{view}}", { view: navigationTitle(navigation.priorityReturn || { scope: "all", project: "" }, catalog.projects) }) : tr("查看 Pocket 关注的会话")}
                 title={scope === "priority" ? tr("返回{{view}}", { view: navigationTitle(navigation.priorityReturn || { scope: "all", project: "" }, catalog.projects) }) : tr("查看 Pocket 关注的会话")}
                 onClick={() => updateNavigation({ type: "togglePriority" })}>
-                <AppIcon icon={Star} kind="auxiliary" aria-hidden="true" /><span>{tr("关注")}</span>
+                <AppIcon icon={Star} kind="auxiliary" aria-hidden="true" /><span>{locale === "en" && narrow ? tr("优先关注") : tr("关注")}</span>
               </button>}
-            </div>
-            <div className="list-controls">
-              <IconButton type="button"
-                ref={searchToggle}
-                className="icon-button search-toggle"
-                aria-label={searchOpen ? tr("收起搜索") : tr("展开搜索")}
-                aria-expanded={searchOpen}
-                aria-controls="task-search-box"
-                aria-keyshortcuts="Control+K Meta+K"
-                onClick={searchOpen ? closeSearch : openSearch}
-              >
-                <AppIcon icon={Search} kind="action" /><span>{tr("搜索")}</span><kbd aria-hidden="true">⌘ K</kbd>
-              </IconButton>
+              <ThreadSortMenu value={sort} onChange={sort => updateNavigation({ type: "setSort", sort })}
+                disabled={narrow && (!!current || mobile)} />
             </div>
           </div>
           {searchOpen && <div className="search-box expanded-search" id="task-search-box">

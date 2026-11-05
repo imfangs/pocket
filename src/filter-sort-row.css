@@ -1,0 +1,24 @@
+/* Scope and activity remain independent of sort. Their controls share one
+   readable row; search keeps its original node/ref in the title bar. */
+.workspace-header .filter-row .activity-filters { display:flex; flex:1; width:100%; min-width:0; max-width:100%; flex-wrap:nowrap; align-items:center; gap:2px; }
+.workspace-header .filter-row .activity-filters > .needs-input-toggle { flex:0 0 auto; }
+.workspace-header .heading-line > .search-toggle { flex:none; width:auto; min-width:44px; height:44px; min-height:44px; margin:0; }
+
+@media (max-width:760px) {
+  .workspace-header .heading-line > .search-toggle { width:44px; padding:0; }
+  .workspace-header .filter-row .activity-filters > .needs-input-toggle { padding-inline:3px; gap:3px; }
+  .workspace-header .filter-row .activity-filters > .thread-sort-trigger.icon-button { gap:3px; padding-inline:3px; }
+}
+
+/* Four English labels plus 128/32 counts need a small-phone fit budget.
+   Keep 12px labels, 16px glyphs and 44px targets; never hide or shrink words. */
+@media (max-width:360px) {
+  :root:lang(en) .workspace-header .filter-row {
+    margin-left:max(-10px,calc(env(safe-area-inset-left,0px) - 16px));
+    margin-right:max(-10px,calc(env(safe-area-inset-right,0px) - 16px));
+  }
+  :root:lang(en) .workspace-header .filter-row .activity-filters { gap:0; }
+  :root:lang(en) .workspace-header .filter-row .activity-filters > .needs-input-toggle,
+  :root:lang(en) .workspace-header .filter-row .activity-filters > .thread-sort-trigger.icon-button { padding-inline:1px; gap:2px; font-size:12px; }
+  :root:lang(en) .workspace-header .filter-row .activity-filters > button:focus-visible { outline-offset:-2px; }
+}

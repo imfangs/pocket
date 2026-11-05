@@ -32,10 +32,12 @@ for (const engine of engines) {
         const sort = await shape(controls.locator('.thread-sort-trigger'));
         const search = await shape(controls.locator('.search-toggle'));
         const toolbar = await shape(controls.locator('.filter-row'));
-        assert.ok(sort.bottom <= first.top + 1, 'Sorting must stay in the title bar');
+        assert.ok(Math.abs(sort.top - first.top) <= 1, 'Sorting must stay in the activity row');
+        assert.ok(sort.left >= (await shape(controls.locator('.priority-toggle'))).right - 1, 'Sorting follows the Follow control');
         assert.ok(sort.width >= 44 && sort.height >= 44);
-        assert.ok(search.left >= toolbar.left - 1 && search.right <= toolbar.right + 1, 'Search must align with the toolbar gutter');
-        assert.ok(Math.abs((search.top + search.bottom - first.top - first.bottom) / 2) <= 1);
+        const create = await shape(controls.locator('.new-conversation-button'));
+        assert.ok(search.right <= create.left + 1, 'Search stays before Create in the title bar');
+        assert.ok(Math.abs(search.top - create.top) <= 1 && search.bottom <= first.top + 1);
         assert.ok(toolbar.height <= 45, 'The filters must not reserve a second row');
         assert.ok(await controls.locator('.search-toggle').evaluate(node => {
           const box = node.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);

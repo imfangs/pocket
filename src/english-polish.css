@@ -4,11 +4,3 @@
   flex-basis:8em;
   width:8em;
 }
-
-/* Keep full labels, counts and touch targets on the smallest English screens.
-   The selected surfaces still carry color; decorative dots can make room. */
-@media (max-width:360px) {
-  :root:lang(en) .activity-filters { column-gap:0; }
-  :root:lang(en) .activity-filters .needs-input-toggle { padding-inline:3px; gap:2px; }
-  :root:lang(en) .activity-filters :is(.unread-dot,.running-dot) { display:none; }
-}
