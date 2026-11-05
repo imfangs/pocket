@@ -1,0 +1,5 @@
+/* Reading/tapping prose should not outline the entire scroll viewport. Real
+   keyboard entry/scrolling still has a visible, inset focus boundary. This
+   governs only the message region itself; descendants keep their own rings. */
+.conversation-messages[data-message-focus-origin]:focus { outline:none; }
+.conversation-messages[data-message-focus-origin="keyboard"]:focus { outline:2px solid var(--accent); outline-offset:-2px; }

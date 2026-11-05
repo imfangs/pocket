@@ -12,6 +12,8 @@ import { ArchiveRestore, ArrowDown, ChevronDown, RefreshCw, Send, LoaderCircle }
 import { api } from "./api";
 import { readableRequestError } from "./requestError";
 import "./conversation-recovery.css";
+import "./message-region-focus.css";
+import { bindMessageRegionFocus } from "./messageRegionFocus";
 import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
 import ConversationActivity from "./ConversationActivity";
@@ -173,6 +175,7 @@ export default function Conversation({
     previousLatest = useRef<{ id: string; text: string } | null>(null),
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
+  useLayoutEffect(() => messages.current ? bindMessageRegionFocus(messages.current) : undefined, [thread.id]);
   const liveDisplay = useMemo(() => displayConversation(
     history ? { ...history, messages: withSubmittedAttachments(history.messages, submitted) } : null,
     transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
@@ -784,6 +787,7 @@ export default function Conversation({
         role="region"
         aria-label={t("会话正文")}
         tabIndex={0}
+        data-message-focus-origin="programmatic"
         ref={messages}
         onScroll={() => {
           if (earlierWindow.isActive()) return;
