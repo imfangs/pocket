@@ -22,7 +22,7 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
   const [error, setError] = useState("");
   const alive = useRef(true), inFlight = useRef(false), operationRef = useRef<RenameOperation | undefined>(undefined), delivered = useRef<string | null>(null);
   const saved = useRef(onSaved), nameInput = useRef<HTMLInputElement>(null);
-  const inputId = useId(), statusId = useId();
+  const inputId = useId(), statusId = useId(), errorId = useId();
   saved.current = onSaved;
   const unresolved = renameUnresolved(operation), dirty = !unresolved && name !== baseline;
   const nameDisabled = loading || submitting || unresolved || source?.canRename === false;
@@ -139,13 +139,16 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
     }
   };
 
+  const statusText = loading ? tr("正在读取原标题…") : operation ? tr(renameOperationText(operation)) : source && !source.canRename ? tr(renameSourceHint(source)) : tr("名称会同步到 Codex。");
+  const errorText = error ? tr(error) : "";
+  const duplicateStatus = !!errorText && statusText === errorText;
   return <Modal title={tr("重命名会话")} className="rename-thread-dialog" onClose={onClose} busy={submitting} dirty={dirty}>
     <form className="rename-thread-form" onSubmit={event => void submit(event)} noValidate>
       <label className="field-label" htmlFor={inputId}>{tr("会话名称")}</label>
       <div className="rename-thread-name">
         <input ref={nameInput} id={inputId} value={name} autoComplete="off" enterKeyHint="done"
           disabled={nameDisabled}
-          aria-describedby={statusId} aria-invalid={!!renameNameError(name) && !!error || undefined}
+          aria-describedby={[!duplicateStatus && statusId, errorText && errorId].filter(Boolean).join(" ")} aria-invalid={!!renameNameError(name) && !!error || undefined}
           onKeyDown={event => { if (event.key === "Enter" && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault(); }}
           onChange={event => editName(event.target.value)} />
         {name.length > 0 && <IconButton type="button" className="icon-button rename-thread-clear" title={tr("清空名称")} aria-label={tr("清空名称")} disabled={nameDisabled}
@@ -156,11 +159,9 @@ export default function RenameThreadDialog({ thread, onClose, onSaved }: {
             nameInput.current?.focus({ preventScroll: true });
           }}><AppIcon icon={X} kind="action" aria-hidden="true" /></IconButton>}
       </div>
-      <p className="field-help rename-thread-status" id={statusId} role="status">
-        {loading ? tr("正在读取原标题…") : operation ? tr(renameOperationText(operation)) : source && !source.canRename ? tr(renameSourceHint(source)) : tr("名称会同步到 Codex。")}
-      </p>
+      {!duplicateStatus && <p className="field-help rename-thread-status" id={statusId} role="status">{statusText}</p>}
       {operation?.currentTitle && operation.status === "changed" && <p className="field-help">{tr("当前名称：")}{operation.currentTitle}</p>}
-      {error && <p className="inline-error" role="alert">{tr(error)}</p>}
+      {errorText && <p className="inline-error" id={errorId} role="alert">{errorText}</p>}
       <footer className="dialog-actions">
         {unresolved ? <>
           <Button type="button" className="text-button" variant="ghost" color="gray" disabled={submitting} onClick={onClose}>{tr("关闭")}</Button>

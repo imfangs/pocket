@@ -34,6 +34,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | REA、Git凭据扫描、开源隐私与可利用入口 | [安全扫描](docs/research/2026-11-05-rea-security-scan.md)：本机REA6.4静态partial、Gitleaks16误报人工核销、生产依赖0/dev2high、图片父目录竞态/反代IP头两项条件Low；固定候选2d2fa4a，未修安全代码/未升级，不能把扫描当公开认证 |
 | 整体视觉、Radix Themes、基础控件/色阶/样式归属 | [整体视觉重整](docs/design/2026-10-19-visual-system.md)：整屏对照、tokens/结构/视觉分工、native行为保护；[独立验收跟进](docs/design/2026-10-19-independent-ui-followup.md)：variant几何、错误恢复按钮组合 |
 | Impeccable精修、首次必填披露、空白错误恢复与首字丢失 | [10-28设计审查](docs/design/2026-10-28-impeccable-polish.md)：两路独立评审、局部几何与提示对比、原生input后置预连接；已记忆选择和阅读空间保持 |
+| 整体精修、重命名错误重复、英文关闭确认贴紧、窄屏输入动作越界 | [11-05整体精修](docs/design/2026-11-05-impeccable-refinement.md)：翻译后去重/有效ARIA、共享8px换行动作组、小屏子控件边界与命中；预览关闭44px/排序菜单同glyph，原请求/输入/阅读保持 |
 | 首开空白／无加载状态、标题反馈复核 | [加载与标题反馈](docs/design/2026-10-28-feedback-loading.md)：双路首读与缓存分开、沿前后visit定位、原生标题摘要与Pocket回读分开判断 |
 | Mermaid围栏、图表阅读/源码、Worker与Pele升级 | [会话图表](docs/design/2026-10-19-mermaid.md)：三类图、闭合判断、惰性渲染/内存回收、独立图表放大、资源与不可信内容边界；固定包来源回vendor/pele |
 | 详情工具栏/输入区、菜单数量、独立范围/状态/排序、未读用词 | [输入区与独立筛选](docs/design/2026-10-19-composer-and-navigation.md)：控件常驻/队列编辑/未知回执、v4维度与计数口径、未读不等于等待操作 |

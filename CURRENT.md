@@ -4,6 +4,8 @@
 
 ## 下一次先看
 
+- **整体界面精修已验证，待网页发布（2026-11-05）。** [本轮契约](docs/design/2026-11-05-impeccable-refinement.md)：重命名相同错误去重并保持有效ARIA，英文脏草稿确认动作组8px换行间距，≤360触摸展开输入动作收紧但44px/字号/草稿/节点保持，手机文件预览关闭44px图标给标题让位，排序菜单同注册表16/1.75图标与原勾选保持。弹窗60个基线状态、阅读144组、新增40项及最终113项浏览器/设施与独立CR通过；私有双机profile Pages构建`8d54a5d42dde…`通过。完整回归顺序复验2058中2056通过、2项原生取消归档范围失败，无跳过；不能声称全测全绿，差异见下方未决事项。证据`.local/qa/impeccable-sweep-2026-11-05/`，保留既有API/Codex/连接器与公共历史副本。
+
 - **筛选与排序同排已上线（2026-11-05）。** 源`26cd368`，[设计](docs/design/2026-11-05-filter-sort-row.md)：未读CircleDot、运行CirclePlay、关注Star与当前排序glyph同排16/1.75，排序位于关注右边；搜索移标题栏原sort槽，原ref/快捷键/焦点/展开保持，归档/隐藏仍可排序。用户明确中英都紧凑一排，320/390＋128/32＋选中加粗三模式80组全过，图标/文字/计数不藏/不缩/不横滚；英文mobile Follow短名（title/aria完整）、320safearea限制局部拓宽与12px，390常规13px；4控件44px高，长标题ellipsis。12排序/英文＋2图标/2最终几何Tab通过；根最终2,058全测/73整包浏览器/构建通过；发布源215d145，build57da0bf3215d…，Pages9e4e30c9…单次上传exit0、35/35公开资源/原功能、独立公网version/private双机profile一致，只共享网页/Worker，无API/Codex/连接器重启或真实send，没有待续外部操作。原排序公式/独立筛选/目录与草稿、API/Codex不变。证据`.local/qa/filter-sort-row-2026-11-05/integration/`及子验收；历史bundle保持旧固定边界。
 
 - **最终集成已上线：统一XML展示、排序语义与消息区焦点（2026-11-05）。** XML源`9174460`：[记录](docs/design/2026-11-05-structured-message-presentation.md)，known heartbeat/subagent纯registry、严格schema+continuation/代码citation保护/第一引用表、安全details及unknown XML inert，普通rawHTML仍旧隐藏，角色/id/raw/文件授权不变；指定「每日 - 修炼」实际Pocket700字从整条XMLcode恢复正文+折叠，两个cwd外文件明确Mac提示、0媒体请求。排序源`690efc4`：Sparkles/CalendarPlus/History＋智能/创建/活动短标签，44px高/默认透明/一行/记忆和过滤草稿保持，6浏览器+24手机几何通过。蓝框源`b5ee81a`：UA focus-visible保留问题实证，region scope pointer/touch/programmatic无框、真实keyboard有框，不blur/prevent/改节点，24相关+4双浏览器过、8组基线滚动一致。最终完整2,058、实际整包71浏览器/设施、构建通过；XML17独立CR/80针对/6flow过，真实材料只privateQA。证据`.local/qa/frontend-integration-2026-11-05/`及三子目录；发布源`c540a74`、build`5a4596f04e51…`、Pages`0681bb14…`，个人双机profile单次上传exit0、35/35公开资源与原功能、独立公网version/profile一致；仅共享网页/Worker，API/Codex/连接器未重启或真实send，公开历史仍固定旧边界不改bundle。没有待续认证/上传。
@@ -157,6 +159,8 @@
 其它功能和代码路由只在[AGENTS](AGENTS.md)维护；能力对照见[DESKTOP-PARITY](docs/DESKTOP-PARITY.md)。
 
 ## 阻塞、未决记录与验证缺口
+
+- **取消归档的原生范围存在兼容差异（2026-11-05）。** 当前内置CLI`0.166.0-alpha.6`的`unarchive <root>`会恢复关联子会话，与旧的“只恢复根”假设不一致。两项归档测试重复失败；16个相关源码/测试/桥接文件与本轮UI基线逐字未变，独立4组隔离对照/24次原生命令确认关联行为、记录字节保持。未实测旧二进制，不能锁定首次变化版本；没有对真实会话操作。需在既有生命周期契约下单独处理恢复范围与验证策略，不能只删除测试断言。证据`impeccable-sweep-2026-11-05/native-baseline-review.md`（完整私有路径见本轮契约）。前端精修不增加该差异，但完整回归不能报全绿。
 
 - **历史读取仍有明确边界**：分页源上限512MiB、单记录8MiB，超限会解释而非假称全部加载；游标失效可重新核对。压缩兼容已经解决；本轮7个旧样本文件仅有session_meta，不能从文件名或解压成功推断里面有对话正文。原生云端缺少本地记录时不凭空补内容。事实与取舍见[历史分页](docs/design/2026-10-28-history-pagination.md)。
 - **原生标读写回未稳定恢复**：10-22重启后的Codex仍有双listener/readback_unconfirmed证据。当前主线不依赖写回；不因蓝点不一致重启Codex、批量补标或改原存储。旧局部成功只证明当次对象，见[原生同步历史](docs/design/2026-10-05-read-state-sync.md)。

@@ -217,7 +217,7 @@ dialog footer { display:flex; gap:8px; margin-top:24px; }
 dialog footer button { min-height:var(--control-height); }
 .modal-close-confirm { margin:8px 24px 16px; padding:16px; border:1px solid var(--line); border-radius:var(--radius-card); background:var(--surface-soft); }
 .modal-close-confirm p { margin:0 0 12px; color:var(--text-secondary); font-size:13px; }
-.modal-close-confirm button { margin-right:8px; }
+.modal-close-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .quick-create-query { margin-bottom:0; }
 .quick-create-query-input { position:relative; }
 .quick-create-query textarea { width:100%; min-height:132px; max-height:220px; padding:16px 56px 16px 16px; resize:none; border-color:var(--line-strong); border-radius:var(--radius-card); background:var(--surface-soft); color:var(--ink); font:inherit; font-size:16px; line-height:1.6; }

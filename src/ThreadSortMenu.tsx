@@ -38,7 +38,8 @@ export default function ThreadSortMenu({ value, onChange, disabled = false }: {
       <DropdownMenu.RadioGroup value={value} onValueChange={next => {
         if (next !== value && choices.some(choice => choice.value === next)) onChange(next as ThreadSort);
       }}>
-        {choices.map(({ value, label }) => <DropdownMenu.RadioItem key={value} value={value} data-sort-choice={value}>
+        {choices.map(({ value, label, Icon }) => <DropdownMenu.RadioItem key={value} value={value} data-sort-choice={value}>
+          <AppIcon icon={Icon} kind="auxiliary" aria-hidden="true" />
           <span className="thread-sort-label">{t(label)}</span>
         </DropdownMenu.RadioItem>)}
       </DropdownMenu.RadioGroup>

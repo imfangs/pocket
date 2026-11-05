@@ -4,6 +4,7 @@
 .thread-sort-trigger[data-state="open"] { background:var(--accent-soft); }
 .thread-sort-menu { min-width:184px; max-width:calc(100vw - 24px); }
 .thread-sort-menu .rt-DropdownMenuRadioItem { min-height:44px; font-size:14px; }
+.thread-sort-menu .rt-DropdownMenuRadioItem > [data-pocket-icon] { flex:none; }
 .thread-sort-menu .rt-DropdownMenuRadioItem[data-state="checked"] { font-weight:550; }
 .thread-sort-menu .rt-DropdownMenuRadioItem[data-state="checked"]:not([data-highlighted]) { color:var(--accent); }
 .thread-sort-menu .rt-DropdownMenuRadioItem[data-highlighted] { color:var(--ink); }

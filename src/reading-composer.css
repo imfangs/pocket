@@ -36,3 +36,21 @@
   .conversation:has(.outbox textarea) .conversation-composer.is-compact .composer-actions { display:flex; }
   .conversation:has(.outbox textarea) .conversation-composer.is-compact .composer-actions > .context-status { display:block; }
 }
+
+/* Long recovery actions must not push the first touch target off a small
+   phone. Preserve the labels and target heights before allowing a new row. */
+@media (max-width: 360px) and (hover: none) and (pointer: coarse) {
+  .conversation-composer:not(.is-compact) .composer-actions {
+    gap: 4px;
+    padding-inline: 0;
+    flex-wrap: wrap;
+  }
+  .conversation-composer:not(.is-compact) .composer-actions > .primary {
+    padding-inline: 8px;
+    max-width: 100%;
+    white-space: normal;
+  }
+  .conversation-composer:not(.is-compact) .composer-actions .context-trigger {
+    padding-inline: 4px;
+  }
+}

@@ -86,11 +86,11 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
   return createPortal(<dialog ref={dialog} className="text-file-viewer" data-reading-overlay="" aria-label={t("预览文件：{{value0}}", { value0: file.name })}
     onCancel={event => { event.preventDefault(); onClose(); }}>
     <header className="text-file-toolbar">
-      <h2 ref={title} tabIndex={-1} style={{ outline: "none" }}>{file.name}</h2>
+      <h2 ref={title} tabIndex={-1} title={file.name} style={{ outline: "none" }}>{file.name}</h2>
       <button type="button" disabled={downloading} aria-busy={downloading || undefined} aria-label={t("{{action}}：{{name}}", { action: downloading ? t("正在下载") : t("下载文件"), name: file.name })} onClick={() => download(result?.blob)}>
         <AppIcon icon={Download} kind="action" aria-hidden="true" /><span>{downloading ? t("下载中…") : t("下载")}</span>
       </button>
-      <button type="button" className="text-file-close" aria-label={t("关闭文件预览")} onClick={onClose}><AppIcon icon={X} kind="action" aria-hidden="true" /><span>{t("关闭")}</span></button>
+      <button type="button" className="text-file-close" aria-label={t("关闭文件预览")} title={t("关闭文件预览")} onClick={onClose}><AppIcon icon={X} kind="action" aria-hidden="true" /><span>{t("关闭")}</span></button>
     </header>
     {downloadError && <p className="text-file-download-error" role="alert">{t(downloadError)}</p>}
     <div className="text-file-scroll ph-no-capture ph-mask" tabIndex={0} role="region" aria-label={t("文件内容")}>

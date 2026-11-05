@@ -192,11 +192,13 @@ export function Modal({
       <div className="pocket-dialog-body">
         {confirmClose && <div className="modal-close-confirm" role="alert">
           <p>{t("还有未提交的内容。")}</p>
+          <div className="modal-close-actions">
           <Button ref={continueEditing} type="button" className="secondary" variant="soft" color="gray" disabled={busy} onClick={() => {
             setConfirmClose(false);
             ref.current?.querySelector<HTMLElement>("[data-autofocus], input:not([type='hidden']), textarea, select")?.focus();
           }}>{t("继续编辑")}</Button>
           <Button type="button" className="danger-button" variant="soft" color="red" disabled={busy} onClick={event => beginClose(event.detail !== 0)}>{t("放弃并关闭")}</Button>
+          </div>
         </div>}
         {children}
       </div>
