@@ -25,3 +25,7 @@
 实际选集在Chromium/WebKit390px均为21/21图解码、21卡片、原样式及源码一致、无横溢出、脚本和意外外联均0。未做物理iPhone或新的目视审美验收。完整2090项测试中2088通过、两项既有取消归档范围失败，无跳过；不报全绿。独立CR、两机API与网页发布身份回CURRENT。
 
 私有证据`.local/qa/html-preview-2026-11-07/`，真实HTML、图包、认证与预检不进入Git/公开构建。可复用做法：阅读与执行分离、附图来自已批准文档的实际引用、图片按字节识别、下载保留原件；先核对用户真实文件，避免只显示版式却缺主要内容。
+
+## 发布回读
+
+2026-11-07已上线：网页及两机API源9e7be97（功能18ab924），build b52851cfd9d5662e4aac224782a1069da56ee71bb14d9058f2a6cbaf2a4121c1，Pages ecdaad84-3cd7-4411-b515-493723651d08。网页上传一次、36/36资源与功能、公网version/profile独立一致。两机各一次稳定FBT source切换，保留原登录、凭据、scope、策略和metadata；Ged两条dispatch queued原身份/状态保留、Wandou0，Codex/connector不重启，切换窗口未见业务发送变化。Ged真实用户文件经loopback认证GET签发并返回21图/omitted0，原件SHA一致，未连接或打开owner；公网新接口匿名401、两机health200。没有可用公网用户session，localToken只准loopback且未外发，因此该层私件auth GET未实测，不把资源或匿名路由验收当成真实手机验收。原OAuth有效、目标GET200，无续期、无未决上传。原Python默认版本解包前失败只产生空目录，按既有桥接Python3.13与同一校验tar接续；测试环境污染只在合成子进程校准，不改机器profile。
