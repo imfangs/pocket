@@ -23,6 +23,7 @@ import { Notifications } from "./notifications.mjs";
 import { sendCatalog } from "./catalog-response.mjs";
 import { MessageImages } from "./message-images.mjs";
 import { MessageFiles } from "./message-files.mjs";
+import { HTML_PREVIEW_LIMITS } from "./html-preview.mjs";
 import { dispatchResponse } from "./dispatch-response.mjs";
 import { isIP } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
@@ -90,8 +91,12 @@ export function makeApp(options = {}) {
   const images = new MessageImages();
   const files = new MessageFiles();
   const videoRequests = new Set();
+  const previewRequests = new Set();
   let acceptingVideos = true;
-  const stopVideoStreams = () => { acceptingVideos = false; for (const controller of videoRequests) controller.abort(); };
+  const stopVideoStreams = () => {
+    acceptingVideos = false;
+    for (const controller of [...videoRequests, ...previewRequests]) controller.abort();
+  };
   desktop.onAccepted = (id, turnId) => {
     try { notifications.followSubmission(id, turnId); }
     catch { /* Notification bookkeeping must not change an accepted send receipt. */ }
@@ -512,6 +517,42 @@ export function makeApp(options = {}) {
           "Content-Security-Policy": "default-src 'none'; sandbox",
         });
         return res.end(data.bytes);
+      }
+      const htmlPreview = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/files\/([a-f0-9]{64})\/preview$/i);
+      if (htmlPreview && method === "GET") {
+        if (!acceptingVideos) throw new AppError("文件服务正在重启，请稍后重试", 503);
+        if (url.search) throw new AppError("文件预览参数无效", 400);
+        if (previewRequests.size >= HTML_PREVIEW_LIMITS.concurrent) throw new AppError("同时预览的文件过多，请稍后重试。", 503);
+        const controller = new AbortController();
+        previewRequests.add(controller);
+        const cancel = () => controller.abort();
+        const destroy = () => res.destroy();
+        controller.signal.addEventListener("abort", destroy, { once: true });
+        const timeout = setTimeout(cancel, 30000); timeout.unref();
+        req.once("aborted", cancel); res.once("close", cancel);
+        let complete;
+        const finished = new Promise(resolve => { complete = resolve; });
+        res.once("finish", complete); res.once("close", complete);
+        try {
+          const data = await files.readHtmlPreview(store.thread(htmlPreview[1]), htmlPreview[2], { signal: controller.signal });
+          if (controller.signal.aborted || res.destroyed) { res.destroy(); return; }
+          res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+          res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+          json(res, 200, data);
+          // Reserve the bounded bundle slot until the response drains, not
+          // just until filesystem assembly completes for a slow connection.
+          await finished;
+          return;
+        } catch (failure) {
+          if (controller.signal.aborted || res.destroyed) { res.destroy(); return; }
+          throw failure;
+        } finally {
+          previewRequests.delete(controller);
+          clearTimeout(timeout);
+          controller.signal.removeEventListener("abort", destroy);
+          req.removeListener("aborted", cancel); res.removeListener("close", cancel);
+          res.removeListener("finish", complete); res.removeListener("close", complete);
+        }
       }
       const messageFile = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/files\/([a-f0-9]{64})$/i);
       if (messageFile && ["GET", "HEAD"].includes(method) && url.searchParams.has("video")) {

@@ -1,15 +1,18 @@
 import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
-import { Download, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Code2, Download, Eye, X } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MessageFileReference } from "./conversationFeed";
 import { decodeMessageFileText, maxTextFilePreviewBytes, messageFileTextFormat } from "./messageFileText";
 import type { MachineId } from "./machineScope";
+import type { HtmlFileData } from "./htmlPreviewPayload";
+import HtmlFileContent from "./HtmlFileContent";
 
 type Reader = (file: MessageFileReference, threadId: string, options: { machine: MachineId; signal: AbortSignal; maxBytes: number }) => Promise<Blob>;
+type HtmlReader = (file: MessageFileReference, threadId: string, options: { machine: MachineId; signal: AbortSignal }) => Promise<HtmlFileData>;
 const plugins = [remarkGfm];
 const components: Components = {
   a: ({ href, children }) => href ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>,
@@ -34,13 +37,16 @@ export function TextFileContent({ name, text }: { name: string; text: string }) 
     : <p className="text-file-empty">{t("空文件")}</p>;
 }
 
-export default function TextFilePreview({ file, threadId, machine, opener, onClose, readFile, download, downloading, downloadError }: {
+export default function TextFilePreview({ file, threadId, machine, opener, onClose, readFile, readHtmlPreview, download, downloading, downloadError }: {
   file: MessageFileReference; threadId: string; machine: MachineId; opener: HTMLElement; onClose: () => void;
-  readFile: Reader; download: (blob?: Blob) => void; downloading: boolean; downloadError: string;
+  readFile: Reader; readHtmlPreview: HtmlReader; download: (blob?: Blob) => void; downloading: boolean; downloadError: string;
 }) {
   useLocale();
   const dialog = useRef<HTMLDialogElement>(null), title = useRef<HTMLHeadingElement>(null);
-  const [result, setResult] = useState<{ text: string; blob: Blob } | null>(null), [error, setError] = useState("");
+  const [result, setResult] = useState<({ text: string } & HtmlFileData) | null>(null), [error, setError] = useState("");
+  const htmlFile = messageFileTextFormat(file.name) === "html";
+  const [mode, setMode] = useState<"preview" | "source">("preview");
+  const contentId = useId();
   const [attempt, setAttempt] = useState(0);
   const mounted = useRef(false), generation = useRef(0);
   const visibility = () => window.dispatchEvent(new Event("pocket-reading-visibility-change"));
@@ -72,8 +78,10 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
     let current = true;
     setResult(null); setError("");
     const timeout = window.setTimeout(() => controller.abort(new DOMException("读取超时", "TimeoutError")), 30000);
-    void readFile(file, threadId, { machine, signal: controller.signal, maxBytes: maxTextFilePreviewBytes })
-      .then(async blob => ({ text: await decodeMessageFileText(blob), blob }))
+    const read = htmlFile ? readHtmlPreview(file, threadId, { machine, signal: controller.signal })
+      : readFile(file, threadId, { machine, signal: controller.signal, maxBytes: maxTextFilePreviewBytes })
+        .then(blob => ({ blob, images: Object.create(null) as Record<string, string>, omittedImages: 0, imagesAvailable: true }));
+    void read.then(async value => ({ ...value, text: await decodeMessageFileText(value.blob) }))
       .then(value => { controller.signal.throwIfAborted(); if (current) setResult(value); })
       .catch(failure => {
         if (current) setError(controller.signal.reason?.name === "TimeoutError" ? "读取较慢，请重试。"
@@ -81,7 +89,7 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
       })
       .finally(() => window.clearTimeout(timeout));
     return () => { current = false; controller.abort(); window.clearTimeout(timeout); };
-  }, [file.url, file.name, threadId, machine, attempt, readFile]);
+  }, [file.url, file.name, threadId, machine, attempt, readFile, readHtmlPreview, htmlFile]);
   if (typeof document === "undefined") return null;
   return createPortal(<dialog ref={dialog} className="text-file-viewer" data-reading-overlay="" aria-label={t("预览文件：{{value0}}", { value0: file.name })}
     onCancel={event => { event.preventDefault(); onClose(); }}>
@@ -92,9 +100,23 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
       </button>
       <button type="button" className="text-file-close" aria-label={t("关闭文件预览")} title={t("关闭文件预览")} onClick={onClose}><AppIcon icon={X} kind="action" aria-hidden="true" /><span>{t("关闭")}</span></button>
     </header>
+    {htmlFile && <div className="html-file-modes" role="group" aria-label={t("文件显示方式")}>
+      <button type="button" aria-pressed={mode === "preview"} aria-controls={contentId} onClick={() => setMode("preview")}>
+        <AppIcon icon={Eye} kind="auxiliary" />{t("预览")}</button>
+      <button type="button" aria-pressed={mode === "source"} aria-controls={contentId} onClick={() => setMode("source")}>
+        <AppIcon icon={Code2} kind="auxiliary" />{t("源码")}</button>
+      <small title={t("脚本和外部资源不会在预览中运行。")}>{t("静态预览")}</small>
+    </div>}
     {downloadError && <p className="text-file-download-error" role="alert">{t(downloadError)}</p>}
-    <div className="text-file-scroll ph-no-capture ph-mask" tabIndex={0} role="region" aria-label={t("文件内容")}>
-      {result ? <TextFileContent name={file.name} text={result.text} />
+    {htmlFile && result && mode === "preview" && (!result.imagesAvailable || result.omittedImages > 0) &&
+      <p className="html-file-note">{t("部分图片未能载入，原文件仍可下载。")}</p>}
+    <div id={contentId} className={`text-file-scroll ph-no-capture ph-mask ${htmlFile ? "html-file-content" : ""}`}
+      tabIndex={htmlFile ? -1 : 0} role="region" aria-label={t("文件内容")}>
+      {result ? htmlFile && result.text ? <>
+          <HtmlFileContent name={file.name} source={result.text} images={result.images} hidden={mode !== "preview"} />
+          <div className="html-file-source" hidden={mode !== "source"} tabIndex={mode === "source" ? 0 : -1}
+            role="region" aria-label={t("HTML 源码")}><TextFileContent name={file.name} text={result.text} /></div>
+        </> : <TextFileContent name={file.name} text={result.text} />
         : error ? <div className="text-file-state"><p role="alert">{t(error)}</p><button type="button" onClick={() => setAttempt(value => value + 1)}>{t("重试")}</button></div>
         : <div className="text-file-state"><p role="status">{t("正在读取文件…")}</p></div>}
     </div>

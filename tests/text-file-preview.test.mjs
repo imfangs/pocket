@@ -12,7 +12,8 @@ const render = (name, text) => renderToStaticMarkup(createElement(TextFileConten
 
 test('supported file names distinguish Markdown, plain text, and download-only formats', () => {
   for (const name of ['说明.md', 'README.MARKDOWN']) assert.equal(textApi.messageFileTextFormat(name), 'markdown');
-  for (const name of ['说明.txt', 'data.JSON', 'main.tsx', 'readme', 'README', 'README.txt', 'x.html', 'x.svg']) assert.equal(textApi.messageFileTextFormat(name), 'text');
+  for (const name of ['x.html', 'report.HTM']) assert.equal(textApi.messageFileTextFormat(name), 'html');
+  for (const name of ['说明.txt', 'data.JSON', 'main.tsx', 'readme', 'README', 'README.txt', 'x.svg']) assert.equal(textApi.messageFileTextFormat(name), 'text');
   for (const name of ['file.pdf', 'file.docx', 'file.zip', 'file.png', 'file.md.exe', 'unknown']) assert.equal(textApi.messageFileTextFormat(name), null);
 });
 

@@ -24,6 +24,18 @@ dialog.text-file-viewer:not([open]) { display:none; }
 .text-file-state button { min-height:44px; padding:0 16px; border:1px solid var(--line); border-radius:8px; background:var(--surface-soft); color:var(--ink); font:inherit; cursor:pointer; }
 .text-file-download-error { flex:none; margin:0; padding:8px 16px; color:var(--danger); font-size:12px; }
 .text-file-viewer :is(button,.text-file-scroll):focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
+.html-file-modes { flex:none; display:flex; align-items:center; gap:2px; padding:4px 12px; border-bottom:1px solid var(--line); }
+.html-file-modes button { display:inline-flex; align-items:center; gap:6px; min-width:44px; min-height:44px; padding:0 12px; border-radius:var(--radius-control); color:var(--text-secondary); font-size:13px; }
+.html-file-modes button[aria-pressed="true"] { color:var(--accent); background:var(--accent-soft); }
+.html-file-modes small { margin-left:auto; color:var(--muted); font-size:12px; }
+.html-file-note { flex:none; margin:0; padding:8px 16px; color:var(--muted); font-size:12px; }
+.text-file-scroll.html-file-content { padding:0; overflow:hidden; }
+.html-file-preview, .html-file-source { width:100%; height:100%; }
+.html-file-preview iframe { display:block; width:100%; height:100%; border:0; background:white; }
+.html-file-source { overflow:auto; overscroll-behavior:contain; padding:24px clamp(16px,4vw,40px) max(24px,env(safe-area-inset-bottom)); }
+.html-file-source:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
+.html-file-preview[hidden], .html-file-source[hidden] { display:none; }
+.html-file-content > .text-file-state, .html-file-preview > .text-file-state, .html-file-content > .text-file-empty { padding:18px 16px; }
 @media (max-width:640px) {
   dialog.text-file-viewer { width:100%; height:100dvh; margin:0; border:0; border-radius:0; }
   .text-file-toolbar { padding-top:max(6px,env(safe-area-inset-top)); padding-left:max(10px,env(safe-area-inset-left)); padding-right:max(10px,env(safe-area-inset-right)); }

@@ -17,7 +17,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 // A browser adapter around a small synthetic Pocket service. All browser
 // requests are intercepted; no HTTP server, real API, credentials or native
 // desktop operation is involved. Unknown endpoints are test failures.
-export async function createHarness(engine, { history = false, width = 390, visibility = false, archivedHidden = false, locale = 'zh-CN', clientConfiguration = clientProfile,
+export async function createHarness(engine, { history = false, width = 390, visibility = false, archivedHidden = false, locale = 'zh-CN', clientConfiguration = clientProfile, safeFrameServiceWorkers = false,
   directory = process.env.POCKET_BROWSER_DIST || '.local/qa/browser-dist', launch = options => ({ chromium, webkit })[engine].launch(options) } = {}) {
   const dist = realpathSync(directory);
   const manifest = JSON.parse(readFileSync(resolve(dist, 'pocket-version.json')));
@@ -32,7 +32,14 @@ export async function createHarness(engine, { history = false, width = 390, visi
     if (failures.length) throw new AggregateError(failures, 'Browser cleanup failed');
   };
   try {
-    context = await browser.newContext({ viewport: { width, height: 844 }, locale, isMobile: width < 761, hasTouch: true, serviceWorkers: 'block' });
+    context = await browser.newContext({ viewport: { width, height: 844 }, locale, isMobile: width < 761, hasTouch: true, serviceWorkers: safeFrameServiceWorkers ? 'allow' : 'block' });
+    if (safeFrameServiceWorkers) await context.addInitScript(() => {
+      // Playwright's block init script reads this getter without a guard and
+      // throws in an opaque sandbox. Keep its no-registration behavior while
+      // allowing the browser's actual opaque-origin restriction to remain.
+      try { if (navigator.serviceWorker) navigator.serviceWorker.register = async () => undefined; }
+      catch { /* Opaque documents cannot access the Service Worker container. */ }
+    });
     const calls = [], errors = [], unexpected = [], gates = new Map(), waiting = new Set();
     const now = Date.now();
     const allHistory = Array.from({ length: 240 }, (_, index) => ({ id: `history-${index}`, role: index % 2 ? 'assistant' : 'user',

@@ -7,6 +7,7 @@ import type { MessageFileReference } from "./conversationFeed";
 import { checkMachineResponse, currentMachineId, machineApiPath, requireMachine, type MachineId } from "./machineScope";
 import TextFilePreview from "./TextFilePreview";
 import { messageFileTextFormat, textFileTooLarge } from "./messageFileText";
+import { decodeHtmlPreviewPayload, maxHtmlPreviewResponseBytes, type HtmlFileData } from "./htmlPreviewPayload";
 import { safeMessageFile } from "./messageFileReference";
 import MessageVideo from "./MessageVideo";
 import { clientVersionHeaders } from "./clientVersion";
@@ -17,7 +18,7 @@ export const maxMessageFileBytes = 20 * 1024 * 1024;
 const tooLarge = "文件超过20 MiB，请在电脑上查看。";
 
 export async function fetchMessageFile(file: MessageFileReference, threadId: string, options: {
-  machine?: MachineId | null; signal?: AbortSignal; request?: typeof fetch; maxBytes?: number;
+  machine?: MachineId | null; signal?: AbortSignal; request?: typeof fetch; maxBytes?: number; htmlPreview?: boolean;
 } = {}) {
   const registered = safeMessageFile(file, threadId);
   if (!registered) throw new Error("文件保存在电脑上");
@@ -25,17 +26,17 @@ export async function fetchMessageFile(file: MessageFileReference, threadId: str
   const limit = Number.isSafeInteger(options.maxBytes) && options.maxBytes! > 0
     ? Math.min(options.maxBytes!, maxMessageFileBytes) : maxMessageFileBytes;
   const sizeError = limit < maxMessageFileBytes ? textFileTooLarge : tooLarge;
-  const response = await (options.request ?? fetch)(machineApiPath(registered.url, machine), {
+  const response = await (options.request ?? fetch)(machineApiPath(registered.url + (options.htmlPreview ? "/preview" : ""), machine), {
     method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal: options.signal,
     headers: clientVersionHeaders(),
   });
   checkMachineResponse(response, machine);
   if (!response.ok) {
-    if (response.status === 401) throw new Error("登录已过期，请重新登录后重试。");
-    if (response.status === 404 || response.status === 410) throw new Error("文件已移动或无法读取，请在电脑上查看。");
-    if (response.status === 409) throw new Error("文件已更新，请刷新会话后重试。");
-    if (response.status === 413) throw new Error(tooLarge);
-    throw new Error("文件读取未完成，请稍后重试。");
+    const message = response.status === 401 ? "登录已过期，请重新登录后重试。"
+      : response.status === 404 || response.status === 410 ? "文件已移动或无法读取，请在电脑上查看。"
+      : response.status === 409 ? "文件已更新，请刷新会话后重试。"
+      : response.status === 413 ? options.htmlPreview ? textFileTooLarge : tooLarge : "文件读取未完成，请稍后重试。";
+    throw Object.assign(new Error(message), { status: response.status });
   }
   const length = response.headers.get("Content-Length");
   if (length && /^\d+$/.test(length) && Number(length) > limit) {
@@ -65,6 +66,25 @@ export async function fetchMessageFile(file: MessageFileReference, threadId: str
     await reader.cancel().catch(() => {});
     throw error;
   } finally { reader.releaseLock(); }
+}
+
+export async function fetchMessageHtmlPreview(file: MessageFileReference, threadId: string, options: {
+  machine: MachineId; signal: AbortSignal; request?: typeof fetch;
+}): Promise<HtmlFileData> {
+  let response: Blob;
+  try {
+    response = await fetchMessageFile(file, threadId, { ...options, htmlPreview: true, maxBytes: maxHtmlPreviewResponseBytes });
+  } catch (failure) {
+    if (![404, 405, 413, 415].includes((failure as Error & { status?: number }).status ?? 0)) throw failure;
+    // Older Macs can still show the document. They do not gain a new asset/path reader.
+    const blob = await fetchMessageFile(file, threadId, { ...options, maxBytes: 1024 * 1024 });
+    return { blob, images: Object.create(null), omittedImages: 0, imagesAvailable: false };
+  }
+  options.signal.throwIfAborted();
+  let data: unknown;
+  try { data = JSON.parse(await response.text()); } catch { throw new Error("HTML 预览读取未完成，请重试或下载原文件。"); }
+  options.signal.throwIfAborted();
+  return decodeHtmlPreviewPayload(data, file.name);
 }
 
 export function saveMessageFile(blob: Blob, name: string) {
@@ -133,6 +153,7 @@ function MessageDocument({ file, threadId }: { file: MessageFileReference; threa
     </button>
     {error && <span className="message-file-error" role="alert">{t(error)}</span>}
     {preview && <TextFilePreview key={`${preview.machine}/${threadId}/${registered.url}/${registered.name}`} file={registered} threadId={threadId} machine={preview.machine} opener={preview.opener}
-      onClose={() => setPreview(null)} readFile={fetchMessageFile} download={blob => void download(blob)} downloading={pending} downloadError={error} />}
+      onClose={() => setPreview(null)} readFile={fetchMessageFile} readHtmlPreview={fetchMessageHtmlPreview}
+      download={blob => void download(blob)} downloading={pending} downloadError={error} />}
   </span>;
 }

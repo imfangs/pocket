@@ -4,7 +4,7 @@ Pocket's original source is licensed under [MIT](LICENSE). Dependencies, vendore
 
 ## Distribution inventory
 
-[THIRD_PARTY_DEPENDENCIES.json](THIRD_PARTY_DEPENDENCIES.json) records all 435 dependency paths in the current lockfile, including exact versions, public archive locations, integrity values, declared licenses and available license-text evidence. Other-platform packages and development tools are identified separately. SPDX declarations are inventory information, rather than a claim that every source, data or binary obligation has been professionally audited.
+[THIRD_PARTY_DEPENDENCIES.json](THIRD_PARTY_DEPENDENCIES.json) records all 437 dependency paths in the current lockfile, including exact versions, public archive locations, integrity values, declared licenses and available license-text evidence. Other-platform packages and development tools are identified separately. SPDX declarations are inventory information, rather than a claim that every source, data or binary obligation has been professionally audited.
 
 [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) preserves the original license and copyright texts collected from an isolated installation of the exact published archives, the repository's retained license files, and immutable upstream license references. Identical texts are shared by hash while all associated package names and versions remain listed.
 
@@ -18,6 +18,7 @@ The published archive of `react-remove-scroll-bar@2.3.8` declares MIT but does n
 | --- | --- |
 | Pele | Fixed upstream source and local renderer package; [source/provenance/rebuild](vendor/pele/README.md), [MIT and included Lucide ISC notice](vendor/pele/LICENSE), and [public license copy](public/pele-LICENSE.txt) |
 | Radix Themes | Shared interface components; [MIT text](public/radix-themes-LICENSE.txt) |
+| HTML preview parser | parse5 8.0.0 MIT and entities 6.0.1 BSD-2-Clause; [retained original texts](public/html-preview-notices.txt) |
 | IDB | Browser reading/feedback storage; [ISC text](public/idb-LICENSE.txt) |
 | i18next | Local interface translation; [MIT text](public/i18next-license.txt) |
 | Feedback dependencies | Annotorious BSD, Modern Screenshot MIT, IDB ISC and Standard Webhooks MIT; [detailed notices and exact sources](packages/feedback-kit/THIRD_PARTY_NOTICES.md) |

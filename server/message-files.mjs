@@ -5,6 +5,7 @@ import { basename, isAbsolute, resolve, sep } from 'node:path';
 import { referencedMessageFiles } from '../shared/codex-directives.mjs';
 import { AppError } from './store.mjs';
 import { MAX_MESSAGE_VIDEO_BYTES, openMessageVideoStream } from './message-video-stream.mjs';
+import { createHtmlPreview, HTML_PREVIEW_LIMITS } from './html-preview.mjs';
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_CHARS = 128 * 1024;
@@ -24,6 +25,7 @@ export class MessageFiles {
     this.entries = new Map();
     this.parsed = new Map();
     this.activeVideoStreams = 0;
+    this.activeHtmlPreviews = 0;
   }
   attach(thread, history) {
     const root = typeof thread?.cwd === 'string' && isAbsolute(thread.cwd) ? resolve(thread.cwd) : null;
@@ -95,6 +97,20 @@ export class MessageFiles {
       if (error instanceof AppError || error?.name === 'AbortError') throw error;
       throw new AppError('视频暂时无法读取', 404);
     } finally { if (!transferred) await file?.close().catch(() => {}); }
+  }
+  async readHtmlPreview(thread, key, { signal } = {}) {
+    const entry = this.reference(thread, key);
+    if (this.activeHtmlPreviews >= HTML_PREVIEW_LIMITS.concurrent) throw new AppError('同时预览的文件过多，请稍后重试。', 503);
+    const timeout = AbortSignal.timeout(HTML_PREVIEW_LIMITS.timeoutMs);
+    const current = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    this.activeHtmlPreviews++;
+    try {
+      return await createHtmlPreview({ entry, openFile: this.openFile, signal: current,
+        validateReference: () => this.reference(thread, key) });
+    } catch (failure) {
+      if (current.aborted && current.reason?.name === 'TimeoutError') throw new AppError('读取较慢，请重试。', 504);
+      throw failure;
+    } finally { this.activeHtmlPreviews--; }
   }
   async read(thread, key) {
     const entry = this.reference(thread, key);

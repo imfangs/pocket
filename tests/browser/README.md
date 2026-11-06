@@ -44,3 +44,5 @@ External requests and unknown APIs fail the suite. Service workers are disabled;
 Seven fast infrastructure tests also protect header matching, setup/cleanup failures, stale-result replacement, failed builds, command startup and interruption. They use temporary directories and fake browser/command adapters, with no native conversation actions. Runs sharing the default output directory should be sequential; use separate `POCKET_BROWSER_OUTPUT` paths for separate builds.
 
 This is intentionally separate from `npm test`: ordinary domain/protocol tests remain fast and do not require browser installation. Keep detailed domain edge cases in those tests; add a browser flow when DOM identity, focus, geometry or user intent is the behavior being protected.
+
+HTML file preview regression adds static page/source switching, approved embedded images, original-byte download, isolation and local rrweb privacy verification. Only these iframe scenarios use `safeFrameServiceWorkers`: a guarded register stub blocks actual Service Workers without Playwright's opaque-frame getter error. Ordinary scenarios keep the original block policy; no browser exception is suppressed.
