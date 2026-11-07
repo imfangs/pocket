@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-08。通知标题/点击入口、筛选均匀留白与heartbeat尾段已实现，155浏览器/设施与两路独立CR通过；两机API已更新fc86637，共享网页待发布。既有私有数据、订阅、队列和原Codex/connector保持；切换后新增业务与访问时间变化按观测记录，不恢复旧数据。HTML交互预览及既有体验保持。完整2122测试中2120通过，2项旧原生取消归档范围失败仍列待续。未公开源码或改写脱敏历史。准确发布身份见版本表。
+维护日期：2026-11-08。通知显示当前会话名并直接进入对应会话，登录/弱网目标恢复已完善；筛选行均匀留白与普通回复末尾heartbeat投影已上线。两机API源fc86637，公网前端发布源54a9f87、buildf9ac7165，38/38资源/功能及独立回读通过；155浏览器/设施与两路CR通过。切换窗口原私有数据、订阅、队列和Codex/connector保持；切换后的新增业务/访问状态按观测保留，不恢复旧数据或推定发起方。HTML交互预览与既有体验保持。完整2122中2120通过，2项旧原生取消归档范围失败仍列待续。未公开源码或改写脱敏历史，无未决上传。
 
 ## 下一次先看
 
-- **11-08三项改动待最终发布。** 通知使用当前会话名字，正确machine/thread进入、登录/弱网恢复和新选择优先见[通知契约](docs/NOTIFICATIONS.md)；四控件均匀留白/440px上限及361–389英文适配见[筛选同排](docs/design/2026-11-05-filter-sort-row.md#2026-11-08均匀留白)；普通回复末尾的heartbeat严格投影见[结构化展示](docs/design/2026-11-05-structured-message-presentation.md#2026-11-08普通回复末尾的heartbeat结果)。候选build`f9ac7165…`编译、55定向及完整2122中2120通过，2项既有原生取消归档范围失败、无跳过；432几何/16归档隐藏、32heartbeat/实际SSR、37通知纯测/20入口通过。最终整包155浏览器/设施与两路独立CR通过，两机API已单次切换为fc86637/f9ac，公网及隔离/独立保全通过；共享网页尚未上传，下方版本表区分API与公网前端。证据`.local/qa/filter-spacing-2026-11-08/`、`heartbeat-render-2026-11-08/`、`notification-entry-2026-11-08/`；公开历史副本保持，未做真实QA通知或控制。
+- **通知入口、均匀留白和heartbeat尾段已上线（2026-11-08）。** [通知](docs/NOTIFICATIONS.md)：最新会话名、正确machine/thread、已知先进入/未知弱网重试、401/StrictMode/禁存储恢复、新选择优先且不重载旧草稿；独立5项入口问题闭合，37纯测/20浏览器通过。[筛选行](docs/design/2026-11-05-filter-sort-row.md#2026-11-08均匀留白)：space-between/440px上限、361–389英文适配，432几何/16单排序通过，图标/完整标签/计数/44px保持。[结构化尾段](docs/design/2026-11-05-structured-message-presentation.md#2026-11-08普通回复末尾的heartbeat结果)：严格完整顶层终端结果，single-line paragraph/multiline html共用schema，正文/独有结果/图片链接保留，代码示例及raw/id/role/权限保持；32定向/19独立/实际两消息SSR/原8浏览器通过。根最终55定向、155浏览器设施、两路独立CR及私有profile构建通过；完整2122中2120通过，2项既有原生恢复范围失败无跳过。功能/两机API源fc86637、PID73369/53703，各一次stop/up；保留凭据/scope/原队列订阅和Codex/connector，9e7回退/依赖保留。前端发布源54a9f87、buildf9ac7165、Pages332333cd…单次上传exit0/ready、38/38资源/功能与独立公网version/profile/SW一致，双机health200/匿名catalog401。OAuth单次续期原28scope保持/targetGET200，无待重试操作。真实iPhone/APNs未测试；没有QA实际发送/owner/重放或公开源码。三份私有QA入口见下方证据。
 
 - **HTML交互预览已上线（2026-11-07）。** 用户明确认为自用附件默认禁JS过保守，[新契约](docs/design/2026-11-07-interactive-html-preview.md)：默认原脚本/事件/表单及普通HTTPS资源，独立HTTP shell/opaque iframe、不放宽Pocket主CSP或API/Mac权限；原件、同frame/草稿/隐私保持，source/origin/nonce一次交付与Escape归属验证。20项交互双浏览器、67定向、新版实际选集搜索21→1→21/图片21及独立CR通过；完整2103中2101通过、2项旧原生取消归档范围失败。最终build`cbb95494…`，整包133项全部通过；发布源05b63d0、Pages11a05a8f…单次上传exit0，38/38资源/原功能及独立公网version/profile/shell唯一策略一致。OAuth过期后单次续期、原28scope保持、targetGET200，无未决操作。只共享网页/Worker发布，Mac API保持9e7be97且不重启；Node源码精确shell路由已补并port0验证，当前两机旧内置页面仍是静态b528。证据`.local/qa/html-interactive-2026-11-07/`。
 
@@ -144,15 +144,15 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `05b63d056bd70fd773b524e4049d15d34efa47dd`；默认交互HTML/普通HTTPS资源，独立shell/opaque iframe，原私件/图片/原件权限保持 |
+| 公网前端/网关源码 | `54a9f876359b5d5fc53a25cb2bdb99bbde7f22e5`；通知进入/会话名、均匀筛选行、heartbeat尾段；HTML交互/原私件权限保持 |
 | 两机API源码 | `fc86637f601cc2e7024c5b80eae9250322341139`；11-08本机PID73369、豌豆53703，connector12894/4528与Codex未重启；回退/依赖基线9e7保留，后续运行须重查 |
-| 前端build | 共享公网仍 `cbb95494377cb121efeeef015913dea25abe043880553447afe91828339bf8b2`；两机API内置与本地dist已为 `f9ac71658b5178b263f2e56e70ef5fbf1f96a43c8df88bcd83242749e14ab7a5`，共享网页发布待续 |
-| Pages部署 | `11a05a8f-689b-41da-af38-b64712486934`；11-07 ready=true，38/38资源/原功能与独立公网version/profile/shell policy一致，上传一次 |
-| 本次验证 | 133浏览器/设施、20交互/67定向、实际选集2浏览器与独立CR通过；完整2103中2101通过、2项旧原生恢复范围失败，无跳过 |
-| 本次证据 | `.local/qa/html-interactive-2026-11-07/`：`verification.json`、`release-verification.json`、`runtime/review.md`、`browser/`、`browser-qa/`、`actual-render.json`、构建/全测日志；两机API保全仍回html-preview-2026-11-07/api-deploy/ |
-| 本次数据与运行 | 仅共享网页/Worker更新；Mac API9e7be97与Codex/connector未重启、未调用实际控制或发送接口。原28scope单次续期保持，无未决操作 |
+| 前端build | 共享公网、本地dist与两机API内置均 `f9ac71658b5178b263f2e56e70ef5fbf1f96a43c8df88bcd83242749e14ab7a5`；手机网页双机profile保持 |
+| Pages部署 | `332333cd-fde5-4e23-83ee-caa55e2db626`；11-08 ready=true，单次上传exit0，38/38公开资源/原功能与独立公网version/profile/SW一致 |
+| 本次验证 | 155浏览器/设施、55定向、432筛选几何/16单排序、32heartbeat/实际SSR/19独立、37通知/20入口、两路CR通过；两机各98隔离/6port0，恢复11+6；完整2122中2120过、2项旧原生恢复范围失败无跳过 |
+| 本次证据 | `.local/qa/filter-spacing-2026-11-08/` 的 `verification-final.json`、`release-verification.json`、整包/全测；`heartbeat-render-2026-11-08/` 的SSR/最终CR；`notification-entry-2026-11-08/api-deploy/` 的切换/独立保全/公网/清理，三目录均属私有证据 |
+| 本次数据与运行 | 两机API各一次切换，原凭据/VAPID/scope/policy/metadata/队列订阅和Codex/connector保全；Ged后续新增3dispatch/1create及last_opened变化为观察，不归属用户或部署；不回退数据/重放。原28scope单次续期，无未决 |
 
-上述`11a05a8f…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
+上述`332333cd…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
 ## 必须保持的产品决定
 
