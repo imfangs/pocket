@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-07。HTML静态页面与本地嵌图预览已上线，两机API与网页同源，真实选集21张图/原件均验证；保留源码和下载、原权限与数据。整体界面精修保持：重命名错误去重、英文关闭确认间距、小屏输入动作边界、文件预览标题空间与排序菜单图标。中英单排筛选、统一结构化消息、消息区焦点、居中运行三点、双机与阅读/发送保护保持。完整回归有两项原生取消归档范围差异，明确列为待续；前端发布已验证，无未决上传或认证。源码仍未公开，368提交的脱敏历史副本保持原固定边界。准确发布身份见版本表。
+维护日期：2026-11-07。HTML默认交互预览已上线：原脚本、事件、搜索筛选及HTTPS资源可用，独立HTTP shell/opaque iframe保留基础隔离；真实选集21张图/原件和JS筛选均验证。Mac API保持既有9e7be97，没有为本轮重启；保留源码和下载、原权限与数据。整体界面精修保持：重命名错误去重、英文关闭确认间距、小屏输入动作边界、文件预览标题空间与排序菜单图标。中英单排筛选、统一结构化消息、消息区焦点、居中运行三点、双机与阅读/发送保护保持。完整回归有两项原生取消归档范围差异，明确列为待续；前端发布已验证，无未决上传或认证。源码仍未公开，368提交的脱敏历史副本保持原固定边界。准确发布身份见版本表。
 
 ## 下一次先看
 
-- **HTML交互预览已实现并验证，待网页发布（2026-11-07）。** 用户明确认为自用附件默认禁JS过保守，[新契约](docs/design/2026-11-07-interactive-html-preview.md)：默认原脚本/事件/表单及普通HTTPS资源，独立HTTP shell/opaque iframe、不放宽Pocket主CSP或API/Mac权限；原件、同frame/草稿/隐私保持，source/origin/nonce一次交付与Escape归属验证。20项交互双浏览器、67定向、新版实际选集搜索21→1→21/图片21及独立CR通过；完整2103中2101通过、2项旧原生取消归档范围失败。最终build`cbb95494…`，整包133项全部通过；不宣称已上线。只共享网页/Worker发布，Mac API保持9e7be97且不重启；Node源码精确shell路由已补并port0验证，当前两机旧内置页面仍是静态b528。证据`.local/qa/html-interactive-2026-11-07/`。
+- **HTML交互预览已上线（2026-11-07）。** 用户明确认为自用附件默认禁JS过保守，[新契约](docs/design/2026-11-07-interactive-html-preview.md)：默认原脚本/事件/表单及普通HTTPS资源，独立HTTP shell/opaque iframe、不放宽Pocket主CSP或API/Mac权限；原件、同frame/草稿/隐私保持，source/origin/nonce一次交付与Escape归属验证。20项交互双浏览器、67定向、新版实际选集搜索21→1→21/图片21及独立CR通过；完整2103中2101通过、2项旧原生取消归档范围失败。最终build`cbb95494…`，整包133项全部通过；发布源05b63d0、Pages11a05a8f…单次上传exit0，38/38资源/原功能及独立公网version/profile/shell唯一策略一致。OAuth过期后单次续期、原28scope保持、targetGET200，无未决操作。只共享网页/Worker发布，Mac API保持9e7be97且不重启；Node源码精确shell路由已补并port0验证，当前两机旧内置页面仍是静态b528。证据`.local/qa/html-interactive-2026-11-07/`。
 
 - **HTML文件预览已上线（2026-11-07）。** [契约](docs/design/2026-11-07-html-file-preview.md)：默认静态页面/源码切换，认证原cap+文档子目录栅格嵌图，FD/预算/opaque iframe/CSP与rrweb保护、原件下载保持；实际选集双浏览器21/21图片与原样式通过，8张jpg实际PNG兼容。最终Pages构建`b52851cf…`、131浏览器/设施与最后18项新版复验及专项通过；完整2090项2088过、2项既有原生取消归档范围失败，不能报全绿。两机API源`9e7be97`（功能18ab924）、本机PID57219/豌豆81869；两机各一次stop/up，原凭据/登录/scope/policy/metadata/保护记录/Codex/connector保持，Ged两条dispatch queued身份/状态保持、Wandou0，无切换窗口API账本业务发送变化。Ged真实目标会话只GET签发→preview21/0及原download相同SHA，未打开owner。Pages`ecdaad84…`单次上传exit0、36/36资源/原功能/独立公网version和双机profile一致；原OAuth仍有效、targetGET200，不续期/轮换。公网两机health200、新preview匿名401；无可用公网用户session，未把仅loopback localToken外发，不宣称该层fresh登录/私件auth GET通过。证据`.local/qa/html-preview-2026-11-07/`，无未决外部操作。
 
@@ -140,15 +140,15 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `9e7be97e7c21a2c048cfe0eadf891f310d58b62d`（HTML功能18ab924）；静态页面/本地嵌图/源码与原件，原筛选/消息/焦点/双机profile保持 |
+| 公网前端/网关源码 | `05b63d056bd70fd773b524e4049d15d34efa47dd`；默认交互HTML/普通HTTPS资源，独立shell/opaque iframe，原私件/图片/原件权限保持 |
 | 两机API源码 | `9e7be97e7c21a2c048cfe0eadf891f310d58b62d`；11-07本机PID57219、豌豆81869，后续运行须重查。不可变release/旧da53回退、数据保全和真实HTML只读均完成 |
-| 前端build | 公网、dist与两机内置前端`b52851cfd9d5662e4aac224782a1069da56ee71bb14d9058f2a6cbaf2a4121c1`；共享网页ged/wandou profile，豌豆内置bootstrap保留自身单机配置 |
-| Pages部署 | `ecdaad84-3cd7-4411-b515-493723651d08`；11-07 ready=true，36/36资源/原功能及独立version/profile一致，上传一次 |
-| 本次验证 | 131浏览器/设施、最终18HTML/2真实样本、独立CR与两机inactive/运行保全通过；完整2090中2088通过、2项旧原生恢复范围失败，无跳过，差异保持待续 |
-| 本次证据 | `.local/qa/html-preview-2026-11-07/`：`verification.json`、`public-verification.json`、`api-deploy/`、`actual-render.json`、`final-review.md`、`browser/`、构建/全测日志 |
-| 本次数据与运行 | 网页/Worker和两机API更新，原Codex/connector未重启；无主动QA发送，切换窗口账本/队列保持。原OAuth有效未续期、无未决操作 |
+| 前端build | 共享公网与dist `cbb95494377cb121efeeef015913dea25abe043880553447afe91828339bf8b2`；两机旧API内置页面仍为静态`b52851cf…`，本轮未切换；手机共享网页支持两机 |
+| Pages部署 | `11a05a8f-689b-41da-af38-b64712486934`；11-07 ready=true，38/38资源/原功能与独立公网version/profile/shell policy一致，上传一次 |
+| 本次验证 | 133浏览器/设施、20交互/67定向、实际选集2浏览器与独立CR通过；完整2103中2101通过、2项旧原生恢复范围失败，无跳过 |
+| 本次证据 | `.local/qa/html-interactive-2026-11-07/`：`verification.json`、`release-verification.json`、`runtime/review.md`、`browser/`、`browser-qa/`、`actual-render.json`、构建/全测日志；两机API保全仍回html-preview-2026-11-07/api-deploy/ |
+| 本次数据与运行 | 仅共享网页/Worker更新；Mac API9e7be97与Codex/connector未重启、未调用实际控制或发送接口。原28scope单次续期保持，无未决操作 |
 
-上述`ecdaad84…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
+上述`11a05a8f…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
 ## 必须保持的产品决定
 
