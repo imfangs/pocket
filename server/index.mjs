@@ -30,6 +30,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { isMain } from "../bin/is-main.mjs";
 import { readDeploymentConfig, normalizeDeploymentConfig, readClientProfile } from "./deployment-config.mjs";
 import { normalizeClientConfig, serializeClientConfig } from "../shared/client-config.mjs";
+import { htmlPreviewShellPath, htmlPreviewShellAlias, interactiveHtmlPolicy } from "../shared/html-runtime-policy.mjs";
 
 const exec = promisify(execFile);
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -684,13 +685,19 @@ export function makeApp(options = {}) {
       if (path.startsWith("/api/")) throw new AppError("接口不存在", 404);
       if (method !== "GET" && method !== "HEAD")
         throw new AppError("不支持的方法", 405);
-      let file = resolve(dist, "." + decodeURIComponent(path));
+      const isHtmlPreviewShell = [htmlPreviewShellPath, htmlPreviewShellAlias].includes(path);
+      if (isHtmlPreviewShell && url.search) throw new AppError("页面预览参数无效", 400);
+      let file = isHtmlPreviewShell ? join(dist, htmlPreviewShellPath.slice(1)) : resolve(dist, "." + decodeURIComponent(path));
       if (!file.startsWith(dist + "/") && file !== dist)
         throw new AppError("无效路径", 403);
-      if (path === "/" || !extname(path)) file = join(dist, "index.html");
+      if (!isHtmlPreviewShell && (path === "/" || !extname(path))) file = join(dist, "index.html");
       if (!existsSync(file))
         throw new AppError("页面不存在，请先构建项目", 404);
       const content = readFileSync(file);
+      if (isHtmlPreviewShell) {
+        res.setHeader("Content-Security-Policy", interactiveHtmlPolicy);
+        res.removeHeader("X-Frame-Options");
+      }
       if (path === "/sw.js") res.setHeader("Service-Worker-Allowed", "/");
       res.writeHead(200, {
         "Content-Type": mime[extname(file)] || "application/octet-stream",

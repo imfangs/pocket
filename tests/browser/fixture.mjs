@@ -4,6 +4,8 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { chromium, webkit } from 'playwright';
 import { parseStaticHeaders } from './headers.mjs';
+import pocketWorker from '../../edge/worker.mjs';
+import { htmlPreviewShellPath, htmlPreviewRuntimePath } from '../../shared/html-runtime-policy.mjs';
 import clientProfile from '../fixtures/client-profile.json' with { type: 'json' };
 import { serializeClientConfig } from '../../shared/client-config.mjs';
 
@@ -97,6 +99,18 @@ export async function createHarness(engine, { history = false, width = 390, visi
         try {
           const file = realpathSync(resolve(dist, '.' + decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)));
           if (!file.startsWith(dist + sep)) return fail('Asset escaped test build');
+          if (url.pathname === htmlPreviewShellPath || url.pathname === htmlPreviewRuntimePath) {
+            // Pages' Worker replaces the normal shell CSP on these exact
+            // public assets. Exercise that same implementation; combining
+            // _headers policies would silently block the guest's own scripts.
+            const response = await pocketWorker.fetch(new Request(request.url(), {
+              method: request.method(), headers: request.headers(),
+            }), { ASSETS: { fetch: async () => new Response(readFileSync(file), {
+              status: 200, headers: { ...headersFor(url.pathname), 'content-type': mime[extname(file)] || 'application/octet-stream' },
+            }) } });
+            return await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers),
+              body: Buffer.from(await response.arrayBuffer()) });
+          }
           return await route.fulfill({ status: 200, contentType: mime[extname(file)] || 'application/octet-stream',
             headers: headersFor(url.pathname), body: readFileSync(file) });
         } catch (error) { if (!closed) return fail(`Missing build asset: ${url.pathname}: ${error.code || error.message}`); return; }

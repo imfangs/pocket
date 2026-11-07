@@ -1,3 +1,5 @@
+import { htmlPreviewShellPath, htmlPreviewShellAlias, interactiveHtmlPolicy } from "../shared/html-runtime-policy.mjs";
+
 const defaultMachine = "local";
 const publicEntryOrigin = null;
 const validMachine = (id) => typeof id === "string" && /^[a-z][a-z0-9-]{0,31}$/.test(id);
@@ -145,9 +147,38 @@ async function registerConnection(request, env, url) {
   }
 }
 
+export async function serveHtmlPreviewShell(request, env) {
+  const url = new URL(request.url);
+  if (!["GET", "HEAD"].includes(request.method))
+    return new Response(null, { status: 405, headers: { Allow: "GET, HEAD", "Cache-Control": "no-store" } });
+  if (url.search) return new Response(null, { status: 400, headers: { "Cache-Control": "no-store" } });
+  let response = await env.ASSETS.fetch(request);
+  // Pages may canonicalize .html to an extensionless URL. Follow only this
+  // same-origin shell alias inside the Worker, retaining the isolated policy.
+  if ([301, 302, 307, 308].includes(response.status)) {
+    const target = new URL(response.headers.get("Location") || "", url);
+    if (target.origin !== url.origin || target.pathname !== htmlPreviewShellAlias || target.search || target.hash)
+      return new Response(null, { status: 502, headers: { "Cache-Control": "no-store" } });
+    response = await env.ASSETS.fetch(new Request(target, { method: request.method }));
+  }
+  const headers = new Headers(response.headers);
+  // Setting replaces the global _headers policy: appending would intersect it
+  // with script-src 'self' and prevent the preview's inline scripts.
+  headers.set("Content-Security-Policy", interactiveHtmlPolicy);
+  headers.delete("Content-Security-Policy-Report-Only");
+  headers.delete("X-Frame-Options");
+  headers.set("Cache-Control", "no-store");
+  headers.set("Referrer-Policy", "no-referrer");
+  headers.set("X-Content-Type-Options", "nosniff");
+  return new Response(request.method === "HEAD" ? null : response.body, {
+    status: response.status, statusText: response.statusText, headers,
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if ([htmlPreviewShellPath, htmlPreviewShellAlias].includes(url.pathname)) return serveHtmlPreviewShell(request, env);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
     const explicit = url.pathname === "/api/machines" || url.pathname.startsWith("/api/machines/");
     const route = explicit ? url.pathname.match(/^\/api\/machines\/([^/]+)(\/.*)$/) : null;

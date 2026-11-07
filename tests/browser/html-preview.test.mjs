@@ -4,6 +4,8 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHarness, engines, ids } from './fixture.mjs';
 import { runScenario } from './scenario.mjs';
+import pocketWorker from '../../edge/worker.mjs';
+import { htmlPreviewSandbox, htmlPreviewShellPath, interactiveHtmlPolicy } from '../../shared/html-runtime-policy.mjs';
 
 const results = [];
 after(() => {
@@ -22,7 +24,19 @@ const regularHtml = `<!doctype html><html lang="zh-CN" data-theme="authored"><he
 <style>body{margin:0;color:#123456;background:#eef2ff;font:16px/1.5 system-ui}article{padding:20px}h1{font-size:24px}img{display:block}#spacer{height:1400px}</style></head>
 <body class="authored-page"><article><h1>Rendered synthetic heading</h1><img id="approved" src="${imagePath}" alt="Approved synthetic image" width="1" height="1">
 <details><summary>Native details</summary><p>Native details still work.</p></details><a id="fragment" href="#last">Read the footer</a>
-<div id="spacer"></div><p id="last">Synthetic footer</p></article></body></html>`;
+<select id="category" onchange="applyFilters()"><option value="all">All</option><option value="work">Work</option><option value="hobby">Hobby</option></select>
+<input id="search" placeholder="Search synthetic cards"><p id="count"></p><section id="cards">
+<p data-category="work" data-search="alpha">Alpha</p><p data-category="work" data-search="beta">Beta</p><p data-category="hobby" data-search="chess">Chess</p></section>
+<button id="inline-event" onclick="this.dataset.clicks=String(Number(this.dataset.clicks||0)+1)">Inline event</button>
+<input id="escape-guard" aria-label="Author handled Escape"><p id="escape-result"></p>
+<button id="open-native-dialog" onclick="document.querySelector('#own-dialog').showModal()">Open guest dialog</button>
+<dialog id="own-dialog"><p>Guest native dialog</p><button onclick="this.closest('dialog').close()">Close guest dialog</button></dialog>
+<div id="spacer"></div><p id="last">Synthetic footer</p></article><script>
+window.previewBootCount=(window.previewBootCount||0)+1;
+function applyFilters(){let n=0;const group=document.querySelector('#category').value,q=document.querySelector('#search').value.trim().toLowerCase();for(const card of document.querySelectorAll('#cards p')){card.hidden=!((group==='all'||card.dataset.category===group)&&card.dataset.search.includes(q));if(!card.hidden)n++}document.querySelector('#count').textContent=String(n)}
+document.querySelector('#search').addEventListener('input',applyFilters);applyFilters();document.body.dataset.started='yes';
+window.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.target.id==='escape-guard'){event.preventDefault();document.querySelector('#escape-result').textContent='Consumed by author'}});
+</script></body></html>`;
 
 function flow(engine, locale, width, title, run) {
   test(`${engine}: ${locale} ${width}px ${title}`, { timeout: 30000 }, () => runScenario({ engine, name: `${locale} ${width}px ${title}`,
@@ -35,7 +49,14 @@ async function installFile(h, source, { previewStatus = () => 200, payload, orig
   const path = '/synthetic/' + name, file = { url: `/api/tasks/${ids.regular}/files/${key}`, name };
   h.patchHistory(ids.regular, { messages: [{ id: 'html-file', role: 'assistant', phase: 'final', turnId: 'initial', timestamp: Date.now(),
     text: `[Synthetic HTML document](<${path}>)`, files: { [path]: file } }] });
-  const page = await h.open(), requests = [];
+  const page = await h.open(), requests = [], shellRequests = [], shellResponses = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname === htmlPreviewShellPath) shellRequests.push({ method: request.method(), hash: url.hash, query: url.search, data: request.postData() });
+  });
+  page.on('response', response => {
+    if (new URL(response.url()).pathname === htmlPreviewShellPath) shellResponses.push(response.headers()['content-security-policy']);
+  });
   assert.equal(await page.evaluate(async () => {
     const worker = navigator.serviceWorker;
     await worker.register('/synthetic-should-never-register-worker.js');
@@ -57,7 +78,7 @@ async function installFile(h, source, { previewStatus = () => 200, payload, orig
     await route.fulfill({ status: 200, contentType: 'application/octet-stream',
       headers: { 'X-Pocket-Machine': new URL(page.url()).searchParams.get('machine'), 'Content-Disposition': 'attachment' }, body: original });
   });
-  return { page, file, requests, opener: page.locator('.message-file-button'), dialog: page.locator('dialog.text-file-viewer'), original };
+  return { page, file, requests, shellRequests, shellResponses, opener: page.locator('.message-file-button'), dialog: page.locator('dialog.text-file-viewer'), original };
 }
 async function captureDownloads(page) {
   await page.evaluate(() => {
@@ -93,17 +114,21 @@ async function closePreview(page, locale) {
 }
 
 for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) for (const width of [320, 390]) {
-  flow(engine, locale, width, 'HTML opens as an isolated styled page and source/download reuse the original bytes', async h => {
+  flow(engine, locale, width, 'interactive HTML filters and inline events work while source/download reuse the original bytes', async h => {
     const bytes = Buffer.from('\ufeff' + regularHtml), f = await installFile(h, regularHtml, { original: bytes });
     const input = f.page.locator('.conversation-composer textarea');
     await input.fill('Keep this unsent synthetic draft.'); await input.blur();
     await input.evaluate(element => { window.htmlPreviewDraft = element; });
     await captureDownloads(f.page); await f.opener.click();
     const iframe = await readFrame(f.page), modes = f.dialog.locator('.html-file-modes');
-    assert.equal(await iframe.getAttribute('sandbox'), '');
+    assert.equal(await iframe.getAttribute('sandbox'), htmlPreviewSandbox);
     assert.equal(await iframe.getAttribute('referrerpolicy'), 'no-referrer');
     assert.equal(await iframe.evaluate(element => element.classList.contains('ph-no-capture') && !!element.closest('.ph-no-capture')), true);
     assert.ok((await iframe.getAttribute('title')).includes(name));
+    assert.ok((await iframe.getAttribute('src')).startsWith(htmlPreviewShellPath + '#'));
+    assert.equal(await iframe.getAttribute('srcdoc'), null, 'The document travels only through the bound client-memory handshake');
+    assert.deepEqual(f.shellRequests, [{ method: 'GET', hash: '', query: '', data: null }], 'No HTML content or handshake nonce is uploaded with the public shell');
+    assert.deepEqual(f.shellResponses, [interactiveHtmlPolicy], 'The exact shell receives the actual Worker policy while Pocket keeps its own CSP');
     assert.equal(await modes.getByRole('button', { name: words[locale].preview, exact: true }).getAttribute('aria-pressed'), 'true');
     const image = frameContent(f.page).locator('#approved');
     await image.evaluate(element => element.decode());
@@ -111,6 +136,16 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) for (cons
     const styles = await frameContent(f.page).locator('body').evaluate(element => ({ color: getComputedStyle(element).color,
       background: getComputedStyle(element).backgroundColor, authored: element.className, root: element.ownerDocument.documentElement.dataset.theme }));
     assert.deepEqual(styles, { color: 'rgb(18, 52, 86)', background: 'rgb(238, 242, 255)', authored: 'authored-page', root: 'authored' });
+    await frameContent(f.page).locator('body[data-started="yes"]').waitFor();
+    assert.equal(await frameContent(f.page).locator('#count').textContent(), '3');
+    await frameContent(f.page).locator('#category').selectOption('work');
+    assert.equal(await frameContent(f.page).locator('#count').textContent(), '2');
+    await frameContent(f.page).locator('#search').fill('chess');
+    assert.equal(await frameContent(f.page).locator('#count').textContent(), '0');
+    await frameContent(f.page).locator('#category').selectOption('all');
+    assert.equal(await frameContent(f.page).locator('#count').textContent(), '1');
+    await frameContent(f.page).locator('#inline-event').click();
+    assert.equal(await frameContent(f.page).locator('#inline-event').getAttribute('data-clicks'), '1');
     await frameContent(f.page).getByText('Native details', { exact: true }).click();
     assert.equal(await frameContent(f.page).locator('details').getAttribute('open'), '');
     await iframe.evaluate(element => { window.htmlPreviewFrame = element; });
@@ -123,6 +158,9 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) for (cons
     await modes.getByRole('button', { name: words[locale].preview, exact: true }).click();
     assert.equal(await iframe.evaluate(element => element === window.htmlPreviewFrame), true);
     assert.equal(await frameContent(f.page).locator('body').evaluate(element => element.ownerDocument.defaultView.scrollY), beforeScroll);
+    assert.equal(await frameContent(f.page).locator('#search').inputValue(), 'chess');
+    assert.equal(await frameContent(f.page).locator('#count').textContent(), '1');
+    assert.equal(await frameContent(f.page).locator('body').evaluate(element => element.ownerDocument.defaultView.previewBootCount), 1);
     assert.equal(f.requests.length, 1, 'Mode changes do not reread the HTML or its image bundle');
     const switched = locale === 'zh-CN' ? 'en' : 'zh-CN', switchedWords = words[locale === 'zh-CN' ? 'en-US' : 'zh-CN'];
     await f.page.evaluate(value => {
@@ -150,58 +188,90 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) for (cons
   });
 }
 
-const hostileHtml = `<!doctype html><html><head><title>Hostile synthetic document</title><meta http-equiv="refresh" content="0;url=https://preview-attack.invalid/refresh">
-<base href="https://preview-attack.invalid/"><link rel="stylesheet" href="https://preview-attack.invalid/style"><style>@import url('https://preview-attack.invalid/import');body{background-image:url('/api/private-css')}h1{color:#123456}</style></head>
-<body onload="parent.htmlParentMarker='changed'"><h1>Rendered synthetic heading</h1><script>parent.htmlParentMarker='changed';fetch('https://preview-attack.invalid/script');top.location='https://preview-attack.invalid/top'</script>
-<img src="/api/private-image" srcset="https://preview-attack.invalid/srcset 2x" onerror="parent.htmlParentMarker='changed'">
-<iframe src="https://preview-attack.invalid/frame" srcdoc="<script>parent.alert(1)</script>"></iframe><object data="https://preview-attack.invalid/object"></object>
-<noscript><a id="noscript-attack" href="/api/private-noscript">Noscript link</a><img src="https://preview-attack.invalid/noscript"></noscript>
-<template shadowrootmode="open"><a href="/api/private-template">Template link</a><iframe src="https://preview-attack.invalid/template"></iframe></template>
-<form action="/api/private-form" method="post"><input id="fake-input" name="query"><button id="fake-submit" formaction="https://preview-attack.invalid/submit">Submit</button></form>
-<a id="external-attack" href="https://preview-attack.invalid/link" ping="https://preview-attack.invalid/ping" target="_top" download>External link</a>
-<svg width="240" height="60"><a id="smil-attack" href="#safe"><set attributeName="href" to="/api/private-smil" begin="0s"></set><text x="10" y="30">SMIL link</text></a><image href="https://preview-attack.invalid/svg-image"></image></svg>
-<details><summary>Native details</summary><p>Native details still work.</p></details><p id="safe">Safe anchor</p></body></html>`;
+const assetOrigin = 'https://html-preview-assets.test';
+const isolationHtml = `<!doctype html><html><head><title>Interactive isolation document</title>
+<link rel="stylesheet" href="${assetOrigin}/style.css"><script src="${assetOrigin}/library.js"></script></head><body>
+<h1>Rendered synthetic heading</h1><p id="remote-style">Remote CSS</p><img id="remote-image" src="${assetOrigin}/image.png" alt="Remote approved fixture image">
+<input id="editable" value="Editable"><button id="inline-button" onclick="this.dataset.clicked='yes'">Inline button</button>
+<button id="api-button" onclick="probeApi()">Try Pocket API</button><a id="top-link" href="${assetOrigin}/forbidden-top" target="_top">Try top navigation</a>
+<button id="popup-button" onclick="window.open('${assetOrigin}/popup','preview-popup')">Open normal popup</button>
+<p id="isolated-probes">Loading</p><p id="api-result">Waiting</p>
+<script>
+function attempt(run){try{return{denied:false,value:run()}}catch{return{denied:true,value:''}}}
+window.isolationProbes={parent:attempt(()=>parent.document.querySelector('#html-parent-control').textContent),cookie:attempt(()=>document.cookie),storage:attempt(()=>localStorage.getItem('html-preview-parent-storage'))};
+document.querySelector('#isolated-probes').textContent='Ready';
+async function probeApi(){try{const response=await fetch('https://pocket.test/api/tasks/${ids.regular}/name',{credentials:'include'});window.privateApiStatus=response.status;window.privateApiResult=await response.text()}catch{window.privateApiResult='blocked'}document.querySelector('#api-result').textContent='Finished'}
+</script></body></html>`;
 
 for (const engine of engines) {
-  flow(engine, 'en-US', 390, 'hostile HTML stays inert, opaque and inside its document without external or private requests', async h => {
-    const f = await installFile(h, hostileHtml, { payload: bundle(Buffer.from(hostileHtml), {}) });
-    await f.page.evaluate(() => { window.htmlParentMarker = 'intact'; });
-    const cookieSentinel = 'synthetic-parent-cookie-4ac519';
-    assert.ok((await f.page.evaluate(value => {
-      document.cookie = `htmlPreviewParent=${value}; Path=/; SameSite=Lax; Secure`;
-      return document.cookie;
-    }, cookieSentinel)).includes(cookieSentinel), 'The parent cookie must exist as a positive control');
-    const pageUrl = f.page.url(); await f.opener.click(); const iframe = await readFrame(f.page), frame = frameContent(f.page);
-    assert.equal(await frame.locator('script,base,link,iframe,object,embed,svg set,svg animate').count(), 0);
-    const policies = frame.locator('meta[http-equiv]');
-    assert.equal(await policies.count(), 1, 'Only the generated restrictive CSP may survive');
-    assert.equal((await policies.getAttribute('http-equiv')).toLowerCase(), 'content-security-policy');
-    assert.ok((await policies.getAttribute('content')).includes("script-src 'none'"));
-    assert.equal(await frame.locator('#fake-input').isDisabled(), true);
-    assert.equal(await frame.locator('#fake-submit').isDisabled(), true);
-    assert.equal(await frame.locator('#external-attack').getAttribute('href'), null);
-    assert.equal(await frame.locator('#external-attack').getAttribute('ping'), null);
-    await frame.locator('#external-attack').click();
-    await frame.locator('#smil-attack').click();
-    await frame.getByText('Native details', { exact: true }).click();
-    await f.page.waitForTimeout(150);
-    assert.equal(f.page.url(), pageUrl);
-    assert.equal(await f.page.evaluate(() => window.htmlParentMarker), 'intact');
-    assert.equal(await iframe.evaluate(element => { try { void element.contentWindow.document.body; return false; } catch { return true; } }), true,
-      'The file document cannot share the parent origin or credentials');
-    const cookie = await frame.locator('body').evaluate(element => {
-      try { return { denied: false, value: element.ownerDocument.cookie }; }
-      catch { return { denied: true, value: '' }; }
+  flow(engine, 'en-US', 390, 'ordinary inline and HTTPS resources work while the opaque guest cannot read Pocket state or API', async h => {
+    const f = await installFile(h, isolationHtml, { payload: bundle(Buffer.from(isolationHtml), {}) });
+    const assetRequests = [], apiRequests = [];
+    await f.page.context().route(assetOrigin + '/**', async route => {
+      const path = new URL(route.request().url()).pathname;
+      assert.equal(route.request().method(), 'GET'); assetRequests.push(path);
+      if (path === '/library.js') return route.fulfill({ status: 200, contentType: 'application/javascript', body: "window.cdnLibraryLoaded='yes'" });
+      if (path === '/style.css') return route.fulfill({ status: 200, contentType: 'text/css', body: '#remote-style{color:rgb(21,43,65)}' });
+      if (path === '/image.png') return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(png, 'base64') });
+      if (path === '/popup') return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><h1>Normal preview popup</h1>' });
+      if (path === '/forbidden-top') return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><h1>Converted top link popup</h1>' });
+      assert.fail('Only deliberately requested fixture resources can load: ' + path);
     });
-    assert.ok(cookie.denied || !cookie.value.includes(cookieSentinel), 'The iframe cannot read the actual parent cookie');
+    let upstreamReads = 0;
+    await f.page.route(`**/api/tasks/${ids.regular}/name`, async route => {
+      const request = route.request(), headers = await request.allHeaders();
+      apiRequests.push({ method: request.method(), origin: headers.origin, site: headers['sec-fetch-site'] });
+      const response = await pocketWorker.fetch(new Request(request.url(), { method: request.method(), headers }), {
+        NAVIGATOR_PUBLIC_ORIGIN: 'https://pocket.test', NAVIGATOR_REGISTRATION_SHA256: 'a'.repeat(64),
+        NAVIGATOR_CONNECTION: { get: async () => { upstreamReads++; assert.fail('An opaque request cannot reach the authenticated upstream'); } },
+      });
+      assert.equal(response.status, 403, 'Use the actual Worker Origin policy, not a permissive API stub');
+      await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: Buffer.from(await response.arrayBuffer()) });
+    });
+    const cookieSentinel = 'synthetic-parent-cookie-4ac519', storageSentinel = 'synthetic-parent-storage-c79a82', parentSentinel = 'synthetic-parent-document-529bc3';
+    const parentCookie = await f.page.evaluate(({ cookie, storage, parent }) => {
+      document.cookie = `htmlPreviewParent=${cookie}; Path=/; SameSite=Lax; Secure`;
+      localStorage.setItem('html-preview-parent-storage', storage);
+      const control = document.createElement('div'); control.id = 'html-parent-control'; control.textContent = parent; document.body.append(control);
+      return document.cookie;
+    }, { cookie: cookieSentinel, storage: storageSentinel, parent: parentSentinel });
+    assert.ok(parentCookie.includes(cookieSentinel), 'The parent cookie must exist as a positive control');
+    const pageUrl = f.page.url(); await f.opener.click(); const iframe = await readFrame(f.page), frame = frameContent(f.page);
+    await frame.locator('#isolated-probes').getByText('Ready', { exact: true }).waitFor();
+    assert.equal(await iframe.getAttribute('sandbox'), htmlPreviewSandbox);
+    assert.equal(await frame.locator('body').evaluate(element => element.ownerDocument.defaultView.cdnLibraryLoaded), 'yes');
+    assert.equal(await frame.locator('#remote-style').evaluate(element => getComputedStyle(element).color), 'rgb(21, 43, 65)');
+    await frame.locator('#remote-image').evaluate(element => element.decode());
+    assert.equal(await frame.locator('#remote-image').evaluate(element => element.naturalWidth), 1);
+    await frame.locator('#editable').fill('Updated in the guest');
+    assert.equal(await frame.locator('#editable').inputValue(), 'Updated in the guest');
+    await frame.locator('#inline-button').click(); assert.equal(await frame.locator('#inline-button').getAttribute('data-clicked'), 'yes');
+    const probes = await frame.locator('body').evaluate(element => element.ownerDocument.defaultView.isolationProbes);
+    assert.ok(probes.parent.denied || probes.parent.value !== parentSentinel);
+    assert.ok(probes.cookie.denied || !probes.cookie.value.includes(cookieSentinel));
+    assert.ok(probes.storage.denied || probes.storage.value !== storageSentinel);
+    assert.equal(await iframe.evaluate(element => { try { void element.contentWindow.document.body; return false; } catch { return true; } }), true);
+    await frame.locator('#api-button').click(); await frame.locator('#api-result').getByText('Finished', { exact: true }).waitFor();
+    const apiResult = await frame.locator('body').evaluate(element => ({ status: element.ownerDocument.defaultView.privateApiStatus,
+      result: element.ownerDocument.defaultView.privateApiResult }));
+    assert.ok(apiResult.result === 'blocked' || apiResult.status === 403, 'A browser may expose a rejection body, but never an authenticated API result');
+    assert.equal(apiRequests.length, 1); assert.equal(apiRequests[0].origin, 'null'); assert.equal(upstreamReads, 0);
+    assert.equal(await frame.locator('#top-link').getAttribute('target'), '_blank', 'Authored top navigation becomes an ordinary external window');
+    const convertedPromise = f.page.waitForEvent('popup'); await frame.locator('#top-link').click(); const converted = await convertedPromise;
+    try { await converted.getByRole('heading', { name: 'Converted top link popup', exact: true }).waitFor(); } finally { await converted.close(); }
+    assert.equal(f.page.url(), pageUrl);
+    const popupPromise = f.page.waitForEvent('popup'); await frame.locator('#popup-button').click(); const popup = await popupPromise;
+    try { await popup.getByRole('heading', { name: 'Normal preview popup', exact: true }).waitFor(); } finally { await popup.close(); }
+    assert.ok(assetRequests.includes('/library.js') && assetRequests.includes('/style.css') && assetRequests.includes('/image.png') && assetRequests.includes('/popup'));
+    assert.ok(assetRequests.includes('/forbidden-top'));
     assert.equal(f.requests.length, 1); assert.deepEqual(h.unexpected, []);
     await f.dialog.locator('.html-file-modes').getByRole('button', { name: 'Source', exact: true }).click();
-    assert.equal(await f.dialog.locator('.html-file-source pre').textContent(), hostileHtml);
+    assert.equal(await f.dialog.locator('.html-file-source pre').textContent(), isolationHtml);
     assert.equal(await f.dialog.locator('.html-file-source script').count(), 0);
     await closePreview(f.page, 'en-US');
   });
 
-  flow(engine, 'en-US', 1280, 'real replay snapshots block private srcdoc and source while recording a public control', async h => {
+  flow(engine, 'en-US', 1280, 'real replay snapshots block private interactive HTML and source while recording a public control', async h => {
     const sentinel = 'SYNTHETIC-PRIVATE-HTML-CONTENT-7b32e91c', source = regularHtml.replace('Rendered synthetic heading', `Rendered synthetic heading</h1><p>${sentinel}</p><h1>`);
     const f = await installFile(h, source);
     const recorder = readFileSync(new URL('../../node_modules/posthog-js/dist/rrweb.js', import.meta.url));
@@ -224,15 +294,43 @@ for (const engine of engines) {
       const snapshots = await f.page.evaluate(() => JSON.stringify(window.htmlReplayEvents));
       assert.ok(snapshots.includes('public-control-was-recorded'), 'This must be an active real recorder, not an empty mock');
       assert.ok(snapshots.includes('ph-no-capture'));
-      assert.equal(snapshots.includes(sentinel), false, 'Neither initial srcdoc attributes nor the source view may enter replay');
+      assert.equal(snapshots.includes(sentinel), false, 'Neither interactive document contents nor the source view may enter replay');
       assert.equal(snapshots.includes('sourceBase64'), false);
       assert.equal(snapshots.includes(png), false, 'Embedded private image bytes cannot enter replay');
       assert.equal(f.requests.length, 1);
     } finally { await f.page.evaluate(() => window.htmlReplayStop?.()); }
   });
 
+  flow(engine, 'en-US', 390, 'only the matching guest can close the preview and Escape restores the file entry', async h => {
+    const f = await installFile(h, regularHtml); await f.opener.click(); const iframe = await readFrame(f.page);
+    await frameContent(f.page).locator('body[data-started="yes"]').waitFor();
+    const nonce = (await iframe.getAttribute('src')).split('#')[1];
+    assert.match(nonce, /^[a-f0-9]{32}$/i);
+    await f.page.evaluate(value => window.dispatchEvent(new MessageEvent('message', {
+      origin: 'null', source: window, data: { type: 'pocket-html-preview-close', nonce: value },
+    })), nonce);
+    await frameContent(f.page).locator('body').evaluate(element => element.ownerDocument.defaultView.parent.postMessage({
+      type: 'pocket-html-preview-close', nonce: '0'.repeat(32),
+    }, 'https://pocket.test'));
+    await f.page.waitForTimeout(100); assert.equal(await f.dialog.count(), 1, 'Source and nonce mismatches cannot drive host UI');
+    const guest = frameContent(f.page);
+    await guest.locator('#escape-guard').focus(); await f.page.keyboard.press('Escape');
+    await guest.locator('#escape-result').getByText('Consumed by author', { exact: true }).waitFor();
+    await f.page.waitForTimeout(100); assert.equal(await f.dialog.count(), 1, 'An authored Escape handler keeps the host preview open');
+    await guest.locator('#open-native-dialog').click(); await guest.locator('#own-dialog[open]').waitFor();
+    await f.page.keyboard.press('Escape'); await guest.locator('#own-dialog').waitFor({ state: 'hidden' });
+    await f.page.waitForTimeout(100); assert.equal(await f.dialog.count(), 1, 'Escape closes only the guest native dialog');
+    await frameContent(f.page).locator('#inline-event').focus(); await f.page.keyboard.press('Escape');
+    await f.dialog.waitFor({ state: 'detached' });
+    await f.page.waitForFunction(() => document.activeElement?.matches('.message-file-button'));
+    assert.equal(f.requests.length, 1);
+  });
+
   flow(engine, 'zh-CN', 320, 'an older Mac falls back to the original read and still supports source and exact download', async h => {
     const f = await installFile(h, regularHtml, { previewStatus: () => 404 });
+    // Without the new bundle, a normal relative web image is absent from the
+    // public shell. Its expected 404 must not become an arbitrary file reader.
+    await f.page.route('https://pocket.test/' + imagePath, route => route.fulfill({ status: 404, contentType: 'text/plain', body: 'Synthetic unavailable web asset' }));
     await captureDownloads(f.page); await f.opener.click(); await readFrame(f.page);
     assert.deepEqual(f.requests.map(item => item.preview), [true, false]);
     assert.equal(await f.dialog.locator('.html-file-note').count(), 1);

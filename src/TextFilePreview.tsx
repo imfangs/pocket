@@ -105,7 +105,6 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
         <AppIcon icon={Eye} kind="auxiliary" />{t("预览")}</button>
       <button type="button" aria-pressed={mode === "source"} aria-controls={contentId} onClick={() => setMode("source")}>
         <AppIcon icon={Code2} kind="auxiliary" />{t("源码")}</button>
-      <small title={t("脚本和外部资源不会在预览中运行。")}>{t("静态预览")}</small>
     </div>}
     {downloadError && <p className="text-file-download-error" role="alert">{t(downloadError)}</p>}
     {htmlFile && result && mode === "preview" && (!result.imagesAvailable || result.omittedImages > 0) &&
@@ -113,7 +112,7 @@ export default function TextFilePreview({ file, threadId, machine, opener, onClo
     <div id={contentId} className={`text-file-scroll ph-no-capture ph-mask ${htmlFile ? "html-file-content" : ""}`}
       tabIndex={htmlFile ? -1 : 0} role="region" aria-label={t("文件内容")}>
       {result ? htmlFile && result.text ? <>
-          <HtmlFileContent name={file.name} source={result.text} images={result.images} hidden={mode !== "preview"} />
+          <HtmlFileContent name={file.name} source={result.text} images={result.images} hidden={mode !== "preview"} onClose={onClose} />
           <div className="html-file-source" hidden={mode !== "source"} tabIndex={mode === "source" ? 0 : -1}
             role="region" aria-label={t("HTML 源码")}><TextFileContent name={file.name} text={result.text} /></div>
         </> : <TextFileContent name={file.name} text={result.text} />

@@ -1,4 +1,5 @@
 import { parse, serialize } from 'parse5';
+import { maxInteractiveHtmlChars } from './html-runtime-policy.mjs';
 
 const htmlNamespace = 'http://www.w3.org/1999/xhtml';
 const svgNamespace = 'http://www.w3.org/2000/svg';
@@ -15,10 +16,10 @@ const removedAttributes = new Set([
 const formControls = new Set(['button', 'input', 'select', 'textarea', 'option', 'optgroup', 'fieldset']);
 const attr = (node, name) => node.attrs?.find(attribute => !attribute.namespace && attribute.name.toLowerCase() === name)?.value;
 
-function documentFor(html) {
+function documentFor(html, scriptingEnabled = false) {
   if (typeof html !== 'string') throw new TypeError('HTML preview requires text');
   // Match the no-script iframe's noscript parsing, including malformed input.
-  const document = parse(html, { scriptingEnabled: false }), pending = [{ node: document, depth: 0 }];
+  const document = parse(html, { scriptingEnabled }), pending = [{ node: document, depth: 0 }];
   let visited = 0;
   while (pending.length) {
     const { node, depth } = pending.pop();
@@ -115,4 +116,44 @@ export function renderHtmlPreview(html, images = {}) {
     childNodes: [], parentNode: head });
   document.childNodes = document.childNodes.filter(node => node.nodeName !== '#documentType');
   return '<!doctype html>\n' + serialize(document);
+}
+
+/** A normal document for the opaque HTTP preview runtime. Keep authored
+ *  scripts, events and controls; file access remains owned by the Mac reader. */
+export function renderInteractiveHtmlPreview(html, images = {}) {
+  if (!images || typeof images !== 'object' || Array.isArray(images)) throw new TypeError('HTML preview image map requires an object');
+  const document = documentFor(html, true), pending = [document];
+  while (pending.length) {
+    const parent = pending.pop(), kept = [];
+    for (const node of parent.childNodes ?? []) {
+      // The runtime supplies the preview policy. Refresh would replace this
+      // client-only document with a public shell rather than reload its file.
+      const equivalent = node.tagName === 'meta' ? attr(node, 'http-equiv')?.toLowerCase() : null;
+      if (equivalent === 'content-security-policy' || equivalent === 'refresh') continue;
+      for (const attribute of node.attrs ?? []) {
+        if (['target', 'formtarget'].includes(attribute.name.toLowerCase()) &&
+            ['_top', '_parent'].includes(attribute.value.toLowerCase())) attribute.value = '_blank';
+      }
+      if (node.namespaceURI === htmlNamespace && node.tagName === 'img') {
+        const source = attr(node, 'src');
+        const approved = source && Object.prototype.hasOwnProperty.call(images, source) ? rasterDataUri(images[source]) : null;
+        if (approved) {
+          node.attrs = node.attrs.filter(attribute => !['src', 'srcset'].includes(attribute.name.toLowerCase()));
+          node.attrs.push({ name: 'src', value: approved });
+        }
+      }
+      kept.push(node);
+      if (node.content) pending.push(node.content);
+      if (node.childNodes?.length) pending.push(node);
+    }
+    parent.childNodes = kept;
+  }
+  document.childNodes = document.childNodes.filter(node => node.nodeName !== '#documentType');
+  const rendered = '<!doctype html>\n' + serialize(document);
+  if (rendered.length > maxInteractiveHtmlChars) {
+    const error = new Error('HTML preview structure is too complex.');
+    error.code = 'html_preview_complex';
+    throw error;
+  }
+  return rendered;
 }

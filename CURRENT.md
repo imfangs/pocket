@@ -4,6 +4,8 @@
 
 ## 下一次先看
 
+- **HTML交互预览已实现并验证，待网页发布（2026-11-07）。** 用户明确认为自用附件默认禁JS过保守，[新契约](docs/design/2026-11-07-interactive-html-preview.md)：默认原脚本/事件/表单及普通HTTPS资源，独立HTTP shell/opaque iframe、不放宽Pocket主CSP或API/Mac权限；原件、同frame/草稿/隐私保持，source/origin/nonce一次交付与Escape归属验证。20项交互双浏览器、67定向、新版实际选集搜索21→1→21/图片21及独立CR通过；完整2103中2101通过、2项旧原生取消归档范围失败。最终build`cbb95494…`，整包133项全部通过；不宣称已上线。只共享网页/Worker发布，Mac API保持9e7be97且不重启；Node源码精确shell路由已补并port0验证，当前两机旧内置页面仍是静态b528。证据`.local/qa/html-interactive-2026-11-07/`。
+
 - **HTML文件预览已上线（2026-11-07）。** [契约](docs/design/2026-11-07-html-file-preview.md)：默认静态页面/源码切换，认证原cap+文档子目录栅格嵌图，FD/预算/opaque iframe/CSP与rrweb保护、原件下载保持；实际选集双浏览器21/21图片与原样式通过，8张jpg实际PNG兼容。最终Pages构建`b52851cf…`、131浏览器/设施与最后18项新版复验及专项通过；完整2090项2088过、2项既有原生取消归档范围失败，不能报全绿。两机API源`9e7be97`（功能18ab924）、本机PID57219/豌豆81869；两机各一次stop/up，原凭据/登录/scope/policy/metadata/保护记录/Codex/connector保持，Ged两条dispatch queued身份/状态保持、Wandou0，无切换窗口API账本业务发送变化。Ged真实目标会话只GET签发→preview21/0及原download相同SHA，未打开owner。Pages`ecdaad84…`单次上传exit0、36/36资源/原功能/独立公网version和双机profile一致；原OAuth仍有效、targetGET200，不续期/轮换。公网两机health200、新preview匿名401；无可用公网用户session，未把仅loopback localToken外发，不宣称该层fresh登录/私件auth GET通过。证据`.local/qa/html-preview-2026-11-07/`，无未决外部操作。
 
 - **整体界面精修已上线（2026-11-05）。** [本轮契约](docs/design/2026-11-05-impeccable-refinement.md)：重命名相同错误去重并保持有效ARIA，英文脏草稿确认动作组8px换行间距，≤360触摸展开输入动作收紧但44px/字号/草稿/节点保持，手机文件预览关闭44px图标给标题让位，排序菜单同注册表16/1.75图标与原勾选保持。弹窗60个基线状态、阅读144组、新增40项及最终113项浏览器/设施与独立CR通过；私有双机profile Pages构建`8d54a5d42dde…`通过。完整回归顺序复验2058中2056通过、2项原生取消归档范围失败，无跳过；不能声称全测全绿，差异见下方未决事项。发布源`37d2b71`，Pages`e1ff123c…`单次上传exit0、35/35公开资源与原功能通过，公网version/双机profile独立一致；Cloudflare单次续期原28scope保持，无未决。证据`.local/qa/impeccable-sweep-2026-11-05/`，未重启API/Codex/连接器，真实会话和公共历史副本保持。
