@@ -133,6 +133,8 @@
 
 开发按新的用户反馈继续，不恢复旧“持续打磨 Pocket”heartbeat：2026-09-30用户取消，10-01回读为PAUSED。这与Pocket服务、用户已提交队列和通知的运行无关。Claude接入仍延缓；Happy/HAPI只作为阅读模型的参考，没有迁入其runner/hub。
 
+**内置录音转写暂缓（2026-11-07，欧吉安确认）。** 继续沿用微信／豆包输入法的语音转文字。Hermes客户端研究中的内置录音/ASR小样不进入当前开发；只有本人明确恢复该方向时再接续。切会话/断线恢复的协议经验保留作后续连接改造参考，本轮没有发现需独立立项的Pocket同类故障。来源见[研究后续取舍](docs/research/2026-11-07-hermes-clients-for-pocket.md#同日后续取舍)。
+
 2026-11-05新增[对外价值与竞品复核](docs/research/2026-11-05-pocket-value-and-differentiation.md)：更新HAPI已能导入/同步旧Codex会话的事实，加入官方Remote与Bridge直接对照；建议macOS单拥有者Alpha与外部同场景验证，未做竞品实机、用户招募或公开发布，不改变当前开发优先级。
 
 ## 最近已验证版本
