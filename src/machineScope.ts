@@ -79,6 +79,12 @@ export function changeMachine(machine: MachineId, threadId?: string): string | n
   const blocker = machineSwitchBlocker(getReloadBlocker());
   if (blocker) return blocker;
   const url = machineNavigationUrl(window.location.href, machine, threadId);
+  if (machine !== currentMachineId()) {
+    try {
+      window.sessionStorage?.removeItem(machineStorageKey("pocket.pending-task"));
+      window.sessionStorage?.removeItem(machineStorageKey("pocket.pending-task-entry"));
+    } catch { /* Explicit machine navigation remains usable without storage. */ }
+  }
   try { window.localStorage.setItem(lastMachineKey, machine); } catch { /* Target URL still pins the selection. */ }
   window.location.assign(url);
   return null;

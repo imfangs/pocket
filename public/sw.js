@@ -50,7 +50,8 @@ self.addEventListener("push", event => {
   if (!/^[a-f0-9-]{36}$/i.test(data?.threadId) || typeof data.body !== "string") return;
   const machineId = data.machineId ?? defaultMachine;
   if (!validMachine(machineId)) return;
-  event.waitUntil(self.registration.showNotification("Pocket", {
+  const title = typeof data.title === "string" ? data.title.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/gu, " ").trim() : "";
+  event.waitUntil(self.registration.showNotification(title ? Array.from(title).slice(0, 120).join("") : "Pocket", {
     body: data.body.slice(0, 100), icon: "/icons/pocket-v1-192.png", badge: "/icons/pocket-v1-192.png",
     tag: `pocket-${machineId}-${data.eventId}`, data: { threadId: data.threadId, machineId },
   }));
@@ -66,12 +67,16 @@ self.addEventListener("notificationclick", event => {
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     const existing = windows.find(client => {
-      const url = new URL(client.url);
-      return url.origin === self.location.origin && (url.searchParams.get("machine") ?? defaultMachine) === machineId;
+      let url;
+      try { url = new URL(client.url); } catch { return false; }
+      return client.frameType !== "nested" && url.origin === self.location.origin &&
+        ["/", "/index.html"].includes(url.pathname) && (url.searchParams.get("machine") ?? defaultMachine) === machineId;
     });
     if (existing) {
-      await existing.focus();
-      const acknowledged = await new Promise(resolve => {
+      let acknowledged = false;
+      try {
+        await existing.focus();
+        acknowledged = await new Promise(resolve => {
         const channel = new MessageChannel();
         const timer = setTimeout(() => { channel.port1.close(); resolve(false); }, 3000);
         channel.port1.onmessage = message => {
@@ -80,8 +85,10 @@ self.addEventListener("notificationclick", event => {
         };
         // Older clients do not understand machine IDs. Never send them a
         // remote task through the legacy unscoped message type.
-        existing.postMessage({ type: machineId === defaultMachine ? "pocket-open-task" : "pocket-open-machine-task", threadId: id, machineId }, [channel.port2]);
-      });
+          try { existing.postMessage({ type: machineId === defaultMachine ? "pocket-open-task" : "pocket-open-machine-task", threadId: id, machineId }, [channel.port2]); }
+          catch { clearTimeout(timer); channel.port1.close(); resolve(false); }
+        });
+      } catch { /* A closed/unfocusable client cannot own this click; use a new target window. */ }
       // A silent/old client can still own drafts. Keep it intact on fallback.
       if (!acknowledged) await self.clients.openWindow(target);
     } else await self.clients.openWindow(target);

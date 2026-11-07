@@ -25,6 +25,31 @@ function flow(engine, name, options, run) {
 }
 
 for (const engine of engines) {
+  flow(engine, 'answer result footers keep the readable status, source examples and exact copy without exposing wire tags', {}, async h => {
+    const citation = '<oai-mem-citation><citation_entries>synthetic-footer-private</citation_entries><rollout_ids>synthetic-footer-id</rollout_ids></oai-mem-citation>';
+    const prefix = '本轮完成[合成作品](https://example.invalid/article)。\n\n保留普通正文与 **排版**。';
+    const result = prefix + '\n\n' + heartbeat('合成独有结果需要保留。') + '\n' + citation;
+    const example = '格式示例：\n\n```xml\n' + heartbeat('字面代码示例。') + '\n```';
+    h.patchHistory(ids.regular, { messages: [message(example, 'footer-example'), message(result, 'footer-result')] });
+    const page = await h.open(), row = page.locator('[data-message-id="footer-result"]');
+    await row.getByText('合成独有结果需要保留。', { exact: true }).waitFor();
+    assert.equal(await row.locator('pre').count(), 0);
+    assert.equal(await row.locator('a').getAttribute('href'), 'https://example.invalid/article');
+    assert.doesNotMatch(await row.textContent(), /heartbeat|automation_id|NOTIFY|synthetic-footer-private/);
+    assert.match(await page.locator('[data-message-id="footer-example"] pre').textContent(), /<heartbeat>/);
+    await row.evaluate(node => { window.footerMessageNode = node; });
+    await page.evaluate(() => { navigator.clipboard.writeText = async value => { window.footerCopied = value; }; });
+    await row.getByRole('button', { name: '复制回复', exact: true }).click();
+    const copy = await page.evaluate(() => window.footerCopied);
+    assert.match(copy, /合成独有结果需要保留/); assert.doesNotMatch(copy, /<heartbeat|automation_id|NOTIFY/);
+    const deduplicated = prefix + '\n\n完全相同的合成状态。\n\n' + heartbeat('完全相同的合成状态。') + '\n' + citation;
+    h.patchHistory(ids.regular, { messages: [message(example, 'footer-example'), message(deduplicated, 'footer-result')] });
+    await refresh(page); await row.getByText('完全相同的合成状态。', { exact: true }).waitFor();
+    assert.equal(await row.getByText('完全相同的合成状态。', { exact: true }).count(), 1);
+    assert.equal(await row.evaluate(node => node === window.footerMessageNode), true);
+    assert.ok(h.calls.filter(call => call.method !== 'GET').every(call => call.path === '/api/sync'));
+  });
+
   flow(engine, 'compound heartbeat keeps safe disclosures, inert media, copy and stream identity', {}, async h => {
     const source = heartbeat('合成检查已完成。') + '\n\n' + tails;
     h.patchHistory(ids.regular, { messages: [message(source)] });

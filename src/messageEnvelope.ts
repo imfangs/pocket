@@ -63,7 +63,7 @@ function inertHtmlMarkdown(source: string, field: boolean): string {
   return result;
 }
 
-function heartbeatBody(body: string): Exclude<StructuredMessage, { kind: "literal" }> | null {
+function heartbeatFields(body: string): Map<string, string> | null {
   const fieldPattern = /\s*<(automation_id|current_time_iso|instructions|decision|message)>/gy;
   const readFields = (offset: number, current: Map<string, string>): Map<string, string> | null => {
     if (!body.slice(offset).trim()) return current;
@@ -87,7 +87,11 @@ function heartbeatBody(body: string): Exclude<StructuredMessage, { kind: "litera
     }
     return null;
   };
-  const fields = readFields(0, new Map());
+  return readFields(0, new Map());
+}
+
+function heartbeatBody(body: string): Exclude<StructuredMessage, { kind: "literal" }> | null {
+  const fields = heartbeatFields(body);
   if (!fields) return null;
   if (!fields.get("automation_id")) return null;
   if (fields.has("instructions") && !fields.has("message") && !fields.has("decision") && fields.get("instructions")?.trim())
@@ -95,6 +99,49 @@ function heartbeatBody(body: string): Exclude<StructuredMessage, { kind: "litera
   if (fields.has("message") && !fields.has("instructions") && fields.get("message")?.trim())
     return { kind: "heartbeat-result", text: fields.get("message")! };
   return null;
+}
+
+// A scheduler result can follow an ordinary authored answer rather than wrap
+// the whole message. Only a complete, top-level result footer is metadata;
+// triggers, examples and uncertain wire shapes stay in the original display.
+export function readableHeartbeatResultSuffix(source: string): string {
+  if (source.length > MAX_CHARS || !source.includes("<heartbeat>")) return source;
+  // A multiline wire is a CommonMark HTML block. The same complete wire on
+  // one line becomes a paragraph containing inline HTML instead.
+  const candidates = fromMarkdown(source).children.filter(node => ["html", "paragraph"].includes(node.type) &&
+    node.position?.start.offset != null && /^ {0,3}<heartbeat>/.test(source.slice(node.position.start.offset)));
+  if (candidates.length !== 1) return source;
+  const start = candidates[0].position!.start.offset!, prefix = trimMarkdownPadding(source.slice(0, start));
+  // A trailing colon introduces a literal format/example, not a completed
+  // answer followed by a scheduling receipt.
+  if (!prefix.trim() || /[:：]\s*$/.test(prefix)) return source;
+  const suffix = source.slice(start), opening = /^ {0,3}<heartbeat>/.exec(suffix)!;
+  const close = "</heartbeat>", closers = [...suffix.matchAll(/<\/heartbeat>/g)].slice(-128).reverse();
+  for (const closer of closers) {
+    const body = suffix.slice(opening[0].length, closer.index), fields = heartbeatFields(body);
+    const parsed = heartbeatBody(body);
+    if (!fields || !["NOTIFY", "DONT_NOTIFY"].includes(fields.get("decision") || "") || parsed?.kind !== "heartbeat-result") continue;
+    const tail = suffix.slice(closer.index! + close.length);
+    if (withoutEnvelopeCitations(tail).trim()) continue;
+    const result = structuredBodyMarkdown(parsed.text);
+    const visibleText = (node: Root | RootContent): string | null => {
+      if (node.type === "text" || node.type === "inlineCode") return node.value;
+      if (node.type === "break") return "\n";
+      // Text-identical links, images or other components can still contain
+      // unique references. Never deduplicate their surrounding result.
+      if (!["paragraph", "heading", "emphasis", "strong", "delete"].includes(node.type) || !("children" in node)) return null;
+      const text = node.children.map(child => visibleText(child as RootContent));
+      return text.some(value => value === null) ? null : text.join("");
+    };
+    const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
+    const resultNodes = fromMarkdown(result).children;
+    const visibleResult = resultNodes.length === 1 ? visibleText(resultNodes[0]) : null;
+    const resultText = visibleResult === null ? "" : normalize(visibleResult);
+    const duplicate = resultText && fromMarkdown(displayMessageMarkdown(prefix)).children.some(node =>
+      visibleText(node) !== null && normalize(visibleText(node)!) === resultText);
+    return duplicate ? prefix : `${prefix}\n\n${result}`;
+  }
+  return source;
 }
 
 function childBody(body: string): Exclude<StructuredMessage, { kind: "literal" }> | null {

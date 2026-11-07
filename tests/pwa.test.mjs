@@ -105,8 +105,8 @@ test('push shows a notification without caching private data and click reuses a 
  const self={location:{origin:'https://example.test'},addEventListener:(name,fn)=>handlers[name]=fn,
   registration:{showNotification:async(...args)=>shown.push(args)},clients:{matchAll:async()=>[{url:'https://example.test/',postMessage:(m,ports)=>{messages.push(m);if(acknowledge)ports[0].ack();},focus:async()=>focused++,navigate:async url=>navigated.push(url)}],openWindow:async url=>opened.push(url)}};
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL,MessageChannel:Channel,setTimeout:(fn)=>setTimeout(fn,10),clearTimeout});
- let pending;handlers.push({data:{json:()=>({threadId:id,eventId:'event-1',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;
- assert.equal(shown[0][0],'Pocket');assert.equal(shown[0][1].data.threadId,id);assert.equal(shown[0][1].data.machineId,'ged');
+ let pending;handlers.push({data:{json:()=>({threadId:id,eventId:'event-1',body:'任务已完成',title:'Named conversation'})},waitUntil:p=>pending=p});await pending;
+ assert.equal(shown[0][0],'Named conversation');assert.equal(shown[0][1].data.threadId,id);assert.equal(shown[0][1].data.machineId,'ged');
  handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;
  assert.equal(messages[0].threadId,id);assert.equal(focused,1);assert.equal(opened.length,0);
  acknowledge=false;handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;assert.equal(navigated.length,0);assert.equal(opened[0],`/?task=${id}`);
@@ -166,4 +166,39 @@ test('a failed public bootstrap keeps the previous worker despite later successf
   vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,caches,Response,importScripts:()=>{throw new Error('temporary bootstrap failure');}});
   let pending;handlers.install({waitUntil:value=>pending=value});
   await assert.rejects(pending,/Client configuration is not ready/);assert.equal(skipped,0);assert.equal(filled,0);
+});
+
+test('push title is an authored bounded name and older payloads keep the Pocket fallback',async()=>{
+ const handlers={},shown=[];const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+ const self={addEventListener:(name,fn)=>handlers[name]=fn,registration:{showNotification:async(...args)=>shown.push(args)}};
+ vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL});
+ for(const [title,expected] of [[undefined,'Pocket'],[false,'Pocket'],['\n\u0000\t','Pocket'],['  Named\nconversation  ','Named conversation'],['😀'.repeat(130),'😀'.repeat(120)]]){
+  let pending;handlers.push({data:{json:()=>({title,threadId:id,eventId:'bounded-title',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;
+  assert.equal(shown.at(-1)[0],expected);assert.equal(shown.at(-1)[1].body,'任务已完成');
+ }
+});
+
+test('notification clicks reuse only an application window, not nested previews or unrelated same-origin pages',async()=>{
+ const handlers={},messages=[],focus=[],opened=[];const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+ class Channel{constructor(){this.port1={close(){}};this.port2={ack:()=>this.port1.onmessage({data:'pocket-task-received'})};}}
+ const client=(url,frameType)=>({url,frameType,focus:async()=>focus.push(url),postMessage:(data,ports)=>{messages.push({url,data});ports[0].ack();},navigate:async()=>assert.fail('draft window must not reload')});
+ const candidates=[client('https://example.test/html-preview-shell.html#private-preview','top-level'),client('https://example.test/?task='+id,'nested'),client('https://example.test/docs/diagram.html','top-level'),client('not a URL','top-level'),client('https://other.example.test/','top-level'),client('https://example.test/?machine=ged','top-level')];
+ const self={location:{origin:'https://example.test'},addEventListener:(name,fn)=>handlers[name]=fn,clients:{matchAll:async()=>candidates,openWindow:async url=>opened.push(url)}};
+ vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL,MessageChannel:Channel,setTimeout,clearTimeout});
+ let pending;handlers.notificationclick({notification:{close(){},data:{threadId:id,machineId:'ged'}},waitUntil:p=>pending=p});await pending;
+ assert.deepEqual(focus,['https://example.test/?machine=ged']);assert.equal(messages.length,1);assert.equal(opened.length,0);
+ self.clients.matchAll=async()=>candidates.slice(0,-1);handlers.notificationclick({notification:{close(){},data:{threadId:id,machineId:'ged'}},waitUntil:p=>pending=p});await pending;
+ assert.equal(opened.at(-1),'/?task='+id);assert.equal(messages.length,1);
+});
+
+test('an unfocusable or closed notification window falls back to a new scoped target without replacing drafts',async()=>{
+ const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+ for(const phase of ['focus','message']){
+  const handlers={},opened=[];class Channel{constructor(){this.port1={close(){}};this.port2={};}}
+  const client={url:'https://example.test/?machine=wandou',frameType:'top-level',focus:async()=>{if(phase==='focus')throw Error('closed')},postMessage:()=>{throw Error('closed')},navigate:async()=>assert.fail('never reload drafts')};
+  const self={location:{origin:'https://example.test'},addEventListener:(name,fn)=>handlers[name]=fn,clients:{matchAll:async()=>[client],openWindow:async url=>opened.push(url)}};
+  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL,MessageChannel:Channel,setTimeout,clearTimeout});
+  let pending;handlers.notificationclick({notification:{close(){},data:{threadId:id,machineId:'wandou'}},waitUntil:p=>pending=p});await pending;
+  assert.deepEqual(opened,[`/?machine=wandou&task=${id}`]);
+ }
 });

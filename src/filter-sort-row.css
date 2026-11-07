@@ -1,6 +1,6 @@
 /* Scope and activity remain independent of sort. Their controls share one
    readable row; search keeps its original node/ref in the title bar. */
-.workspace-header .filter-row .activity-filters { display:flex; flex:1; width:100%; min-width:0; max-width:100%; flex-wrap:nowrap; align-items:center; gap:2px; }
+.workspace-header .filter-row .activity-filters { display:flex; flex:1; width:100%; min-width:0; max-width:min(100%,440px); flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:2px; }
 .workspace-header .filter-row .activity-filters > .needs-input-toggle { flex:0 0 auto; }
 .workspace-header .heading-line > .search-toggle { flex:none; width:auto; min-width:44px; height:44px; min-height:44px; margin:0; }
 
@@ -12,7 +12,7 @@
 
 /* Four English labels plus 128/32 counts need a small-phone fit budget.
    Keep 12px labels, 16px glyphs and 44px targets; never hide or shrink words. */
-@media (max-width:360px) {
+@media (max-width:389px) {
   :root:lang(en) .workspace-header .filter-row {
     margin-left:max(-10px,calc(env(safe-area-inset-left,0px) - 16px));
     margin-right:max(-10px,calc(env(safe-area-inset-right,0px) - 16px));

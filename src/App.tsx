@@ -61,6 +61,7 @@ import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
 import { hiddenFields, pocketHidden, updateThreadHidden } from "./hiddenThreads";
 import { focusInspectorEntry, inspectorEntryFromClick, scheduleInspectorReturnFocus, type InspectorEntryOrigin } from "./inspectorFocus";
 import { machineStorageKey, currentMachineId } from "./machineScope";
+import { clearNotificationTarget, readInitialNotificationTarget, notificationRouteUrl, type NotificationEntryEvent } from "./notificationTarget";
 import { createReadingCache, readingCatalogScope, type ReadingCache } from "./readingCache";
 import useTranscriptPrefetch from "./useTranscriptPrefetch";
 import type { TranscriptReader } from "./transcriptReader";
@@ -120,7 +121,7 @@ export default function App({
     [catalogReading, setCatalogReading] = useState(false),
     [selected, setSelectedState] = useState<string | null>(() => {
       let id = new URLSearchParams(location.search).get("task");
-      try { id ||= sessionStorage.getItem(machineStorageKey("pocket.pending-task")); sessionStorage.removeItem(machineStorageKey("pocket.pending-task")); } catch {}
+      try { id = readInitialNotificationTarget(sessionStorage, location.search); } catch {}
       return id && /^[a-f0-9-]{36}$/i.test(id) ? id : null;
     }),
     [query, setQuery] = useState(""),
@@ -149,6 +150,8 @@ export default function App({
     selectedId: selected, excludedThreadIds: catalog.excludedThreadIds, draftIds });
   const selectedRef = useRef(selected);
   const selectionRevision = useRef(0);
+  const notificationTarget = useRef<{ id: string; selection: number } | null>(null);
+  const notificationRouteOwner = useRef<{ id: string; selection: number } | null>(null);
   const returnFocusController = useRef<AbortController | null>(null);
   useEffect(() => () => returnFocusController.current?.abort(), []);
   const [animateSelection, setAnimateSelection] = useState(false);
@@ -158,6 +161,18 @@ export default function App({
     returnFocusController.current?.abort(); returnFocusController.current = null;
     selectionRevision.current++;
     selectedRef.current = id;
+    const owned = notificationRouteOwner.current;
+    if (owned && id !== owned.id) {
+      // Explicitly choosing the already-selected row is still a new intent.
+      // React may skip a same-value state update, so revoke the old route here.
+      try {
+        const machine = currentMachineId();
+        if (machine) history.replaceState(history.state, "", notificationRouteUrl(location.href, machine, id));
+      } catch {}
+      notificationRouteOwner.current = null;
+      notificationTarget.current = null;
+      try { clearNotificationTarget(sessionStorage); } catch {}
+    }
     setEntryOrigin(origin);
     setAnimateSelection(!!id && animate);
     setSelectedState(id);
@@ -175,6 +190,15 @@ export default function App({
         preserveNewerThreadMetadata(current, typeof update === "function" ? update(current) : update), selectedRef.current, retained);
     });
   }, []);
+  const pinNotificationRoute = (id: string) => {
+    try {
+      const machine = currentMachineId();
+      if (!machine) return false;
+      history.replaceState(history.state, "", notificationRouteUrl(location.href, machine, id));
+      notificationRouteOwner.current = { id, selection: selectionRevision.current };
+      return true;
+    } catch { return false; }
+  };
   useEffect(() => {
     setCatalog(current => current);
   }, [selected, draftIndicatorRevision, setCatalog]);
@@ -585,15 +609,46 @@ export default function App({
     setSearchOpen(true);
   };
   useEffect(() => {
+    const pending = notificationTarget.current;
+    if (!pending) {
+      // Render-time reads must be pure: StrictMode may evaluate the initial
+      // state twice. Clear a durable target only after this App accepted it,
+      // or a newer explicit route/user selection superseded it.
+      try {
+        const retained = sessionStorage.getItem(machineStorageKey("pocket.pending-task"));
+        if (retained) {
+          if (readInitialNotificationTarget(sessionStorage, location.search) !== retained || selectionRevision.current > 0 && selected !== retained)
+            clearNotificationTarget(sessionStorage);
+          else if (selected === retained && !catalog.sourceError && catalog.threads.some(thread => thread.id === retained) && pinNotificationRoute(retained))
+            clearNotificationTarget(sessionStorage);
+        }
+      } catch {}
+      return;
+    }
+    if (pending.selection !== selectionRevision.current) {
+      notificationTarget.current = null;
+      try { clearNotificationTarget(sessionStorage); } catch {}
+    } else if (!catalog.sourceError && catalog.threads.some(thread => thread.id === pending.id)) {
+      notificationTarget.current = null;
+      setSelected(pending.id); setMobile(false);
+      if (pinNotificationRoute(pending.id)) try { clearNotificationTarget(sessionStorage); } catch {}
+    }
+  }, [catalog.threads, catalog.sourceError, selected, setSelected]);
+  useEffect(() => {
     const fromNotification = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
       if (typeof id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) return;
-      void guard(async () => {
-        await syncTasks(true);
-        setSelected(id);
-        setMobile(false);
-        try { sessionStorage.removeItem(machineStorageKey("pocket.pending-task")); } catch {}
-      });
+      if (!pinNotificationRoute(id)) { (event as NotificationEntryEvent).targetRejected = true; return; }
+      event.preventDefault(); // The durable route now owns this click even if storage or auth later fails.
+      if (catalog.threads.some(thread => thread.id === id)) {
+        notificationTarget.current = null;
+        setSelected(id); setMobile(false);
+        notificationRouteOwner.current = { id, selection: selectionRevision.current };
+        try { clearNotificationTarget(sessionStorage); } catch {}
+      } else notificationTarget.current = { id, selection: selectionRevision.current };
+      // A known conversation opens before this read. Unknown targets remain
+      // retained and are entered by the catalog effect after a later success.
+      void guard(() => syncTasks(true));
     };
     window.addEventListener("pocket-open-task", fromNotification);
     return () => window.removeEventListener("pocket-open-task", fromNotification);

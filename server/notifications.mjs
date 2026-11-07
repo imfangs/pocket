@@ -7,6 +7,10 @@ import { AppError } from './store.mjs';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const DAY = 86400000;
 const labels = { completed: '任务已完成', failed: '任务执行失败', attention: '任务需要你处理' };
+export function notificationTitle(value) {
+  const title = typeof value === 'string' ? value.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' ').replace(/\s+/gu, ' ').trim() : '';
+  return title ? Array.from(title).slice(0, 120).join('') : 'Pocket';
+}
 export function validateSubscription(value) {
   try {
     const url = new URL(value.endpoint);
@@ -157,7 +161,7 @@ export class Notifications {
             continue;
           }
         }
-        await this.send(JSON.parse(row.subscription), JSON.stringify({ title: 'Pocket', body: labels[row.kind], machineId: this.machineId, threadId: row.thread_id, eventId: row.id }), {
+        await this.send(JSON.parse(row.subscription), JSON.stringify({ title: notificationTitle(this.store.thread(row.thread_id).title), body: labels[row.kind], machineId: this.machineId, threadId: row.thread_id, eventId: row.id }), {
           TTL: 120, urgency: row.kind === 'attention' ? 'high' : 'normal', timeout: 10000,
           vapidDetails: { subject: this.subject, ...this.keys },
         });

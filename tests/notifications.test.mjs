@@ -7,7 +7,7 @@ import { createECDH, randomBytes } from 'node:crypto';
 import webpush from 'web-push';
 import { NavigatorStore } from '../server/store.mjs';
 import { AccessControl } from '../server/auth.mjs';
-import { Notifications, validateSubscription } from '../server/notifications.mjs';
+import { Notifications, validateSubscription, notificationTitle } from '../server/notifications.mjs';
 const id = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
 function subscription(endpoint = 'https://web.push.apple.com/fixture') {
   const key = createECDH('prime256v1'); key.generateKeys();
@@ -34,9 +34,22 @@ test('only fresh owner transitions notify; fallback reads and an old completed t
   s.watch(id,state.history);
   state.history={source:'rollout',runtime:'idle',latestTurnStatus:'completed'};state.now+=11000;await s.tick();assert.equal(state.sends.length,0);
   state.history={source:'desktop',runtime:'idle',latestTurnId:'turn-1',latestTurnStatus:'completed',pendingRequests:[]};state.now+=11000;await s.tick();
-  assert.equal(state.sends.length,1);const payload=JSON.parse(state.sends[0][1]);assert.equal(payload.body,'任务已完成');assert.equal(payload.threadId,id);assert.ok(!state.sends[0][1].includes('Private'));
+  assert.equal(state.sends.length,1);const payload=JSON.parse(state.sends[0][1]);assert.equal(payload.body,'任务已完成');assert.equal(payload.threadId,id);assert.equal(payload.title,'Private task title');
   assert.equal(payload.machineId, 'ged');
   state.now+=11000;await s.tick();assert.equal(state.sends.length,1);
+});
+test('notification titles are readable, bounded and preserve authored Unicode',()=>{
+ for(const value of [null,undefined,5,'','\n\t\u0000'])assert.equal(notificationTitle(value),'Pocket');
+ assert.equal(notificationTitle('  Project\nname\t\u0000 — 任务  '),'Project name — 任务');
+ assert.equal(notificationTitle('😀'.repeat(130)),'😀'.repeat(120));
+});
+test('notifications use the current conversation name when a queued event is delivered',async t=>{
+ const {service,state,store}=fixture(t);service.subscribe(subscription());service.watch(id,state.history);
+ state.history={...state.history,latestTurnStatus:'completed',messages:[{role:'assistant',text:'SYNTHETIC_CHAT_BODY_NOT_FOR_NOTIFICATION'}]};service.watch(id,state.history);
+ store.sync({threads:[{id,title:'Renamed conversation',archived:false,updatedAt:2000}],projects:[],sourceInfo:{}});
+ await service.deliver();const payload=JSON.parse(state.sends[0][1]);
+ assert.equal(payload.title,'Renamed conversation');assert.equal(payload.body,'任务已完成');
+ assert.ok(!state.sends[0][1].includes('SYNTHETIC_CHAT_BODY_NOT_FOR_NOTIFICATION'));
 });
 test('remote notifications retain their machine while the same thread ID remains local to its store', async t => {
   const { service, state, store, desktop, options } = fixture(t);

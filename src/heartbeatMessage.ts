@@ -1,4 +1,4 @@
-import { projectStructuredMessage, structuredBodyMarkdown } from "./messageEnvelope.ts";
+import { projectStructuredMessage, structuredBodyMarkdown, readableHeartbeatResultSuffix } from "./messageEnvelope.ts";
 import { sourceTranslation, type DisplayTranslator } from "./displayTranslation.ts";
 
 type HeartbeatMessage =
@@ -25,5 +25,5 @@ export function readableHeartbeatMessage(source: string, translate: DisplayTrans
   const message = heartbeatMessage(source);
   if (message) return [message.kind === "result" ? structuredBodyMarkdown(message.text)
     : `${translate(message.text)}\n\n${structuredBodyMarkdown(message.instructions)}`, message.continuation].filter(Boolean).join("\n\n");
-  return heartbeatFallback(source) ?? source;
+  return heartbeatFallback(source) ?? readableHeartbeatResultSuffix(source);
 }
