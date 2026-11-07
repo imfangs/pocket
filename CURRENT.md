@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-07。HTML默认交互预览已上线：原脚本、事件、搜索筛选及HTTPS资源可用，独立HTTP shell/opaque iframe保留基础隔离；真实选集21张图/原件和JS筛选均验证。Mac API保持既有9e7be97，没有为本轮重启；保留源码和下载、原权限与数据。整体界面精修保持：重命名错误去重、英文关闭确认间距、小屏输入动作边界、文件预览标题空间与排序菜单图标。中英单排筛选、统一结构化消息、消息区焦点、居中运行三点、双机与阅读/发送保护保持。完整回归有两项原生取消归档范围差异，明确列为待续；前端发布已验证，无未决上传或认证。源码仍未公开，368提交的脱敏历史副本保持原固定边界。准确发布身份见版本表。
+维护日期：2026-11-08。通知标题/点击入口、筛选均匀留白与heartbeat尾段已实现，155浏览器/设施与两路独立CR通过；两机API已更新fc86637，共享网页待发布。既有私有数据、订阅、队列和原Codex/connector保持；切换后新增业务与访问时间变化按观测记录，不恢复旧数据。HTML交互预览及既有体验保持。完整2122测试中2120通过，2项旧原生取消归档范围失败仍列待续。未公开源码或改写脱敏历史。准确发布身份见版本表。
 
 ## 下一次先看
 
-- **11-08三项改动待最终发布。** 通知使用当前会话名字，正确machine/thread进入、登录/弱网恢复和新选择优先见[通知契约](docs/NOTIFICATIONS.md)；四控件均匀留白/440px上限及361–389英文适配见[筛选同排](docs/design/2026-11-05-filter-sort-row.md#2026-11-08均匀留白)；普通回复末尾的heartbeat严格投影见[结构化展示](docs/design/2026-11-05-structured-message-presentation.md#2026-11-08普通回复末尾的heartbeat结果)。候选build`f9ac7165…`编译、55定向及完整2122中2120通过，2项既有原生取消归档范围失败、无跳过；432几何/16归档隐藏、32heartbeat/实际SSR、37通知纯测/20入口通过。最终整包155浏览器/设施与两路独立CR通过，尚未上传或切换两机API，下方版本表仍是线上事实。证据`.local/qa/filter-spacing-2026-11-08/`、`heartbeat-render-2026-11-08/`、`notification-entry-2026-11-08/`；公开历史副本保持，未做真实QA通知或控制。
+- **11-08三项改动待最终发布。** 通知使用当前会话名字，正确machine/thread进入、登录/弱网恢复和新选择优先见[通知契约](docs/NOTIFICATIONS.md)；四控件均匀留白/440px上限及361–389英文适配见[筛选同排](docs/design/2026-11-05-filter-sort-row.md#2026-11-08均匀留白)；普通回复末尾的heartbeat严格投影见[结构化展示](docs/design/2026-11-05-structured-message-presentation.md#2026-11-08普通回复末尾的heartbeat结果)。候选build`f9ac7165…`编译、55定向及完整2122中2120通过，2项既有原生取消归档范围失败、无跳过；432几何/16归档隐藏、32heartbeat/实际SSR、37通知纯测/20入口通过。最终整包155浏览器/设施与两路独立CR通过，两机API已单次切换为fc86637/f9ac，公网及隔离/独立保全通过；共享网页尚未上传，下方版本表区分API与公网前端。证据`.local/qa/filter-spacing-2026-11-08/`、`heartbeat-render-2026-11-08/`、`notification-entry-2026-11-08/`；公开历史副本保持，未做真实QA通知或控制。
 
 - **HTML交互预览已上线（2026-11-07）。** 用户明确认为自用附件默认禁JS过保守，[新契约](docs/design/2026-11-07-interactive-html-preview.md)：默认原脚本/事件/表单及普通HTTPS资源，独立HTTP shell/opaque iframe、不放宽Pocket主CSP或API/Mac权限；原件、同frame/草稿/隐私保持，source/origin/nonce一次交付与Escape归属验证。20项交互双浏览器、67定向、新版实际选集搜索21→1→21/图片21及独立CR通过；完整2103中2101通过、2项旧原生取消归档范围失败。最终build`cbb95494…`，整包133项全部通过；发布源05b63d0、Pages11a05a8f…单次上传exit0，38/38资源/原功能及独立公网version/profile/shell唯一策略一致。OAuth过期后单次续期、原28scope保持、targetGET200，无未决操作。只共享网页/Worker发布，Mac API保持9e7be97且不重启；Node源码精确shell路由已补并port0验证，当前两机旧内置页面仍是静态b528。证据`.local/qa/html-interactive-2026-11-07/`。
 
@@ -145,8 +145,8 @@
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
 | 公网前端/网关源码 | `05b63d056bd70fd773b524e4049d15d34efa47dd`；默认交互HTML/普通HTTPS资源，独立shell/opaque iframe，原私件/图片/原件权限保持 |
-| 两机API源码 | `9e7be97e7c21a2c048cfe0eadf891f310d58b62d`；11-07本机PID57219、豌豆81869，后续运行须重查。不可变release/旧da53回退、数据保全和真实HTML只读均完成 |
-| 前端build | 共享公网与dist `cbb95494377cb121efeeef015913dea25abe043880553447afe91828339bf8b2`；两机旧API内置页面仍为静态`b52851cf…`，本轮未切换；手机共享网页支持两机 |
+| 两机API源码 | `fc86637f601cc2e7024c5b80eae9250322341139`；11-08本机PID73369、豌豆53703，connector12894/4528与Codex未重启；回退/依赖基线9e7保留，后续运行须重查 |
+| 前端build | 共享公网仍 `cbb95494377cb121efeeef015913dea25abe043880553447afe91828339bf8b2`；两机API内置与本地dist已为 `f9ac71658b5178b263f2e56e70ef5fbf1f96a43c8df88bcd83242749e14ab7a5`，共享网页发布待续 |
 | Pages部署 | `11a05a8f-689b-41da-af38-b64712486934`；11-07 ready=true，38/38资源/原功能与独立公网version/profile/shell policy一致，上传一次 |
 | 本次验证 | 133浏览器/设施、20交互/67定向、实际选集2浏览器与独立CR通过；完整2103中2101通过、2项旧原生恢复范围失败，无跳过 |
 | 本次证据 | `.local/qa/html-interactive-2026-11-07/`：`verification.json`、`release-verification.json`、`runtime/review.md`、`browser/`、`browser-qa/`、`actual-render.json`、构建/全测日志；两机API保全仍回html-preview-2026-11-07/api-deploy/ |
@@ -191,7 +191,7 @@
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；API用稳定`config/local-service.json`（指向不可变release）和FBT local。个人Pages更新必须用`.local/compatibility/oss-preparation-2026-11-04/pages-site-compatible.json`，它显式引导ged/wandou profile；不要裸用通用build默认local覆盖现有站点。源代码内公开模板不含私人profile。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 豌豆当前da53 release建立node_modules只读overlay，共享已验证`6b15fabc04a012729c456fbea8e1c16a8f3f281e`依赖并新增精确i18next26.7.1，原版本/合同不变。直接回退为f29 release；更早release仅按实际引用处理。当前/回退/依赖及私有profile/停止快照保留。连接器仍运行既有独立版本，11-04比对PID/配置/凭据保持；不能按旧日期删除其依赖。
+- 两机当前fc86637 release复用9e7不可变依赖overlay，324个生产依赖版本/合同一致，没有本轮依赖安装；直接回退为9e7，其传递依赖祖先和连接器版本继续保留。源文件/配置/数据切换窗口与stop快照证据在`notification-entry-2026-11-08/api-deploy/`；清理前按实际软链重新核验，不按旧日期删除。
 - Pages认证失败先按[FBT认证恢复](/Users/fangs/workspace/fbt/workflows/pages-site/docs/auth-recovery.md)识别生效来源与未决记录，恢复后核对上传阶段；已上传但验证未过使用原部署 `resume --resume-verification`。不要用可能隐式续期的whoami试探未知refresh。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。

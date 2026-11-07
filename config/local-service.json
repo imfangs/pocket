@@ -1,9 +1,9 @@
 {
   "name": "codex-navigator",
-  "working_directory": "/Users/fangs/workspace/side/codex-navigator/.local/releases/9e7be97e7c21a2c048cfe0eadf891f310d58b62d",
+  "working_directory": "/Users/fangs/workspace/side/codex-navigator/.local/releases/fc86637f601cc2e7024c5b80eae9250322341139",
   "command": [
     "/opt/homebrew/bin/node",
-    "/Users/fangs/workspace/side/codex-navigator/.local/releases/9e7be97e7c21a2c048cfe0eadf891f310d58b62d/server/index.mjs"
+    "/Users/fangs/workspace/side/codex-navigator/.local/releases/fc86637f601cc2e7024c5b80eae9250322341139/server/index.mjs"
   ],
   "port": 4397,
   "domain": "threads.local",
