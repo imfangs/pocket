@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-08。通知显示当前会话名并直接进入对应会话，登录/弱网目标恢复已完善；筛选行均匀留白与普通回复末尾heartbeat投影已上线。两机API源fc86637，公网前端发布源54a9f87、buildf9ac7165，38/38资源/功能及独立回读通过；155浏览器/设施与两路CR通过。切换窗口原私有数据、订阅、队列和Codex/connector保持；切换后的新增业务/访问状态按观测保留，不恢复旧数据或推定发起方。HTML交互预览与既有体验保持。完整2122中2120通过，2项旧原生取消归档范围失败仍列待续。未公开源码或改写脱敏历史，无未决上传。
+维护日期：2026-11-08。通知显示当前会话名并直接进入对应会话，登录/弱网目标恢复已完善；筛选行已按同日反馈收回自然紧凑的6px间距，普通回复末尾heartbeat投影已上线。两机API源fc86637，公网前端发布源f59cea2、build86e3cb77，38/38资源/功能及独立回读通过；本次16定向浏览器/528几何及独立尺寸复核通过，前轮155浏览器/设施与两路CR记录保持。切换窗口原私有数据、订阅、队列和Codex/connector保持；切换后的新增业务/访问状态按观测保留，不恢复旧数据或推定发起方。HTML交互预览与既有体验保持。完整2122中2120通过，2项旧原生取消归档范围失败仍列待续。未公开源码或改写脱敏历史，无未决上传。
 
 ## 下一次先看
 
-- **筛选间距同日纠正，待发布。** 用户只希望稍微松一点，首轮space-between拉到约35px过度。当前源码改回靠左的紧凑工具组、固定6px；英文390–409为3px、≤389为1px，原完整标签/计数/44px及手机一行保持。[纠正记录](docs/design/2026-11-05-filter-sort-row.md#2026-11-08恢复适度间距)。候选build86e3cb77…已编译，528组最终CSS几何、16项排序/英文/图标浏览器及独立尺寸复核通过，完整2122中2120通过、2项旧原生恢复范围失败保持；下方表格仍是已发布身份。本轮仅共享网页更新，无Mac API切换。
+- **筛选间距已按反馈收回（2026-11-08）。** 用户只希望略微松一点，首轮space-between把中文常见间距拉到约35px过度。现自然靠左形成一组，固定6px（原2px）；英文390–409为3px、≤389为1px，完整标签/计数/44px及中英手机一行保持。[纠正依据](docs/design/2026-11-05-filter-sort-row.md#2026-11-08恢复适度间距)。528组实际编译CSS几何（新增409/410边界，无inline覆盖）及16排序/英文/图标浏览器、独立尺寸复核/构建通过；完整2122中2120过、2项旧原生恢复范围失败无skip。源f59cea2、build86e3cb77…、Pages50d0042d…单次上传exit0/ready、38/38资源/功能通过，独立公网version/profile/CSS匹配。仅共享网页/Worker，本轮未改Mac API/重启Codex或connector；旧通知/heartbeat保持。证据`.local/qa/filter-spacing-correction-2026-11-08/verification.json`；几何可用与审美判断分开，首轮经过测量仍被用户纠正的历史保留。
 
 - **通知入口、均匀留白和heartbeat尾段已上线（2026-11-08）。** [通知](docs/NOTIFICATIONS.md)：最新会话名、正确machine/thread、已知先进入/未知弱网重试、401/StrictMode/禁存储恢复、新选择优先且不重载旧草稿；独立5项入口问题闭合，37纯测/20浏览器通过。[筛选行](docs/design/2026-11-05-filter-sort-row.md#2026-11-08均匀留白)：space-between/440px上限、361–389英文适配，432几何/16单排序通过，图标/完整标签/计数/44px保持。[结构化尾段](docs/design/2026-11-05-structured-message-presentation.md#2026-11-08普通回复末尾的heartbeat结果)：严格完整顶层终端结果，single-line paragraph/multiline html共用schema，正文/独有结果/图片链接保留，代码示例及raw/id/role/权限保持；32定向/19独立/实际两消息SSR/原8浏览器通过。根最终55定向、155浏览器设施、两路独立CR及私有profile构建通过；完整2122中2120通过，2项既有原生恢复范围失败无跳过。功能/两机API源fc86637、PID73369/53703，各一次stop/up；保留凭据/scope/原队列订阅和Codex/connector，9e7回退/依赖保留。前端发布源54a9f87、buildf9ac7165、Pages332333cd…单次上传exit0/ready、38/38资源/功能与独立公网version/profile/SW一致，双机health200/匿名catalog401。OAuth单次续期原28scope保持/targetGET200，无待重试操作。真实iPhone/APNs未测试；没有QA实际发送/owner/重放或公开源码。三份私有QA入口见下方证据。
 
@@ -146,15 +146,15 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `54a9f876359b5d5fc53a25cb2bdb99bbde7f22e5`；通知进入/会话名、均匀筛选行、heartbeat尾段；HTML交互/原私件权限保持 |
+| 公网前端/网关源码 | `f59cea2fd517d844bc19f8eb88dac1c236e97a2f`；筛选间距收回6px紧凑组；已发布通知/heartbeat/HTML交互与权限保持 |
 | 两机API源码 | `fc86637f601cc2e7024c5b80eae9250322341139`；11-08本机PID73369、豌豆53703，connector12894/4528与Codex未重启；回退/依赖基线9e7保留，后续运行须重查 |
-| 前端build | 共享公网、本地dist与两机API内置均 `f9ac71658b5178b263f2e56e70ef5fbf1f96a43c8df88bcd83242749e14ab7a5`；手机网页双机profile保持 |
-| Pages部署 | `332333cd-fde5-4e23-83ee-caa55e2db626`；11-08 ready=true，单次上传exit0，38/38公开资源/原功能与独立公网version/profile/SW一致 |
-| 本次验证 | 155浏览器/设施、55定向、432筛选几何/16单排序、32heartbeat/实际SSR/19独立、37通知/20入口、两路CR通过；两机各98隔离/6port0，恢复11+6；完整2122中2120过、2项旧原生恢复范围失败无跳过 |
-| 本次证据 | `.local/qa/filter-spacing-2026-11-08/` 的 `verification-final.json`、`release-verification.json`、整包/全测；`heartbeat-render-2026-11-08/` 的SSR/最终CR；`notification-entry-2026-11-08/api-deploy/` 的切换/独立保全/公网/清理，三目录均属私有证据 |
-| 本次数据与运行 | 两机API各一次切换，原凭据/VAPID/scope/policy/metadata/队列订阅和Codex/connector保全；Ged后续新增3dispatch/1create及last_opened变化为观察，不归属用户或部署；不回退数据/重放。原28scope单次续期，无未决 |
+| 前端build | 共享公网/本地dist `86e3cb77baef03d500f233361c63b26d97530597d0b10fc1d460d91e7ff8945f`；两机API内置仍 `f9ac7165…`，未为本次CSS更新切换 |
+| Pages部署 | `50d0042d-a02d-493b-b478-dfd4e7e94e67`；11-08 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/CSS一致 |
+| 本次验证 | 528组实际CSS几何、16排序/中英/图标浏览器、独立尺寸复核/构建通过；完整2122中2120过、2项旧原生恢复范围失败无skip。前轮155整包及通知/heartbeat结果在上一条与各原证据保留 |
+| 本次证据 | `.local/qa/filter-spacing-correction-2026-11-08/verification.json`、`geometry.json`、`browser.log`、`full-tests.log`、`deploy.json`；通知/API/heartbeat仍回原三份11-08 QA目录 |
+| 本次数据与运行 | 本次仅共享网页/Worker，无Mac API/数据/队列/订阅/Pocket认证或Codex/connector操作；两机API仍为前轮fc86637。原OAuth有效、无显式续期或未决上传 |
 
-上述`332333cd…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
+上述`50d0042d…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
 ## 必须保持的产品决定
 
