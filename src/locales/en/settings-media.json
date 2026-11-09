@@ -25,6 +25,7 @@
   "自动直接发送": "Send immediately",
   "支持时立即发送，否则排队。仅对新提交的消息生效。": "Send immediately when available; otherwise queue. Applies only to new messages.",
   "阅读缓存": "Reading cache",
+  "高级": "Advanced",
   "最多缓存会话": "Cache limit",
   "个": "conversations",
   "（默认）": " (default)",

@@ -222,10 +222,15 @@ export function SettingsDialog(p: {
         </section>
         {p.appearanceActions && <section className="settings-appearance" aria-label={t("外观与安装")}>{p.appearanceActions}</section>}
         <LanguageSettings />
-        <ReadingCacheSettings />
-        <SendingSettings />
         {p.notificationsAvailable !== false && <NotificationSettings />}
         {p.feedbackActions}
+        <section className="settings-advanced" aria-label={t("高级")}>
+          <h3>{t("高级")}</h3>
+          <div className="settings-advanced-options">
+            <ReadingCacheSettings />
+            <SendingSettings />
+          </div>
+        </section>
         <p className="settings-version" title={CLIENT_VERSION}>{t("版本")} {CLIENT_VERSION.slice(0, 12)}</p>
         {p.logoutAction && <div className="settings-logout">{p.logoutAction}</div>}
       </div>
