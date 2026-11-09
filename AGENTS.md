@@ -68,7 +68,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 顶部下拉加载更早消息、历史分页、压缩jsonl.zst与翻页位置 | [历史分页](docs/design/2026-10-28-history-pagination.md)：真实滚动意图一手势一批、程序scroll不连载、键盘/阅读保护；只读worker、签名游标和三页视窗保持，旧页不授控制或阅读凭据 |
 | 派生会话只有回复而缺少首条Query | [委派请求投影](docs/design/2026-10-28-delegated-query.md)：仅精确create_thread委派格式、稳定ID/轮次、原生共有锚点与只读来源标记；普通工具输出不转成用户消息 |
 | 用户引用批注、列表刷新反馈、顶部筛选/排序选中态 | [本轮契约](docs/design/2026-10-23-annotations-refresh-controls.md)：问题优先、引用披露、请求反馈互斥与轻量选中表面 |
-| 新提问选项、回答/忽略与重复显示 | [可选提问](docs/design/2026-10-10-optional-question-prompts.md)：新题选项直接展示、精确投影去重、草稿与未知回答保护 |
+| 新提问选项、自填输入被键盘遮挡、回答/忽略与重复显示 | [可选提问](docs/design/2026-10-10-optional-question-prompts.md)：新题选项/精确去重、草稿/未知回执保护；自填输入仅按编辑/视口显露所属滚动区，阅读意图优先 |
 | 最终回复后的过程折叠、展开状态与选区保护 | [过程折叠](docs/design/2026-10-11-completed-progress.md)：明确轮次、当前问题、缓存和布局后标读 |
 | subagent_notification的XML/JSON裸露、子任务结果与复制 | [子任务通知](docs/design/2026-10-28-subagent-notifications.md)：完整已知格式、紧凑披露与安全Markdown；原role/ID保持，包装不授予文件或执行权限 |
 | 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |

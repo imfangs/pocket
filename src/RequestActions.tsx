@@ -8,6 +8,7 @@ import type { QueryDraft } from "./Conversation";
 import AutoTextarea from "./AutoTextarea";
 import { captureDraft } from "./draftTransaction";
 import { requestAnswerKey, requestAnswerValues } from "./questionDrafts";
+import { bindQuestionInputVisibility } from "./questionInputVisibility";
 
 type Reply = { responseId: string; status: string };
 export default function RequestActions({ threadId, requests, disabled, refresh, drafts }: {
@@ -24,6 +25,7 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
   const container = useRef<HTMLElement>(null);
   const errorElements = useRef(new Map<string, HTMLParagraphElement>());
   const revealError = useRef<{ key: string; scrollTop: number } | null>(null);
+  useEffect(() => container.current ? bindQuestionInputVisibility(container.current) : undefined, [!!requests.length]);
   useEffect(() => () => { viewGeneration.current++; }, [threadId]);
   useLayoutEffect(() => { currentRequests.current = requests; }, [requests]);
   useLayoutEffect(() => {

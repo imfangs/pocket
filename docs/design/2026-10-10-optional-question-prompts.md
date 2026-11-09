@@ -52,3 +52,17 @@
 ## 2026-10-15 草稿退出与阅读态
 
 忽略继续保留答案；新增“丢弃草稿”明确清空选项/自填两个模式，未知和在途回答仍不可丢弃。忽略且无草稿/请求的问题不占普通输入区展开状态。完整契约与验证见[交互稳定与原地恢复](2026-10-15-interaction-recovery.md)。
+
+## 2026-11-09 键盘弹出后回答框保持可见
+
+欧吉安反馈选择自己填写后，键盘能弹出，回答框却看不到。两路回答都有同类缺口：异步题卡位于正文的 `.conversation-messages`，同步回答位于独立的 `.request-actions`；现有 `bindInspectorViewport` 会随键盘缩小详情，`AutoTextarea` 只测量输入高度并恢复正文滚动位置，没有在键盘最终尺寸到达后重新显露当前回答框。
+
+使用当前构建与真实输入焦点、原 VisualViewport 对象上的合成尺寸事件，在 Chromium/WebKit、320/390px 的八个场景均复现。420px高、top70px的键盘视口下，可见滚动区域底边约422px，而异步回答底边仍在609/657px，同步回答底边仍在617/618px。浏览器合成复现支持这一滚动原因，不等同于读取了用户当时的iPhone系统键盘状态。
+
+新增 `src/questionInputVisibility.ts`，由 `QuestionCard` 表单和 `RequestActions` 容器绑定。编辑焦点、输入和点击触发局部显露；手机视口resize/scroll与80/240/480/1000ms有限重采样处理键盘的迟到尺寸，等待现有详情布局与textarea测量后，按滚动容器和真实可见视口的交集调整该容器的scrollTop。保持8px边距，不调用scrollIntoView、blur或refocus，不更换输入节点，不改选区、textarea内部滚动或IME流程。现有共享键盘尺寸/恢复、草稿与回答回执策略不变。
+
+正文或审批区的明确touch/pointer/wheel阅读意图会暂停显露，并取消剩余重采样；键盘收起的尾部视口事件不重新夺回位置，新的focus/click/input编辑意图才能恢复。没有对消息流、轮询结果或一般内容ResizeObserver注册显露逻辑，后续进展继续保持所选阅读位置。
+
+定向61项（新增helper七项以及原草稿、题卡呈现、回答回执、键盘、阅读输入和焦点回归）、TypeScript与私有生产构建通过。新增 `tests/browser/question-input-visibility.test.mjs` 八项在上述两浏览器/两宽度全部通过，覆盖输入可见、迟到尺寸、原节点/选区/答案、普通草稿、IME事件、长答案、同步密码字段、各自滚动归属、焦点交接、流式更新及阅读后视口尾事件；无页面异常或未知API，编辑没有提交回答。验证只用合成服务，未发送真实消息、打开原owner或操作Mac服务。
+
+证据在 `.local/qa/question-input-visibility-2026-11-09/`：`baseline-scenarios.json` 是八项可见性失败的原构建基线；`first-candidate-scenarios.json` 保留测试中不完整touch事件造成的控制台失败，该测试事件已修正；`candidate-scenarios.json` 是八项通过结果，构建ID为 `23216dd052ab3835b38a437364579b6c3d79bf5f1f954b6cc885f660e7279174`。整合集成、全测与发布版本以 [CURRENT.md](../../CURRENT.md) 为准。实体iPhone键盘、输入法动画与主屏幕PWA效果尚未直接验证，仍需真实使用反馈校准。

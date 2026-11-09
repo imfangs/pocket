@@ -106,7 +106,7 @@ test('push shows a notification without caching private data and click reuses a 
   registration:{showNotification:async(...args)=>shown.push(args)},clients:{matchAll:async()=>[{url:'https://example.test/',postMessage:(m,ports)=>{messages.push(m);if(acknowledge)ports[0].ack();},focus:async()=>focused++,navigate:async url=>navigated.push(url)}],openWindow:async url=>opened.push(url)}};
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL,MessageChannel:Channel,setTimeout:(fn)=>setTimeout(fn,10),clearTimeout});
  let pending;handlers.push({data:{json:()=>({threadId:id,eventId:'event-1',body:'任务已完成',title:'Named conversation'})},waitUntil:p=>pending=p});await pending;
- assert.equal(shown[0][0],'Named conversation');assert.equal(shown[0][1].data.threadId,id);assert.equal(shown[0][1].data.machineId,'ged');
+ assert.equal(shown[0][0],'【已完成】Named conversation');assert.equal(shown[0][1].body,'');assert.equal(shown[0][1].data.threadId,id);assert.equal(shown[0][1].data.machineId,'ged');
  handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;
  assert.equal(messages[0].threadId,id);assert.equal(focused,1);assert.equal(opened.length,0);
  acknowledge=false;handlers.notificationclick({notification:{close(){},data:{threadId:id}},waitUntil:p=>pending=p});await pending;assert.equal(navigated.length,0);assert.equal(opened[0],`/?task=${id}`);
@@ -123,7 +123,7 @@ test('push clicks choose the correct machine even for identical thread IDs and n
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL,MessageChannel:Channel,setTimeout,clearTimeout});
  let pending;
  for(const machineId of ['ged','wandou']) {handlers.push({data:{json:()=>({threadId:id,machineId,eventId:'same-event',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;}
- assert.deepEqual(shown.map(([title])=>title),['Pocket','Pocket']);
+ assert.deepEqual(shown.map(([title])=>title),['【已完成】Pocket','【已完成】Pocket']);
  assert.notEqual(shown[0][1].tag,shown[1][1].tag);
  handlers.notificationclick({notification:{close(){},data:{threadId:id,machineId:'wandou'}},waitUntil:p=>pending=p});await pending;
  assert.equal(messages.length,1);assert.equal(messages[0].machine,'wandou');assert.equal(messages[0].type,'pocket-open-machine-task');
@@ -168,13 +168,24 @@ test('a failed public bootstrap keeps the previous worker despite later successf
   await assert.rejects(pending,/Client configuration is not ready/);assert.equal(skipped,0);assert.equal(filled,0);
 });
 
-test('push title is an authored bounded name and older payloads keep the Pocket fallback',async()=>{
+test('push title combines a compact status with the bounded authored name and older payloads keep the Pocket fallback',async()=>{
  const handlers={},shown=[];const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
  const self={addEventListener:(name,fn)=>handlers[name]=fn,registration:{showNotification:async(...args)=>shown.push(args)}};
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL});
- for(const [title,expected] of [[undefined,'Pocket'],[false,'Pocket'],['\n\u0000\t','Pocket'],['  Named\nconversation  ','Named conversation'],['😀'.repeat(130),'😀'.repeat(120)]]){
+ for(const [title,expected] of [[undefined,'【已完成】Pocket'],[false,'【已完成】Pocket'],['\n\u0000\t','【已完成】Pocket'],['  Named\nconversation  ','【已完成】Named conversation'],['😀'.repeat(130),'【已完成】'+'😀'.repeat(115)]]){
   let pending;handlers.push({data:{json:()=>({title,threadId:id,eventId:'bounded-title',body:'任务已完成'})},waitUntil:p=>pending=p});await pending;
-  assert.equal(shown.at(-1)[0],expected);assert.equal(shown.at(-1)[1].body,'任务已完成');
+  assert.equal(shown.at(-1)[0],expected);assert.equal(shown.at(-1)[1].body,'');
+ }
+});
+
+test('push status titles omit duplicate text and source labels while unknown statuses remain readable',async()=>{
+ const handlers={},shown=[];const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+ const self={addEventListener:(name,fn)=>handlers[name]=fn,registration:{showNotification:async(...args)=>shown.push(args)}};
+ vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{POCKET_CLIENT_CONFIG:profile,self,URL});
+ for(const [body,expected,detail] of [['任务已完成','【已完成】合成会话',''],['任务执行失败','【失败】合成会话',''],['任务需要你处理','【待处理】合成会话',''],['未来状态','合成会话','未来状态'],['toString','合成会话','toString']]){
+  let pending;handlers.push({data:{json:()=>({title:'合成会话',body,threadId:id,machineId:'wandou',eventId:'compact-status'})},waitUntil:p=>pending=p});await pending;
+  const [title,options]=shown.at(-1);assert.equal(title,expected);assert.equal(options.body,detail);
+  assert.equal(options.data.threadId,id);assert.equal(options.data.machineId,'wandou');assert.equal(options.tag,'pocket-wandou-compact-status');
  }
 });
 

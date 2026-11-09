@@ -51,8 +51,11 @@ self.addEventListener("push", event => {
   const machineId = data.machineId ?? defaultMachine;
   if (!validMachine(machineId)) return;
   const title = typeof data.title === "string" ? data.title.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/gu, " ").trim() : "";
-  event.waitUntil(self.registration.showNotification(title ? Array.from(title).slice(0, 120).join("") : "Pocket", {
-    body: data.body.slice(0, 100), icon: "/icons/pocket-v1-192.png", badge: "/icons/pocket-v1-192.png",
+  const name = title || "Pocket";
+  const status = data.body === "任务已完成" ? "已完成" : data.body === "任务执行失败" ? "失败" : data.body === "任务需要你处理" ? "待处理" : null;
+  const heading = status ? `【${status}】${name}` : name;
+  event.waitUntil(self.registration.showNotification(Array.from(heading).slice(0, 120).join(""), {
+    body: status ? "" : data.body.slice(0, 100), icon: "/icons/pocket-v1-192.png", badge: "/icons/pocket-v1-192.png",
     tag: `pocket-${machineId}-${data.eventId}`, data: { threadId: data.threadId, machineId },
   }));
 });

@@ -11,6 +11,7 @@ import { captureDraft } from "./draftTransaction";
 import { answerMode, editAnswer, hasAnswerText, switchAnswerMode } from "./questionDrafts";
 import MessageMarkdown from "./MessageMarkdown";
 import { checkQuestionAnswer, discardQuestionDraft, ignoreQuestion, questionPresentation, questionPresentationStore, questionSourceText, withQuestionAnswerPost, type QuestionPresentationStore } from "./questionPresentation";
+import { bindQuestionInputVisibility } from "./questionInputVisibility";
 
 type Props = { threadId: string; questions: AsyncQuestion[]; disabled: boolean; drafts: Map<string, QueryDraft>; refresh: () => Promise<void> | undefined;
   sourceText?: string; sourceImages?: Message["images"]; sourceFiles?: Message["files"]; sourceTruncated?: boolean; presentationStore?: QuestionPresentationStore;
@@ -34,6 +35,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
   const form = useRef<HTMLFormElement>(null);
   const viewGeneration = useRef(0);
   useEffect(() => () => { viewGeneration.current++; }, [key]);
+  useEffect(() => form.current ? bindQuestionInputVisibility(form.current) : undefined, []);
   useReloadGuard(() => {
     const saved = drafts.get(key);
     return busy ? "回答尚未提交完成，请稍后更新。"
