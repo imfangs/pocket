@@ -43,4 +43,6 @@
 
 本地集成：固定build `c0f9dc74da03e047def77ea6f6e396d0656140b64cf5aecbf4129cd63da82259`，19个浏览器测试文件、267/267通过；四域新增100场景均在此版本回验，5个源文件始终匹配独立复核SHA256。全库2130项、2128通过，2项既有archive-thread恢复范围失败保持；TypeScript/构建/diff检查通过。独立复核20/20及服务类合成回执3/3通过。
 
-网页发布待确认；发布身份与在线回读随后补记。这里的267项是同一个最终候选，不混用各子代理的独立构建结果。
+网页已发布并回读。发布源码`60cfef96c1f60e86054a4d1fafa09eaaf1910446`，build为上述同一`c0f9dc74…`，Pages `f55c3a92-0783-4a26-9e86-332ae7adcd99`。单次上传exit0/ready，38/38资源及项目功能通过；另行读取公网index、version、个人profile和App主脚本，SHA256全部匹配，测试/发布build完全相同。原ged/wandou配置保持，未操作Mac API/Codex/连接器或真实派发。
+
+本轮没有调用登录/续期流程，没有未决上传或需要重试的外部动作。具体回执：`pages-deploy.json`、`public-readback.json`与`verification.json`。这里的267项是同一个最终候选，不混用各子代理的独立构建结果。
