@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-08。通知显示当前会话名并直接进入对应会话，登录/弱网目标恢复已完善；筛选行已按同日反馈收回自然紧凑的6px间距，普通回复末尾heartbeat投影已上线。两机API源fc86637，公网前端发布源f59cea2、build86e3cb77，38/38资源/功能及独立回读通过；本次16定向浏览器/528几何及独立尺寸复核通过，前轮155浏览器/设施与两路CR记录保持。切换窗口原私有数据、订阅、队列和Codex/connector保持；切换后的新增业务/访问状态按观测保留，不恢复旧数据或推定发起方。HTML交互预览与既有体验保持。完整2122中2120通过，2项旧原生取消归档范围失败仍列待续。未公开源码或改写脱敏历史，无未决上传。
+维护日期：2026-11-09。通知简化为「【已完成】会话名」等状态短标题，去掉重复正文和应用附加来源；自填回答框随键盘调整时保持可见，明确阅读后不抢滚动。前端源53f16d8/build23216dd0，38/38资源/功能与独立公网回读通过；163浏览器/32通知/61输入定向及独立CR通过。两机API仍fc86637，未为本轮重启或改变数据/队列/订阅；旧通知进入、紧凑筛选/heartbeat/HTML交互保持。完整2130中2128通过，2项旧原生取消归档范围失败仍待续；真实iPhone键盘/锁屏未实测。未公开源码或改写脱敏历史，无未决上传。
 
 ## 下一次先看
 
-- **11-09通知文案与自填输入已验证，待发布。** 通知SW改为`【已完成】会话名`、`【失败】会话名`、`【待处理】会话名`，移除重复正文，不加来源；未知状态保持旧展示、总120字符与machine/thread点击策略保留。[通知契约](docs/NOTIFICATIONS.md)。自填输入修复已覆盖异步题卡/同步请求两路，按编辑/实际视口仅显露所属滚动区，明确阅读后暂停，保留节点/草稿/选区/IME/回执。候选build23216dd0…编译、32通知/61输入定向、8新增/163整包浏览器及独立7纯测+阅读意图探针CR通过；完整2130中2128通过，2项旧原生恢复范围失败无skip。尚未发布，下方仍为线上事实；不重启Mac服务或真实发送，证据`.local/qa/compact-notification-keyboard-2026-11-09/`。
+- **通知短标题与自填回答框可见性已上线（2026-11-09）。** [通知](docs/NOTIFICATIONS.md)仅展示`【已完成】会话名`／`【失败】会话名`／`【待处理】会话名`，清空重复正文、不加来源，整体120字符/缺名Pocket/未知状态fallback、加密和machine/thread点击保持；系统署名不属于可隐藏参数，不推定用户所见来源一定来自系统。[回答框](docs/design/2026-10-10-optional-question-prompts.md#2026-11-09-键盘弹出后回答框保持可见)：异步题卡/同步请求只按编辑与实际视口显露所属滚动区，8px/双RAF/有限迟到重采样；明确阅读持续暂停至新编辑，不改焦点/节点/选区/IME/草稿/回执或共享键盘/CSS。原build86e3的8个基线可见性失败均复现，新build23216dd0…8/8新增、163/163整包浏览器通过；32通知/61输入定向/独立7纯测＋阅读意图探针CR通过，无剩余P1/P2。完整2130中2128通过，2项旧原生恢复范围失败无skip，未放宽。源53f16d8、Pages e5b8eb93…单次上传exit0/ready、38/38资源/原功能与独立公网version/profile/SW/App JS一致。仅共享网页/Worker，API仍fc86637，不做真实push/回答/owner或服务操作；实体iPhone键盘与通知未直接验收。OAuth过期后单次续期原28scope保持、targetGET200，无未决操作。证据`.local/qa/compact-notification-keyboard-2026-11-09/verification.json`、`question-input-visibility-2026-11-09/`与`question-input-review-2026-11-09/`，均私有。
 
 - **筛选间距已按反馈收回（2026-11-08）。** 用户只希望略微松一点，首轮space-between把中文常见间距拉到约35px过度。现自然靠左形成一组，固定6px（原2px）；英文390–409为3px、≤389为1px，完整标签/计数/44px及中英手机一行保持。[纠正依据](docs/design/2026-11-05-filter-sort-row.md#2026-11-08恢复适度间距)。528组实际编译CSS几何（新增409/410边界，无inline覆盖）及16排序/英文/图标浏览器、独立尺寸复核/构建通过；完整2122中2120过、2项旧原生恢复范围失败无skip。源f59cea2、build86e3cb77…、Pages50d0042d…单次上传exit0/ready、38/38资源/功能通过，独立公网version/profile/CSS匹配。仅共享网页/Worker，本轮未改Mac API/重启Codex或connector；旧通知/heartbeat保持。证据`.local/qa/filter-spacing-correction-2026-11-08/verification.json`；几何可用与审美判断分开，首轮经过测量仍被用户纠正的历史保留。
 
@@ -148,15 +148,15 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `f59cea2fd517d844bc19f8eb88dac1c236e97a2f`；筛选间距收回6px紧凑组；已发布通知/heartbeat/HTML交互与权限保持 |
+| 公网前端/网关源码 | `53f16d86d3c3ad14e1f26ed02ea02fdd704e9d7e`；状态短标题/去重复正文，自填回答输入局部显露；旧筛选/heartbeat/HTML/权限保持 |
 | 两机API源码 | `fc86637f601cc2e7024c5b80eae9250322341139`；11-08本机PID73369、豌豆53703，connector12894/4528与Codex未重启；回退/依赖基线9e7保留，后续运行须重查 |
-| 前端build | 共享公网/本地dist `86e3cb77baef03d500f233361c63b26d97530597d0b10fc1d460d91e7ff8945f`；两机API内置仍 `f9ac7165…`，未为本次CSS更新切换 |
-| Pages部署 | `50d0042d-a02d-493b-b478-dfd4e7e94e67`；11-08 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/CSS一致 |
-| 本次验证 | 528组实际CSS几何、16排序/中英/图标浏览器、独立尺寸复核/构建通过；完整2122中2120过、2项旧原生恢复范围失败无skip。前轮155整包及通知/heartbeat结果在上一条与各原证据保留 |
-| 本次证据 | `.local/qa/filter-spacing-correction-2026-11-08/verification.json`、`geometry.json`、`browser.log`、`full-tests.log`、`deploy.json`；通知/API/heartbeat仍回原三份11-08 QA目录 |
-| 本次数据与运行 | 本次仅共享网页/Worker，无Mac API/数据/队列/订阅/Pocket认证或Codex/connector操作；两机API仍为前轮fc86637。原OAuth有效、无显式续期或未决上传 |
+| 前端build | 共享公网/本地dist `23216dd052ab3835b38a437364579b6c3d79bf5f1f954b6cc885f660e7279174`；两机API内置仍 `f9ac7165…`，本次仅共享网页更新 |
+| Pages部署 | `e5b8eb93-fa08-4c04-9fc1-586591c52c3c`；11-09 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/SW/App JS一致 |
+| 本次验证 | 163浏览器/设施、32通知、61输入定向、独立7纯测/阅读意图探针CR；输入8项旧基线失败/新构建通过。完整2130中2128过、2项既有原生恢复范围失败无skip；iPhone/PWA原生键盘/推送未实测 |
+| 本次证据 | `.local/qa/compact-notification-keyboard-2026-11-09/verification.json`、`source-hashes.json`、整包/全测/认证/发布日志；`question-input-visibility-2026-11-09/`基线/候选；`question-input-review-2026-11-09/`最终CR |
+| 本次数据与运行 | 仅共享网页/Worker；没有Mac API/队列/订阅/私有数据或Codex/connector操作，未真实发通知/回答/打开owner。OAuth单次续期原28scope保持，targetGET200，无未决 |
 
-上述`50d0042d…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
+上述`e5b8eb93…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
 ## 必须保持的产品决定
 
