@@ -72,7 +72,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 最终回复后的过程折叠、展开状态与选区保护 | [过程折叠](docs/design/2026-10-11-completed-progress.md)：明确轮次、当前问题、缓存和布局后标读 |
 | subagent_notification的XML/JSON裸露、子任务结果与复制 | [子任务通知](docs/design/2026-10-28-subagent-notifications.md)：完整已知格式、紧凑披露与安全Markdown；原role/ID保持，包装不授予文件或执行权限 |
 | 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |
-| 手机上传、附件草稿、图片/文件发送及队列恢复 | [附件发送](docs/design/2026-10-10-attachments.md)：私有落盘、原owner输入、上传/发送编号及文件保留边界 |
+| 手机上传、附件草稿、图片/文件发送及队列恢复 | [附件发送](docs/design/2026-10-10-attachments.md)：私有落盘、原owner输入、上传/发送编号及文件保留边界；[状态工作台与可读性](docs/design/2026-11-09-attachment-state-workbench.md)：真实组件状态、完整草稿文件名、操作换行与合成回归 |
 | 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
 | Markdown、定时消息正文空白/XML代码框、Codex专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)：heartbeat/子任务的纯引用尾段单独消解，内部代码与完整shape保护；原文从Pocket只读接口核对，Codex展示投影可能省略引用。图片边界见[图片契约](docs/IMAGES.md) |
 | Markdown/TXT等文件页内预览、下载与预览字节复用 | [消息文件](docs/design/2026-10-22-message-components.md)：受控文件权限、1MiB文本预览、关闭恢复、按当前预览下载；文件内容不继承会话组件权限 |

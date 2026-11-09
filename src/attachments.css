@@ -10,6 +10,10 @@ button.attachment-card { width:100%; text-align:left; }
 .attachment-controls { display:flex; align-items:center; flex:none; gap:3px; }
 .attachment-controls button { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:4px; background:none; color:var(--muted); border:0; border-radius:5px; font-size:11px; }
 .attachment-controls button:disabled { opacity:.5; }
+.attachment-draft { flex-wrap:wrap; row-gap:4px; }
+.attachment-draft[data-upload-status="failed"] .attachment-details, .attachment-draft[data-upload-status="unknown"] .attachment-details { flex-basis:140px; }
+.attachment-draft .attachment-name { white-space:normal; overflow-wrap:anywhere; }
+.attachment-draft .attachment-controls { margin-inline-start:auto; }
 .attachment-details .attachment-error, .attachment-error { color:var(--danger); overflow-wrap:anywhere; font-size:11px; margin:0; }
 .draft-attachments { max-height:200px; overflow:auto; flex-shrink:0; }
 .inspector[data-keyboard-open] .draft-attachments { max-height:96px; }
