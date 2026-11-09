@@ -47,4 +47,8 @@ POCKET_BROWSER_DIST=dist node --test tests/browser/attachment-layout.test.mjs
 
 ## 发布接续
 
-状态：本地完成，网页发布待确认。仅共享前端/Pages更新，沿原ged/wandou个人profile；Mac API不需要更新。具体发布回执与最终在线状态待写入本节及CURRENT，不能把本地检查计为已上线。
+状态：共享网页已发布并回读。发布源码`9fb0ae11d7580d8944bb0d7e5863697dc9103ec1`，build `06d7b6faa7c45300d61870a1547e21217c83a6a58118e606d3f6631c9680e07e`，Pages `617d78e0-94ac-4651-b8c9-27e862963c03`。最终测试构建与公网build完全相同。
+
+首次发布前GET401，确认默认OAuth已过期且无未决refresh，单次续期成功、原28scope保持、目标账号/项目GET200。实际上传仅一次、exit0；首次文件回读35/38，新旧index/version和新CSS短暂混合，保留部署并`resume --publish --resume-verification`，复用35项后38/38及项目功能检查通过，没有再次上传。独立公网读取index、version、个人profile和App CSS均与本地SHA256一致。
+
+只有共享前端/Pages更新，原ged/wandou个人profile保持；Mac API/Codex/连接器没有重启或变更，本轮没有实际发送/上传私人文件。具体收据位于上方QA目录的`pages-deploy.json`、`pages-resume.json`、`public-readback.json`，当前入口统一看CURRENT。
