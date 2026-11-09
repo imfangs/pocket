@@ -18,6 +18,7 @@ const components: Components = {
   a: ({ href, children }) => href ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>,
   img: ({ alt }) => <span className="markdown-image-reference">{alt || t("图片")}</span>,
   table: ({ children }) => <div className="markdown-table" tabIndex={0} role="region" aria-label={t("表格，可横向滚动")}><table>{children}</table></div>,
+  pre: ({ children }) => <pre tabIndex={0}>{children}</pre>,
 };
 const safeLink = (value: string, key: string) => {
   if (key !== "href") return "";

@@ -89,6 +89,10 @@ export default function RequestActions({ threadId, requests, disabled, refresh, 
           responseId, ...(decision === "answer" ? { answers: submittedAnswers } : { decision }),
         });
       }
+      // POST and later checks must acknowledge the same response. Otherwise
+      // keep its answers and original identity instead of accepting another
+      // operation's result or querying that unrelated response next time.
+      if (result.responseId !== responseId) throw new Error("回执与当前消息不匹配，请重新核对。");
       if (["accepted", "resolved"].includes(result.status)) {
         savedAnswers.forEach(saved => saved.clear());
         if (currentView()) setAnswers(old => ({ ...old, [request.key]: requestAnswerValues(drafts, threadId, request) }));

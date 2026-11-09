@@ -62,6 +62,7 @@ export default function TaskList(p: Props) {
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
   const acting = useRef<string | null>(null), mounted = useRef(true), list = useRef<HTMLDivElement>(null);
   const focusAfterHidden = useRef<{ scope: string; id?: string } | null>(null);
+  const focusAfterEmptyAction = useRef<{ opener: HTMLButtonElement; scope: string | null } | null>(null);
   const motion = useRef<ReturnType<typeof bindTaskListMotion> | null>(null);
   const scope = `${p.view}\0${p.projectScope || ""}\0${p.activity || "all"}\0${p.sort || "smart"}\0${p.query}`;
   const limit = limits.get(scope) ?? 80;
@@ -214,6 +215,46 @@ export default function TaskList(p: Props) {
     const buttons = [...list.current.querySelectorAll<HTMLButtonElement>("button.task-select:not(:disabled)")];
     (buttons.find(button => button.dataset.threadId === target.id) ?? buttons[0] ?? list.current).focus({ preventScroll: true });
   }, [p.threads, pendingId, scope]);
+  useLayoutEffect(() => {
+    const request = focusAfterEmptyAction.current;
+    if (!request) return;
+    const { opener } = request;
+    const root = list.current, active = document.activeElement;
+    // Keyboard recovery replaces the empty CTA with results. Keep the next
+    // activation in those results, unless another control already owns focus.
+    if (!root || root.closest("[inert]") || document.querySelector("dialog[open]") ||
+        (request.scope !== null && request.scope !== scope) ||
+        (active && active !== document.body && active !== opener && active !== root)) {
+      focusAfterEmptyAction.current = null;
+      return;
+    }
+    request.scope = scope;
+    const first = root.querySelector<HTMLButtonElement>("button.task-select:not(:disabled)");
+    if (first) {
+      focusAfterEmptyAction.current = null;
+      first.focus({ preventScroll: true });
+      return;
+    }
+    // The recovery's new catalog may arrive after its initial empty render.
+    // Retain only this scope's intent, and cancel it on any newer user action.
+    const cancel = () => { if (focusAfterEmptyAction.current === request) focusAfterEmptyAction.current = null; };
+    const focus = (event: FocusEvent) => {
+      if (event.target !== document.body && event.target !== opener && event.target !== root) cancel();
+    };
+    const visibility = () => { if (document.hidden) cancel(); };
+    document.addEventListener("pointerdown", cancel, true);
+    document.addEventListener("keydown", cancel, true);
+    document.addEventListener("focusin", focus, true);
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("blur", cancel);
+    return () => {
+      document.removeEventListener("pointerdown", cancel, true);
+      document.removeEventListener("keydown", cancel, true);
+      document.removeEventListener("focusin", focus, true);
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("blur", cancel);
+    };
+  });
   const empty = emptyListContent({ view: p.view, activity: p.activity, query: p.query, projectScope: p.projectScope, hasFilters: p.hasFilters, unreadAvailable: p.unreadAvailable, unreadPending: p.unreadPending,
     runtimeAvailable: !p.runtimeLoading && !p.runtimeUnavailable, runtimeLoading: p.runtimeLoading });
   const emptyAction = empty.action === "create" ? p.onCreate : empty.action === "showAll" ? p.onShowAll : empty.action === "searchAll" ? p.onSearchAll
@@ -231,7 +272,12 @@ export default function TaskList(p: Props) {
           <h2>{tr(empty.title)}</h2>
           {empty.description && <p>{tr(empty.description)}</p>}
           {emptyAction && empty.actionLabel && <div className="empty-list-actions">
-            <button className={empty.action === "create" ? "primary" : "secondary"} onClick={emptyAction} disabled={p.busy}>{tr(empty.actionLabel)}</button>
+            <button className={empty.action === "create" ? "primary" : "secondary"} onClick={event => {
+              if (event.detail === 0 && document.activeElement === event.currentTarget &&
+                  (empty.action === "showAll" || empty.action === "searchAll" || empty.action === "clearFilters" || empty.action === "clearQuery"))
+                focusAfterEmptyAction.current = { opener: event.currentTarget, scope: null };
+              emptyAction();
+            }} disabled={p.busy}>{tr(empty.actionLabel)}</button>
           </div>}
         </div>
       ) : (

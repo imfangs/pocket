@@ -84,7 +84,7 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
     const checking = waiting || !!currentRequestId;
     const requestId = currentRequestId || draft.requestId || (checking ? question.response?.requestId : null) || crypto.randomUUID();
     try {
-      let result: { status: string };
+      let result: { status: string; requestId?: string };
       if (checking) {
         result = await checkQuestionAnswer(presentationStore, threadId, question.key, requestId, async () => {
           await refresh();
@@ -96,6 +96,9 @@ function QuestionCard({ threadId, question, disabled, drafts, refresh, endMarker
         result = await withQuestionAnswerPost(presentationStore, threadId, question.key, requestId,
           () => api(`/api/tasks/${threadId}/questions/${question.key}/answer`, "POST", { requestId, text: draft.text }));
       }
+      // Only this answer's receipt can clear its captured draft. A malformed
+      // or unrelated acknowledgement leaves the original identity checkable.
+      if (result.requestId !== requestId) throw new Error("回执与这条回答不匹配，请重新核对。");
       if (result.status === "accepted" && saved.clear()) {
         if (currentView()) setDraft({ text: "" });
         presentationStore.notifyDraftChange();

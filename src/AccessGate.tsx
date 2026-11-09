@@ -13,6 +13,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import PwaInstall, { usePwaInstallController } from "./PwaInstall";
 import ThemeSwitch from "./ThemeSwitch";
 import BootSplash from "./BootSplash";
@@ -62,6 +63,8 @@ export default function AccessGate() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const installController = usePwaInstallController();
+  const passphraseInput = useRef<HTMLInputElement>(null);
+  const visibilityPointer = useRef<{ start: number | null; end: number | null; direction: "forward" | "backward" | "none" | null } | null>(null);
   const cachePurge = useRef<ReturnType<typeof clearReadingCache> | null>(null);
   const purgeCache = () => {
     if (machine) invalidateAuthentication(machine);
@@ -223,6 +226,7 @@ export default function AccessGate() {
             <div className="passphrase-input">
               <AppIcon icon={LockKeyhole} kind="auxiliary" />
               <input
+                ref={passphraseInput}
                 id="passphrase"
                 name="password"
                 type={visible ? "text" : "password"}
@@ -241,7 +245,24 @@ export default function AccessGate() {
               <button
                 type="button"
                 aria-label={visible ? t("隐藏口令") : t("显示口令")}
-                onClick={() => setVisible((v) => !v)}
+                onPointerDown={() => {
+                  const field = passphraseInput.current;
+                  visibilityPointer.current = field && document.activeElement === field
+                    ? { start: field.selectionStart, end: field.selectionEnd, direction: field.selectionDirection } : null;
+                }}
+                onPointerCancel={() => { visibilityPointer.current = null; }}
+                onClick={event => {
+                  const selection = event.detail > 0 ? visibilityPointer.current : null;
+                  visibilityPointer.current = null;
+                  if (!selection) { setVisible((v) => !v); return; }
+                  // Reflect the new input type before restoring focus. Chromium
+                  // can reset a focused input's caret after its type changes.
+                  flushSync(() => setVisible((v) => !v));
+                  const field = passphraseInput.current;
+                  field?.focus({ preventScroll: true });
+                  if (field && selection.start !== null && selection.end !== null)
+                    field.setSelectionRange(selection.start, selection.end, selection.direction ?? "none");
+                }}
               >
                 {visible ? <AppIcon icon={EyeOff} kind="action" /> : <AppIcon icon={Eye} kind="action" />}
               </button>
