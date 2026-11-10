@@ -12,5 +12,7 @@ export function navigateTaskReference(event: MouseEvent<HTMLAnchorElement>, url:
   if (target.machine !== currentMachineId()) {
     const error = changeMachine(target.machine, target.threadId);
     if (error) toast.error(t(error));
-  } else window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: target.threadId }));
+  } else window.dispatchEvent(new CustomEvent("pocket-open-reference", {
+    detail: { threadId: target.threadId, origin: event.detail === 0 ? "keyboard" : "pointer" }, cancelable: true,
+  }));
 }

@@ -1,6 +1,7 @@
 import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale } from "./i18n";
 import { TaskReferencesProvider } from "./MessageTaskCard";
+import { ConversationNavigationStack } from "./conversationNavigationStack";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
 import {
@@ -151,18 +152,24 @@ export default function App({
     selectedId: selected, excludedThreadIds: catalog.excludedThreadIds, draftIds,
     machine: currentMachineId(), readingScope: pocketReadScope });
   const selectedRef = useRef(selected);
+  const conversationMachine = currentMachineId();
+  const conversationStack = useMemo(() => new ConversationNavigationStack({ machine: conversationMachine, readingScope: pocketReadScope }), [conversationMachine, pocketReadScope]);
+  const latestConversationStack = useRef(conversationStack); latestConversationStack.current = conversationStack;
   const selectionRevision = useRef(0);
-  const notificationTarget = useRef<{ id: string; selection: number } | null>(null);
+  const notificationTarget = useRef<{ id: string; selection: number; stack?: ConversationNavigationStack; origin?: InspectorEntryOrigin } | null>(null);
   const notificationRouteOwner = useRef<{ id: string; selection: number } | null>(null);
   const returnFocusController = useRef<AbortController | null>(null);
   useEffect(() => () => returnFocusController.current?.abort(), []);
   const [animateSelection, setAnimateSelection] = useState(false);
   const [entryOrigin, setEntryOrigin] = useState<InspectorEntryOrigin>("programmatic");
   const [newConversationClosing, setNewConversationClosing] = useState(false);
-  const setSelected = useCallback((id: string | null, animate = false, origin: InspectorEntryOrigin = "programmatic") => {
+  const setSelected = useCallback((id: string | null, animate = false, origin: InspectorEntryOrigin = "programmatic", navigation: "root" | "push" | "back" = "root") => {
     returnFocusController.current?.abort(); returnFocusController.current = null;
+    const from = selectedRef.current;
+    if (navigation === "root") latestConversationStack.current.replace();
     selectionRevision.current++;
     selectedRef.current = id;
+    if (navigation === "push" && id) latestConversationStack.current.push(from, id);
     const owned = notificationRouteOwner.current;
     if (owned && id !== owned.id) {
       // Explicitly choosing the already-selected row is still a new intent.
@@ -174,6 +181,14 @@ export default function App({
       notificationRouteOwner.current = null;
       notificationTarget.current = null;
       try { clearNotificationTarget(sessionStorage); } catch {}
+    }
+    if (navigation === "back") {
+      // Reference navigation owns a durable URL, including the final return
+      // to the list after a previous back already released route ownership.
+      try {
+        const machine = currentMachineId();
+        if (machine) history.replaceState(history.state, "", notificationRouteUrl(location.href, machine, id));
+      } catch {}
     }
     setEntryOrigin(origin);
     setAnimateSelection(!!id && animate);
@@ -632,30 +647,47 @@ export default function App({
     if (pending.selection !== selectionRevision.current) {
       notificationTarget.current = null;
       try { clearNotificationTarget(sessionStorage); } catch {}
+    } else if (pending.stack && pending.stack !== latestConversationStack.current) {
+      // An in-message reference belongs to its original source. Unlike a
+      // system notification it must not enter the same ID in a new scope.
+      notificationTarget.current = null; notificationRouteOwner.current = null;
+      try { clearNotificationTarget(sessionStorage); } catch {}
+      try {
+        const machine = currentMachineId();
+        if (machine) history.replaceState(history.state, "", notificationRouteUrl(location.href, machine, selectedRef.current));
+      } catch {}
     } else if (!catalog.sourceError && catalog.threads.some(thread => thread.id === pending.id)) {
       notificationTarget.current = null;
-      setSelected(pending.id); setMobile(false);
+      setSelected(pending.id, false, pending.origin, pending.stack === latestConversationStack.current ? "push" : "root"); setMobile(false);
       if (pinNotificationRoute(pending.id)) try { clearNotificationTarget(sessionStorage); } catch {}
     }
   }, [catalog.threads, catalog.sourceError, selected, setSelected]);
   useEffect(() => {
     const fromNotification = (event: Event) => {
-      const id = (event as CustomEvent<string>).detail;
+      const reference = event.type === "pocket-open-reference";
+      const detail = (event as CustomEvent<string | { threadId: string; origin?: InspectorEntryOrigin }>).detail;
+      const id = reference && typeof detail === "object" ? detail?.threadId : detail;
       if (typeof id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) return;
+      const origin = reference && typeof detail === "object" && ["pointer", "keyboard"].includes(detail?.origin || "") ? detail.origin : "programmatic";
       if (!pinNotificationRoute(id)) { (event as NotificationEntryEvent).targetRejected = true; return; }
       event.preventDefault(); // The durable route now owns this click even if storage or auth later fails.
       if (catalog.threads.some(thread => thread.id === id)) {
         notificationTarget.current = null;
-        setSelected(id); setMobile(false);
+        setSelected(id, false, origin, reference ? "push" : "root"); setMobile(false);
         notificationRouteOwner.current = { id, selection: selectionRevision.current };
         try { clearNotificationTarget(sessionStorage); } catch {}
-      } else notificationTarget.current = { id, selection: selectionRevision.current };
+      } else notificationTarget.current = { id, selection: selectionRevision.current,
+        ...(reference ? { stack: latestConversationStack.current, origin } : {}) };
       // A known conversation opens before this read. Unknown targets remain
       // retained and are entered by the catalog effect after a later success.
       void guard(() => syncTasks(true));
     };
     window.addEventListener("pocket-open-task", fromNotification);
-    return () => window.removeEventListener("pocket-open-task", fromNotification);
+    window.addEventListener("pocket-open-reference", fromNotification);
+    return () => {
+      window.removeEventListener("pocket-open-task", fromNotification);
+      window.removeEventListener("pocket-open-reference", fromNotification);
+    };
   });
   const open = useCallback(
     async (t: Thread, options?: ConnectOptions) => {
@@ -942,7 +974,10 @@ export default function App({
                 void guard(async () => {
                   if (selectedRef.current !== current.id) return;
                   const panel = document.querySelector<HTMLElement>(".inspector"), list = listPanel.current;
-                  setSelected(null);
+                  const parent = latestConversationStack.current.back(current.id, id => displayCatalog.threads.some(thread =>
+                    thread.id === id && !thread.separator && !thread.missing && !thread.sourceExcluded && !catalog.excludedThreadIds?.includes(id)));
+                  setSelected(parent, false, origin, "back");
+                  if (parent) { refreshAfterActivity(); return; }
                   const revision = selectionRevision.current, returnScope = catalogScope.current;
                   if (panel && list) {
                     const controller = new AbortController(); returnFocusController.current = controller;
