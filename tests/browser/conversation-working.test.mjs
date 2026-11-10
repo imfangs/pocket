@@ -7,7 +7,7 @@ import { runScenario } from './scenario.mjs';
 
 const results = [];
 after(() => {
-  const path = resolve(process.env.POCKET_WORKING_REPORT || '.local/qa/working-dots-2026-11-04/browser-focused.json');
+  const path = resolve(process.env.POCKET_WORKING_REPORT || '.local/qa/browser-working/scenarios.json');
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify({ scenarios: results }, null, 2) + '\n');
 });

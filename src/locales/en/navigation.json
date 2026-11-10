@@ -137,6 +137,8 @@
   "暂未找到操作记录，结果仍待确认，请稍后核对。": "The action record is not available yet. Check again shortly.",
   "暂未找到操作记录，请稍后核对；停止核对不会删除已创建的会话。": "The creation record is not available yet. Check again shortly; stopping the check will not delete created conversations.",
   "暂未更新，显示上次列表": "Showing the previous list",
+  "状态尚未同步，显示上次同步的列表状态": "Status not synced. Showing the last synced list status.",
+  "状态尚未同步": "Status not synced.",
   "更多设置": "More options",
   "未命名项目": "Untitled project",
   "未归属项目": "No project",

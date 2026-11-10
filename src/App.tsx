@@ -147,7 +147,8 @@ export default function App({
   }) }), [catalog, readRevision]);
   const draftIds = useMemo(() => draftThreadIds(conversationDrafts.current), [conversationDrafts, draftIndicatorRevision]);
   const taskStatuses = useTaskStatuses({ threads: displayCatalog.threads, activity: pocketActivity,
-    selectedId: selected, excludedThreadIds: catalog.excludedThreadIds, draftIds });
+    selectedId: selected, excludedThreadIds: catalog.excludedThreadIds, draftIds,
+    machine: currentMachineId(), readingScope: pocketReadScope });
   const selectedRef = useRef(selected);
   const selectionRevision = useRef(0);
   const notificationTarget = useRef<{ id: string; selection: number } | null>(null);
@@ -510,6 +511,8 @@ export default function App({
   useLayoutEffect(() => { if (!catalogFromDisk) pocketReadState.observeCatalog(catalog.threads, pocketReadScope); }, [catalog.threads, pocketReadScope, catalogFromDisk]);
   const runtimeKnown = !taskStatuses.runtimeLoading && !taskStatuses.runtimeUnavailable;
   const runtimeStates = runtimeKnown ? taskStatuses.runtimeStates : undefined;
+  const listRuntimeStates = taskStatuses.listRuntimeStates;
+  const listRuntimeKnown = !taskStatuses.listRuntimeLoading && !taskStatuses.listRuntimeUnavailable;
   const prefetchExcluded = useMemo(() => {
     const ids = new Set(catalog.excludedThreadIds);
     for (const thread of catalog.threads) if (pocketHidden(thread)) ids.add(thread.id);
@@ -539,11 +542,11 @@ export default function App({
         query,
         project,
         sort,
-        runtimeStates,
+        listRuntimeStates,
         { now: rankingTime, draftIds, pocketActivity },
         activity,
       ),
-    [displayCatalog, scope, activity, sort, query, project, runtimeStates, rankingTime, draftIds, pocketActivity],
+    [displayCatalog, scope, activity, sort, query, project, listRuntimeStates, rankingTime, draftIds, pocketActivity],
   );
   const creationRows = taskOperations.creations.flatMap(operation => {
     const cue = creationCue(operation);
@@ -581,7 +584,7 @@ export default function App({
   const unreadKnown = catalog.sourceInfo?.pocketRead?.available === true || catalog.sourceInfo?.unread?.available === true;
   const hasCatalog = catalogLoaded || catalog.threads.length > 0;
   const catalogReadError = catalogReading ? "" : readError || (catalog.sourceError ? "暂时无法更新，请稍后重试。" : "");
-  const { unread: unreadCount, running: runningCount } = navigationActivityCounts(displayCatalog.threads, navigation, query, runtimeStates);
+  const { unread: unreadCount, running: runningCount } = navigationActivityCounts(displayCatalog.threads, navigation, query, listRuntimeStates);
   const guard = async (action: () => Promise<void>) => {
     setError("");
     try {
@@ -740,7 +743,7 @@ export default function App({
             <div className="heading">
               <h1 title={title}>
                 <NetworkTitle className="workspace-title" machine={currentMachineId()}>{title}</NetworkTitle>
-                <span className="workspace-count">{!hasCatalog || activity === "unread" && !unreadKnown || activity === "running" && !runtimeKnown ? "—" : listThreads.length + pendingCreationRows.length}</span>
+                <span className="workspace-count">{!hasCatalog || activity === "unread" && !unreadKnown || activity === "running" && !listRuntimeKnown ? "—" : listThreads.length + pendingCreationRows.length}</span>
               </h1>
             </div>
             <IconButton type="button"
@@ -775,7 +778,7 @@ export default function App({
             <div className="activity-filters">
               {scope !== "archived" && scope !== "hidden" && ([
                 { activity: "unread", label: "未读", Icon: CircleDot, count: unreadKnown ? unreadCount : "—" },
-                { activity: "running", label: "运行中", Icon: CirclePlay, count: runtimeKnown ? runningCount : "—" },
+                { activity: "running", label: "运行中", Icon: CirclePlay, count: listRuntimeKnown ? runningCount : "—" },
               ] as const).map(filter => (
                 <button key={filter.activity} className={`needs-input-toggle ${filter.activity}-toggle`}
                   data-inbox={activity === filter.activity} aria-pressed={activity === filter.activity}
@@ -852,7 +855,9 @@ export default function App({
         <div className="content">
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}
             feedback={<CollectionReadFeedback hasCatalog={hasCatalog} pending={busy || !hasCatalog && (loading || catalogReading)}
-              error={catalogReadError} retry={() => void syncTasks().catch(() => {})} />}>
+              error={catalogReadError} stale={taskStatuses.listRuntimeStale}
+              cachedStatus={taskStatuses.listRuntimeCached} cachedList={catalogFromDisk}
+              retry={() => { void syncTasks().catch(() => {}); void taskStatuses.refresh(); }} />}>
               {retainedInputThreads.length > 0 && <section className="retained-inputs" aria-label={tr("保留的输入")}>
                 <p>{tr("保留的输入")}</p>
                 {retainedInputThreads.map(thread => <button key={thread.id} aria-label={tr("继续输入：{{title}}", { title: thread.title })}
@@ -864,9 +869,9 @@ export default function App({
               {hasCatalog && (listThreads.length > 0 || !pendingCreationRows.length) && <TaskList
                 onPriority={prioritizeThread}
                 onHidden={hideThread}
-                runtimeStates={taskStatuses.runtimeStates}
-                runtimeUnavailable={taskStatuses.runtimeUnavailable}
-                runtimeLoading={taskStatuses.runtimeLoading}
+                runtimeStates={listRuntimeStates}
+                runtimeUnavailable={taskStatuses.listRuntimeUnavailable}
+                runtimeLoading={taskStatuses.listRuntimeLoading}
                 onCreate={() => void guard(showNewConversation)}
                 onShowAll={() => switchView("all")}
                 onSearchAll={searchAllProjects}
@@ -911,6 +916,7 @@ export default function App({
               queryDrafts={conversationDrafts.current}
               submissions={submissions}
               historyCache={conversationHistory.current}
+              onNativeListObservation={taskStatuses.observeNativeHistory}
               readingCache={readingCache} readingScope={pocketReadScope} readTranscript={readTranscript} holdPrefetch={holdBackground}
               onRenamed={thread => {
                 catalogReader.invalidate();

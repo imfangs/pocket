@@ -12,7 +12,7 @@ import { feedbackDrafts } from "./feedbackClient";
 import { feedbackReplayContext } from "./usageAnalytics";
 import { readAutoDirectPreference } from "./sendingPreference";
 import { captureFeedback, type FeedbackCapture } from "../packages/feedback-kit/browser/capture.ts";
-import { bindShakeFeedback, requestShakePermission } from "../packages/feedback-kit/browser/shake.ts";
+import { bindShakeFeedback, observeShakeReadiness, requestShakePermission, type ShakePermission } from "../packages/feedback-kit/browser/shake.ts";
 import type { FeedbackContext, FeedbackInput, FeedbackReceipt } from "../packages/feedback-kit/contracts.ts";
 import FeedbackPanel from "../packages/feedback-kit/react/FeedbackPanel.tsx";
 import "./pocket-feedback.css";
@@ -28,10 +28,13 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
   const [enabled, setEnabled] = useState(false), [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null), [preparing, setPreparing] = useState(false);
   const [shakeEnabled, setShakeEnabled] = useState(shakePreferred), [shakeHint, setShakeHint] = useState("");
+  const [shakePermission, setShakePermission] = useState<ShakePermission | null>(null), [shakeBusy, setShakeBusy] = useState(false);
+  const shakeChoice = useRef(shakeEnabled), shakeRequest = useRef(0), shakeRequestPending = useRef(false);
+  shakeChoice.current = shakeEnabled;
   const current = useRef({ machine, baseScope, threadId, title, enabled, session, preparing });
   current.current = { machine, baseScope, threadId, title, enabled, session, preparing };
   const operation = useRef<AbortController | null>(null), mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; operation.current?.abort(); }; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; shakeRequest.current++; operation.current?.abort(); }; }, []);
   useEffect(() => {
     const controller = new AbortController(); setEnabled(false); setReady(false);
     void api<{ enabled: boolean }>("/api/feedback/config", "GET", undefined, { signal: controller.signal })
@@ -65,18 +68,32 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
       if (valid()) setSession({ baseScope: state.baseScope, scope: `${state.baseScope}:${sourceThreadId || "list"}`, context, image });
     } finally { if (valid()) { setPreparing(false); operation.current = null; } }
   }, []);
-  useEffect(() => bindShakeFeedback({ permission: shakeEnabled ? "granted" : "denied",
+  useEffect(() => {
+    if (!shakeEnabled) return;
+    return observeShakeReadiness({
+      onReady: () => { if (mounted.current && shakeChoice.current) { setShakePermission("granted"); setShakeHint(""); } },
+      onReset: () => { if (mounted.current) setShakePermission(null); },
+    });
+  }, [shakeEnabled]);
+  useEffect(() => bindShakeFeedback({ permission: shakeEnabled && shakePermission === "granted" ? "granted" : "denied",
     enabled: () => current.current.enabled && !current.current.session && !current.current.preparing,
-    onShake: () => open(current.current.threadId) }), [open, shakeEnabled]);
-  const toggleShake = async () => {
-    if (shakeEnabled) {
-      setShakeEnabled(false); setShakeHint(""); try { localStorage.removeItem(shakeKey); } catch {} return;
-    }
+    onShake: () => open(current.current.threadId) }), [open, shakeEnabled, shakePermission]);
+  const authorizeShake = async () => {
+    if (shakeRequestPending.current) return;
+    const request = ++shakeRequest.current;
+    shakeRequestPending.current = true; setShakeBusy(true);
     const permission = await requestShakePermission(window); // Direct user gesture, before lazy imports.
-    if (!mounted.current) return;
+    if (!mounted.current || request !== shakeRequest.current) return;
+    shakeRequestPending.current = false; setShakeBusy(false); setShakePermission(permission);
     if (permission === "granted") {
-      setShakeEnabled(true); setShakeHint(""); try { localStorage.setItem(shakeKey, "on"); } catch {}
+      shakeChoice.current = true; setShakeEnabled(true); setShakeHint(""); try { localStorage.setItem(shakeKey, "on"); } catch {}
     } else setShakeHint(permission === "unsupported" ? "此浏览器暂不支持摇动，可继续点击反馈。" : "未获得运动权限，可继续点击反馈。");
+  };
+  const toggleShake = () => {
+    if (!shakeChoice.current) { void authorizeShake(); return; }
+    shakeRequest.current++; shakeRequestPending.current = false; shakeChoice.current = false;
+    setShakeBusy(false); setShakeEnabled(false); setShakePermission(null); setShakeHint("");
+    try { localStorage.removeItem(shakeKey); } catch {}
   };
   const own = (value: Session) => {
     if (!mounted.current || current.current.baseScope !== value.baseScope) throw new DOMException("反馈来源已变化", "AbortError");
@@ -101,10 +118,12 @@ export function usePocketFeedback({ readingScope, threadId, title }: { readingSc
         <label htmlFor={shakeId}>{t("摇一摇反馈")}</label>
         <span className="pocket-feedback-setting-control">
           <Switch id={shakeId} type="button" size="3" checked={shakeEnabled}
-            aria-describedby={`${shakeId}-help`} onCheckedChange={() => void toggleShake()} />
+            disabled={shakeBusy && !shakeEnabled} aria-describedby={`${shakeId}-help`} onCheckedChange={toggleShake} />
         </span>
       </div>
-      <p id={`${shakeId}-help`} className="field-help" role={shakeHint ? "status" : undefined}>{shakeHint ? t(shakeHint) : t("启用后，摇动手机可打开截图反馈。")}</p>
+      <p id={`${shakeId}-help`} className="field-help" role={shakeHint || shakeEnabled && shakePermission !== "granted" ? "status" : undefined}>{shakeHint ? t(shakeHint) : shakeEnabled && shakePermission !== "granted" ? t("尚未确认运动权限，可点击恢复摇一摇。") : t("启用后，摇动手机可打开截图反馈。")}</p>
+      {shakeEnabled && shakePermission !== "granted" && <button type="button" className="shake-permission-retry" disabled={shakeBusy}
+        onClick={() => void authorizeShake()}>{shakeBusy ? t("处理中…") : t("恢复摇一摇")}</button>}
     </section> : null,
     element: <>
       {preparing && <div className="feedback-capture-progress" data-feedback-ignore="" data-reading-overlay="" role="status">

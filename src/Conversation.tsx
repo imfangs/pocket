@@ -82,6 +82,7 @@ export default function Conversation({
   onConnect,
   onRestore,
   onActivity,
+  onNativeListObservation,
   managementBlocked = false,
   managementHint,
 }: {
@@ -96,10 +97,12 @@ export default function Conversation({
   onConnect: (options?: ConnectOptions) => Promise<OpenThreadResult>;
   onRestore?: () => Promise<void>;
   onActivity?: () => void;
+  onNativeListObservation?: (threadId: string, history: History, requestedAt: number) => void;
   managementBlocked?: boolean;
   managementHint?: string;
 }) {
   useLocale();
+  const nativeListObserver = useRef(onNativeListObservation); nativeListObserver.current = onNativeListObservation;
   const [localSubmissions] = useState(createSubmittedQueryStore);
   const submissions = providedSubmissions ?? localSubmissions;
   const autoDirect = useSyncExternalStore(subscribeSendingPreference, readAutoDirectPreference, readAutoDirectPreference);
@@ -496,17 +499,22 @@ export default function Conversation({
   useEffect(() => {
     if (managementBlocked) { setLoading(false); return; }
     let readingActivityEpoch = activityEpoch.current;
+    let readingListObserver = nativeListObserver.current;
+    let readingListStartedAt = performance.now();
     const subscription = startConversationFeed({
       request: (signal) => {
         // The feed owns one request at a time. A read already in flight when
         // pageshow queued its successor may still supply reading context, but
         // cannot renew the running animation for the restored page.
         readingActivityEpoch = activityEpoch.current;
+        readingListObserver = nativeListObserver.current;
+        readingListStartedAt = performance.now();
         return api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal });
       },
       onData(data) {
         networkObserved.current.history = true;
         setActivityObserved(readingActivityEpoch === activityEpoch.current);
+        if (readingActivityEpoch === activityEpoch.current) readingListObserver?.(thread.id, data, readingListStartedAt);
         receivedHistory.current = true;
         receivedContent.current ||= data.messages.length > 0;
         if (data.messages.length || receivedTranscript.current) setCachedPreview(null);

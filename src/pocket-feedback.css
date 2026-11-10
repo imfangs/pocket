@@ -29,6 +29,7 @@
 .pocket-feedback-setting-control { display:flex; align-items:center; min-height:44px; }
 .pocket-feedback-setting-control .rt-SwitchRoot { min-width:44px; min-height:44px; }
 .pocket-feedback-settings .field-help { margin:0 0 var(--space-3); }
+.shake-permission-retry { min-height:44px; padding:0 12px; color:var(--accent); font-size:13px; }
 @media(max-width:760px) {
   .pocket-dialog.feedback-dialog {
     --feedback-gutter:var(--space-5);

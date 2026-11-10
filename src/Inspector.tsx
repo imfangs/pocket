@@ -27,6 +27,7 @@ import UsageFeedback from "./UsageFeedback";
 import type { ReadingCache } from "./readingCache";
 import type { HoldTranscriptPrefetch, TranscriptRead } from "./transcriptReader";
 import NetworkTitle from "./NetworkTitle";
+import type { NativeListObservation } from "./listActivityCache";
 
 interface Props {
   feedback?: { ready: boolean; enabled: boolean; open: (threadId?: string) => Promise<void> };
@@ -47,6 +48,7 @@ interface Props {
   onCancelOperation: (requestId: string) => void;
   onClose: (origin: InspectorCloseOrigin) => void;
   onActivity?: () => void;
+  onNativeListObservation?: NativeListObservation;
   animateEntry?: boolean;
   entryOrigin?: InspectorEntryOrigin;
 }
@@ -103,6 +105,7 @@ export default function Inspector(p: Props) {
         <Conversation key={p.thread.id} thread={p.thread} drafts={p.queryDrafts} submissions={p.submissions}
           historyCache={p.historyCache} onActivity={p.onActivity} managementBlocked={managementBlocked}
           readingCache={p.readingCache} readingScope={p.readingScope} readTranscript={p.readTranscript} holdPrefetch={p.holdPrefetch}
+          onNativeListObservation={p.onNativeListObservation}
           managementHint={managementBlocked && p.operation ? operationText(p.operation) : undefined}
           onConnect={options => p.onOpen(p.thread, options)} onRestore={() => p.onArchive(p.thread, false)} />
       </div>

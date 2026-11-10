@@ -274,9 +274,12 @@ dialog.rename-thread-dialog .rename-thread-name input { padding-inline-end:calc(
 .settings-content .notification-setting-row > strong { font-size:var(--font-size-label); font-weight:600; }
 .settings-content .notification-setting-row > button { flex:none; margin:0; }
 .settings-content > .pocket-feedback-settings { border-bottom:0; }
-.settings-advanced-options { display:grid; gap:var(--space-4); }
-.settings-advanced-options > :is(.reading-cache-setting,.sending-setting) { margin:0; padding:0; border:0; }
-.settings-advanced-options > section .field-help { margin:var(--space-1) 0 0; }
+.settings-other-disclosure > summary { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); min-height:44px; color:var(--ink); font-size:13px; font-weight:600; cursor:pointer; list-style:none; }
+.settings-other-disclosure > summary::-webkit-details-marker { display:none; }
+.settings-other-disclosure[open] > summary > [data-pocket-icon] { transform:rotate(180deg); }
+.settings-other-options { display:grid; gap:var(--space-4); padding-top:var(--space-2); }
+.settings-other-options > :is(.reading-cache-setting,.sending-setting) { margin:0; padding:0; border:0; }
+.settings-other-options > section .field-help { margin:var(--space-1) 0 0; }
 .settings-content > button { margin-top:var(--space-1); }
 .settings-logout { margin-top:var(--space-3); padding-top:var(--space-2); border-top:1px solid var(--line); }
 .settings-version { margin:var(--space-3) 0 0; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; user-select:text; }

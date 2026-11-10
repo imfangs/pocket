@@ -68,7 +68,9 @@ export function startTaskStatusPolling(options: Options) {
     if (!ready()) return Promise.resolve();
     if (receivedAt !== null && now() - receivedAt >= ttlMs) unavailable();
     if (pending) {
-      if (pending.controller.signal.aborted) refreshAfterPending = true;
+      // Explicit refresh/resume intents share the old read, then coalesce into
+      // one immediate successor instead of waiting for the passive interval.
+      refreshAfterPending = true;
       return pending.promise ?? Promise.resolve();
     }
     clearPoll();

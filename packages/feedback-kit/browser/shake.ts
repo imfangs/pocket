@@ -20,6 +20,33 @@ function vector(value: DeviceMotionEventAcceleration | null): Vector | null {
   return { x: value.x!, y: value.y!, z: value.z! };
 }
 
+/** Observe usable native data without requesting permission or opening feedback. */
+export function observeShakeReadiness(options: {
+  onReady: () => void;
+  onReset: () => void;
+  browser?: Window;
+  document?: Document;
+}) {
+  const browser = options.browser ?? window, document = options.document ?? browser.document;
+  let ready = false;
+  const reset = () => { ready = false; options.onReset(); };
+  const sample = (event: DeviceMotionEvent) => {
+    if (ready || event.isTrusted === false || document.visibilityState !== "visible" ||
+        !vector(event.acceleration) && !vector(event.accelerationIncludingGravity)) return;
+    ready = true; options.onReady();
+  };
+  browser.addEventListener("devicemotion", sample, { passive: true });
+  browser.addEventListener("pagehide", reset);
+  browser.addEventListener("blur", reset);
+  document.addEventListener("visibilitychange", reset);
+  return () => {
+    browser.removeEventListener("devicemotion", sample);
+    browser.removeEventListener("pagehide", reset);
+    browser.removeEventListener("blur", reset);
+    document.removeEventListener("visibilitychange", reset);
+  };
+}
+
 export function bindShakeFeedback(options: {
   permission: ShakePermission;
   onShake: () => void | Promise<void>;

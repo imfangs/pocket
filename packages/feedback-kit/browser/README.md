@@ -5,6 +5,7 @@
 - `renderFeedbackAnnotations(capture, annotations)`：使用与原图绑定的归一化矩形，依次绘编号和短说明。保留原Blob，不在用户图片上原地覆盖。
 - `toFeedbackImage(capture, kind)`：序列化到共享合同。没有标注时仅发送original，避免无用的第二张图。
 - `requestShakePermission()`：只能由用户点击启用时调用。`bindShakeFeedback({permission,enabled,onShake})`在已授权且页面可见时检测3次明确峰值，含5秒冷却；`enabled`可在反馈面板打开时返回false。返回值负责移除全部监听。
+- `observeShakeReadiness({onReady,onReset})`：被动确认本页收到可信、有限的运动样本，不请求权限、不打开反馈；不可把持久的开启偏好当成本页授权。隐藏/离开/失焦后清空就绪证据，宿主可在下一次有效样本自动恢复；无样本只表示未确认，不能推断拒绝。恢复授权仍由明确手势调用上面的权限函数。
 
 截图采用固定`modern-screenshot@4.7.0`（MIT）。默认保留系统字体与常见布局/文字/SVG绘制属性，不下载外部字体；宿主使用特殊CSS或字体时应重新做截图对照。采用viewport裁剪、屏外块占位和受控图片插入，避免完整旧消息树以及lazy image的native clone触发额外请求。普通图片优先复用已载入且Canvas可读取的像素；其它资源限可见、同源、32项/合计8MiB。可见或有布局的iframe/video等嵌入媒体会给出可恢复的手动截图提示。
 

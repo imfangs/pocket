@@ -29,6 +29,18 @@ test('active refresh replaces old failure instead of displaying both states', ()
   assert.equal(feedback(), '');
 });
 
+test('cached runtime and catalog failures share one recovery line, including a pending retry', () => {
+  for (const pending of [false, true]) {
+    const html = feedback({ stale: true, cachedStatus: true, cachedList: true, pending, error: 'weak network' });
+    assert.equal((html.match(/class="collection-feedback"/g) || []).length, 1);
+    assert.match(html, /状态尚未同步，显示上次同步的列表状态/);
+    assert.match(html, /aria-label="重试刷新"/);
+    assert.doesNotMatch(html, /weak network|正在刷新|暂未更新，显示上次列表|role="alert"/);
+  }
+  assert.doesNotMatch(feedback({ stale: true }), /上次确认/);
+  assert.match(feedback({ cachedList: true }), /暂未更新，显示上次列表/);
+});
+
 test('first-load failure has a recovery state and never claims an empty successful list', () => {
   const html = feedback({ hasCatalog: false, error: '连接中断，请重试。' });
   assert.match(html, /collection-load-state/);

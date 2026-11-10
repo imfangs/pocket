@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bindShakeFeedback, requestShakePermission } from '../packages/feedback-kit/browser/shake.ts';
+import { bindShakeFeedback, observeShakeReadiness, requestShakePermission } from '../packages/feedback-kit/browser/shake.ts';
 
 class Target {
   listeners = new Map();
@@ -60,4 +60,19 @@ test('gravity fallback requires a prior fresh sample and preserves the same deli
 test('invalid sensor values and disposal do not leave an active trigger or listener', () => {
   const f = fixture(); f.move(NaN); f.move(Infinity); f.move(0, 150, { acceleration: null }); assert.equal(f.calls(), 0);
   f.dispose(); assert.equal(f.browser.count + f.document.count, 0); f.gesture(); assert.equal(f.calls(), 0);
+});
+
+test('readiness observes usable native data without requesting permission or treating missing data as denial', () => {
+  const browser = new Target(), document = new Target(); document.visibilityState = 'visible'; browser.document = document;
+  let ready = 0, resets = 0, requests = 0;
+  browser.DeviceMotionEvent = { requestPermission: () => { requests++; } };
+  const dispose = observeShakeReadiness({ browser, document, onReady: () => ready++, onReset: () => resets++ });
+  for (const value of [{ isTrusted:false,acceleration:{x:0,y:0,z:0} },{ isTrusted:true,acceleration:null },{ isTrusted:true,acceleration:{x:NaN,y:0,z:0} }])browser.emit('devicemotion',value);
+  assert.equal(ready,0);assert.equal(requests,0);
+  browser.emit('devicemotion',{isTrusted:true,acceleration:null,accelerationIncludingGravity:{x:0,y:0,z:9.8}});
+  browser.emit('devicemotion',{isTrusted:true,acceleration:{x:0,y:0,z:0}});assert.equal(ready,1);
+  document.visibilityState='hidden';document.emit('visibilitychange');browser.emit('devicemotion',{isTrusted:true,acceleration:{x:0,y:0,z:0}});
+  assert.equal(ready,1);document.visibilityState='visible';document.emit('visibilitychange');browser.emit('devicemotion',{isTrusted:true,acceleration:{x:0,y:0,z:0}});
+  assert.equal(ready,2);assert.equal(resets,2);assert.equal(requests,0);
+  dispose();assert.equal(browser.count+document.count,0);
 });

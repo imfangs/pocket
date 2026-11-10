@@ -2,13 +2,14 @@ import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import LanguageSettings from "./LanguageSettings";
 import NotificationSettings from "./NotificationSettings";
 import MachinePicker from "./MachinePicker";
 import SendingSettings from "./SendingSettings";
 import ReadingCacheSettings from "./ReadingCacheSettings";
+import AnimatedDetails from "./AnimatedDetails";
 import { CLIENT_VERSION } from "./clientVersion";
 import { modalCloseDecision } from "./modalInteraction";
 import { bindInspectorViewport } from "./mobileInspector";
@@ -224,12 +225,14 @@ export function SettingsDialog(p: {
         <LanguageSettings />
         {p.notificationsAvailable !== false && <NotificationSettings />}
         {p.feedbackActions}
-        <section className="settings-advanced" aria-label={t("高级")}>
-          <h3>{t("高级")}</h3>
-          <div className="settings-advanced-options">
-            <ReadingCacheSettings />
-            <SendingSettings />
-          </div>
+        <section className="settings-other" aria-label={t("其他")}>
+          <AnimatedDetails className="settings-other-disclosure">
+            <summary><span>{t("其他")}</span><AppIcon icon={ChevronDown} kind="auxiliary" aria-hidden="true" /></summary>
+            <div className="settings-other-options">
+              <ReadingCacheSettings />
+              <SendingSettings />
+            </div>
+          </AnimatedDetails>
         </section>
         <p className="settings-version" title={CLIENT_VERSION}>{t("版本")} {CLIENT_VERSION.slice(0, 12)}</p>
         {p.logoutAction && <div className="settings-logout">{p.logoutAction}</div>}

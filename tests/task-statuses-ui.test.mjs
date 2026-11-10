@@ -41,7 +41,7 @@ test('the status contract never interprets unavailable, duplicate, or malformed 
   assert.equal(taskStatusMap({ ...response(), states: [] }).size, 0);
 });
 
-test('one foreground collection is shared and the next request starts ten seconds after completion', async () => {
+test('passive foreground polling starts the next request ten seconds after completion', async () => {
   let calls = 0, finish;
   const f = fixture(() => {
     calls++;
@@ -49,7 +49,6 @@ test('one foreground collection is shared and the next request starts ten second
     return Promise.resolve(response('idle'));
   });
   await f.advance(0);
-  void f.polling.refresh(); void f.polling.refresh();
   await f.advance(5000); assert.equal(calls, 1);
   finish(response()); await f.advance(0);
   assert.equal(f.last().runtimeStates.get('thread'), 'running');
@@ -57,6 +56,77 @@ test('one foreground collection is shared and the next request starts ten second
   await f.advance(1); assert.equal(calls, 2);
   assert.equal(f.last().runtimeStates.get('thread'), 'idle');
   f.polling.stop();
+});
+
+test('coalesced explicit refresh and online intents wait for a pending read then start exactly one immediate successor', async () => {
+  let calls = 0, finish, signal;
+  const f = fixture(current => {
+    calls++;
+    if (calls === 1) { signal = current; return new Promise(resolve => { finish = resolve; }); }
+    return Promise.resolve(response('waiting_input'));
+  });
+  await f.advance(0);
+  const first = f.polling.refresh();
+  for (let index = 0; index < 20; index++) {
+    assert.equal(f.polling.refresh(), first, 'all callers share the active request');
+    f.browser.dispatchEvent(new Event(index % 2 ? 'online' : 'pageshow'));
+  }
+  await f.advance(5000);
+  assert.equal(calls, 1); assert.equal(signal.aborted, false);
+  finish(response()); await f.advance(0);
+  assert.equal(calls, 2, 'do not defer the new intent for the passive ten-second interval');
+  assert.equal(f.last().runtimeStates.get('thread'), 'waiting_input');
+  await f.advance(9999); assert.equal(calls, 2, 'the immediate successor cannot self-schedule another immediate read');
+  await f.advance(1); assert.equal(calls, 3);
+  f.polling.stop(); assert.equal(f.timers.size, 0);
+});
+
+test('coalesced refresh after a pending failed retry immediately reads the newly requested status without spinning', async () => {
+  let calls = 0, reject, signal;
+  const observations = [];
+  const f = fixture(current => {
+    calls++;
+    if (calls === 1) return Promise.resolve(response());
+    if (calls === 2) { signal = current; return new Promise((_resolve, fail) => { reject = fail; }); }
+    return Promise.resolve(response('unknown'));
+  }, { onObservation: value => observations.push(value) });
+  await f.advance(0);
+  void f.polling.refresh(); await f.advance(0);
+  void f.polling.refresh(); void f.polling.refresh();
+  f.browser.dispatchEvent(new Event('online'));
+  assert.equal(calls, 2); assert.equal(signal.aborted, false);
+  reject(new Error('synthetic 503')); await f.advance(0);
+  assert.equal(calls, 3);
+  assert.equal(f.last().runtimeStates.get('thread'), 'unknown');
+  assert.deepEqual(observations.map(value => value.states[0].status), ['running', 'unknown']);
+  assert.equal(f.views.some(view => view.runtimeUnavailable), true, 'the old failure remains an unavailable fact');
+  await f.advance(9999); assert.equal(calls, 3);
+  f.polling.stop(); assert.equal(f.timers.size, 0);
+});
+
+test('queued pending refresh is cancelled by offline, hidden or stopped state and never revives the aborted result', async () => {
+  for (const mode of ['offline', 'hidden', 'stopped']) {
+    let calls = 0, finish, signal;
+    const f = fixture(current => {
+      calls++;
+      if (calls === 1) { signal = current; return new Promise(resolve => { finish = resolve; }); }
+      return Promise.resolve(response('idle'));
+    });
+    await f.advance(0);
+    void f.polling.refresh(); void f.polling.refresh(); f.browser.dispatchEvent(new Event('pageshow'));
+    if (mode === 'offline') { f.browser.navigator.onLine = false; f.browser.dispatchEvent(new Event('offline')); }
+    if (mode === 'hidden') { f.visibility.visibilityState = 'hidden'; f.visibility.dispatchEvent(new Event('visibilitychange')); }
+    if (mode === 'stopped') f.polling.stop();
+    assert.equal(signal.aborted, true);
+    finish(response()); await f.advance(30000);
+    assert.equal(calls, 1); assert.equal(f.timers.size, 0);
+    assert.equal(f.views.some(view => view.runtimeStates.get('thread') === 'running'), false);
+    if (mode === 'hidden') { f.visibility.visibilityState = 'visible'; f.visibility.dispatchEvent(new Event('visibilitychange')); }
+    else { f.browser.navigator.onLine = true; f.browser.dispatchEvent(new Event('online')); }
+    await f.advance(0);
+    assert.equal(calls, mode === 'stopped' ? 1 : 2);
+    f.polling.stop(); assert.equal(f.timers.size, 0);
+  }
 });
 
 test('hidden and offline pages clear prior running markers immediately and resume with a fresh read', async () => {

@@ -19,7 +19,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 // A browser adapter around a small synthetic Pocket service. All browser
 // requests are intercepted; no HTTP server, real API, credentials or native
 // desktop operation is involved. Unknown endpoints are test failures.
-export async function createHarness(engine, { history = false, width = 390, visibility = false, archivedHidden = false, locale = 'zh-CN', clientConfiguration = clientProfile, safeFrameServiceWorkers = false,
+export async function createHarness(engine, { history = false, width = 390, visibility = false, archivedHidden = false, locale = 'zh-CN', clientConfiguration = clientProfile, safeFrameServiceWorkers = false, feedbackEnabled = false,
   directory = process.env.POCKET_BROWSER_DIST || '.local/qa/browser-dist', launch = options => ({ chromium, webkit })[engine].launch(options) } = {}) {
   const dist = realpathSync(directory);
   const manifest = JSON.parse(readFileSync(resolve(dist, 'pocket-version.json')));
@@ -126,7 +126,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
       else if (method === 'GET' && path === '/api/task-operations') data = { operations: [] };
       else if (method === 'GET' && path === '/api/task-statuses') data = { available: true, checkedAt: Date.now(), states: [...machines.get(machine).values()].filter(thread => !thread.archived).map(thread => ({ threadId: thread.id, status: thread.runtime, checkedAt: Date.now() })) };
       else if (method === 'GET' && path === '/api/notifications') data = { publicKey: '' };
-      else if (method === 'GET' && path === '/api/feedback/config') data = { enabled: false };
+      else if (method === 'GET' && path === '/api/feedback/config') data = { enabled: feedbackEnabled };
       else if (method === 'GET' && path === '/api/tasks/create-options') data = { available: true, locations: [{ id: 'synthetic-location', cwd: '/synthetic', name: '合成项目', projectId: 'fixture', projectName: '合成项目', model: 'gpt-6-astra', effort: 'ultra' }] };
       else if (thread && method === 'GET' && ['history', 'transcript'].includes(action)) {
         data = transcript(thread, machine, action === 'transcript');
@@ -177,6 +177,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
     });
     return {
       calls, errors, unexpected, build: manifest.id,
+      addInitScript: (script, argument) => context.addInitScript(script, argument),
       count: action => calls.filter(call => call.action === action).length,
       metadata(threadId = ids.regular, machine = clientConfiguration.defaultMachine) { return { ...projectThread(state(threadId, machine), machine), runtime: state(threadId, machine).runtime }; },
       setRuntime(threadId, runtime, machine = clientConfiguration.defaultMachine) {
