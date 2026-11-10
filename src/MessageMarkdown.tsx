@@ -6,9 +6,8 @@ import { createContext, Fragment, memo, useContext, useMemo, type ReactNode } fr
 import { localFileReference } from "../shared/codex-directives.mjs";
 import { isMessageAudio, isMessageVideo } from "../shared/message-media.mjs";
 import type { MessageFileReference, MessageFiles } from "./conversationFeed";
-import { pocketTaskTarget, pocketTaskUrl, readableCodexMarkdown } from "./codexMarkup";
-import { changeMachine, currentMachineId } from "./machineScope";
-import { toast } from "sonner";
+import { pocketTaskUrl, readableCodexMarkdown } from "./codexMarkup";
+import { navigateTaskReference } from "./taskReferenceNavigation";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMermaid from "./mermaidMarkdown";
@@ -45,16 +44,7 @@ function MarkdownLink({ href, children }: { href?: string; children?: ReactNode 
       : <span className="message-file-fallback">{content}<small>{t("文件保存在电脑上")}</small></span>;
   }
   const taskUrl = href && pocketTaskUrl(href);
-  if (taskUrl) return <a className="pocket-task-link" href={taskUrl} onClick={event => {
-    if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    event.preventDefault();
-    const target = pocketTaskTarget(taskUrl);
-    if (!target) return;
-    if (target.machine !== currentMachineId()) {
-      const error = changeMachine(target.machine, target.threadId);
-      if (error) toast.error(t(error));
-    } else window.dispatchEvent(new CustomEvent("pocket-open-task", { detail: target.threadId }));
-  }}>{content}</a>;
+  if (taskUrl) return <a className="pocket-task-link" href={taskUrl} onClick={event => navigateTaskReference(event, taskUrl)}>{content}</a>;
   return href ? (
     <a href={href} target="_blank" rel="noopener noreferrer">
       {content}

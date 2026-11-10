@@ -76,7 +76,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 手机上传、附件草稿、图片/文件发送及队列恢复 | [附件发送](docs/design/2026-10-10-attachments.md)：私有落盘、原owner输入、上传/发送编号及文件保留边界；[状态工作台与可读性](docs/design/2026-11-09-attachment-state-workbench.md)：真实组件状态、完整草稿文件名、操作换行与合成回归 |
 | 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
 | Markdown、定时消息正文空白/XML代码框、Codex专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)：heartbeat/子任务的纯引用尾段单独消解，内部代码与完整shape保护；原文从Pocket只读接口核对，Codex展示投影可能省略引用。图片边界见[图片契约](docs/IMAGES.md) |
-| Markdown/TXT等文件页内预览、下载与预览字节复用 | [消息文件](docs/design/2026-10-22-message-components.md)：受控文件权限、1MiB文本预览、关闭恢复、按当前预览下载；文件内容不继承会话组件权限 |
+| created-thread任务卡片；文本文件页内预览/下载 | [消息组件](docs/design/2026-10-22-message-components.md)：assistant顶层结构会话卡/同机scope目录，不新增owner读取；受控文件权限/1MiB预览/原件复用，文件正文不继承会话组件 |
 | HTML页面、文档嵌图与源码切换 | [文件通道](docs/design/2026-11-07-html-file-preview.md)与[交互预览](docs/design/2026-11-07-interactive-html-preview.md)：默认执行JS/HTTPS资源，HTTP shell+opaque iframe与原API隔离、nonce一次初始化、原件/嵌图权限与rrweb保护；不放宽Pocket主CSP或Mac权限 |
 | Pocket 前端更新或丢输入风险 | [安全更新](docs/design/2026-09-30-safe-app-update.md) |
 | Codex 升级后连接失败、协议不兼容或内置 CLI 变化 | [桌面兼容](docs/design/2026-10-13-desktop-compatibility.md)：App/CLI未验证版本仅作诊断告警，不作准入门槛；真实探针/RPC/归属/结果继续检查 |

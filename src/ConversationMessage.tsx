@@ -8,6 +8,10 @@ import AnnotationQuotes, { type AnnotationLayoutChange } from "./AnnotationQuote
 import type { Message } from "./conversationFeed";
 import { formatDuration } from "./TurnDuration";
 import { readableCodexMarkdown } from "./codexMarkup";
+import { createdThreadParts } from "./createdThreadParts";
+import MessageTaskCard from "./MessageTaskCard";
+import { messageReferenceDefinitions } from "./messageDetails";
+import { displayMessageMarkdown } from "./messageEnvelope";
 import { useMemo, type Ref, type ReactNode } from "react";
 import AttachmentList from "./AttachmentList";
 import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
@@ -31,6 +35,10 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
     return { text, copyText: text, annotations: [], automationInstructions: undefined };
   }, [message.role, message.text, notification, locale]);
   const displayText = presentation.text;
+  const taskParts = useMemo(() => message.role === "assistant" && !notification
+    ? createdThreadParts(message.text) : [], [message.role, message.text, notification]);
+  const taskCards = taskParts.some(part => part.kind === "created-thread");
+  const definitions = useMemo(() => taskCards ? messageReferenceDefinitions(displayMessageMarkdown(displayText)) : "", [taskCards, displayText]);
   const progress =
     message.role === "assistant" && message.phase === "commentary";
   const final = message.phase === "final_answer" || message.phase === "final";
@@ -60,7 +68,12 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
       tabIndex={queryDelivery ? -1 : undefined}
       aria-label={t(label)}
     >
-      {notification ? <SubagentNotificationMessage notification={notification} changeLayout={changeLayout} readMarker={readMarker} /> : presentation.automationInstructions ? <HeartbeatTrigger instructions={presentation.automationInstructions} changeLayout={changeLayout} /> : displayText.trim() && (kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
+      {notification ? <SubagentNotificationMessage notification={notification} changeLayout={changeLayout} readMarker={readMarker} /> : presentation.automationInstructions ? <HeartbeatTrigger instructions={presentation.automationInstructions} changeLayout={changeLayout} /> : taskCards ? <div className="message-task-body">
+        {taskParts.map((part, index) => part.kind === "created-thread"
+          ? <MessageTaskCard key={`task-${part.threadId}-${index}`} threadId={part.threadId} />
+          : part.text.trim() && <MessageMarkdown key={`text-${index}`} text={readableCodexMarkdown(part.text, t)} codex={false}
+              images={message.images} files={!message.truncated ? message.files : undefined} threadId={threadId} referenceDefinitions={definitions} />)}
+      </div> : displayText.trim() && (kind === "user" && queryDisclosure ? <UserQueryBody text={displayText} images={message.images} disclosure={queryDisclosure} /> : <MessageMarkdown
         images={message.images}
         files={message.role === "assistant" && !message.truncated ? message.files : undefined}
         threadId={threadId}

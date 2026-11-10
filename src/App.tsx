@@ -1,5 +1,6 @@
 import { AppIcon } from "./ui/AppIcon";
 import { t as tr, useLocale } from "./i18n";
+import { TaskReferencesProvider } from "./MessageTaskCard";
 import { IconButton } from "./ui/IconButton";
 import { Button } from "./ui/Button";
 import {
@@ -718,6 +719,8 @@ export default function App({
   };
   if (loading && !hasCatalog) return <BootSplash />;
   return (
+    <TaskReferencesProvider machine={currentMachineId()} scope={pocketReadScope} threads={displayCatalog.threads}
+      excluded={catalog.excludedThreadIds} states={runtimeStates}>
     <div className="app-shell">
       <Sidebar
         catalog={displayCatalog}
@@ -987,5 +990,6 @@ export default function App({
         />
       )}
     </div>
+    </TaskReferencesProvider>
   );
 }
