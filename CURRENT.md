@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-11。会话内引用已建立逐层返回链，按钮和右滑同源A→B→C→B→A→列表，草稿和阅读位置保持；未知/来源变化/已消失父与存储异常处理通过。前端源f77806c/build478c95bc，38/38资源/功能与独立公网回读一致，10新最终/56相关浏览器及12纯栈/独立CR通过。任务卡片、弱网列表/其他/摇动行为保持，API仍fc86637。本轮仅网页，无真实owner/队列或服务操作；完整2176中2174过、2既有原生恢复范围失败仍待续，真机手势边界保持。未公开源码或改写脱敏历史，无未决上传。
+维护日期：2026-11-11。历史加载通知的旧锚点不再覆盖之后的新滚动，实证140→440不回140；真实prepend、返回最新和阅读根/草稿保持。前端源ad6df56/buildf405d33f，38/38资源/功能与独立公网回读一致，最终48TAP浏览器/31历史纯测及5新hook通过。会话返回栈/卡片/弱网等行为保持，API仍fc86637且未动服务/原数据/发送；完整2181中2179过、2既有原生恢复范围失败仍待续。目标手机惯性与所有回跳分支未直接采样，已修确证历史竞态；未公开源码或改写脱敏历史，无未决上传。
 
 ## 下一次先看
 
-- **历史滚动接管已验证，待发布（11-11）。** 用户飞象工作台下滑回跳；只读结构19条/hasMore/idle，多过程+final。发现并实际复现reader通知→用户140→440→commit旧锚点拉回140；新history hook在DOM提交前撤销已被新滚动接管的锚点，真实prepend仍保同消息offset，未关历史或改scroll根/节点/草稿/控制。[契约](docs/design/2026-11-11-history-scroll-takeover.md)。5新/31相关纯测、代理8及Root最后48同版TAP浏览器、类型/构建通过；完整2181中2179过、2旧原生恢复失败无skip。首轮广回归启动错误缺明细留log，单独2项/最后48复验过，不冒称所有手机回跳唯一病因。尚未发布，candidatef405d33f…，前端仅更新，不操作业务服务/owner；私有证据scroll-history/scroll-rebound-2026-11-11。
+- **历史加载后新滚动优先已上线（2026-11-11）。** [滚动接管](docs/design/2026-11-11-history-scroll-takeover.md)：飞象工作台下滑回跳调查，只读结构19条/hasMore/idle；发现并真React双浏览器复现通知→新滚动140→440→commit旧锚拉回140，hook在DOM提交前撤销已被新scroll接管的锚点，真实prepend仍同消息offset/不关历史/不换根。5新/31相关纯测、代理8及Root最后48同版TAP浏览器、构建通过；完整2181中2179过、2旧原生恢复失败无skip。首轮广回归启动错误缺明细保留，单独2/最终48复验绿，不指定未证实环境原因，也不冒称目标手机全部现象唯一病因。源ad6df56/buildf405d33f…/Pages0fef017f…单次上传exit0/ready、38/38资源/功能与独立公网version/profile/App JS一致，仅共享网页，无业务服务/owner/发送。OAuth有效未续期，无未决，私有证据`.local/qa/scroll-rebound-2026-11-11/verification.json`与scroll-history子QA；原生手机惯性和目标完整现象仍待反馈。
 
 - **会话引用逐层返回已上线（2026-11-11）。** [返回栈](docs/design/2026-11-11-conversation-back-stack.md)：内容卡片/链接A→B→C，按钮/右滑C→B→A→列表；同ID不加层，列表/通知root，32父ID按machine/scope本页隔离。未知目标成功commit才push，新选择/来源变化取消迟到引用；missing/excluded跳过、归档可读保留。存储异常不阻断back URL恢复；草稿/原阅读位置沿既有cache、回父详情不抢列表focus，最终back清task URL。12纯栈/18含通知目标、10新最终同版浏览器、56既有通知/卡片/导航回归及独立CR通过，最后URL try小改此前56与最后10分别保留build身份；完整2176中2174过、2旧原生恢复范围失败无skip。源f77806c/build478c95bc…/Pagesc428ea7c…单次上传exit0/ready、38/38资源/功能与独立公网version/profile/App JS一致，仅共享网页，API/原owner/数据/Codex/connector和真实发送不操作；原生手机手势未实测。OAuth有效未续期，无未决操作，证据`.local/qa/conversation-stack-2026-11-11/verification.json`。
 
@@ -162,13 +162,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `f77806c07e9d877d490168d07464531478f40558`；会话引用返回链/来源及迟到取消，旧通知与卡片/阅读行为保持 |
+| 公网前端/网关源码 | `ad6df56be9c45c248c6970980dd5fa0b8e7a8eb2`；历史通知锚点让位于新滚动，原翻页/阅读/返回保持 |
 | 两机API源码 | `fc86637f601cc2e7024c5b80eae9250322341139`；11-08本机PID73369、豌豆53703，connector12894/4528与Codex未重启；回退/依赖基线9e7保留，后续运行须重查 |
-| 前端build | 共享公网/本地dist `478c95bc368edd4ce276792d179dee5e5fbbf150c25708b60713e779b38c62b1`；两机API内置仍 `f9ac7165…`，本次仅共享网页更新 |
-| Pages部署 | `c428ea7c-d9fa-4e1d-baec-9e06e7e8f2de`；11-11 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/App JS一致 |
-| 本次验证 | 10新最终同版返回栈浏览器、56原通知/卡片/导航、12栈纯测/18含通知目标、独立CR通过；最后URL异常小改56原build/10最终build边界保留。完整2176中2174过、2旧原生恢复范围失败无skip；真机手势未直接测 |
-| 本次证据 | `.local/qa/conversation-stack-2026-11-11/verification.json`、新/相关/全测/认证/发布日志；卡片与原弱网/摇动仍回既有11-11/11-10 QA |
-| 本次数据与运行 | 本次仅共享网页；未调用真实原owner/发送/归档或改变API/原库/队列/订阅/Pocket认证、Codex/connector；OAuth有效无续期/未决 |
+| 前端build | 共享公网/本地dist `f405d33f4b500f65c8d7d426a7eccda2cb8583cc97698c03fd057d547547d373`；两机API内置仍 `f9ac7165…`，本次仅共享网页更新 |
+| Pages部署 | `0fef017f-f777-45db-b63a-46c0ef92ee0b`；11-11 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/App JS一致 |
+| 本次验证 | Root同版48历史/返回栈/结构化/发送阅读TAP、代理8渲染/31history/5新hook通过；旧竞态baseline失败明确，首广回归启动异常保log，诊断2与48复验通过。完整2181中2179过、2旧原生恢复失败无skip；真机未采样 |
+| 本次证据 | `.local/qa/scroll-rebound-2026-11-11/verification.json`、结构-only证据、初/诊断/最终TAP、全测/发布；`scroll-history-2026-11-11/`真实hook与render基线/修复 |
+| 本次数据与运行 | 本次仅共享网页；指定目标保存结构只读，不调用飞象业务服务/原owner/实际发送，未改变API/原库/队列/订阅、Codex/connector；OAuth有效未续期/无未决 |
 
 上述`ba65c420…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
