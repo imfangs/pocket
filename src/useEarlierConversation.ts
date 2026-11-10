@@ -21,7 +21,7 @@ type Options = {
 export function useEarlierConversation(options: Options) {
   const { threadId, root, conversationRoot } = options;
   const latest = useRef(options); latest.current = options;
-  const anchor = useRef<EarlierHistoryAnchor | null>(null);
+  const anchor = useRef<{ value: EarlierHistoryAnchor; scrollTop: number } | null>(null);
   const start = useRef<{ top: number; id: string | null } | null>(null);
   const automatic = useRef<symbol | null>(null);
   const gesture = useRef<ReturnType<typeof bindEarlierHistoryScroll> | null>(null);
@@ -33,11 +33,19 @@ export function useEarlierConversation(options: Options) {
     canApply: (...args) => prepare.current(...args),
   }), [threadId]);
   const subscribe = useCallback((listener: () => void) => reader.subscribe(() => {
-    if (!anchor.current && root.current) anchor.current = captureEarlierHistoryAnchor(root.current);
+    if (!anchor.current && root.current) {
+      const value = captureEarlierHistoryAnchor(root.current);
+      if (value) anchor.current = { value, scrollTop: root.current.scrollTop };
+    }
     listener();
   }), [reader, root]);
   const state = useSyncExternalStore(subscribe, reader.getSnapshot, reader.getSnapshot);
   const current = useRef(state); current.current = state;
+  // A notification can precede its React commit. Reading that happened in the
+  // gap takes over from the saved anchor. Check before DOM changes, because a
+  // real prepend may itself change scrollTop through native scroll anchoring.
+  if (anchor.current && root.current && Math.abs(root.current.scrollTop - anchor.current.scrollTop) > 2)
+    anchor.current = null;
 
   prepare.current = (next, change, boundary) => {
     const element = root.current;
@@ -57,7 +65,8 @@ export function useEarlierConversation(options: Options) {
     if (!current.current.active && change === "initial" && !sharedAnchor && start.current &&
         (Math.abs(element.scrollTop - start.current.top) > 2 || (visibleAnchor?.id ?? null) !== start.current.id)) return false;
     // Native user IDs may differ; prefer an exact shared assistant identity.
-    anchor.current = sharedAnchor ?? (boundary ? { id: boundary, offset: visibleAnchor?.offset ?? 0 } : null);
+    const value = sharedAnchor ?? (boundary ? { id: boundary, offset: visibleAnchor?.offset ?? 0 } : null);
+    anchor.current = value ? { value, scrollTop: element.scrollTop } : null;
     return true;
   };
 
@@ -93,7 +102,7 @@ export function useEarlierConversation(options: Options) {
   useEffect(() => () => reader.stop(), [reader]);
   useLayoutEffect(() => {
     if ((state.active || !previousActive.current) && anchor.current && root.current)
-      restoreEarlierHistoryAnchor(root.current, anchor.current);
+      restoreEarlierHistoryAnchor(root.current, anchor.current.value);
     anchor.current = null;
     previousActive.current = state.active;
   }, [state, root]);

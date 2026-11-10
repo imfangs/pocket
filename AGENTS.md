@@ -66,7 +66,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 列表、来源导入、元数据恢复、阅读缓存 | [数据与接口](docs/ARCHITECTURE.md)、[桌面列表范围](docs/design/2026-10-14-desktop-list-scope.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
 | IndexedDB、缓存数量设置、恢复/清理、跨标签失效、304/204与读取流量 | [分层阅读缓存](docs/design/2026-10-28-reading-cache.md)：客户端条数偏好、认证后展示、纯阅读投影、来源/epoch与容量边界、条件响应及旧接口兼容；[选型](docs/research/2026-10-28-cache-components.md) |
 | 阅读后清除未读、跨端重复未读、运行中排除未读、内容版本与缓存 | [阅读状态与已读合并](docs/design/2026-10-22-pocket-read-state.md)：有效运行状态仅抑制列表未读；本地水位、真实可见阅读与精确版本桌面提示保持，原生写回仅旧客户端兼容 |
-| 顶部下拉加载更早消息、历史分页、压缩jsonl.zst与翻页位置 | [历史分页](docs/design/2026-10-28-history-pagination.md)：真实滚动意图一手势一批、程序scroll不连载、键盘/阅读保护；只读worker、签名游标和三页视窗保持，旧页不授控制或阅读凭据 |
+| 历史分页/压缩/上拉更早、加载后下滚回跳 | [历史分页](docs/design/2026-10-28-history-pagination.md)与[滚动接管](docs/design/2026-11-11-history-scroll-takeover.md)：新滑动优先于通知捕获旧锚点、真实prepend保持共享位置，一手势一批/三页视窗/游标及只读边界保持 |
 | 派生会话只有回复而缺少首条Query | [委派请求投影](docs/design/2026-10-28-delegated-query.md)：仅精确create_thread委派格式、稳定ID/轮次、原生共有锚点与只读来源标记；普通工具输出不转成用户消息 |
 | 用户引用批注、列表刷新反馈、顶部筛选/排序选中态 | [本轮契约](docs/design/2026-10-23-annotations-refresh-controls.md)：问题优先、引用披露、请求反馈互斥与轻量选中表面 |
 | 新提问选项、自填输入被键盘遮挡、回答/忽略与重复显示 | [可选提问](docs/design/2026-10-10-optional-question-prompts.md)：新题选项/精确去重、草稿/未知回执保护；自填输入仅按编辑/视口显露所属滚动区，阅读意图优先 |
