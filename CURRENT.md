@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-10。摇一摇偏好与本页运动权限分开，未确认时一键恢复；高级改其他默认收起。短弱网列表保持上次确认的活动，标签/计数/过滤/排序同源，顶部提示未同步；真实执行/权限/详情dots仍fresh。容量与pending重试竞态已修，最终50受影响浏览器+7设施/独立CR通过；完整2151中2149过、2项既有原生恢复范围失败仍待续。前端源2c74125/buildb4bdcd83，38/38资源/原功能与独立公网回读一致，两机API仍fc86637且本轮未变。缓存为本页，原生手机新UI/长期切网效果未实测；已接受停止回执与两路GET持续失败边界留契约。未公开源码或改写脱敏历史，无未决上传。
+维护日期：2026-11-11。assistant新建会话引用升级为完整会话卡片，展示真实标题/项目与确知状态，整卡导航；普通链接、代码/用户/文件、copy与权限边界保持。前端源8f1a152/build8e668858，38/38资源/功能与独立公网版本/JS/CSS匹配；8新/16相关浏览器、13新/37相关纯测与只读CR通过。原三项摇动/其他/弱网列表连续性保持，API仍fc86637且本轮未改。完整2164中2162过，2项既有原生恢复范围失败仍待续；真机UI边界保持。未公开源码或改写脱敏历史，无未决上传。
 
 ## 下一次先看
 
-- **11-11新建会话卡片已验证，待发布。** 用户指定会话最后两个created-thread链接变80px完整任务区块，复用真实目录标题/项目和确知状态，整卡a点击、键盘与修饰键导航保持；不猜完成，不自动GET/打开owner/发送，普通链接/引用/代码/用户/文件正文不升级。[记录](docs/design/2026-10-22-message-components.md#2026-11-11-新建会话卡片)。构建8e668858…、13新/37相关纯测、8新手机双浏览器/16既有结构化/语言/图标浏览器与只读CR通过；完整2164中2162过、2项旧原生恢复范围失败无skip。尚未上传，只共享网页更新；下方仍线上事实。私有证据`.local/qa/message-task-cards-2026-11-11/`。
+- **新建会话卡片已上线（2026-11-11）。** [消息组件](docs/design/2026-10-22-message-components.md#2026-11-11-新建会话卡片)：assistant顶层created-thread在首次适配前保留结构parts，变80px最小的整卡a，真实标题/项目或cwd末端/确知状态、统一18/16px图标；idle不猜完成，普通任务链接仍内联。代码/引用/list/HTML/details/用户/文件不升级，原raw/id/role与copy可读链接保持，完整源第一引用定义共用。当前machine+scope目录和fresh状态Context复用，无新GET/owner/发送，排除或跨机元数据不取，缺信息轻提示。原会话的2个目标已只读核对真实目录元数据；8新手机中英/双浏览器、16既有结构化/语言/图标、13新与37相关纯测、只读CR/构建通过，metadata更新保持article/anchor、键盘/修饰键与草稿导航通过。完整2164中2162过，2项旧原生恢复范围失败无skip。源8f1a152/build8e668858…/Pages6b44bb7d…单次上传exit0/ready、38/38资源/功能及独立公网version/profile/App CSS/JS一致；仅共享网页，API/数据/Codex/connector和实际owner不操作，没有真机目视或新截图验收。OAuth仍有效未续期，无未决操作。证据`.local/qa/message-task-cards-2026-11-11/verification.json`。
 
 - **摇动恢复、其他折叠与弱网列表连续性已上线（2026-11-10）。** [摇动](docs/design/2026-10-29-feedback-infrastructure.md#2026-11-10-摇动权限恢复)：保存偏好与本页权限分开，可信运动样本被动确认，未知提供明确恢复按钮；只手势请求、关闭后的迟到grant不重开，原反馈目标/截图/回执保持。用户当次关开后允许已恢复，新按钮未真机验。[其他](docs/design/2026-10-30-compact-settings-and-controls.md#2026-11-10-其他默认收起)：高级改其他默认收起，复用AnimatedDetails/44px/16px图标，直发true/缓存128保持。[列表缓存](docs/design/2026-11-10-list-activity-cache.md)：machine/scope本页最后确认的运行/等待投影统一标签/计数/过滤/rank，顶部一次未同步提示；明确新事实撤销，unknown不推进确认水位，权限/发送/停止/dots仍fresh。本轮容量P2（160fresh误限128）与明确refresh被pending旧读吞掉的竞态已实证修正，原大列表/时间期待未放宽；所有失败日志保留。旧全套283中279过/4容量失败→容量候选78中77过/1refresh竞态→最终b4bdcd83同版50受影响+7设施全过，子18/14浏览器与独立CR/91聚焦亦过；完整2151中2149过/2旧原生恢复失败无skip。源2c74125、Pages28d79d7a…单次上传exit0/ready，38/38资源/功能及独立公网version/profile/App JS/CSS匹配；仅共享网页，无API/Codex/connector或真实消息/反馈/owner操作。OAuth单次续期原28scope/targetGET200，无未决操作。内存运行状态不跨reload；stop终态receipt后两路GET持续失败时列表需下一次合格GET撤销，见契约边界。证据`.local/qa/shake-recovery-2026-11-10/verification.json`与`list-activity-{cache,cache-capacity,refresh}-2026-11-10/`，原历史测试输出污染已标明来源并修中性默认路径，不伪造旧回执。
 
@@ -158,13 +158,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `2c74125f0329db796a48b19c856967288eda1b03`；摇动恢复/其他折叠/列表活动展示缓存与合并立即后继读取；旧权限/控制/阅读保持 |
+| 公网前端/网关源码 | `8f1a1525569cfebdf1881a8569b6fd2c9f0a3515`；结构化会话卡片/真实目录复用，旧链接/消息/控制/读取保持 |
 | 两机API源码 | `fc86637f601cc2e7024c5b80eae9250322341139`；11-08本机PID73369、豌豆53703，connector12894/4528与Codex未重启；回退/依赖基线9e7保留，后续运行须重查 |
-| 前端build | 共享公网/本地dist `b4bdcd832a114f01ae4bc5e8281a5df41a3e1262f0e16181e0a6202a468cf754`；两机API内置仍 `f9ac7165…`，本次仅共享网页更新 |
-| Pages部署 | `28d79d7a-57b3-4b82-8dbf-de184067c795`；11-10 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/App JS/CSS一致；独立CSS初TLS失败后有界GET重试通过 |
-| 本次验证 | 最终同版50受影响浏览器/7设施、子91聚焦/14及独立CR通过；容量4原大列表/14与88纯测过。旧全套283中279/4容量失败与后续78中77/1refresh失败均留证已修，不能当最终全绿；完整2151中2149过/2旧原生恢复范围失败无skip |
-| 本次证据 | `.local/qa/shake-recovery-2026-11-10/verification.json`、最终/失败浏览器、全测/认证/发布；`list-activity-cache-2026-11-10/`、`list-activity-cache-capacity-2026-11-10/`、`list-activity-refresh-2026-11-10/`的冻结/独立CR与基线 |
-| 本次数据与运行 | 仅共享网页；无API/原库/队列/订阅/Pocket认证或Codex/connector操作，未真实发送/反馈/打开owner。OAuth单次续期原28scope保持，targetGET200，无未决 |
+| 前端build | 共享公网/本地dist `8e6688580e711690e1135a48aef28b5c0010ff20ba0e2bf0a62c5b2a0ebb443c`；两机API内置仍 `f9ac7165…`，本次仅共享网页更新 |
+| Pages部署 | `6b44bb7d-53b2-4c51-bb34-c2598360db45`；11-11 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/App CSS/JS一致 |
+| 本次验证 | 8新任务卡片手机/中英/双浏览器、16既有结构化/语言/图标浏览器、13新parser/组件与37相关纯测、只读CR/构建通过；完整2164中2162过/2旧原生恢复范围失败无skip。真机/目视未直接验收 |
+| 本次证据 | `.local/qa/message-task-cards-2026-11-11/verification.json`、组件/相关/浏览器/全测/认证/发布日志；原列表/摇动/其他仍回11-10三份QA目录 |
+| 本次数据与运行 | 仅共享网页；目标消息/2个目录元数据只读，未开原owner或发送，未改API/原库/队列/订阅/Pocket认证或Codex/connector；OAuth有效未续期，无未决 |
 
 上述`ba65c420…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
