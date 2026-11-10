@@ -1,10 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-11。assistant新建会话引用升级为完整会话卡片，展示真实标题/项目与确知状态，整卡导航；普通链接、代码/用户/文件、copy与权限边界保持。前端源8f1a152/build8e668858，38/38资源/功能与独立公网版本/JS/CSS匹配；8新/16相关浏览器、13新/37相关纯测与只读CR通过。原三项摇动/其他/弱网列表连续性保持，API仍fc86637且本轮未改。完整2164中2162过，2项既有原生恢复范围失败仍待续；真机UI边界保持。未公开源码或改写脱敏历史，无未决上传。
+维护日期：2026-11-11。会话内引用已建立逐层返回链，按钮和右滑同源A→B→C→B→A→列表，草稿和阅读位置保持；未知/来源变化/已消失父与存储异常处理通过。前端源f77806c/build478c95bc，38/38资源/功能与独立公网回读一致，10新最终/56相关浏览器及12纯栈/独立CR通过。任务卡片、弱网列表/其他/摇动行为保持，API仍fc86637。本轮仅网页，无真实owner/队列或服务操作；完整2176中2174过、2既有原生恢复范围失败仍待续，真机手势边界保持。未公开源码或改写脱敏历史，无未决上传。
 
 ## 下一次先看
 
-- **会话引用返回栈已验证，待发布（11-11）。** [访问链](docs/design/2026-11-11-conversation-back-stack.md)：内容卡片/普通链接A→B→C，按钮/右滑C→B→A→列表；同ID不增层，列表/通知root，最多32个父ID按machine/scope本页隔离。未知目标实际选中才push，较新选择/来源变化取消；missing父跳过、归档可读保留、URL恢复不受清存储异常影响。复用草稿/历史阅读位置，父详情不抢列表焦点，最终back清task URL。12栈纯测/通知目标、10新浏览器、56原导航/通知/卡片回归、独立CR/构建通过，完整2176中2174过/2旧原生恢复范围失败无skip。最后URL try隔离小改的同版478c95bc…10新复验通过；尚未发布，仅网页，无原owner或服务操作。证据`.local/qa/conversation-stack-2026-11-11/`。
+- **会话引用逐层返回已上线（2026-11-11）。** [返回栈](docs/design/2026-11-11-conversation-back-stack.md)：内容卡片/链接A→B→C，按钮/右滑C→B→A→列表；同ID不加层，列表/通知root，32父ID按machine/scope本页隔离。未知目标成功commit才push，新选择/来源变化取消迟到引用；missing/excluded跳过、归档可读保留。存储异常不阻断back URL恢复；草稿/原阅读位置沿既有cache、回父详情不抢列表focus，最终back清task URL。12纯栈/18含通知目标、10新最终同版浏览器、56既有通知/卡片/导航回归及独立CR通过，最后URL try小改此前56与最后10分别保留build身份；完整2176中2174过、2旧原生恢复范围失败无skip。源f77806c/build478c95bc…/Pagesc428ea7c…单次上传exit0/ready、38/38资源/功能与独立公网version/profile/App JS一致，仅共享网页，API/原owner/数据/Codex/connector和真实发送不操作；原生手机手势未实测。OAuth有效未续期，无未决操作，证据`.local/qa/conversation-stack-2026-11-11/verification.json`。
 
 - **新建会话卡片已上线（2026-11-11）。** [消息组件](docs/design/2026-10-22-message-components.md#2026-11-11-新建会话卡片)：assistant顶层created-thread在首次适配前保留结构parts，变80px最小的整卡a，真实标题/项目或cwd末端/确知状态、统一18/16px图标；idle不猜完成，普通任务链接仍内联。代码/引用/list/HTML/details/用户/文件不升级，原raw/id/role与copy可读链接保持，完整源第一引用定义共用。当前machine+scope目录和fresh状态Context复用，无新GET/owner/发送，排除或跨机元数据不取，缺信息轻提示。原会话的2个目标已只读核对真实目录元数据；8新手机中英/双浏览器、16既有结构化/语言/图标、13新与37相关纯测、只读CR/构建通过，metadata更新保持article/anchor、键盘/修饰键与草稿导航通过。完整2164中2162过，2项旧原生恢复范围失败无skip。源8f1a152/build8e668858…/Pages6b44bb7d…单次上传exit0/ready、38/38资源/功能及独立公网version/profile/App CSS/JS一致；仅共享网页，API/数据/Codex/connector和实际owner不操作，没有真机目视或新截图验收。OAuth仍有效未续期，无未决操作。证据`.local/qa/message-task-cards-2026-11-11/verification.json`。
 
@@ -160,13 +160,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `8f1a1525569cfebdf1881a8569b6fd2c9f0a3515`；结构化会话卡片/真实目录复用，旧链接/消息/控制/读取保持 |
+| 公网前端/网关源码 | `f77806c07e9d877d490168d07464531478f40558`；会话引用返回链/来源及迟到取消，旧通知与卡片/阅读行为保持 |
 | 两机API源码 | `fc86637f601cc2e7024c5b80eae9250322341139`；11-08本机PID73369、豌豆53703，connector12894/4528与Codex未重启；回退/依赖基线9e7保留，后续运行须重查 |
-| 前端build | 共享公网/本地dist `8e6688580e711690e1135a48aef28b5c0010ff20ba0e2bf0a62c5b2a0ebb443c`；两机API内置仍 `f9ac7165…`，本次仅共享网页更新 |
-| Pages部署 | `6b44bb7d-53b2-4c51-bb34-c2598360db45`；11-11 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/App CSS/JS一致 |
-| 本次验证 | 8新任务卡片手机/中英/双浏览器、16既有结构化/语言/图标浏览器、13新parser/组件与37相关纯测、只读CR/构建通过；完整2164中2162过/2旧原生恢复范围失败无skip。真机/目视未直接验收 |
-| 本次证据 | `.local/qa/message-task-cards-2026-11-11/verification.json`、组件/相关/浏览器/全测/认证/发布日志；原列表/摇动/其他仍回11-10三份QA目录 |
-| 本次数据与运行 | 仅共享网页；目标消息/2个目录元数据只读，未开原owner或发送，未改API/原库/队列/订阅/Pocket认证或Codex/connector；OAuth有效未续期，无未决 |
+| 前端build | 共享公网/本地dist `478c95bc368edd4ce276792d179dee5e5fbbf150c25708b60713e779b38c62b1`；两机API内置仍 `f9ac7165…`，本次仅共享网页更新 |
+| Pages部署 | `c428ea7c-d9fa-4e1d-baec-9e06e7e8f2de`；11-11 ready=true，单次上传exit0，38/38资源/原功能与独立公网version/profile/App JS一致 |
+| 本次验证 | 10新最终同版返回栈浏览器、56原通知/卡片/导航、12栈纯测/18含通知目标、独立CR通过；最后URL异常小改56原build/10最终build边界保留。完整2176中2174过、2旧原生恢复范围失败无skip；真机手势未直接测 |
+| 本次证据 | `.local/qa/conversation-stack-2026-11-11/verification.json`、新/相关/全测/认证/发布日志；卡片与原弱网/摇动仍回既有11-11/11-10 QA |
+| 本次数据与运行 | 本次仅共享网页；未调用真实原owner/发送/归档或改变API/原库/队列/订阅/Pocket认证、Codex/connector；OAuth有效无续期/未决 |
 
 上述`ba65c420…`发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；历史发布、完整旧能力描述与路由已归入[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)。
 
