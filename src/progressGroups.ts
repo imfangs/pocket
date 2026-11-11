@@ -23,6 +23,7 @@ export function groupProgressMessages(
   });
 
   const entries: ProgressMessageEntry[] = [];
+  const groupOccurrences = new Map<string, number>();
   messages.forEach((message, index) => {
     const canFold = message.role === "assistant" && message.phase === "commentary" &&
       hasTurnId(message) && !message.isQuestion && !protectedMessageIds?.has(message.id) &&
@@ -34,8 +35,13 @@ export function groupProgressMessages(
     const previous = entries.at(-1);
     if (previous?.type === "progress" && previous.turnId === message.turnId)
       previous.messages.push(message);
-    else entries.push({ type: "progress", id: `progress:${JSON.stringify([message.turnId, message.id])}`,
-      turnId: message.turnId, messages: [message] });
+    else {
+      const base = JSON.stringify([message.turnId, message.id]);
+      const occurrence = groupOccurrences.get(base) ?? 0;
+      groupOccurrences.set(base, occurrence + 1);
+      entries.push({ type: "progress", id: `progress:${occurrence ? JSON.stringify([message.turnId, message.id, occurrence]) : base}`,
+        turnId: message.turnId, messages: [message] });
+    }
   });
   return entries;
 }

@@ -19,10 +19,13 @@ import ConversationMessage from "./ConversationMessage";
 import ConversationActivity from "./ConversationActivity";
 import { conversationIsWorking } from "./conversationWorking";
 import ProgressDisclosure from "./ProgressDisclosure";
-import { useProgressMessages } from "./useProgressMessages";
+import { isMessageReadingProtected, useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript, Message } from "./conversationFeed";
 import { displayConversation } from "./transcript";
+import { uniqueDisplayMessages, renderMessageKey } from "./displayMessageIdentity";
+import { retainReadableConversationPrefix, type ReadableConversation } from "./readableConversationContinuity";
+import { createLiveReadingAnchor } from "./liveReadingAnchor";
 import { emptyConversationState } from "./conversationReadState";
 import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
@@ -184,12 +187,35 @@ export default function Conversation({
     transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
   ), [history, transcript, submitted]);
   const showingDiskPreview = !!cachedPreview && !liveDisplay.messages.length && !(receivedHistory.current && receivedTranscript.current);
-  const shownMessages = showingDiskPreview ? cachedPreview.messages : liveDisplay.messages;
-  const hasEarlierMessages = showingDiskPreview ? cachedPreview.hasMore : liveDisplay.hasMore;
+  // Keep reading continuity separate from raw receipt and capability inputs.
+  // A successful rollout fallback must not erase an already readable prefix.
+  const displayScope = JSON.stringify([currentMachineId(), readingScope, thread.id]);
+  const nativeReading = useRef<{ scope: string; view: ReadableConversation } | null>(null);
+  const freshDisplay = useMemo(() => ({ ...liveDisplay, messages: uniqueDisplayMessages(liveDisplay.messages) }), [liveDisplay]);
+  const readableDisplay = useMemo(() => history?.source === "rollout"
+    ? retainReadableConversationPrefix(nativeReading.current?.scope === displayScope ? nativeReading.current.view : null, freshDisplay)
+    : { ...freshDisplay, retained: false }, [history?.source, freshDisplay, displayScope]);
+  useLayoutEffect(() => {
+    if (nativeReading.current?.scope !== displayScope) nativeReading.current = null;
+    if (history?.source === "desktop") nativeReading.current = { scope: displayScope, view: freshDisplay };
+  }, [displayScope, history?.source, freshDisplay]);
+  const diskDisplay = useMemo(() => cachedPreview ? uniqueDisplayMessages(cachedPreview.messages) : [], [cachedPreview]);
+  const shownMessages = showingDiskPreview ? diskDisplay : readableDisplay.messages;
+  const ambiguousMessageIds = useMemo(() => {
+    const seen = new Set<string>(), ambiguous = new Set<string>();
+    for (const message of shownMessages) {
+      if (seen.has(message.id)) ambiguous.add(message.id); else seen.add(message.id);
+    }
+    return ambiguous;
+  }, [shownMessages]);
+  const hasEarlierMessages = showingDiskPreview ? cachedPreview.hasMore : readableDisplay.hasMore;
   const earlierWindow = useEarlierConversation({ threadId: thread.id, root: messages, conversationRoot, online, hasEarlierMessages,
     isComposing: () => keyboardDismiss.current.composing,
     onAutomaticStart: () => { nearBottom.current = false; setAwayFromLatest(true); } });
   const earlier = earlierWindow.state;
+  const liveReadingAnchor = useMemo(() => createLiveReadingAnchor({ root: () => messages.current,
+    enabled: () => !nearBottom.current && !earlierWindow.isActive() && !isMessageReadingProtected(messages.current) }), [earlierWindow.isActive]);
+  liveReadingAnchor.updateReading();
   useEffect(() => {
     const machine = currentMachineId();
     if (!machine || !readingScope || !readingCache) return;
@@ -214,8 +240,9 @@ export default function Conversation({
     { disabled: showingDiskPreview || !online || !!historyError,
       baselineReady: networkObserved.current.history && networkObserved.current.transcript,
       refresh: () => feed.current?.refresh() });
-  const timeline = useMemo(() => queryTimeline(shownMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries),
-    [shownMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries]);
+  const timeline = useMemo(() => queryTimeline(shownMessages.filter(message => !ambiguousMessageIds.has(message.id)),
+    submitted, visibleSubmissions, shownOutbox, deferredQueries),
+    [shownMessages, ambiguousMessageIds, submitted, visibleSubmissions, shownOutbox, deferredQueries]);
   const [queryTargets, setQueryTargets] = useState<ReadonlyMap<string, HTMLElement>>(() => new Map());
   const queryRefs = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
   const queryRef = (requestId: string) => {
@@ -232,7 +259,7 @@ export default function Conversation({
     return ref;
   };
   useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
-  useEffect(() => { if (!showingDiskPreview) submissions.observeMessages(thread.id, shownMessages); }, [submissions, thread.id, shownMessages, submitted, showingDiskPreview]);
+  useEffect(() => { if (!showingDiskPreview) submissions.observeMessages(thread.id, liveDisplay.messages); }, [submissions, thread.id, liveDisplay.messages, submitted, showingDiskPreview]);
   const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
   const [questionStore] = useState(questionPresentationStore);
   const questionsByMessage = useMemo(() => {
@@ -240,8 +267,11 @@ export default function Conversation({
     for (const question of questions) groups.set(question.sourceMessageId, [...(groups.get(question.sourceMessageId) ?? []), question]);
     return groups;
   }, [questions]);
-  const unplacedQuestions = useMemo(() => questions.filter(question => !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages]);
-  const pocketContent = useMemo(() => earlier.active || unplacedQuestions.length ? null : displayedPocketContent(transcript, shownMessages), [transcript, shownMessages, unplacedQuestions, earlier.active]);
+  const unplacedQuestions = useMemo(() => questions.filter(question => ambiguousMessageIds.has(question.sourceMessageId) ||
+    !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages, ambiguousMessageIds]);
+  const pocketContent = useMemo(() => earlier.active || unplacedQuestions.length ||
+    !!transcript?.pocketContent?.messageId && ambiguousMessageIds.has(transcript.pocketContent.messageId)
+    ? null : displayedPocketContent(transcript, shownMessages), [transcript, shownMessages, unplacedQuestions, earlier.active, ambiguousMessageIds]);
   const protectedProgressIds = useMemo(() => new Set([...questionsByMessage.keys(), ...(pocketContent?.messageId ? [pocketContent.messageId] : [])]), [questionsByMessage, pocketContent?.messageId]);
   const progress = useProgressMessages({ messages: shownMessages, protectedIds: protectedProgressIds,
     root: messages, nearBottom, away: awayFromLatest, cache: historyCache, threadId: thread.id,
@@ -479,6 +509,7 @@ export default function Conversation({
       request: signal => readTranscript ? readTranscript(thread.id, signal)
         : api<SavedTranscript>(`/api/tasks/${thread.id}/transcript`, "GET", undefined, { signal }),
       onData(data) {
+        liveReadingAnchor.prepare();
         networkObserved.current.transcript = true;
         receivedTranscript.current = true;
         receivedContent.current ||= data.messages.length > 0;
@@ -495,7 +526,7 @@ export default function Conversation({
     });
     textFeed.current = subscription;
     return () => { subscription.stop(); if (textFeed.current === subscription) textFeed.current = null; };
-  }, [thread.id, historyCache, readTranscript]);
+  }, [thread.id, historyCache, readTranscript, liveReadingAnchor]);
   useEffect(() => {
     if (managementBlocked) { setLoading(false); return; }
     let readingActivityEpoch = activityEpoch.current;
@@ -512,6 +543,7 @@ export default function Conversation({
         return api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal });
       },
       onData(data) {
+        liveReadingAnchor.prepare();
         networkObserved.current.history = true;
         setActivityObserved(readingActivityEpoch === activityEpoch.current);
         if (readingActivityEpoch === activityEpoch.current) readingListObserver?.(thread.id, data, readingListStartedAt);
@@ -561,10 +593,11 @@ export default function Conversation({
       subscription.stop();
       if (feed.current === subscription) feed.current = null;
     };
-  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked, feedbackTracker, showAcceptedFeedback, confirmAccepted, submissions, checkSubmissionReceipt, uploads]);
+  }, [thread.id, drafts, historyCache, updateDraft, managementBlocked, feedbackTracker, showAcceptedFeedback, confirmAccepted, submissions, checkSubmissionReceipt, uploads, liveReadingAnchor]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element || earlier.active) return;
+    liveReadingAnchor.restore();
     const latest = shownMessages.at(-1), previous = previousLatest.current;
     if (nearBottom.current && !progress.readingProtected()) {
       element.scrollTop = element.scrollHeight;
@@ -576,7 +609,7 @@ export default function Conversation({
     }
     previousLatest.current = latest ? { id: latest.id, text: latest.text } : null;
     restoreScroll.current = null;
-  }, [shownMessages, visibleSubmissions, shownOutbox, queryTargets, progress.entries, progress.readingProtected, earlier.active, working]);
+  }, [shownMessages, visibleSubmissions, shownOutbox, queryTargets, progress.entries, progress.readingProtected, earlier.active, working, liveReadingAnchor]);
   useLayoutEffect(() => {
     const element = messages.current;
     if (!element) return;
@@ -787,6 +820,12 @@ export default function Conversation({
   };
   const inlineConnectionLabel = !online ? "离线" : connecting ? "连接中" : compatibilityCode ? "暂不可连接"
     : connectionFailed ? "连接失败" : observedConnection.status === "connected" ? "同步中" : "未连接";
+  const messageOccurrences = new Map<string, number>();
+  const messageKey = (message: Message) => {
+    const occurrence = messageOccurrences.get(message.id) ?? 0;
+    messageOccurrences.set(message.id, occurrence + 1);
+    return renderMessageKey(message, occurrence);
+  };
   return (
     <section ref={conversationRoot} className="conversation" aria-label={t("会话历史与发送")}>
       <div className="conversation-feed">
@@ -844,18 +883,23 @@ export default function Conversation({
         {[...progress.entries.map(entry => {
           if (entry.type === "progress") return <ProgressDisclosure key={entry.id} id={entry.id} count={entry.messages.length}
             open={progress.expanded.has(entry.id)} onOpenChange={open => progress.toggle(entry.id, open)}>
-            {entry.messages.map(message => <ConversationMessage key={message.id} threadId={thread.id} message={message}
+            {entry.messages.map(message => <ConversationMessage key={messageKey(message)} threadId={thread.id} message={message}
               readMarker={message.id === pocketContent?.messageId ? readSentinel : undefined} />)}
           </ProgressDisclosure>;
           const message = entry.message;
-          if (timeline.hiddenMessages.has(message.id)) return null;
-          const query = timeline.byMessage.get(message.id);
+          const key = messageKey(message);
+          // Conflicting source rows have distinct render keys, but ID-indexed
+          // receipt/question placement cannot choose between them. Keep both
+          // readable records rather than hiding or replacing the wrong row.
+          const ambiguous = ambiguousMessageIds.has(message.id);
+          if (!ambiguous && timeline.hiddenMessages.has(message.id)) return null;
+          const query = ambiguous ? undefined : timeline.byMessage.get(message.id);
           if (query) return renderQuery(query);
-          const messageQuestions = questionsByMessage.get(message.id);
-          return messageQuestions?.length ? <QuestionPrompts key={message.id} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceFiles={message.files} sourceTruncated={message.truncated}
+          const messageQuestions = ambiguous ? undefined : questionsByMessage.get(message.id);
+          return messageQuestions?.length ? <QuestionPrompts key={key} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceFiles={message.files} sourceTruncated={message.truncated}
             readMarker={message.id === pocketContent?.messageId ? { sourceMessageId: message.id, markerRef: readSentinel } : undefined}
             disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />
-            : <ConversationMessage key={message.id} threadId={thread.id} message={message}
+            : <ConversationMessage key={key} threadId={thread.id} message={message}
               readMarker={message.id === pocketContent?.messageId ? readSentinel : undefined}
               changeLayout={progress.changeLayout}
               queryDisclosure={message.role === "user" ? { expanded: expandedQueries.has(message.clientMessageId || message.id),

@@ -99,3 +99,12 @@ test('a native final_answer question is not completion evidence for collapsing p
   assert.deepEqual(shape(groupProgressMessages(messages)), ['before', 'question', 'after']);
   assert.deepEqual(shape(groupProgressMessages([...messages, final('real-answer')])), [['before'], 'question', ['after'], 'real-answer']);
 });
+
+test('conflicting same-ID commentary groups keep distinct disclosure and DOM identities', () => {
+  const messages = [progress('shared'), user('between'), progress('shared', 'turn', { text: 'Different progress' }), final()];
+  const groups = groupProgressMessages(messages).filter(entry => entry.type === 'progress');
+  assert.equal(groups.length, 2);
+  assert.notEqual(groups[0].id, groups[1].id);
+  assert.equal(groups[0].id, groupProgressMessages([progress('shared'), final()])[0].id, 'the original group keeps its cached identity');
+  assert.deepEqual(groups.flatMap(group => group.messages), [messages[0], messages[2]]);
+});

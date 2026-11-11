@@ -58,6 +58,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
     }]))]));
     const hiddenRevisions = new Map(clientConfiguration.machines.map(({id:machine}) => [machine, 0]));
     const historyPatches = new Map();
+    const transcriptPatches = new Map();
     let historyFailure = null;
     let hiddenFailure = null;
     let closed = false;
@@ -133,7 +134,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
         if (action === 'history') {
           if (historyFailure) { status = historyFailure; data = { error: '合成会话状态读取失败' }; historyFailure = null; }
           else data = { ...data, ...historyPatches.get(machine + ':' + thread.id) };
-        }
+        } else data = { ...data, ...transcriptPatches.get(machine + ':' + thread.id) };
       }
       else if (thread && method === 'GET' && action === 'attachments') data = { attachments: [] };
       else if (thread && method === 'GET' && action === 'automations') data = { available: true, stale: false, timeZone: 'Asia/Shanghai', automations: [] };
@@ -186,6 +187,9 @@ export async function createHarness(engine, { history = false, width = 390, visi
       },
       patchHistory(threadId, patch, machine = clientConfiguration.defaultMachine) {
         historyPatches.set(machine + ':' + threadId, patch);
+      },
+      patchTranscript(threadId, patch, machine = clientConfiguration.defaultMachine) {
+        transcriptPatches.set(machine + ':' + threadId, patch);
       },
       failNextHistory(status = 503) { historyFailure = status; },
       failNextHidden(status = 503) { hiddenFailure = status; },
