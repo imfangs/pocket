@@ -64,6 +64,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | Logo、设置减法、标题信息入口与工具栏 | [品牌与界面收敛](docs/design/2026-10-11-brand-and-interface.md)、[矢量主稿](design/brand/README.md) |
 | 整体 UI、导航、筛选、阅读层级与表单 | [工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md)；整体减法或同类删减再次出现时，先按[迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)第4、6节审视完整路径的相邻区域，确定覆盖范围与保留理由 |
 | 列表运行/等待状态、过期或弱网跳位 | [列表运行状态](docs/design/2026-10-08-running-status.md)与[列表活动缓存](docs/design/2026-11-10-list-activity-cache.md)：fresh读取保持，machine/scope本页展示回退统一标签/计数/过滤/rank，明确新状态撤销；不授控制或复亮详情dots |
+| 轮次失败／原因不可见、未读／运行中正文预取与旧缓存遮挡 | [失败与活跃预取](docs/design/2026-11-11-failed-turns-and-live-prefetch.md)：真实task_complete.error／nativefailed独立DTO，当前运行／等待优先；8候选/单并发5s/30s再验证、跨key版本地板与认证较新阅读预览接续，不自动连接/发消息/标读/授权 |
 | 列表弱网同步提示过重、动态细线／持续失败提示 | [静默同步](docs/design/2026-11-11-quiet-list-sync.md)：固定2px／真实请求动画，native不可读与过期不当断网；明确离线或3次/30秒且无可达列表读取才提示，健康诊断不改变运行／权限／缓存水位 |
 | 未读/近期会话后台状态与正文预取、缓存接管和抢占冷却 | [正文预取](docs/design/2026-10-31-transcript-prefetch.md)：统一rank＋未读加权、固定8候选/单并发、前台接管、版本/身份边界；[状态预取](docs/design/2026-10-22-active-thread-prefetch.md)继续32项批量提示与公平轮转，不制造访问/已读或后台连接 |
 | 列表、来源导入、元数据恢复、阅读缓存 | [数据与接口](docs/ARCHITECTURE.md)、[桌面列表范围](docs/design/2026-10-14-desktop-list-scope.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |

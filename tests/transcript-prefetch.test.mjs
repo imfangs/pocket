@@ -16,7 +16,7 @@ function fixture(overrides={}) {
     current:()=>identity,canPrefetch:()=>canRun,
     getForegroundId:overrides.getForegroundId,
     setTimeout:(callback,delay)=>{const key=++sequence;timers.set(key,{at:now+delay,callback});return key;},clearTimeout:key=>timers.delete(key),
-    request:(threadId,signal)=>{const d=deferred();requests.push({threadId,signal,...d});return d.promise;},
+    request:(threadId,signal)=>{const d=deferred();requests.push({threadId,signal,at:now,...d});return d.promise;},
     cache:{loadTranscript:async(machine,scope,threadId)=>{loads.push({machine,scope,threadId});return overrides.load?.(threadId)??null;},
       rememberTranscript:(machine,scope,threadId,data)=>{writes.push({machine,scope,threadId,data});return overrides.remember?.(data)??true;}},
   });
@@ -175,6 +175,143 @@ test('older foreground payloads stay readable without content metadata and never
   assert.equal(f.loads.length,0);assert.equal(f.requests.length,1);
   const legacy={source:'rollout',messages:[{id:'legacy',role:'assistant',text:'Actual network result'}],checkedAt:1000000};
   f.requests[0].resolve(legacy);assert.deepEqual(await pending,legacy);assert.equal(f.writes.length,0);f.reader.stop();
+});
+
+test('running same-version content keeps validating every five seconds and pauses while hidden', async () => {
+  const item = { ...candidate(1), refresh: 'running' }, f = fixture();
+  f.update([item]); await f.advance(10);
+  for (let i = 0; i < 4; i++) {
+    assert.equal(f.requests.length, i + 1);
+    f.requests[i].resolve(response(item, `New process ${i}`)); await f.advance(10);
+    assert.equal(f.writes.at(-1).data.messages[0].text, `New process ${i}`);
+    if (i < 3) { await f.advance(5000); assert.ok(f.requests[i + 1].at - f.requests[i].at >= 5000); }
+  }
+  assert.equal(f.loads.length, 1, 'repeat network validation does not repeatedly scan disk');
+  f.canRun(false); f.reader.wake(true); await f.advance(30000); assert.equal(f.requests.length, 4);
+  f.canRun(true); f.reader.wake(); await f.advance(10); assert.equal(f.requests.length, 5);
+  f.reader.stop();
+});
+
+test('an unread cache hit still receives a real read and then validates at the slower thirty-second cadence', async () => {
+  const item = { ...candidate(1), refresh: 'unread' };
+  const f = fixture({ load: () => ({ scope: 'scope', value: response(item, 'Previously cached'), savedAt: 1000000 }) });
+  f.update([item]); await f.advance(10); assert.equal(f.requests.length, 1);
+  f.requests[0].resolve(response(item, 'Actual current query and body')); await f.advance(10);
+  assert.equal(f.writes[0].data.messages[0].text, 'Actual current query and body');
+  await f.advance(29000); assert.equal(f.requests.length, 1);
+  f.update([{ ...item }]); await f.advance(1000); assert.equal(f.requests.length, 2);
+  assert.ok(f.requests[1].at - f.requests[0].at >= 30000);
+  f.reader.stop();
+});
+
+test('eight repeated candidates stay single-file and untried unread work precedes another active refresh', async () => {
+  const items = Array.from({ length: 8 }, (_, n) => ({ ...candidate(n + 1), refresh: n === 7 ? 'unread' : 'running' }));
+  const f = fixture(); f.update(items); await f.advance(10);
+  for (let n = 0; n < items.length; n++) {
+    assert.equal(f.requests.length, n + 1, 'only one background read is in flight');
+    assert.equal(f.requests[n].threadId, items[n].id);
+    f.requests[n].resolve(response(items[n])); await f.advance(10);
+  }
+  assert.equal(f.writes.length, 8); assert.deepEqual(f.requests.map(item => item.threadId), items.map(item => item.id));
+  await f.advance(5000); assert.equal(f.requests[8].threadId, items[0].id);
+  f.reader.stop();
+});
+
+test('unknown-version running reads warm only a known same-scope response and retain the eight-item bound', async () => {
+  const received = candidate(1), item = { id: received.id, content: null, refresh: 'running' }, f = fixture();
+  f.update([item]); await f.advance(10); assert.equal(f.requests.length, 1);
+  f.requests[0].resolve(response(received)); await f.advance(10); assert.equal(f.writes.length, 1);
+  await f.advance(5000); assert.equal(f.requests.length, 2); f.reader.stop();
+  for (const value of [{ ...response(received), pocketContent: null }, response(candidate(1, 1, 'foreign'))]) {
+    const blocked = fixture(); blocked.update([item]); await blocked.advance(10); blocked.requests[0].resolve(value); await blocked.advance(120000);
+    assert.equal(blocked.writes.length, 0); assert.equal(blocked.requests.length, 1); blocked.reader.stop();
+  }
+});
+
+test('a new content identity validates immediately and a completed/read mode stops active polling', async () => {
+  const running = { ...candidate(1), refresh: 'running' }, unread = { ...candidate(1, 2), refresh: 'unread' }, f = fixture();
+  f.update([running]); await f.advance(10); f.requests[0].resolve(response(running)); await f.advance(10);
+  f.update([unread]); await f.advance(10); assert.equal(f.requests.length, 2, 'new final/version is not delayed by the old running timer');
+  f.requests[1].resolve(response(unread)); await f.advance(10);
+  f.update([candidate(1, 2)]); await f.advance(10); assert.equal(f.requests.length, 3, 'completion/read receives one final full-body validation');
+  f.requests[2].resolve(response(candidate(1, 2))); await f.advance(120000); assert.equal(f.requests.length, 3, 'a read, idle chat then reverts to one-shot behavior');
+  f.reader.stop();
+});
+
+test('a running-to-idle transition validates same-version terminal metadata once without manufacturing a new content version', async () => {
+  const running = { ...candidate(1), refresh: 'running' }, f = fixture(); f.update([running]); await f.advance(10);
+  f.requests[0].resolve(response(running)); await f.advance(10);
+  f.update([candidate(1)]); await f.advance(10); assert.equal(f.requests.length, 2);
+  const terminal = { ...response(candidate(1)), turnFailures: [{ turnId: 'actual-failed-turn', message: 'Synthetic terminal error' }] };
+  f.requests[1].resolve(terminal); await f.advance(120000);
+  assert.equal(f.requests.length, 2); assert.deepEqual(f.writes.at(-1).data.turnFailures, terminal.turnFailures);
+  assert.equal(f.writes.at(-1).data.pocketContent.version, running.content.version);
+  f.reader.stop();
+});
+
+test('a runtime-mode update does not reset an existing network backoff or accept a regressed active body', async () => {
+  const item = { ...candidate(1), refresh: 'running' }, f = fixture(); f.update([item]); await f.advance(10);
+  f.requests[0].reject(new Error('network')); await f.advance(10);
+  f.update([{ ...item, refresh: 'unread' }]); await f.advance(1000); assert.equal(f.requests.length, 1);
+  await f.advance(1000); assert.equal(f.requests.length, 2);
+  f.requests[1].resolve(response(candidate(1, 2))); await f.advance(10); await f.advance(30000);
+  assert.equal(f.requests.length, 3); f.requests[2].resolve(response(candidate(1, 1))); await f.advance(120000);
+  assert.equal(f.writes.length, 1, 'a newer validated version cannot be overwritten by the old catalog version');
+  assert.equal(f.requests.length, 3, 'same-key regression waits for new directory identity'); f.reader.stop();
+});
+
+test('a periodic background deadline never cancels the attached foreground reader or substitutes an older cached body', async () => {
+  for (const refresh of ['running', 'unread']) {
+    const item = { ...candidate(1), refresh }, f = fixture({ load: () => ({ scope: 'scope', value: response(item, 'Older cached display'), savedAt: 1000000 }) });
+    f.update([item]); await f.advance(10); const controller = new AbortController();
+    const reading = f.reader.read(item.id, controller.signal); await f.advance(100);
+    assert.equal(f.requests.length, 1); assert.equal(f.requests[0].signal.aborted, false);
+    f.requests[0].resolve(response(item, 'Actual live read'));
+    assert.equal((await reading).messages[0].text, 'Actual live read');
+    assert.equal(f.writes.length, 0, 'an expired speculative consumer cannot publish as the current observer');
+    f.reader.stop();
+  }
+});
+
+test('catalog catch-up cannot lower a validated body floor when the cache was evicted', async () => {
+  const first = { ...candidate(1, 1), refresh: 'running' }, catchup = { ...candidate(1, 2), refresh: 'running' }, newer = candidate(1, 3), f = fixture();
+  f.update([first]); await f.advance(10); f.requests[0].resolve(response(newer)); await f.advance(10);
+  assert.equal(f.writes[0].data.pocketContent.revision, 3);
+  f.update([catchup]); await f.advance(10); f.requests[1].resolve(response(catchup)); await f.advance(10);
+  assert.deepEqual(f.writes.map(item => item.data.pocketContent.revision), [3], 'an older catalog identity cannot authorize writing an older full body');
+  const latest = { ...candidate(1, 4), refresh: 'running' };
+  f.update([latest]); await f.advance(10); f.requests[2].resolve(response(latest)); await f.advance(10);
+  assert.deepEqual(f.writes.map(item => item.data.pocketContent.revision), [3, 4]);
+  f.reader.stop();
+});
+
+test('a stale cache hit cannot replace the same-owner version floor across a candidate key change', async () => {
+  let cached = null;
+  const first = { ...candidate(1, 1), refresh: 'running' }, catchup = { ...candidate(1, 2), refresh: 'running' }, f = fixture({ load: () => cached });
+  f.update([first]); await f.advance(10); f.requests[0].resolve(response(candidate(1, 3))); await f.advance(10);
+  cached = { scope: 'scope', value: response(catchup), savedAt: 1000000 };
+  f.update([catchup]); await f.advance(10); f.requests[1].resolve(response(catchup)); await f.advance(10);
+  assert.deepEqual(f.writes.map(item => item.data.pocketContent.revision), [3]);
+  f.reader.stop();
+});
+
+test('the required floor includes both the validated response and the higher current catalog identity', async () => {
+  const first = { ...candidate(1, 1), refresh: 'running' }, current = { ...candidate(1, 4), refresh: 'running' }, f = fixture();
+  f.update([first]); await f.advance(10); f.requests[0].resolve(response(candidate(1, 3))); await f.advance(10);
+  f.update([current]); await f.advance(10); f.requests[1].resolve(response(candidate(1, 3))); await f.advance(10);
+  assert.deepEqual(f.writes.map(item => item.data.pocketContent.revision), [3], 'preserving the old floor cannot hide a newer catalog requirement');
+  f.reader.stop();
+});
+
+test('a same-revision catalog conflict cannot replace a validated version, but a genuinely higher version can', async () => {
+  const first = { ...candidate(1, 1), refresh: 'running' }, known = candidate(1, 3), f = fixture();
+  f.update([first]); await f.advance(10); f.requests[0].resolve(response(known)); await f.advance(10);
+  const conflict = { ...candidate(1, 3), content: { ...known.content, version: 'f'.repeat(64) }, refresh: 'running' };
+  f.update([conflict]); await f.advance(10); f.requests[1].resolve(response(conflict)); await f.advance(10);
+  assert.deepEqual(f.writes.map(item => item.data.pocketContent.version), [known.content.version]);
+  const newer = { ...candidate(1, 4), refresh: 'running' };
+  f.update([newer]); await f.advance(10); f.requests[2].resolve(response(newer)); await f.advance(10);
+  assert.deepEqual(f.writes.map(item => item.data.pocketContent.revision), [3, 4]); f.reader.stop();
 });
 
 function pollingFixture(mode,count) {

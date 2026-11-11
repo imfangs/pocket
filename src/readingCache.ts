@@ -1,6 +1,7 @@
 import type { Catalog, Group, PocketContent, Project, Thread } from "./types";
 import { hiddenFields } from "./hiddenThreads.ts";
 import type { Message, SavedTranscript } from "./conversationFeed";
+import { turnFailures } from "./turnFailures.ts";
 import {
   clearReadingCache, createReadingCacheStorage, readingCacheFence, readingCacheKey, readingCacheLimits, mergeReadingCatalogRecords,
   subscribeReadingCacheInvalidation, type ReadingCacheRecord, type ReadingCacheStorage,
@@ -81,7 +82,9 @@ function sanitizeTranscript(value: unknown, scope: string): SavedTranscript | nu
       ...(item.role === "user" && item.origin === "codex_delegation" ? { origin: "codex_delegation" as const } : {}),
     });
   }
+  const failures = turnFailures(value.turnFailures);
   return { source: "rollout", messages, hasMore: value.hasMore === true, checkedAt: finite(value.checkedAt),
+    ...(failures.length ? { turnFailures: failures } : {}),
     ...(content(value.pocketContent, scope) ? { pocketContent: content(value.pocketContent, scope) } : {}) };
 }
 

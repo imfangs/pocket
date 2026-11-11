@@ -2,7 +2,7 @@ import { readBridgeConfig } from "./bridge-config.mjs";
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const kinds = new Set(['running', 'waiting_input', 'waiting_approval', 'idle', 'unknown']);
+const kinds = new Set(['running', 'waiting_input', 'waiting_approval', 'failed', 'idle', 'unknown']);
 const unavailable = checkedAt => ({ available: false, checkedAt, states: [] });
 const MAX_PRIORITY_IDS = 32;
 const PRIORITY_TTL_MS = 30000;
@@ -51,7 +51,12 @@ export class TaskStatusService {
       if (!row || !allowed.has(row.threadId) || seen.has(row.threadId)) continue;
       seen.add(row.threadId);
       const fresh = Number.isFinite(row.checkedAt) && row.checkedAt >= startedAt - 1000 && row.checkedAt <= now + 1000;
-      states.push({ threadId: row.threadId, status: fresh && kinds.has(row.status) ? row.status : 'unknown', checkedAt: fresh ? row.checkedAt : now });
+      const latestTurnId = fresh && typeof row.latestTurnId === 'string' && row.latestTurnId.length > 0 && row.latestTurnId.length <= 128 &&
+        row.latestTurnId.trim() === row.latestTurnId && !/[\p{Cc}\p{Zl}\p{Zp}]/u.test(row.latestTurnId)
+        ? row.latestTurnId : undefined;
+      states.push({ threadId: row.threadId, status: fresh && kinds.has(row.status) && (row.status !== 'failed' || latestTurnId) ? row.status : 'unknown',
+        checkedAt: fresh ? row.checkedAt : now, ...(latestTurnId ? { latestTurnId } : {}),
+        ...(fresh && ['desktop', 'rollout'].includes(row.statusSource) ? { statusSource: row.statusSource } : {}) });
     }
     return { available: true, checkedAt: result.checkedAt, states };
   }

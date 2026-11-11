@@ -7,7 +7,7 @@ import type { Thread } from "./types";
 // animations receive this projection, and no cached timestamp becomes a clock.
 export const listActivityCacheLimit = 128;
 type ConfirmedStatus = Exclude<TaskStatus, "unknown">;
-type Observation = { checkedAt: number; confirmed?: ConfirmedStatus };
+type Observation = { checkedAt: number; confirmed?: ConfirmedStatus; latestTurnId?: string };
 type NativeListHistory = History & { pocketContent?: { scope?: string } | null };
 export type NativeListObservation = (threadId: string, history: NativeListHistory, requestedAt: number) => void;
 
@@ -22,7 +22,7 @@ export function createListActivityCache(machine: string | null, scope?: string, 
   const newer = (first?: Observation, second?: Observation) => !first ? second
     : !second || first.checkedAt >= second.checkedAt ? first : second;
   const remember = (threadId: string, status: TaskStatus, checkedAt: number, floor = discardedThrough,
-    previous = newer(observations.get(threadId), freshFacts.get(threadId))) => {
+    previous = newer(observations.get(threadId), freshFacts.get(threadId)), latestTurnId?: string) => {
     // An unknown read is a failed attempt, not a newer confirmed state. It
     // cannot prevent an intervening explicit idle/waiting fact from arriving.
     if (status === "unknown") return !previous || checkedAt >= previous.checkedAt;
@@ -30,7 +30,7 @@ export function createListActivityCache(machine: string | null, scope?: string, 
     if (
       previous && checkedAt === previous.checkedAt && status !== previous.confirmed) return false;
     observations.delete(threadId);
-    observations.set(threadId, { checkedAt, confirmed: status });
+    observations.set(threadId, { checkedAt, confirmed: status, ...(latestTurnId ? { latestTurnId } : {}) });
     while (observations.size > listActivityCacheLimit) {
       // Keep known activity for weak-network fallback ahead of idle records.
       const oldest = [...observations].sort((a, b) => Number(a[1].confirmed !== "idle") - Number(b[1].confirmed !== "idle")
@@ -66,9 +66,17 @@ export function createListActivityCache(machine: string | null, scope?: string, 
         if (!eligible.has(row.threadId) || row.checkedAt <= 0 || row.checkedAt > value.checkedAt + 1000 ||
           value.checkedAt - row.checkedAt >= 30000) continue;
         const previous = newer(previousCache.get(row.threadId), previousFacts.get(row.threadId));
-        if (remember(row.threadId, row.status, row.checkedAt, floor, previous)) {
+        // A generic recorded end does not distinguish success from failure.
+        // It cannot erase this exact failed turn until native evidence or a
+        // different latest turn supersedes it.
+        if (previous?.confirmed === "failed" && row.status === "idle" && row.statusSource !== "desktop" &&
+            (!row.latestTurnId || row.latestTurnId === previous.latestTurnId)) {
+          freshStates.set(row.threadId, "failed"); freshFacts.set(row.threadId, previous); collectionStale = true; continue;
+        }
+        if (remember(row.threadId, row.status, row.checkedAt, floor, previous, row.latestTurnId)) {
           freshStates.set(row.threadId, row.status);
-          const confirmed = row.status === "unknown" ? previous : { checkedAt: row.checkedAt, confirmed: row.status };
+          const confirmed = row.status === "unknown" ? previous : { checkedAt: row.checkedAt, confirmed: row.status,
+            ...(row.latestTurnId ? { latestTurnId: row.latestTurnId } : {}) };
           if (confirmed) freshFacts.set(row.threadId, confirmed);
         }
         else {
@@ -89,18 +97,22 @@ export function createListActivityCache(machine: string | null, scope?: string, 
         history.pocketContent?.scope && history.pocketContent.scope !== scope) return false;
       let status: ConfirmedStatus | undefined;
       const turnId = history.activeTurnId;
+      const latestTurnId = history.latestTurnId ?? history.turnTiming?.turnId;
       const stopped = !!turnId && history.stopRequest && history.stopRequest.targetTurnId === turnId &&
         ["stopped", "ended"].includes(history.stopRequest.status);
       const terminal = !!turnId && history.turnTiming?.turnId === turnId &&
         ["completed", "failed", "interrupted"].includes(history.turnTiming.status);
-      if (stopped || terminal || history.runtime === "idle" && history.latestTurnStatus !== "inProgress") status = "idle";
-      else if (history.pendingRequests?.length) status = history.pendingRequests.some(request => request.kind === "questions")
+      if (history.runtime === "active" && history.pendingRequests?.length) status = history.pendingRequests.some(request => request.kind === "questions")
         ? "waiting_input" : "waiting_approval";
-      else if (!history.canSend && history.hint === "任务正在等待审批或输入，请在 Mac 的 Codex 中处理。") status = "waiting_input";
+      else if (history.runtime === "active" && !history.canSend && history.hint === "任务正在等待审批或输入，请在 Mac 的 Codex 中处理。") status = "waiting_input";
+      else if (history.latestTurnStatus === "failed" && latestTurnId && !(history.runtime === "active" && turnId && turnId !== latestTurnId)) status = "failed";
+      else if (stopped || terminal || history.runtime === "idle" && history.latestTurnStatus !== "inProgress") status = "idle";
       else if (conversationIsWorking(history, { observed: true })) status = "running";
-      if (!status || !remember(threadId, status, history.checkedAt)) return false;
+      else if (history.runtime === "active" && history.latestTurnStatus === "inProgress" && latestTurnId) status = "running";
+      if (!status || !remember(threadId, status, history.checkedAt, discardedThrough,
+        newer(observations.get(threadId), freshFacts.get(threadId)), latestTurnId ?? undefined)) return false;
       freshStates.set(threadId, status);
-      freshFacts.set(threadId, { checkedAt: history.checkedAt, confirmed: status });
+      freshFacts.set(threadId, { checkedAt: history.checkedAt, confirmed: status, ...(latestTurnId ? { latestTurnId } : {}) });
       return true;
     },
     project(view: TaskStatusesView) {

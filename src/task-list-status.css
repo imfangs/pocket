@@ -11,6 +11,8 @@
 .task-list-surface { --row-pin-codex:var(--codex-pin); }
 .task-list-surface .task-select { position:relative; }
 .task-list-surface .task-select[data-row-state="running"] { --row-state-color:var(--positive); }
+.task-list-surface .task-select[data-row-state="failed"] { --row-state-color:var(--danger); }
+.task-list-surface .task-state-badge[data-state="failed"] { color:var(--danger); }
 .task-list-surface .task-select[data-row-state="waiting_input"],
 .task-list-surface .task-select[data-row-state="waiting_approval"] { --row-state-color:var(--warning); }
 .task-list-surface .task-select[data-row-state="unread"] { --row-state-color:var(--accent); }

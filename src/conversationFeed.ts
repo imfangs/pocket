@@ -29,6 +29,7 @@ export type TurnTiming = {
   durationMs: number | null;
   observedAt: number;
 };
+export type TurnFailure = { turnId: string; message?: string; code?: string; additionalDetails?: string | null; timestamp?: number };
 export type History = {
   source: string;
   resumeState?: string;
@@ -46,6 +47,10 @@ export type History = {
   canStop?: boolean;
   activeTurnId?: string | null;
   latestTurnStatus?: string;
+  latestTurnId?: string | null;
+  turnFailures?: TurnFailure[];
+  recentTurns?: { id: string; status: string }[];
+  pocketContent?: PocketContent | null;
   turnTiming?: TurnTiming | null;
   stopRequest?: StopReceipt | null;
   queuePaused?: { stopId: string } | null;
@@ -82,6 +87,7 @@ export type SavedTranscript = {
   messages: Message[];
   hasMore?: boolean;
   turnTiming?: TurnTiming | null;
+  turnFailures?: TurnFailure[];
   checkedAt: number;
   readObservation?: ReadObservation | null;
   pocketContent?: PocketContent | null;

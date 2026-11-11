@@ -10,6 +10,7 @@ export function threadListStates(thread: Thread, hasDraft = false, runtimeStatus
     if (runtimeStatus === "running") states.push({ key: "running", label: "运行中" });
     else if (runtimeStatus === "waiting_input") states.push({ key: "waiting_input", label: "等待回答" });
     else if (runtimeStatus === "waiting_approval") states.push({ key: "waiting_approval", label: "等待确认" });
+    else if (runtimeStatus === "failed") states.push({ key: "failed", label: "运行失败" });
     else if (runtimeStatus === "unknown") states.push({ key: "unknown", label: "状态待确认" });
     if (hasUnreadContent(thread, runtimeStatus)) states.push({ key: "unread", label: "未读" });
   }
@@ -19,7 +20,7 @@ export function threadListStates(thread: Thread, hasDraft = false, runtimeStatus
 
 export function threadListPresentation(thread: Thread, hasDraft = false, runtimeStatus?: TaskStatus) {
   const states = threadListStates(thread, hasDraft, runtimeStatus);
-  const primaryState = states.find(state => state.key === "waiting_approval" || state.key === "waiting_input" || state.key === "running");
+  const primaryState = states.find(state => state.key === "waiting_approval" || state.key === "waiting_input" || state.key === "running" || state.key === "failed");
   return { primaryState, secondaryStates: states.filter(state => state !== primaryState) };
 }
 

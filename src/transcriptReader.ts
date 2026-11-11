@@ -1,6 +1,6 @@
 import type { SavedTranscript } from "./conversationFeed";
 import type { ReadingCache } from "./readingCache";
-import { prefetchContent, coversPrefetchContent, transcriptPrefetchLimit, validPrefetchId, type TranscriptPrefetchCandidate } from "./prefetchPriority.ts";
+import { prefetchContent, coversPrefetchContent, transcriptPrefetchLimit, transcriptRefreshMs, validPrefetchId, type PrefetchContent, type TranscriptPrefetchCandidate } from "./prefetchPriority.ts";
 
 export type TranscriptRead = (threadId: string, signal: AbortSignal) => Promise<SavedTranscript>;
 export type HoldTranscriptPrefetch = () => () => void;
@@ -17,9 +17,10 @@ type ReaderOptions = {
 };
 type Consumer = { background: boolean; cancel: () => void };
 type Flight = { controller: AbortController; consumers: Set<Consumer>; promise: Promise<SavedTranscript> };
-type CandidateState = { candidate: TranscriptPrefetchCandidate; key: string; done: boolean; checkedCache: boolean; failures: number; nextAt: number; attempt: number };
+type CandidateState = { candidate: TranscriptPrefetchCandidate; key: string; done: boolean; unusable: boolean;
+  checkedCache: boolean; coveredContent?: PrefetchContent; failures: number; nextAt: number; attempt: number };
 const abortError = () => new DOMException("读取已取消", "AbortError");
-const candidateKey = ({ id, content }: TranscriptPrefetchCandidate) => JSON.stringify([id, content.scope, content.revision, content.version, content.messageId]);
+const candidateKey = ({ id, content }: TranscriptPrefetchCandidate) => JSON.stringify([id, content?.scope, content?.revision, content?.version, content?.messageId]);
 function untilAbort<T>(promise: Promise<T>, signal: AbortSignal) {
   return new Promise<T>((resolve, reject) => {
     const abort = () => reject(abortError());
@@ -130,22 +131,36 @@ export function createTranscriptReader(options: ReaderOptions) {
         const cached = await untilAbort(options.cache.loadTranscript(options.machine, options.scope, state.candidate.id), controller.signal);
         if (!stillCandidate()) return;
         state.checkedCache = true;
-        if (coversPrefetchContent(cached?.value.pocketContent, state.candidate.content)) { state.done = true; return; }
+        const cachedContent = prefetchContent(cached?.value.pocketContent, options.scope);
+        if (cachedContent && (!state.candidate.content || coversPrefetchContent(cachedContent, state.candidate.content)) &&
+          (!state.coveredContent || coversPrefetchContent(cachedContent, state.coveredContent))) {
+          state.coveredContent = cachedContent;
+          if (!state.candidate.refresh) { state.done = true; return; }
+        }
       }
       if (!allowed() || !stillCandidate()) return;
       const data = await read(state.candidate.id, controller.signal, true);
       if (!stillCandidate()) return;
       // ReadingCache deliberately strips unknown capabilities; it does not
       // reject a body from a different source scope on the caller's behalf.
-      if (!coversPrefetchContent(data.pocketContent, state.candidate.content)) { state.done = true; return; }
+      const content = prefetchContent(data.pocketContent, options.scope);
+      // The directory may catch up in steps behind a body already validated by
+      // this owner. Neither a new candidate key nor an evicted cache can lower
+      // that floor, and a higher directory version remains required too.
+      const expected = [state.coveredContent, state.candidate.content].filter((value): value is PrefetchContent => !!value);
+      if (!content || expected.some(value => !coversPrefetchContent(content, value))) { state.done = state.unusable = true; return; }
       // An uncachable response must not be downloaded repeatedly just to fight
       // the cache's existing schema or capacity limits. A new version retries.
-      if (options.cache.rememberTranscript(options.machine, options.scope, state.candidate.id, data)) resetCooldown();
-      state.done = true;
+      const remembered = options.cache.rememberTranscript(options.machine, options.scope, state.candidate.id, data);
+      if (remembered) resetCooldown();
+      state.coveredContent = content;
+      state.unusable = !remembered;
+      state.done = !remembered || !state.candidate.refresh;
+      state.nextAt = now() + (state.candidate.refresh ? transcriptRefreshMs[state.candidate.refresh] : 0);
       state.failures = 0;
     } catch (error) {
       if (current() && ticket === generation && candidates.get(state.candidate.id) === state) {
-        if ((error as { code?: string })?.code === "transcript_scope_changed") { state.done = true; return; }
+        if ((error as { code?: string })?.code === "transcript_scope_changed") { state.done = state.unusable = true; return; }
         if (!controller.signal.aborted || timedOut) state.failures++;
         state.nextAt = now() + (controller.signal.aborted && !timedOut ? 1000 : Math.min(60000, 2000 * 2 ** Math.min(state.failures - 1, 5)));
       }
@@ -167,9 +182,22 @@ export function createTranscriptReader(options: ReaderOptions) {
       const updated = new Map<string, CandidateState>();
       for (const candidate of next) {
         if (updated.size >= transcriptPrefetchLimit) break;
-        if (candidate.id === foregroundId || !prefetchContent(candidate.content, options.scope) || !validPrefetchId(candidate.id) || updated.has(candidate.id)) continue;
+        if (candidate.id === foregroundId || !(prefetchContent(candidate.content, options.scope) ||
+          candidate.content === null && candidate.refresh === "running") || !validPrefetchId(candidate.id) || updated.has(candidate.id)) continue;
         const key = candidateKey(candidate), previous = candidates.get(candidate.id);
-        updated.set(candidate.id, previous?.key === key ? previous : { candidate, key, done: false, checkedCache: false, failures: 0, nextAt: 0, attempt: 0 });
+        if (previous?.key === key) {
+          const modeChanged = previous.candidate.refresh !== candidate.refresh;
+          previous.candidate = candidate;
+          if (modeChanged && !previous.unusable) {
+            // Completion/read can change the full transcript (including a
+            // failed-turn diagnostic) without changing its last assistant
+            // version. Validate that transition once, then ordinary mode ends.
+            previous.done = false;
+            if (!previous.failures) previous.nextAt = 0;
+          }
+          updated.set(candidate.id, previous);
+        } else updated.set(candidate.id, { candidate, key, done: false, unusable: false, checkedCache: false,
+          coveredContent: previous?.coveredContent, failures: 0, nextAt: 0, attempt: 0 });
       }
       candidates = updated;
       if (background && background.state.candidate.id !== selectedId() &&

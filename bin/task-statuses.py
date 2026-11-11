@@ -14,6 +14,7 @@ import time
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bundled_cli import bundled_cli, desktop_app
+from turn_failure import latest_turn_id
 _spec = importlib.util.spec_from_file_location("pocket_status_bridge", Path(__file__).with_name("desktop-bridge.py"))
 _bridge = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_bridge)
@@ -126,7 +127,7 @@ def discover_candidates(home, allowed, deadline, app):
         db.close()
 
 
-def recorded_state(text):
+def recorded_observation(text):
     state, current, context, pending_new_input = "unknown", None, None, False
     lines = text.splitlines()
     for line in lines:
@@ -136,7 +137,7 @@ def recorded_state(text):
             row = json.loads(line)
         except (ValueError, UnicodeError):
             # A skipped record could be the start of a newer turn.
-            return "unknown"
+            return {"state": "unknown", "latestTurnId": None}
         if not isinstance(row, dict) or not isinstance(row.get("payload"), dict):
             continue
         payload, kind = row["payload"], row.get("type")
@@ -147,10 +148,10 @@ def recorded_state(text):
         event = payload.get("type") if kind == "event_msg" else None
         user_message = event == "user_message" or kind == "response_item" and payload.get("role") == "user"
         if user_message:
-            pending_new_input = pending_new_input or state == "ended" or current is None
+            pending_new_input = pending_new_input or state in ("ended", "failed") or current is None
             state = "unknown"
         elif kind == "compacted" or event == "context_compaction":
-            pending_new_input = pending_new_input or state == "ended"
+            pending_new_input = pending_new_input or state in ("ended", "failed")
             state = "unknown"
         elif event in ("task_started", "turn_started"):
             current = payload.get("turn_id") or context
@@ -161,22 +162,27 @@ def recorded_state(text):
                 continue
             if current and turn != current:
                 continue
-            current, state = turn, "ended"
-    return state
+            current, state = turn, "failed" if event in ("task_complete", "turn_complete") and isinstance(payload.get("error"), dict) else "ended"
+    return {"state": state, "latestTurnId": current if isinstance(current, str) and 0 < len(current) <= 128 else None}
 
 
-def read_recorded_state(home, thread_id, value):
+def recorded_state(text):
+    return recorded_observation(text)["state"]
+
+
+def read_recorded_state(home, thread_id, value, *, observation=False):
+    unknown = lambda: {"state": "unknown", "latestTurnId": None} if observation else "unknown"
     try:
         path = Path(value).resolve(strict=True)
         if not path.is_relative_to(home / "sessions"):
-            return "unknown"
+            return unknown()
         with path.open("rb") as stream:
             before = os.fstat(stream.fileno())
             if not stat.S_ISREG(before.st_mode):
-                return "unknown"
+                return unknown()
             header = json.loads(stream.readline(65537))
             if header.get("type") != "session_meta" or header.get("payload", {}).get("id") != thread_id:
-                return "unknown"
+                return unknown()
             offset = max(0, before.st_size - TAIL_BYTES)
             stream.seek(offset)
             text = stream.read(TAIL_BYTES)
@@ -185,18 +191,25 @@ def read_recorded_state(home, thread_id, value):
             after = os.fstat(stream.fileno())
         attributes = lambda s: (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns)
         if attributes(before) != attributes(after) or attributes(after) != attributes(path.stat()):
-            return "unknown"
-        return recorded_state(text.decode("utf8", errors="strict"))
+            return unknown()
+        result = recorded_observation(text.decode("utf8", errors="strict"))
+        return result if observation else result["state"]
     except (OSError, ValueError, TypeError, AttributeError):
-        return "unknown"
+        return unknown()
 
 
 def native_status(state):
     runtime = state.get("threadRuntimeStatus")
     if not isinstance(runtime, dict):
         return "unknown"
-    if runtime.get("type") == "idle":
-        return "idle"
+    if runtime.get("type") in ("idle", "systemError"):
+        try:
+            turns = _bridge.ordered_turns(state)
+            if latest_turn_id(turns) and turns[-1].get("status") == "failed":
+                return "failed"
+        except (ValueError, RuntimeError):
+            pass
+        return "idle" if runtime.get("type") == "idle" else "unknown"
     if runtime.get("type") != "active" or state.get("resumeState") != "resumed":
         return "unknown"
     flags = runtime.get("activeFlags", [])
@@ -206,7 +219,29 @@ def native_status(state):
         return "waiting_approval"
     if "waitingOnUserInput" in flags:
         return "waiting_input"
+    try:
+        turns = _bridge.ordered_turns(state)
+        latest = turns[-1] if turns else None
+        local = state.get("turns", [])
+        local = local[-1] if isinstance(local, list) and local else None
+        local_retry = state.get("turnHistory") is not None and isinstance(local, dict) and local.get("status") == "inProgress" and \
+            isinstance(local.get("turnId"), str) and bool(local.get("turnId")) and local.get("turnId") != latest_turn_id(turns)
+        if latest_turn_id(turns) and latest.get("status") == "failed" and not local_retry:
+            return "failed"
+    except (ValueError, RuntimeError, TypeError):
+        pass
     return "running"
+
+
+def native_observation(state):
+    result = {"status": native_status(state), "statusSource": "desktop"}
+    try:
+        turn_id = latest_turn_id(_bridge.ordered_turns(state))
+        if turn_id is not None:
+            result["latestTurnId"] = turn_id
+    except (ValueError, RuntimeError):
+        pass
+    return result
 
 
 def select_candidates(discovered, allowed, priority_ids, rotation):
@@ -303,7 +338,7 @@ class TaskStatusIPC(_bridge.NavigatorIPC):
                 if not isinstance(state, dict) or state.get("id") != thread_id or state.get("hostId") != "local":
                     raise ValueError("snapshot_identity_mismatch")
                 remaining(self.deadline)
-                return native_status(state)
+                return native_observation(state)
         finally:
             # Detach even after a read timeout; never keep an idle writer alive.
             try:
@@ -352,23 +387,41 @@ def execute(data, *, discover=discover_candidates, verify=verify_app, client_fac
         candidates = select_candidates(discovery["candidates"], allowed, priority_ids, rotation)
         result["scannedCandidates"] = len(candidates)
         result["states"] = [{"threadId": row["threadId"], "status": "unknown", "checkedAt": now_ms()} for row in candidates]
-        pending = []
+        pending, failed_refinements = [], []
         for candidate, observation in zip(candidates, result["states"]):
             if deadline - time.monotonic() <= 0.08:
                 break
-            if read_recorded_state(home, candidate["threadId"], candidate["path"]) == "ended":
-                observation.update(status="idle", checkedAt=now_ms())
+            recorded = read_recorded_state(home, candidate["threadId"], candidate["path"], observation=True)
+            if recorded["state"] in ("ended", "failed"):
+                observation.update(status="failed" if recorded["state"] == "failed" else "idle", checkedAt=now_ms(), statusSource="rollout")
+                if recorded["latestTurnId"] is not None:
+                    observation["latestTurnId"] = recorded["latestTurnId"]
+                # A failed durable turn remains visible without an owner. A
+                # read-only refinement can observe a newer active retry first.
+                if recorded["state"] == "failed":
+                    failed_refinements.append((candidate, observation))
             else:
                 pending.append((candidate, observation))
         # Cheap terminal evidence must not wait behind a slow owner lookup.
-        for candidate, observation in probe_order(pending, priority_ids, rotation):
+        for candidate, observation in [*probe_order(pending, priority_ids, rotation), *probe_order(failed_refinements, priority_ids, rotation)]:
             if deadline - time.monotonic() <= 0.08:
                 break
             result["checkedCandidates"] += 1
             try:
                 with client_factory(home / "ipc/ipc.sock", min(deadline, time.monotonic() + PROBE_SECONDS)) as client:
                     status = client.status(candidate["threadId"])
-                observation.update(status=status, checkedAt=now_ms())
+                # Injected legacy adapters may still return only the status.
+                if observation["status"] == "failed" and (status.get("status") if isinstance(status, dict) else status) == "unknown":
+                    continue
+                if isinstance(status, dict):
+                    observation.update(status=status.get("status", "unknown"), checkedAt=now_ms())
+                    turn_id = status.get("latestTurnId")
+                    if isinstance(turn_id, str) and 0 < len(turn_id) <= 128:
+                        observation["latestTurnId"] = turn_id
+                    if status.get("statusSource") == "desktop":
+                        observation["statusSource"] = "desktop"
+                else:
+                    observation.update(status=status, checkedAt=now_ms(), statusSource="desktop")
             except Exception:
                 observation["checkedAt"] = now_ms()
         return result

@@ -1,5 +1,6 @@
 """Protocol-validated client of the existing desktop owner; never starts an agent."""
 from request_actions import projected_requests, prepare_response
+from turn_failure import turn_failures
 from bundled_cli import desktop_app, BundledCLIError
 import json
 import sys
@@ -502,6 +503,7 @@ def history(state):
             "activeTurnId": active_turn_id(state), "canStop": active_turn_id(state) is not None,
             "recentTurns": [{"id": t.get("turnId"), "status": t.get("status")} for t in turns[-30:] if t.get("turnId")],
             "latestTurnStatus": turns[-1].get("status") if turns else None,
+            "turnFailures": turn_failures(turns, [message.get("turnId") for message in messages]),
             "turnTiming": turn_timing(turns[-1], observed_at) if turns else None,
             "canSend": allowed, "hint": hint, "hasMore": has_more,
             "queueReady": allowed and state.get("threadRuntimeStatus", {}).get("type") == "idle" and

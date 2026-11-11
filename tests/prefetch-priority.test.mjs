@@ -185,10 +185,33 @@ test('ranking and projection leave catalog, input state and content identities u
   const candidates = transcriptPrefetchCandidates(threads, scope, options);
   assert.deepEqual({ threads, options }, before);
   for (const candidate of candidates) {
-    assert.deepEqual(Object.keys(candidate).sort(), ['content', 'id']);
+    assert.deepEqual(Object.keys(candidate).sort(), ['content', 'id', 'refresh']);
     assert.deepEqual(Object.keys(candidate.content).sort(), ['known', 'messageId', 'revision', 'scope', 'version']);
     assert.notEqual(candidate.content, threads.find(item => item.id === candidate.id).pocketContent);
   }
   candidates[0].content.revision = 100;
   assert.deepEqual({ threads, options }, before, 'consumer metadata changes cannot rewrite catalog content identity');
+});
+
+test('unread and freshly running candidates carry bounded repeat policies without changing list rank or the window', () => {
+  const unread = thread(1, { pocketUnread: true }), running = thread(2), ordinary = thread(3);
+  const before = structuredClone([unread, running, ordinary]);
+  const result = transcriptPrefetchCandidates([unread, running, ordinary], scope,
+    { now, runtimeStates: new Map([[running.id, 'running']]) });
+  assert.equal(result.find(item => item.id === unread.id).refresh, 'unread');
+  assert.equal(result.find(item => item.id === running.id).refresh, 'running');
+  assert.equal(result.find(item => item.id === ordinary.id).refresh, undefined);
+  assert.deepEqual([unread, running, ordinary], before);
+  assert.ok(result.length <= transcriptPrefetchLimit);
+});
+
+test('fresh running can inspect unknown content but never a known conflicting source or malformed identity', () => {
+  const noVersion = thread(1, { pocketContent: undefined }), unknown = thread(2, { pocketContent: { known: false } });
+  const foreign = thread(3, { pocketContent: { known: false, scope: 'foreign' } });
+  const malformed = thread(4, { pocketContent: content({ revision: 0 }) });
+  const states = new Map([noVersion, unknown, foreign, malformed].map(item => [item.id, 'running']));
+  const result = transcriptPrefetchCandidates([noVersion, unknown, foreign, malformed], scope, { now, runtimeStates: states });
+  assert.deepEqual(new Set(ids(result)), new Set([noVersion.id, unknown.id]));
+  assert.ok(result.every(item => item.content === null && item.refresh === 'running'));
+  assert.equal(transcriptPrefetchCandidates([noVersion], scope, { now }).length, 0, 'unknown content alone grants no background read');
 });

@@ -262,6 +262,7 @@ export class DesktopService {
     // Display data only. Never promote saved text into live permissions or
     // reconcile pending sends/approvals from this fast path.
     return this.attachments.enrich(id, { source: "rollout", messages: saved.messages || [], hasMore: !!saved.hasMore,
+      turnFailures: saved.turnFailures || [],
       [POCKET_CONTENT]: saved[POCKET_CONTENT],
       turnTiming: saved.turnTiming || null, checkedAt: Date.now() });
   }

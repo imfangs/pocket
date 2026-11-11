@@ -1,10 +1,10 @@
 import type { ReadHealthEvent } from "./readHealth";
 
-export type TaskStatus = "running" | "waiting_input" | "waiting_approval" | "idle" | "unknown";
+export type TaskStatus = "running" | "waiting_input" | "waiting_approval" | "failed" | "idle" | "unknown";
 export type TaskStatusResponse = {
   available: boolean;
   checkedAt: number;
-  states: { threadId: string; status: TaskStatus; checkedAt: number }[];
+  states: { threadId: string; status: TaskStatus; checkedAt: number; latestTurnId?: string; statusSource?: "desktop" | "rollout" }[];
 };
 export type TaskStatusesView = {
   runtimeStates: ReadonlyMap<string, TaskStatus>;
@@ -12,7 +12,7 @@ export type TaskStatusesView = {
   runtimeLoading: boolean;
 };
 
-const statuses = new Set<TaskStatus>(["running", "waiting_input", "waiting_approval", "idle", "unknown"]);
+const statuses = new Set<TaskStatus>(["running", "waiting_input", "waiting_approval", "failed", "idle", "unknown"]);
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const timestamp = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
@@ -21,7 +21,10 @@ export function taskStatusMap(value: unknown): ReadonlyMap<string, TaskStatus> |
   const result = new Map<string, TaskStatus>();
   for (const item of value.states) {
     if (!record(item) || typeof item.threadId !== "string" || !item.threadId || !timestamp(item.checkedAt) ||
-        !statuses.has(item.status as TaskStatus) || result.has(item.threadId)) return null;
+        !statuses.has(item.status as TaskStatus) || result.has(item.threadId) ||
+        item.latestTurnId !== undefined && (typeof item.latestTurnId !== "string" || !item.latestTurnId.trim() || item.latestTurnId.length > 128) ||
+        item.statusSource !== undefined && !["desktop", "rollout"].includes(String(item.statusSource)) ||
+        item.status === "failed" && typeof item.latestTurnId !== "string") return null;
     result.set(item.threadId, item.status as TaskStatus);
   }
   return result;

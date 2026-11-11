@@ -25,6 +25,10 @@ import type { History, HistoryCache, SavedTranscript, Message } from "./conversa
 import { displayConversation } from "./transcript";
 import { renderMessageKey } from "./displayMessageIdentity";
 import { useConversationReadModel } from "./useConversationReadModel";
+import { canAdoptReadingPreview } from "./conversationReadModel";
+import { cachePreviewReadingProtected } from "./cachePreviewRead";
+import TurnFailureMessage from "./TurnFailureMessage";
+import { displayedTurnFailures, turnFailurePlacement } from "./turnFailures";
 import { createLiveReadingAnchor } from "./liveReadingAnchor";
 import { emptyConversationState } from "./conversationReadState";
 import Outbox from "./Outbox";
@@ -144,14 +148,17 @@ export default function Conversation({
   const [feedbackTracker] = useState(createSubmissionFeedbackTracker);
   const [cachedPreview, setCachedPreview] = useState<SavedTranscript | null>(null);
   const receivedHistory = useRef(!!history), receivedTranscript = useRef(!!transcript);
-  const receivedContent = useRef(!!history?.messages.length || !!transcript?.messages.length);
   const networkObserved = useRef({ history: false, transcript: false });
+  const previewReadingTouched = useRef(false);
   const activityEpoch = useRef(0);
   useEffect(() => {
     const machine = currentMachineId(); let active = true;
     if (!machine || !readingScope || !readingCache) return;
     void readingCache.loadTranscript(machine, readingScope, thread.id).then(snapshot => {
-      if (active && snapshot && !receivedContent.current && !(receivedHistory.current && receivedTranscript.current)) setCachedPreview(snapshot.value);
+      if (!active || !snapshot || snapshot.scope !== readingScope || networkObserved.current.history || networkObserved.current.transcript) return;
+      if (!canAdoptReadingPreview(snapshot.value, history, transcript, readingScope)) return;
+      if (previewReadingTouched.current || !nearBottom.current || cachePreviewReadingProtected(messages.current, conversationRoot.current)) return;
+      setCachedPreview(snapshot.value);
     });
     return () => { active = false; };
   }, [readingCache, readingScope, thread.id]);
@@ -182,9 +189,17 @@ export default function Conversation({
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   useLayoutEffect(() => messages.current ? bindMessageRegionFocus(messages.current) : undefined, [thread.id]);
+  useLayoutEffect(() => {
+    const root = messages.current;
+    if (!root) return;
+    const read = () => { previewReadingTouched.current = true; };
+    const key = (event: KeyboardEvent) => { if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(event.key)) read(); };
+    root.addEventListener("wheel", read, { passive: true }); root.addEventListener("touchmove", read, { passive: true }); root.addEventListener("keydown", key);
+    return () => { root.removeEventListener("wheel", read); root.removeEventListener("touchmove", read); root.removeEventListener("keydown", key); };
+  }, [thread.id]);
   const readModel = useConversationReadModel({ threadId: thread.id, readingScope,
     history, transcript, submitted, cachedPreview,
-    previewAllowed: !(receivedHistory.current && receivedTranscript.current) });
+    previewAllowed: !(networkObserved.current.history || networkObserved.current.transcript) });
   const { liveDisplay, showingDiskPreview, shownMessages, hasEarlierMessages, ambiguousMessageIds,
     questionsByMessage, unplacedQuestions } = readModel;
   const earlierWindow = useEarlierConversation({ threadId: thread.id, root: messages, conversationRoot, online, hasEarlierMessages,
@@ -204,6 +219,7 @@ export default function Conversation({
     if (!observedDisplay.messages.length && !(networkObserved.current.history && networkObserved.current.transcript)) return;
     readingCache.rememberTranscript(machine, readingScope, thread.id, {
       source: "rollout", messages: observedDisplay.messages, hasMore: observedDisplay.hasMore,
+      turnFailures: displayedTurnFailures(observedHistory, observedTranscript),
       checkedAt: Math.max(observedHistory?.checkedAt ?? 0, observedTranscript?.checkedAt ?? 0),
       pocketContent: displayedPocketContent(observedTranscript, observedDisplay.messages),
     });
@@ -244,6 +260,9 @@ export default function Conversation({
   const progress = useProgressMessages({ messages: shownMessages, protectedIds: protectedProgressIds,
     root: messages, nearBottom, away: awayFromLatest, cache: historyCache, threadId: thread.id,
     onPosition: atBottom => { setAwayFromLatest(!atBottom); if (atBottom) setHasNewContent(false); } });
+  const failurePlacement = useMemo(() => turnFailurePlacement(progress.entries, readModel.turnFailures,
+    readModel.failureTailTurnId), [progress.entries, readModel.turnFailures, readModel.failureTailTurnId]);
+  const hasReadableFailure = failurePlacement.after.size > 0 || failurePlacement.tail.length > 0;
   const [expandedQueries, setExpandedQueries] = useState(() => new Set(historyCache.get(thread.id)?.expandedQueries ?? []));
   const toggleQuery = (message: Message, open: boolean, anchor: HTMLElement) => {
     const key = message.clientMessageId || message.id;
@@ -398,7 +417,7 @@ export default function Conversation({
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = shouldEnqueueNewMessage(autoDirect, history, !!compatibilityCode || !!historyError);
   const sendAndConnect = !compatibilityCode && enqueue && history?.runtime !== "active" && !history?.outbox?.length && history?.source !== "desktop";
-  const composer = useReadingComposer({ hasContent: shownMessages.length > 0, hasDraft: draft.text.length > 0,
+  const composer = useReadingComposer({ hasContent: shownMessages.length > 0 || hasReadableFailure, hasDraft: draft.text.length > 0,
     hasAttachments: attachments.length > 0 || !!attachmentError || attachmentRecoveryNeeded,
     pending: sending || !!draft.requestId || contextInteraction || stopInteraction ||
       compactionKeepsComposerExpanded(history?.compactionRequest?.status) ||
@@ -480,7 +499,6 @@ export default function Conversation({
         liveReadingAnchor.prepare();
         networkObserved.current.transcript = true;
         receivedTranscript.current = true;
-        receivedContent.current ||= data.messages.length > 0;
         if (data.messages.length || receivedHistory.current) setCachedPreview(null);
         rememberTranscript(historyCache, thread.id, data);
         setTranscript(data);
@@ -516,7 +534,6 @@ export default function Conversation({
         setActivityObserved(readingActivityEpoch === activityEpoch.current);
         if (readingActivityEpoch === activityEpoch.current) readingListObserver?.(thread.id, data, readingListStartedAt);
         receivedHistory.current = true;
-        receivedContent.current ||= data.messages.length > 0;
         if (data.messages.length || receivedTranscript.current) setCachedPreview(null);
         feedbackTracker.observeHistory(data).forEach(showAcceptedFeedback);
         const cancelledRequests = new Set(submissions.getThread(thread.id).filter(item => item.status === "cancelled").map(item => item.requestId));
@@ -770,10 +787,10 @@ export default function Conversation({
   const recoveryVisible = online && !compatibilityCode && !thread.archived && !managementBlocked
     && !!(historyError || connectionError || connectionFailed);
   const recoveryMessage = readableRequestError(historyError || connectionError || connectionLabel);
-  const emptyReadState = emptyConversationState({ online, loading, transcriptLoading, historyFailed: !!historyError,
+  const emptyReadState = hasReadableFailure ? null : emptyConversationState({ online, loading, transcriptLoading, historyFailed: !!historyError,
     messageCount: shownMessages.length, submissionCount: visibleSubmissions.length, outboxCount: shownOutbox.length });
   const emptyReadRecovery = recoveryVisible && !!historyError && !loading && !transcriptLoading
-    && !shownMessages.length && !visibleSubmissions.length && !shownOutbox.length;
+    && !shownMessages.length && !visibleSubmissions.length && !shownOutbox.length && !hasReadableFailure;
   const inlineRecovery = recoveryVisible && !emptyReadRecovery && (!connectionOnlyAction || composer.compact);
   const inlineAttachmentRecovery = online && targetAvailable && !inlineRecovery && !emptyReadRecovery &&
     !!attachmentRecoveryError && !attachmentRecoveryNeeded;
@@ -849,23 +866,24 @@ export default function Conversation({
             {retryingHistory ? t("正在读取…") : t("重新读取")}
           </Button>
         </div>}
-        {[...progress.entries.map(entry => {
-          if (entry.type === "progress") return <ProgressDisclosure key={entry.id} id={entry.id} count={entry.messages.length}
+        {[...progress.entries.flatMap((entry, index) => {
+          const failureCards = (failurePlacement.after.get(index) ?? []).map(failure => <TurnFailureMessage key={`failure:${failure.turnId}`} failure={failure} changeLayout={progress.changeLayout} />);
+          if (entry.type === "progress") return [<ProgressDisclosure key={entry.id} id={entry.id} count={entry.messages.length}
             open={progress.expanded.has(entry.id)} onOpenChange={open => progress.toggle(entry.id, open)}>
             {entry.messages.map(message => <ConversationMessage key={messageKey(message)} threadId={thread.id} message={message}
               readMarker={message.id === pocketContent?.messageId ? readSentinel : undefined} />)}
-          </ProgressDisclosure>;
+          </ProgressDisclosure>, ...failureCards];
           const message = entry.message;
           const key = messageKey(message);
           // Conflicting source rows have distinct render keys, but ID-indexed
           // receipt/question placement cannot choose between them. Keep both
           // readable records rather than hiding or replacing the wrong row.
           const ambiguous = ambiguousMessageIds.has(message.id);
-          if (!ambiguous && timeline.hiddenMessages.has(message.id)) return null;
+          if (!ambiguous && timeline.hiddenMessages.has(message.id)) return failureCards;
           const query = ambiguous ? undefined : timeline.byMessage.get(message.id);
-          if (query) return renderQuery(query);
+          if (query) return [renderQuery(query), ...failureCards];
           const messageQuestions = ambiguous ? undefined : questionsByMessage.get(message.id);
-          return messageQuestions?.length ? <QuestionPrompts key={key} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceFiles={message.files} sourceTruncated={message.truncated}
+          return [messageQuestions?.length ? <QuestionPrompts key={key} threadId={thread.id} questions={messageQuestions} sourceText={message.text} sourceImages={message.images} sourceFiles={message.files} sourceTruncated={message.truncated}
             readMarker={message.id === pocketContent?.messageId ? { sourceMessageId: message.id, markerRef: readSentinel } : undefined}
             disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />
             : <ConversationMessage key={key} threadId={thread.id} message={message}
@@ -873,8 +891,9 @@ export default function Conversation({
               changeLayout={progress.changeLayout}
               queryDisclosure={message.role === "user" ? { expanded: expandedQueries.has(message.clientMessageId || message.id),
                 toggle: (open, anchor) => toggleQuery(message, open, anchor) } : undefined}
-              recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />;
+              recentlySent={!!message.clientMessageId && (recentAccepted.get(message.clientMessageId) ?? 0) > Date.now()} />, ...failureCards];
         }), ...timeline.tail.map(renderQuery)]}
+        {failurePlacement.tail.map(failure => <TurnFailureMessage key={`failure:${failure.turnId}`} failure={failure} changeLayout={progress.changeLayout} />)}
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
         <SubmittedQueryCards items={visibleSubmissions} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}

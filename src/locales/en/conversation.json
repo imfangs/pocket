@@ -1,4 +1,12 @@
 {
+  "运行失败": "Failed",
+  "本轮运行失败": "This run failed",
+  "服务繁忙，本轮未能完成。": "The service is busy. This run could not finish.",
+  "本轮未能完成。": "This run could not finish.",
+  "未收到具体错误原因。": "No error details were provided.",
+  "查看错误详情": "Show error details",
+  "收起错误详情": "Hide error details",
+  "复制错误信息": "Copy error details",
   "Codex · 回复": "Codex · Reply",
   "Codex · 最终回复": "Codex · Final reply",
   "Codex · 过程": "Codex · Progress",

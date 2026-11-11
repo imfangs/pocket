@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { AppError } from "./store.mjs";
 import { POCKET_CONTENT, EMPTY_CONTENT_VERSION, assistantContentVersion, contentFileVersion, contentEvidence } from './pocket-content.mjs';
 import { historyMessageProjection } from './history-message.mjs';
+import { turnFailureFromError } from '../shared/turn-failure.mjs';
 
 const injectedKinds = new Set([
   "agents_md.instructions", "environments.environment_context", "hooks.additional_context",
@@ -60,6 +61,7 @@ export function parseHistory(text, startOffset = 0) {
   const messages = [];
   const contentVersions = new Map();
   const turns = new Map();
+  const failures = new Map();
   const responseMessages = new Map(), summaryIds = new Set(), nativeMessageIds = new Set();
   let lastAssistant = null;
   let currentTurnId = null, latestTurnId = null, observedAt = null;
@@ -90,11 +92,14 @@ export function parseHistory(text, startOffset = 0) {
         if (id && Number.isFinite(timestamp)) {
           const turn = turns.get(id) || { turnId: id, startedAt: null, durationMs: null };
           if (lifecycleType === "task_started") {
+            failures.delete(id);
             Object.assign(turn, { startedAt: timestamp, status: "inProgress", durationMs: null });
             currentTurnId = latestTurnId = id;
             lastAssistant = null;
           } else {
-            turn.status = lifecycleType === "turn_aborted" ? "interrupted" : "completed";
+            const failure = lifecycleType === "task_complete" ? turnFailureFromError(id, item.error, timestamp) : null;
+            turn.status = lifecycleType === "turn_aborted" ? "interrupted" : failure ? "failed" : "completed";
+            if (failure) failures.set(id, failure); else failures.delete(id);
             turn.durationMs = number(item.duration_ms) ?? (turn.startedAt == null ? null : number(timestamp - turn.startedAt));
             if (!latestTurnId || currentTurnId === id) latestTurnId = id;
           }
@@ -169,6 +174,7 @@ export function parseHistory(text, startOffset = 0) {
     : startOffset === 0 ? { known: true, version: EMPTY_CONTENT_VERSION, messageId: null, readable: false }
       : { known: false };
   return { messages: visible, hasMore: budgetTruncated || textMessages.length > visible.length, lastMessageAt, [POCKET_CONTENT]: content,
+    turnFailures: [...failures.values()].slice(-30),
     turnTiming: latestTurnId ? { ...turns.get(latestTurnId), observedAt } : null };
 }
 

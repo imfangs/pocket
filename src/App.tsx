@@ -513,7 +513,7 @@ export default function App({
     excludedThreadIds: prefetchExcluded }), [selected, runtimeStates, pocketActivity, draftIds, prefetchExcluded]);
   const { readTranscript, holdBackground } = useTranscriptPrefetch({ machine: currentMachineId(), scope: pocketReadScope, cache: readingCache,
     readerRef: transcriptReader, threads: displayCatalog.threads, priority: prefetchPriority,
-    enabled: !loading && !catalogReading && !catalogFromDisk && !catalog.sourceError && !readError && !busy && !settings && !newConversationOpen && !mobile,
+    enabled: !loading && !catalogFromDisk && !catalog.sourceError && !readError && !busy && !settings && !newConversationOpen && !mobile,
     catalogFresh: () => prefetchCatalogAt.current > 0 && Date.now() >= prefetchCatalogAt.current && Date.now() - prefetchCatalogAt.current < 60000 });
   // Runtime polling must not make the clock itself a new ranking signal.
   const rankingTime = useMemo(() => Date.now(), [catalog, pocketActivity]);
