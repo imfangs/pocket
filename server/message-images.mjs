@@ -4,6 +4,7 @@ import { constants } from 'node:fs';
 import { open, realpath } from 'node:fs/promises';
 import { extname, isAbsolute, resolve, sep } from 'node:path';
 import { AppError } from './store.mjs';
+import { messageImageReadError } from './message-image-read-error.mjs';
 
 const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -43,7 +44,9 @@ function matchesType(bytes, type) {
 // References are minted only from the visible history returned by the server.
 // The browser receives no endpoint that accepts an arbitrary filesystem path.
 export class MessageImages {
-  constructor() {
+  constructor({ openFile = open, realpathFile = realpath } = {}) {
+    this.openFile = openFile;
+    this.realpathFile = realpathFile;
     this.secret = randomBytes(32);
     this.entries = new Map();
     this.parsed = new Map();
@@ -83,13 +86,13 @@ export class MessageImages {
       throw new AppError('图片引用已过期，请刷新会话', 404);
     let file;
     try {
-      const root = await realpath(entry.root), path = await realpath(entry.path);
+      const root = await this.realpathFile(entry.root), path = await this.realpathFile(entry.path);
       if (!inside(root, path)) throw new AppError('图片不在任务目录内', 403);
-      file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      file = await this.openFile(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
       const stat = await file.stat();
       if (!stat.isFile() || stat.size > MAX_BYTES || stat.size < 12)
         throw new AppError('图片格式或大小暂不支持', 415);
-      if (await realpath(entry.path) !== path) throw new AppError('图片位置已变化，请刷新会话', 409);
+      if (await this.realpathFile(entry.path) !== path) throw new AppError('图片位置已变化，请刷新会话', 409);
       const type = types[extname(entry.path).toLowerCase()];
       const header = Buffer.alloc(12);
       await file.read(header, 0, header.length, 0);
@@ -107,8 +110,7 @@ export class MessageImages {
         throw new AppError('图片正在更新，请稍后重试', 409);
       return { bytes, type };
     } catch (error) {
-      if (error instanceof AppError) throw error;
-      throw new AppError('图片暂时无法读取', 404);
+      throw messageImageReadError(error);
     } finally { await file?.close(); }
   }
 }

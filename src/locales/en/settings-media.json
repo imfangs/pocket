@@ -154,6 +154,7 @@
   "{{noun}}预览": "{{noun}} preview",
   "正在加载图片…": "Loading image…",
   "图片暂时无法显示": "Image unavailable",
+  "Mac 服务无权读取这张图片，请在电脑上检查文件访问权限": "The Mac service cannot read this image. Check file access permissions on your computer.",
   "重新加载图片": "Reload image",
   "关闭{{noun}}": "Close {{noun}}",
   "关闭": "Close",

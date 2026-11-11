@@ -101,6 +101,7 @@ Rotation revokes sessions and notification registrations. It does not delete que
 - Desktop/source unavailable: open Codex and check the exact local layout. Do not invent another database filename or edit Codex SQLite.
 - Codex installed outside the standard applications folders: set `appPath` in the selected private `bridge.json` to its actual signed bundle, check the chosen Python executable, then rerun doctor with the same Pocket config. Keep these machine-specific absolute paths out of public source.
 - Host/Origin rejection: fix the configured HTTPS origin and trusted proxy headers; do not remove security guards.
+- Local images fail while Codex can display them: check the conversation's working directory and the registered image response first. macOS can deny a background Node process access to protected folders such as Documents independently of the foreground Codex app. Confirm the actual service executable and corresponding folder permission in System Settings → Privacy & Security → Files & Folders, then retry the same image. A healthy API or successful doctor check does not prove access to that file. See [local image access](IMAGES.md#mac-文件访问权限); do not edit the TCC database or broaden allowed image paths to work around a privacy denial.
 - Busy original conversation: read-only history can remain available while mutation waits for the original desktop writer. Some archive/restore operations may remain pending.
 - Unconfirmed send/creation: preserve its original request ID, check the receipt, and do not submit it again as a new request.
 
