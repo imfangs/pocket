@@ -3,10 +3,13 @@ import { api } from "./api";
 import { initialTaskStatuses, startTaskStatusPolling, type TaskStatusResponse } from "./taskStatuses";
 import { createTaskHotset, taskStatusRequestPath, type TaskHotsetContext } from "./taskHotset";
 import { createListActivityCache, type NativeListObservation } from "./listActivityCache";
+import { createReadHealth } from "./readHealth";
+import { useReadHealth } from "./useReadHealth";
 
 export default function useTaskStatuses(context: TaskHotsetContext & { machine: string | null; readingScope?: string }) {
   const { machine, readingScope } = context;
-  const owner = useMemo(() => ({ hotset: createTaskHotset(), listCache: createListActivityCache(machine, readingScope) }), [machine, readingScope]);
+  const owner = useMemo(() => ({ hotset: createTaskHotset(), listCache: createListActivityCache(machine, readingScope), readHealth: createReadHealth() }), [machine, readingScope]);
+  const runtimeReadHealth = useReadHealth(owner.readHealth);
   const latestOwner = useRef(owner); latestOwner.current = owner;
   const [observed, setObserved] = useState(() => ({ owner, view: initialTaskStatuses() }));
   // A scope switch must also be safe during render, before passive cleanup.
@@ -25,6 +28,7 @@ export default function useTaskStatuses(context: TaskHotsetContext & { machine: 
       request: signal => api<TaskStatusResponse>(taskStatusRequestPath(hotset.priorityThreadIds()), "GET", undefined, { signal }),
       onObservation: response => { if (active && latestOwner.current === owner) { hotset.observe(response); listCache.observe(response); } },
       onChange: view => { if (active && latestOwner.current === owner) setObserved({ owner, view }); },
+      onReadHealth: event => { if (active && latestOwner.current === owner) owner.readHealth.observe(event); },
     });
     pollingRef.current = polling;
     return () => { active = false; if (pollingRef.current === polling) pollingRef.current = null; polling.stop(); };
@@ -33,5 +37,5 @@ export default function useTaskStatuses(context: TaskHotsetContext & { machine: 
     if (latestOwner.current === owner && listCache.observeNativeHistory(id, history, requestedAt))
       setObserved(previous => previous.owner === owner ? { ...previous } : { owner, view: initialTaskStatuses() });
   }, [owner, listCache]);
-  return { ...view, ...listCache.project(view), refresh, observeNativeHistory };
+  return { ...view, ...listCache.project(view), runtimeReadHealth, refresh, observeNativeHistory };
 }

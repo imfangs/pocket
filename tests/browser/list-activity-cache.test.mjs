@@ -65,12 +65,12 @@ function flow(engine, name, options, run) {
 const readOnly = h => assert.ok(h.calls.filter(call => call.method !== 'GET').every(call => call.path.endsWith('/sync')));
 
 for (const engine of engines) {
-  flow(engine, 'weak list status keeps order, filters and counts with one retry line until a fresh idle', { visibility: true }, async h => {
+  flow(engine, 'weak list status keeps order, filters and counts with thin sync feedback until a fresh idle', { visibility: true }, async h => {
     const page = await h.open(null), control = await directory(page, h), before = await order(page), initialCounts = await counts(page);
     await row(page, ids.regular).evaluate(node => { window.cachedRunningRow = node; });
     assert.deepEqual(initialCounts, { unread: '1', running: '1' });
     await online(page, false);
-    await page.locator('.collection-feedback').filter({ hasText: '状态尚未同步，显示上次同步的列表状态' }).waitFor();
+    await page.locator('[data-collection-feedback="offline"]').waitFor();
     assert.deepEqual(await order(page), before);
     assert.deepEqual(await counts(page), initialCounts);
     assert.equal(await page.locator('.collection-feedback').count(), 1);
@@ -85,7 +85,7 @@ for (const engine of engines) {
     await until(() => control.calls.some(call => call.status === 503));
     assert.deepEqual(await counts(page), initialCounts);
     assert.deepEqual(await order(page), before);
-    await page.locator('.collection-feedback-retry').click();
+    await refresh(page);
     await until(() => control.calls.length > attempts);
     assert.deepEqual(await order(page), before);
     assert.equal(await page.evaluate(id => window.cachedRunningRow === document.querySelector(`.task-select[data-thread-id="${id}"]`), ids.regular), true);
@@ -99,7 +99,8 @@ for (const engine of engines) {
     assert.equal(await row(page, ids.regular).locator('[data-state="running"]').count(), 0);
     assert.deepEqual(await counts(page), { unread: '2', running: '0' });
     assert.notDeepEqual(await order(page), before);
-    await page.locator('.collection-feedback').waitFor({ state: 'detached' });
+    await page.locator('[data-collection-feedback="idle"]').waitFor();
+    assert.equal(await page.locator('.collection-feedback').count(), 0);
     readOnly(h);
   });
 
@@ -109,11 +110,15 @@ for (const engine of engines) {
     await row(page, ids.regular).locator('[data-state="waiting_approval"]').waitFor();
     const before = await order(page), initialCounts = await counts(page);
     control.status = 'unknown'; await refresh(page);
-    await page.locator('.collection-feedback').filter({ hasText: 'Status not synced. Showing the last synced list status.' }).waitFor();
+    await page.locator('[data-collection-feedback="waiting"]').waitFor();
     await row(page, ids.regular).locator('[data-state="waiting_approval"]').waitFor();
     assert.deepEqual(await counts(page), initialCounts);
     assert.deepEqual(await order(page), before);
+    const line = await page.locator('.collection-sync-line').evaluate(node => node.getBoundingClientRect().height);
+    assert.ok(line <= 3, `Native partial state feedback occupied ${line}px`);
+    assert.equal(await page.locator('.collection-feedback').count(), 0);
     await online(page, false);
+    await page.locator('[data-collection-feedback="offline"]').waitFor();
     await row(page, ids.regular).locator('[data-state="waiting_approval"]').waitFor();
     assert.deepEqual(await order(page), before);
     assert.equal(await page.locator('.collection-feedback').count(), 1);

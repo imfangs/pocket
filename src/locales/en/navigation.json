@@ -1,4 +1,8 @@
 {
+  "已离线，联网后自动恢复。": "Offline. Reconnecting when you're back online.",
+  "连接暂未恢复，请重试。": "Still unable to connect. Try again.",
+  "正在同步列表…": "Syncing conversations…",
+  "等待列表同步": "Waiting to sync conversations",
   "5 分钟内新建，": "Created in the last 5 minutes,",
   "Codex 置顶": "Pinned in Codex",
   "Pocket 优先关注": "Followed in Pocket",

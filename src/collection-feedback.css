@@ -10,3 +10,11 @@
 .collection-feedback-retry:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 @media (hover:hover) and (pointer:fine) { .collection-feedback-retry:hover { background:var(--soft); } }
 @media (prefers-reduced-motion:reduce) { :is(.collection-feedback,.collection-load-state)[data-pending] > svg { animation:none; } }
+.collection-sync-feedback { position:relative; flex:none; }
+.collection-sync-line { position:relative; height:2px; overflow:hidden; background:var(--line); opacity:.6; }
+.collection-sync-line::after { content:""; position:absolute; inset:0; width:35%; background:var(--muted); opacity:.45; transform:translateX(-110%); }
+.collection-sync-feedback[data-collection-feedback="idle"] .collection-sync-line { opacity:0; }
+.collection-sync-line[data-loading]::after { animation:collection-sync-sweep 1.6s linear infinite; }
+@keyframes collection-sync-sweep { from { transform:translateX(-110%); } to { transform:translateX(390%); } }
+@media (prefers-reduced-motion:reduce) { .collection-sync-line[data-loading]::after { animation:none; transform:none; } }
+@media (forced-colors:active) { .collection-sync-line { background:CanvasText; } .collection-sync-line::after { background:Highlight; } }

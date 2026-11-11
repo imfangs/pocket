@@ -1,3 +1,5 @@
+import type { ReadHealthEvent } from "./readHealth";
+
 export type TaskStatus = "running" | "waiting_input" | "waiting_approval" | "idle" | "unknown";
 export type TaskStatusResponse = {
   available: boolean;
@@ -33,6 +35,7 @@ type Options = {
   request: (signal: AbortSignal) => Promise<unknown>;
   onChange: (view: TaskStatusesView) => void;
   onObservation?: (response: TaskStatusResponse) => void;
+  onReadHealth?: (event: ReadHealthEvent) => void;
   browser?: Window;
   visibility?: Document;
   now?: () => number;
@@ -40,7 +43,7 @@ type Options = {
   timeoutMs?: number;
   ttlMs?: number;
 };
-type PendingRead = { controller: AbortController; startedAt: number; promise?: Promise<void>; deadline?: number };
+type PendingRead = { controller: AbortController; startedAt: number; promise?: Promise<void>; deadline?: number; failureReported?: boolean };
 
 // One collection request serves the whole list. This observer has no access to
 // catalog, draft, sort, or execution actions, and never infers idle from absence.
@@ -76,10 +79,17 @@ export function startTaskStatusPolling(options: Options) {
     clearPoll();
     const operation: PendingRead = { controller: new AbortController(), startedAt: now() };
     pending = operation;
+    options.onReadHealth?.({ type: "pending" });
+    const failed = (error: unknown) => {
+      if (operation.failureReported || operation.controller.signal.aborted || !ready() || pending !== operation) return;
+      operation.failureReported = true;
+      options.onReadHealth?.({ type: "failed", error });
+    };
     operation.deadline = browser.setTimeout(() => {
       if (pending !== operation || stopped) return;
       unavailable();
-      operation.controller.abort(new DOMException("读取运行状态超时", "TimeoutError"));
+      const error = new DOMException("读取运行状态超时", "TimeoutError");
+      failed(error); operation.controller.abort(error);
     }, timeoutMs);
     operation.promise = Promise.resolve().then(async () => {
       try {
@@ -88,7 +98,8 @@ export function startTaskStatusPolling(options: Options) {
         if (!ready() || pending !== operation || operation.controller.signal.aborted) return;
         // A response queued across a suspended tab cannot renew an old green
         // badge just because its timeout callback has not run yet.
-        if (now() - operation.startedAt >= timeoutMs) { unavailable(); return; }
+        if (now() - operation.startedAt >= timeoutMs) { unavailable(); failed(new DOMException("读取运行状态超时", "TimeoutError")); return; }
+        options.onReadHealth?.({ type: "reachable" });
         const states = taskStatusMap(response);
         if (!states) { unavailable(); return; }
         receivedAt = now();
@@ -96,10 +107,11 @@ export function startTaskStatusPolling(options: Options) {
         expiryTimer = browser.setTimeout(expire, ttlMs);
         options.onObservation?.(response as TaskStatusResponse);
         options.onChange({ runtimeStates: states, runtimeUnavailable: false, runtimeLoading: false });
-      } catch {
-        if (!stopped && pending === operation && !operation.controller.signal.aborted) unavailable();
+      } catch (error) {
+        if (!stopped && pending === operation && !operation.controller.signal.aborted) { unavailable(); failed(error); }
       } finally {
         browser.clearTimeout(operation.deadline);
+        if (!stopped && pending === operation) options.onReadHealth?.({ type: "settled" });
         if (pending === operation) pending = null;
         if (ready()) pollTimer = browser.setTimeout(() => { void refresh(); }, refreshAfterPending ? 0 : pollMs);
         refreshAfterPending = false;
@@ -111,6 +123,7 @@ export function startTaskStatusPolling(options: Options) {
     clearPoll();
     if (!ready()) {
       unavailable();
+      browser.clearTimeout(pending?.deadline);
       pending?.controller.abort();
       return;
     }

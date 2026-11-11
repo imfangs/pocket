@@ -26,13 +26,14 @@ for(const engine of engines){
   assert.equal(await page.locator('.conversation-composer textarea').inputValue(),'Keep this unsent notification draft.');gate.release();
   assert.ok(h.calls.filter(x=>x.method!=='GET').every(x=>x.path==='/api/sync'));
  });
- flow(engine,'notification unknown target survives a failed sync and enters on successful retry',async h=>{
+ flow(engine,'notification unknown target survives a failed sync and enters on quiet foreground recovery',async h=>{
   const page=await h.open(null),unknown=await routeUnknown(page,h);let fail=true;
   await page.route('**/api/sync',r=>r.fulfill({status:fail?503:200,contentType:'application/json',headers:{'X-Pocket-Machine':'ged'},body:JSON.stringify(fail?{error:'Synthetic notification sync failed'}:catalog(h,[unknown]))}));
-  await notify(page,c);await page.locator('.collection-feedback-retry').waitFor();
+  await notify(page,c);await page.locator('[data-collection-feedback="waiting"]').waitFor();
   assert.equal(await page.evaluate(()=>sessionStorage.getItem('pocket.pending-task')),c);
   assert.equal(await page.evaluate(()=>window.notificationAcks.includes('pocket-task-received')),true);
-  fail=false;await page.locator('.collection-feedback-retry').click();await page.locator('.inspector-title-trigger').filter({hasText:unknown.title}).waitFor();
+  assert.equal(await page.locator('.collection-feedback-retry').count(),0);
+  fail=false;await refresh(page);await page.locator('.inspector-title-trigger').filter({hasText:unknown.title}).waitFor();
   assert.equal(await page.evaluate(()=>sessionStorage.getItem('pocket.pending-task')),null);
  });
  flow(engine,'later user selection wins over a delayed notification catalog',async h=>{

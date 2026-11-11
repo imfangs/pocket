@@ -32,6 +32,8 @@ import type { ConnectOptions, OpenThreadResult } from "./threadConnection";
 import { SettingsDialog } from "./Dialogs";
 import { api, setToken, clearReadResponses } from "./api";
 import { CatalogSourceError, createCatalogReader } from "./catalogReader";
+import { createReadHealth } from "./readHealth";
+import { useReadHealth } from "./useReadHealth";
 import { startRecentThreadCatalogSync } from "./recentThreadCatalog";
 import { useReloadGuard } from "./updateSafety";
 import { hasUpdateBlockingDraft, protectedDraftThreadIds } from "./updateDrafts";
@@ -100,6 +102,8 @@ export default function App({
   const locale = useLocale();
   useEffect(startUsageAnalytics, []);
   const [navigation, setNavigation] = useState(readPrefs);
+  const [catalogReadHealthStore] = useState(createReadHealth);
+  const catalogReadHealth = useReadHealth(catalogReadHealthStore);
   const { scope, project, activity, sort } = navigation;
   const [pocketActivity, setPocketActivity] = useState(() => readPocketActivity());
   const [draftIndicatorRevision, setDraftIndicatorRevision] = useState(0);
@@ -279,7 +283,7 @@ export default function App({
     onData(c) {
       if (c.csrfToken) setToken(c.csrfToken);
       const scope = readingCatalogScope(c);
-      if (scope !== catalogScope.current) { transcriptReader.current?.stop(); transcriptReader.current = null; }
+      if (scope !== catalogScope.current) { transcriptReader.current?.stop(); transcriptReader.current = null; catalogReadHealthStore.reset(); }
       prefetchCatalogAt.current = scope && !c.sourceError ? Date.now() : 0;
       if (scope && catalogScope.current && scope !== catalogScope.current) {
         conversationHistory.current = new Map();
@@ -292,8 +296,9 @@ export default function App({
         const machine = currentMachineId(); if (machine) cacheRef.current?.rememberCatalog(machine, c);
       }
     },
-    onPendingChange(pending) { setCatalogReading(pending); if (pending) setReadError(""); },
+    onPendingChange(pending) { catalogReadHealthStore.observe({ type: pending ? "pending" : "settled" }); setCatalogReading(pending); if (pending) setReadError(""); },
     onSettled(error) {
+      catalogReadHealthStore.observe({ type: error ? "failed" : "reachable", error });
       if (error) { prefetchCatalogAt.current = 0; transcriptReader.current?.wake(true); }
       setLoading(false); setReadError(error ? catalogError(error) : "");
     },
@@ -843,6 +848,7 @@ export default function App({
         <div className="content">
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}
             feedback={<CollectionReadFeedback hasCatalog={hasCatalog} pending={busy || !hasCatalog && (loading || catalogReading)}
+              syncPending={catalogReading || taskStatuses.runtimeReadHealth.pending} readHealth={[catalogReadHealth, taskStatuses.runtimeReadHealth]}
               error={catalogReadError} stale={taskStatuses.listRuntimeStale}
               cachedStatus={taskStatuses.listRuntimeCached} cachedList={catalogFromDisk}
               retry={() => { void syncTasks().catch(() => {}); void taskStatuses.refresh(); }} />}>
