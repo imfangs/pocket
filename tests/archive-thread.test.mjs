@@ -94,7 +94,7 @@ test('a completed writer-held thread waits and the same fingerprint works after 
   assert.equal((await run('archive', waiting.fingerprint)).status, 'archived'); assert.equal(state(id).archived, 1);
 });
 
-test('archive verifies the whole spawned subtree, while restore changes only its exact root', async t => {
+test('archive verifies the whole spawned subtree and refuses a restore that cannot preserve root-only scope', async t => {
   const { id, childId, run, state } = await fixture(t, { child: true });
   const hashes = new Map([id, childId].map(value => [value, sha(state(value).rollout_path)]));
   const before = await run('inspect');
@@ -106,8 +106,9 @@ test('archive verifies the whole spawned subtree, while restore changes only its
   assert.equal(typeof archived.rootFingerprint, 'string');
   assert.notEqual(archived.rootFingerprint, archived.fingerprint);
   assert.equal((await run('restore', archived.fingerprint)).status, 'changed'); assert.equal(state(id).archived, 1);
-  assert.equal((await run('restore', archived.rootFingerprint)).status, 'restored');
-  assert.equal(state(id).archived, 0); assert.equal(state(childId).archived, 1);
+  const refused = await run('restore', archived.rootFingerprint);
+  assert.equal(refused.status, 'blocked'); assert.equal(refused.code, 'restore_scope_conflict'); assert.equal(refused.verified, false);
+  assert.equal(state(id).archived, 1); assert.equal(state(childId).archived, 1);
   for (const value of [id, childId]) assert.equal(sha(state(value).rollout_path), hashes.get(value));
 });
 
@@ -120,29 +121,80 @@ test('a partially archived subtree is explicit and is never treated as a fresh r
   assert.equal(partial.status, 'blocked'); assert.equal(partial.code, 'partial_subtree'); assert.equal(partial.rootArchived, true);
 });
 
-test('root-only restore and read-only recovery do not inspect an unrelated missing descendant', async t => {
+test('a linked root is refused even when its child rollout is missing; read-only root inspection remains available', async t => {
   const { id, childId, run, state } = await fixture(t, { child: true });
   const before = await run('inspect'), archived = await run('archive', before.fingerprint);
   assert.equal(archived.status, 'archived');
   unlinkSync(state(childId).rollout_path);
   const restored = await run('restore');
-  assert.equal(restored.status, 'restored'); assert.equal(restored.verified, true); assert.equal(restored.rootArchived, false);
+  assert.equal(restored.status, 'blocked'); assert.equal(restored.code, 'restore_scope_conflict'); assert.equal(restored.verified, false); assert.equal(restored.rootArchived, true);
+  assert.equal(state(id).archived, 1);
   assert.deepEqual(restored.threadIds, [id]); assert.equal(state(childId).archived, 1);
   const inspected = await run('inspect', undefined, id, { rootOnly: true });
-  assert.equal(inspected.status, 'ready'); assert.equal(inspected.rootArchived, false); assert.deepEqual(inspected.threadIds, [id]);
+  assert.equal(inspected.status, 'archived'); assert.equal(inspected.rootArchived, true); assert.deepEqual(inspected.threadIds, [id]);
   assert.equal((await run('restore', undefined, id, { rootOnly: true })).code, 'invalid_request');
 });
 
-test('concurrent descendant activity during root restoration does not change the root-only verification result', async t => {
+test('a linked root restore cannot alter an independently active archived child or enter the mutating CLI', async t => {
   const { id, childId, home, env, run, state } = await fixture(t, { child: true });
   const before = await run('inspect'); assert.equal((await run('archive', before.fingerprint)).status, 'archived');
   const rootSha = sha(state(id).rollout_path), childPath = state(childId).rollout_path;
-  const program = `import importlib.util,json,sys\nspec=importlib.util.spec_from_file_location('archive_bridge',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\ndef concurrent(binary,operation,root,store):\n result=m.official(binary,operation,root,store)\n with open(sys.argv[2],'ab') as out:out.write((json.dumps({'type':'event_msg','payload':{'type':'task_started','turn_id':'new-child-turn'}})+'\\n').encode())\n return result\nprint(json.dumps(m.execute(json.load(sys.stdin),run_cli=concurrent)))`;
+  appendFileSync(childPath, JSON.stringify({ type: 'event_msg', payload: { type: 'task_started', turn_id: 'new-child-turn' } }) + '\n');
+  const childSha = sha(childPath);
+  const program = `import importlib.util,json,sys\nspec=importlib.util.spec_from_file_location('archive_bridge',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\ncount=0\ndef prohibited(binary,operation,root,store):\n global count\n count+=1\n raise AssertionError('Restore must be refused before native mutation')\nresult=m.execute(json.load(sys.stdin),run_cli=prohibited);result['attempts']=count;print(json.dumps(result))`;
   const result = await command(config.python, ['-c', program, bridge, childPath], { env, input: JSON.stringify({ operation: 'restore', threadId: id, codexHome: home }) });
   assert.equal(result.code, 0, result.stderr);
   const restored = JSON.parse(result.stdout);
-  assert.equal(restored.status, 'restored'); assert.equal(restored.verified, true); assert.deepEqual(restored.threadIds, [id]);
-  assert.equal(sha(state(id).rollout_path), rootSha); assert.equal(state(childId).archived, 1);
+  assert.equal(restored.status, 'blocked'); assert.equal(restored.code, 'restore_scope_conflict'); assert.equal(restored.verified, false); assert.deepEqual(restored.threadIds, [id]);
+  assert.equal(restored.attempts, 0); assert.equal(state(id).archived, 1); assert.equal(state(childId).archived, 1);
+  assert.equal(sha(state(id).rollout_path), rootSha); assert.equal(sha(childPath), childSha);
+});
+
+test('a leaf can still be restored through the real CLI without changing its archived ancestor', async t => {
+  const { id, childId, run, state } = await fixture(t, { child: true });
+  const before = await run('inspect'); assert.equal((await run('archive', before.fingerprint)).status, 'archived');
+  const hashes = new Map([id, childId].map(value => [value, sha(state(value).rollout_path)]));
+  const restored = await run('restore', undefined, childId);
+  assert.equal(restored.status, 'restored'); assert.equal(restored.verified, true); assert.deepEqual(restored.threadIds, [childId]);
+  assert.equal(state(id).archived, 1); assert.equal(state(childId).archived, 0);
+  for (const value of [id, childId]) assert.equal(sha(state(value).rollout_path), hashes.get(value));
+});
+
+test('an unknown spawn-graph schema refuses restore before mutation instead of assuming a standalone root', async t => {
+  const { id, home, run, state } = await fixture(t);
+  const before = await run('inspect'); assert.equal((await run('archive', before.fingerprint)).status, 'archived');
+  const db = new DatabaseSync(join(home, 'state_5.sqlite')); db.exec('DROP TABLE thread_spawn_edges'); db.close();
+  const originalSha = sha(state(id).rollout_path), restored = await run('restore');
+  assert.equal(restored.status, 'unavailable'); assert.equal(restored.code, 'restore_scope_unconfirmed'); assert.equal(restored.verified, false);
+  assert.equal(state(id).archived, 1); assert.equal(sha(state(id).rollout_path), originalSha);
+});
+
+test('a spawned edge appearing between root inspections is caught before the mutating CLI runs', async t => {
+  const { id, childId, home, env, run, state } = await fixture(t, { child: true });
+  const before = await run('inspect'); assert.equal((await run('archive', before.fingerprint)).status, 'archived');
+  const db = new DatabaseSync(join(home, 'state_5.sqlite'));
+  const edge = db.prepare('SELECT * FROM thread_spawn_edges WHERE parent_thread_id=? AND child_thread_id=?').get(id, childId);
+  db.prepare('DELETE FROM thread_spawn_edges WHERE parent_thread_id=? AND child_thread_id=?').run(id, childId); db.close();
+  const hashes = new Map([id, childId].map(value => [value, sha(state(value).rollout_path)]));
+  const program = `import importlib.util,json,sys\nspec=importlib.util.spec_from_file_location('archive_bridge',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\noriginal=m.read_tree;reads=0;attempts=0;edge=json.loads(sys.argv[2])\ndef changed(store,root,root_only=False):\n global reads\n result=original(store,root,root_only);reads+=1\n if reads==2:\n  import sqlite3\n  with sqlite3.connect(store.database) as db:db.execute('INSERT INTO thread_spawn_edges('+','.join(edge.keys())+') VALUES('+','.join('?' for _ in edge)+')',tuple(edge.values()))\n return result\ndef prohibited(*args):\n global attempts\n attempts+=1\n raise AssertionError('Late edge must be caught before native mutation')\nm.read_tree=changed\nresult=m.execute(json.load(sys.stdin),run_cli=prohibited);result['attempts']=attempts;result['reads']=reads;print(json.dumps(result))`;
+  const result = await command(config.python, ['-c', program, bridge, JSON.stringify(edge)], { env, input: JSON.stringify({ operation: 'restore', threadId: id, codexHome: home }) });
+  assert.equal(result.code, 0, result.stderr); const refused = JSON.parse(result.stdout);
+  assert.equal(refused.status, 'blocked'); assert.equal(refused.code, 'restore_scope_conflict'); assert.equal(refused.attempts, 0); assert.equal(refused.reads, 2);
+  for (const value of [id, childId]) { assert.equal(state(value).archived, 1); assert.equal(sha(state(value).rollout_path), hashes.get(value)); }
+});
+
+test('a spawned edge appearing during the real version probe is refused as unsent before unarchive', async t => {
+  const { id, childId, home, env, run, state } = await fixture(t, { child: true });
+  const before = await run('inspect'); assert.equal((await run('archive', before.fingerprint)).status, 'archived');
+  const db = new DatabaseSync(join(home, 'state_5.sqlite'));
+  const edge = db.prepare('SELECT * FROM thread_spawn_edges WHERE parent_thread_id=? AND child_thread_id=?').get(id, childId);
+  db.prepare('DELETE FROM thread_spawn_edges WHERE parent_thread_id=? AND child_thread_id=?').run(id, childId); db.close();
+  const hashes = new Map([id, childId].map(value => [value, sha(state(value).rollout_path)]));
+  const program = `import importlib.util,json,sys,sqlite3\nspec=importlib.util.spec_from_file_location('archive_bridge',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\nedge=json.loads(sys.argv[2]);verify=m.verify_cli;run=m.subprocess.run;unarchives=0;probes=0\ndef checked(args,*rest,**kwargs):\n global unarchives\n if len(args)>1 and args[1]=='unarchive':\n  unarchives+=1\n  raise AssertionError('Late graph conflict cannot enter unarchive')\n return run(args,*rest,**kwargs)\ndef after_probe(binary,home,sqlite_home=None):\n global probes\n result=verify(binary,home,sqlite_home);probes+=1\n with sqlite3.connect(str(sqlite_home)+'/state_5.sqlite') as db:db.execute('INSERT INTO thread_spawn_edges('+','.join(edge.keys())+') VALUES('+','.join('?' for _ in edge)+')',tuple(edge.values()))\n return result\nm.subprocess.run=checked;m.verify_cli=after_probe\nresult=m.execute(json.load(sys.stdin));result['unarchives']=unarchives;result['probes']=probes;print(json.dumps(result))`;
+  const result = await command(config.python, ['-c', program, bridge, JSON.stringify(edge)], { env, input: JSON.stringify({ operation: 'restore', threadId: id, codexHome: home }) });
+  assert.equal(result.code, 0, result.stderr); const refused = JSON.parse(result.stdout);
+  assert.equal(refused.status, 'blocked'); assert.equal(refused.code, 'restore_scope_conflict'); assert.equal(refused.unarchives, 0); assert.equal(refused.probes, 1);
+  for (const value of [id, childId]) { assert.equal(state(value).archived, 1); assert.equal(sha(state(value).rollout_path), hashes.get(value)); }
 });
 
 test('new content rejects the old fingerprint and a late old completion cannot hide an active turn', async t => {

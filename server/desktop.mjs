@@ -8,6 +8,7 @@ import { ExecutionStops } from "./execution-stops.mjs";
 import { runBridge } from "./bridge-process.mjs";
 import { ThreadModels } from "./thread-models.mjs";
 import { Attachments, messageFingerprint } from "./attachments.mjs";
+import { HistoryActionReconciler } from "./history-action-reconciliation.mjs";
 
 const compatibilityHints = {
   desktop_protocol_incompatible: "Mac 中的 Codex 接口与 Pocket 不兼容，暂时无法发送或压缩。草稿和待发消息已保留。",
@@ -64,6 +65,7 @@ export class DesktopService {
         this.compactionPending(id) || this.stops.pending(id) || this.renamePending?.(id),
       onChanged: id => { this.cache.delete(id); this.onModelChanged?.(id); },
     });
+    this.historyActions = new HistoryActionReconciler(store);
   }
   isLifecycleBlocked(id) { return this.lifecycleBlocked?.(id) === true; }
   requireLifecycleOpen(id) {
@@ -264,6 +266,7 @@ export class DesktopService {
       turnTiming: saved.turnTiming || null, checkedAt: Date.now() });
   }
   async loadHistory(id) {
+    const actionObservation = this.historyActions.capture(id);
     const now = Date.now();
     const retrying = now - (this.recentReads.get(id) ?? -Infinity) < 60000;
     this.recentReads.delete(id);
@@ -304,19 +307,7 @@ export class DesktopService {
       data.hint = "已归档任务可查看历史；请先在 Codex 中取消归档再继续。";
     }
     this.stops.reconcile(id, data);
-    const action = this.compactionRequest(id);
-    const compact = data.compaction;
-    if (action && ["pending", "accepted", "unknown"].includes(action.status) &&
-        data.source === "desktop" && compact?.latestId && compact.latestId !== action.baseline_id && compact.completed) {
-      this.store.db.prepare("UPDATE compactions SET status=?,code=NULL WHERE id=?")
-        .run(["failed", "interrupted"].includes(compact.turnStatus) ? "failed" : "completed", action.id);
-    }
-    if (data.source === "desktop" && Array.isArray(data.pendingRequests)) {
-      const keys = new Set(data.pendingRequests.map(r => r.key));
-      const responses = this.store.db.prepare("SELECT id,request_key FROM request_responses WHERE thread_id=? AND status IN('pending','accepted','unknown')").all(id);
-      for (const response of responses) if (!keys.has(response.request_key))
-        this.store.db.prepare("UPDATE request_responses SET status='resolved',code=NULL WHERE id=?").run(response.id);
-    }
+    this.historyActions.reconcile(actionObservation, data);
     for (const message of data.source === "desktop" ? data.messages || [] : []) {
       if (message.clientMessageId)
         this.store.db
@@ -477,7 +468,8 @@ export class DesktopService {
         expectedCompactionId: state.compaction?.latestId || null }); }
       catch { result = { ok: false, sent: null, code: "dispatch_unknown" }; }
       const status = result.ok ? "accepted" : result.sent === false ? "rejected" : "unknown";
-      // A parallel history read can observe completion before the RPC returns.
+      // Preserve a terminal receipt already independently confirmed; pending
+      // RPCs are not completed from an uncorrelated history postcondition.
       this.store.db.prepare("UPDATE compactions SET status=?,code=? WHERE id=? AND status='pending'")
         .run(status, result.code || null, input.requestId);
       const row = this.store.db.prepare("SELECT * FROM compactions WHERE id=?").get(input.requestId);

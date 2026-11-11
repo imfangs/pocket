@@ -46,9 +46,10 @@ type Transport = {
   list: (threadId: string) => Promise<{ attachments: PublicAttachment[] }>;
   remove: (threadId: string, id: string) => Promise<unknown>;
 };
+const attachmentUploadTimeoutMs = 190000;
 const transport: Transport = {
   upload: (threadId, item) => api(`${attachmentPath(threadId, item.id)}?name=${encodeURIComponent(item.name)}`, "PUT", item.file,
-    { raw: true, contentType: item.mime, signal: AbortSignal.timeout(190000) }),
+    { raw: true, contentType: item.mime, signal: AbortSignal.timeout(attachmentUploadTimeoutMs), timeoutMs: attachmentUploadTimeoutMs }),
   metadata: (threadId, id) => api(`${attachmentPath(threadId, id)}?metadata=1`, "GET", undefined, { signal: AbortSignal.timeout(15000) }),
   list: threadId => api(`/api/tasks/${threadId}/attachments`, "GET", undefined, { signal: AbortSignal.timeout(15000) }),
   remove: (threadId, id) => api(attachmentPath(threadId, id), "DELETE", undefined, { signal: AbortSignal.timeout(15000) }),

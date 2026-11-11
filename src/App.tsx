@@ -50,7 +50,8 @@ import type { CreateLocation, TaskOperation } from "./taskOperations";
 import type { CreationPreference } from "./creationPreference";
 import CreationPendingRows from "./CreationPendingRows";
 import { creationCue, creationNeedsAttention, withCreatedThread, type CreationCue } from "./creationList";
-import { readCreationConfirmations, saveCreationConfirmations } from "./creationConfirmations";
+import { readCreationConfirmations } from "./creationConfirmations";
+import { createCreationArrival } from "./creationArrival";
 import "./creation-list.css";
 import TaskOperationStatus from "./TaskOperationStatus";
 import useTaskOperations from "./useTaskOperations";
@@ -59,7 +60,8 @@ import { pocketReadState } from "./pocketReadState";
 import { activeOperation } from "./taskOperations";
 import { createDraftMap, draftThreadIds } from "./draftIndicators";
 import { preserveNewerThreadMetadata } from "./threadMetadata";
-import { hasPriorityState, pocketPriority, priorityFields } from "./priority";
+import { priorityFields } from "./priority";
+import { updateThreadPriority } from "./updateThreadPriority";
 import { hiddenFields, pocketHidden, updateThreadHidden } from "./hiddenThreads";
 import { focusInspectorEntry, inspectorEntryFromClick, scheduleInspectorReturnFocus, type InspectorEntryOrigin } from "./inspectorFocus";
 import { machineStorageKey, currentMachineId } from "./machineScope";
@@ -104,10 +106,10 @@ export default function App({
   const [conversationDrafts] = useState(() => ({ current: createDraftMap(() => setDraftIndicatorRevision(value => value + 1)) }));
   const [submissions] = useState(createSubmittedQueryStore);
   useEffect(() => submissions.subscribe(() => setDraftIndicatorRevision(value => value + 1)), [submissions]);
-  const creationQueries = useRef(new Map<string, string>());
-  const creationDrafts = useRef(new Map<string, { input: NewConversationInput; location?: CreateLocation; startedAt: number }>());
-  const [creationConfirmedAt, setCreationConfirmedAt] = useState(readCreationConfirmations);
-  const observedCreationWaits = useRef(new Set<string>());
+  const creationDismiss = useRef<(requestId: string) => void>(() => {});
+  const [creationArrival] = useState(() => createCreationArrival({ confirmedAt: readCreationConfirmations(),
+    dismiss: requestId => creationDismiss.current(requestId) }));
+  const creationArrivalRevision = useSyncExternalStore(creationArrival.subscribe, creationArrival.getSnapshot, creationArrival.getSnapshot);
   const [hiddenCreationNotices, setHiddenCreationNotices] = useState(() => new Set<string>());
   useReloadGuard(() => submissions.reloadBlocker());
   const [narrow, setNarrow] = useState(() => matchMedia("(max-width:760px)").matches);
@@ -326,12 +328,11 @@ export default function App({
     // Background creation is already durable on the Mac. A local transcript
     // copy is only needed when the user actually opens this conversation.
     if (!force && selectedRef.current !== operation.threadId) return;
-    const text = creationQueries.current.get(operation.requestId) ?? creationDrafts.current.get(operation.requestId)?.input.initialQuery;
+    const text = creationArrival.getDraft(operation.requestId)?.input.initialQuery;
     if (operation.threadId && operation.creationStatus === "created" && operation.initialMessage) {
       if (text) {
         seedSubmittedQuery(submissions, { threadId: operation.threadId, requestId: operation.initialMessage.requestId,
           text, status: operation.initialMessage.status, code: operation.initialMessage.code });
-        creationQueries.current.delete(operation.requestId);
       }
       submissions.receipt(operation.threadId, operation.initialMessage);
     }
@@ -352,55 +353,23 @@ export default function App({
     refreshAfterActivity();
   });
   useReloadGuard(() => taskOperations.creations.some(operation => operation.status === "rejected" && !operation.creationStatus
-    && (creationDrafts.current.get(operation.requestId)?.input.initialQuery || creationDrafts.current.get(operation.requestId)?.input.name))
+    && (creationArrival.getDraft(operation.requestId)?.input.initialQuery || creationArrival.getDraft(operation.requestId)?.input.name))
     ? "新会话未创建，原输入已保留；请先重试或放弃本次新建。" : null);
   useEffect(() => { taskOperations.operations.forEach(operation => seedCreationMessage(operation)); }, [taskOperations.operations, submissions, selected]);
-  const recentCreationConfirmation = (operation: TaskOperation) => creationConfirmedAt.has(operation.requestId)
-    ? Date.now() < creationConfirmedAt.get(operation.requestId)! + 300000
-    : creationDrafts.current.has(operation.requestId) || observedCreationWaits.current.has(operation.requestId)
-      || Math.abs(Date.now() - (operation.createdAt ?? operation.thread?.createdAt ?? 0)) < 300000;
-  useEffect(() => { saveCreationConfirmations(creationConfirmedAt); }, [creationConfirmedAt]);
-  useEffect(() => {
-    for (const operation of taskOperations.creations) {
-      if (operation.status === "succeeded" && operation.initialMessage?.status === "cancelled") {
-        taskOperations.dismiss(operation.requestId);
-        creationDrafts.current.delete(operation.requestId); creationQueries.current.delete(operation.requestId);
-        continue;
-      }
-      const cue = creationCue(operation);
-      if (cue && cue.phase !== "confirmed" && operation.createdAt !== undefined) observedCreationWaits.current.add(operation.requestId);
-    }
-    const confirmed = taskOperations.creations.filter(operation => creationCue(operation)?.phase === "confirmed");
-    for (const operation of confirmed) if (!recentCreationConfirmation(operation)) taskOperations.dismiss(operation.requestId);
-    const newlyConfirmed = confirmed.filter(operation => recentCreationConfirmation(operation) && !creationConfirmedAt.has(operation.requestId));
-    if (!newlyConfirmed.length) return;
-    setCreationConfirmedAt(previous => {
-      const next = new Map(previous);
-      for (const operation of newlyConfirmed) if (!next.has(operation.requestId)) next.set(operation.requestId,
-        creationDrafts.current.has(operation.requestId) || observedCreationWaits.current.has(operation.requestId)
-          ? Date.now() : operation.thread?.createdAt ?? operation.createdAt ?? Date.now());
-      return next;
-    });
-    refreshAfterActivity();
-  }, [taskOperations.creations, creationConfirmedAt, refreshAfterActivity]);
-  const creationDismiss = useRef(taskOperations.dismiss);
+  const recentCreationConfirmation = creationArrival.recent;
   creationDismiss.current = taskOperations.dismiss;
   useEffect(() => {
-    const completed = taskOperations.creations.filter(operation => creationCue(operation)?.phase === "confirmed"
-      && creationConfirmedAt.has(operation.requestId) && catalog.threads.some(thread => thread.id === operation.threadId));
-    if (!completed.length) return;
-    const retire = () => {
-      for (const operation of completed) if (Date.now() >= creationConfirmedAt.get(operation.requestId)! + 300000) {
-        creationDismiss.current(operation.requestId);
-        creationDrafts.current.delete(operation.requestId); creationQueries.current.delete(operation.requestId);
-      }
-    };
-    const deadline = Math.min(...completed.map(operation => creationConfirmedAt.get(operation.requestId)! + 300000));
+    if (creationArrival.observe(taskOperations.creations)) refreshAfterActivity();
+  }, [taskOperations.creations, creationArrival, refreshAfterActivity]);
+  useEffect(() => {
+    const deadline = creationArrival.nextDeadline(taskOperations.creations);
+    if (deadline === null) return;
+    const retire = () => creationArrival.expire(taskOperations.creations);
     const timer = window.setTimeout(retire, Math.max(0, deadline - Date.now()));
     window.addEventListener("pageshow", retire);
     document.addEventListener("visibilitychange", retire);
     return () => { window.clearTimeout(timer); window.removeEventListener("pageshow", retire); document.removeEventListener("visibilitychange", retire); };
-  }, [taskOperations.creations, creationConfirmedAt, catalog.threads]);
+  }, [taskOperations.creations, creationArrival, creationArrivalRevision]);
   useEffect(() => { setPocketActivity(previous => rememberPocketCreations(previous, taskOperations.operations)); }, [taskOperations.operations]);
   useEffect(() => { savePocketActivity(pocketActivity); }, [pocketActivity]);
   const showNewConversation = async () => {
@@ -411,9 +380,8 @@ export default function App({
     });
     if (prepared.kind === "open") { await openCreation(prepared.operation); return; }
     const { operation: existing, clipboardRead } = prepared;
-    const saved = existing ? creationDrafts.current.get(existing.requestId) : undefined;
-    const existingQuery = existing ? creationQueries.current.get(existing.requestId) ??
-      saved?.input.initialQuery ?? (existing.threadId && submissions.getThread(existing.threadId).find(entry => entry.requestId === existing.initialMessage?.requestId)?.text) : "";
+    const saved = existing ? creationArrival.getDraft(existing.requestId) : undefined;
+    const existingQuery = existing ? saved?.input.initialQuery ?? (existing.threadId && submissions.getThread(existing.threadId).find(entry => entry.requestId === existing.initialMessage?.requestId)?.text) : "";
     setNewConversationDraft({ text: existingQuery || "", clipboardRead, name: saved?.input.name,
       selection: saved?.location ? { cwd: saved.location.cwd, locationId: saved.location.id } : undefined });
     createRequest.current = existing?.requestId ?? null;
@@ -426,10 +394,9 @@ export default function App({
     if (taskOperations.operations.some(operation => operation.operation === "create" && activeOperation(operation)))
       throw new Error("已有新建结果待确认，请先在列表中核对。");
     const previous = createRequest.current && taskOperations.get(createRequest.current);
-    if (previous && previous.status === "rejected" && !previous.creationStatus) taskOperations.dismiss(previous.requestId);
+    if (previous && previous.status === "rejected" && !previous.creationStatus) creationArrival.retire(previous.requestId);
     const requestId = crypto.randomUUID(); createRequest.current = requestId; setCreateRequestId(requestId);
-    if (input.initialQuery) creationQueries.current.set(requestId, input.initialQuery);
-    creationDrafts.current.set(requestId, { input, location, startedAt: Date.now() });
+    creationArrival.remember(requestId, input, location);
     const pending = taskOperations.start("create", input, undefined, requestId);
     // Leave only the dialog, not the request. App owns the receipt and keeps
     // observing it while the user browses the list or another conversation.
@@ -458,16 +425,15 @@ export default function App({
   };
   const reviewCreation = (operation: TaskOperation) => {
     if (operation.creationStatus === "created" || operation.status === "succeeded") { void guard(() => openCreation(operation)); return; }
-    const saved = creationDrafts.current.get(operation.requestId);
+    const saved = creationArrival.getDraft(operation.requestId);
     createRequest.current = operation.requestId; setCreateRequestId(operation.requestId);
-    setNewConversationDraft({ text: saved?.input.initialQuery ?? creationQueries.current.get(operation.requestId) ?? "",
+    setNewConversationDraft({ text: saved?.input.initialQuery ?? "",
       name: saved?.input.name, selection: saved?.location ? { cwd: saved.location.cwd, locationId: saved.location.id } : undefined });
     setNewConversationClosing(false); newDialogOpen.current = true; setNewConversationOpen(true);
   };
   const discardCreation = (operation: TaskOperation) => {
     if (operation.status !== "rejected" || operation.creationStatus || !window.confirm(tr("放弃本次新建并清除保留的输入？"))) return;
-    taskOperations.dismiss(operation.requestId);
-    creationDrafts.current.delete(operation.requestId); creationQueries.current.delete(operation.requestId);
+    creationArrival.retire(operation.requestId);
   };
   useEffect(() => {
     catalogReader.resume();
@@ -570,7 +536,7 @@ export default function App({
     const thread = displayCatalog.threads.find(item => item.id === operation.threadId);
     if (thread?.archived || thread?.sourceExcluded || catalog.excludedThreadIds?.includes(operation.threadId || "") ||
       catalog.excludedThreadStates?.some(state => state.id === operation.threadId)) return [];
-    const saved = creationDrafts.current.get(operation.requestId);
+    const saved = creationArrival.getDraft(operation.requestId);
     const preview = saved?.input.name?.trim() || saved?.input.initialQuery?.replace(/\s+/g, " ").trim().slice(0, 80);
     return [{ operation, thread, cue: taskOperations.errors[operation.requestId] && cue.phase !== "confirmed"
       ? { ...cue, phase: "attention" as const, label: "确认暂时中断" } : cue,
@@ -705,27 +671,14 @@ export default function App({
     [notify, catalogReader],
   );
   const prioritizeThread = async (thread: Thread) => {
-    if (!hasPriorityState(thread)) throw new Error("请更新 Mac 上的 Pocket 后再使用优先关注。");
-    const priority = !pocketPriority(thread);
-    let result: Thread;
-    try {
-      result = await api<Thread>(`/api/tasks/${thread.id}/priority`, "POST", { priority }, { signal: AbortSignal.timeout(15000) });
-    } catch (error) {
-      const status = (error as Error & { status?: number }).status;
-      if (status && status < 500) throw error;
-      // A lost reply may follow a committed metadata write. Only read back;
-      // retrying from the row will still set an explicit boolean, never toggle.
-      try {
-        const fresh = await api<Catalog>("/api/catalog", "GET", undefined, { signal: AbortSignal.timeout(15000) });
-        const confirmed = fresh.threads.find(item => item.id === thread.id);
-        if (!confirmed || !hasPriorityState(confirmed) || confirmed.pocketPriority !== priority || !Number.isSafeInteger(confirmed.pinRevision)) throw error;
-        result = confirmed;
-      } catch { throw new Error("关注状态尚未确认，请刷新后再试。"); }
-    }
-    if (result.id !== thread.id || !hasPriorityState(result) || result.pocketPriority !== priority || !Number.isSafeInteger(result.pinRevision))
-      throw new Error("关注状态尚未确认，请刷新后再试。");
+    const requestScope = catalogScope.current;
+    const isCurrent = () => catalogScope.current === requestScope;
+    const result = await updateThreadPriority(thread, api, { scope: requestScope ?? undefined, isCurrent });
+    // The helper checks before resolving; repeat the fence at application so
+    // a source replacement in the Promise continuation cannot receive it.
+    if (!isCurrent()) throw new Error("会话来源已变化，请重新选择。");
     catalogReader.invalidate();
-    setCatalog(current => ({ ...current, threads: current.threads.map(item => item.id === thread.id
+    setCatalog(current => !isCurrent() ? current : ({ ...current, threads: current.threads.map(item => item.id === thread.id
       ? { ...item, ...priorityFields(result) } : item) }));
     void refresh().catch(() => {});
   };
@@ -880,9 +833,9 @@ export default function App({
               onCheck={() => void taskOperations.check(operation.requestId)} onCancel={() => void taskOperations.cancel(operation.requestId)}
               onOpen={operation.threadId ? () => void guard(() => openCreation(operation)) : undefined}
               onRetry={operation.operation === "create" && operation.status === "rejected" && !operation.creationStatus
-                && creationDrafts.current.has(operation.requestId) ? () => reviewCreation(operation) : undefined}
+                && !!creationArrival.getDraft(operation.requestId) ? () => reviewCreation(operation) : undefined}
               onDiscard={operation.operation === "create" && operation.status === "rejected" && !operation.creationStatus
-                && creationDrafts.current.has(operation.requestId) ? () => discardCreation(operation) : undefined}
+                && !!creationArrival.getDraft(operation.requestId) ? () => discardCreation(operation) : undefined}
               onDismiss={() => operation.operation === "create"
                 ? setHiddenCreationNotices(previous => new Set(previous).add(creationNoticeKey(operation)))
                 : taskOperations.dismiss(operation.requestId)} />)}
@@ -1009,6 +962,7 @@ export default function App({
         onClose={() => {
           const focusThread = newConversationClosing ? selectedRef.current : null;
           newDialogOpen.current = false; setNewConversationClosing(false); setNewConversationOpen(false);
+          setNewConversationDraft(null);
           if (focusThread) requestAnimationFrame(() => {
             if (selectedRef.current === focusThread && document.activeElement === document.body && !document.querySelector("dialog[open]")) {
               const panel = document.querySelector<HTMLElement>('.inspector');

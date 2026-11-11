@@ -23,13 +23,13 @@ import { isMessageReadingProtected, useProgressMessages } from "./useProgressMes
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
 import type { History, HistoryCache, SavedTranscript, Message } from "./conversationFeed";
 import { displayConversation } from "./transcript";
-import { uniqueDisplayMessages, renderMessageKey } from "./displayMessageIdentity";
-import { retainReadableConversationPrefix, type ReadableConversation } from "./readableConversationContinuity";
+import { renderMessageKey } from "./displayMessageIdentity";
+import { useConversationReadModel } from "./useConversationReadModel";
 import { createLiveReadingAnchor } from "./liveReadingAnchor";
 import { emptyConversationState } from "./conversationReadState";
-import { currentQuestions } from "./currentQuestions";
 import Outbox from "./Outbox";
 import { waitForSubmission, type SubmissionReceipt as Receipt } from "./submissionReceipt";
+import { requestSubmissionReceipt } from "./submissionTransport";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { connectionFailureHint, connectionFromHistory, isConnectionCompatibilityFailure, newerConnection } from "./threadConnection";
 import type { ConnectOptions, OpenThreadResult, ThreadConnection } from "./threadConnection";
@@ -41,7 +41,7 @@ import { pocketReadState, type PocketContent } from "./pocketReadState";
 import { createSubmissionFeedbackTracker } from "./submissionFeedback";
 import type { AcceptedFeedback } from "./submissionFeedback";
 import SubmittedQueryCards from "./SubmittedQueryCards";
-import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, withSubmittedAttachments, withSubmittedQueryPost } from "./submittedQueries";
+import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, withSubmittedQueryPost } from "./submittedQueries";
 import type { SubmittedQuery, SubmittedQueryStore, SubmittedQueryReceipt } from "./submittedQueries";
 import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATTACHMENTS, readyAttachments, sameAttachments, type DraftAttachment } from "./attachments";
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
@@ -182,33 +182,11 @@ export default function Conversation({
     feed = useRef<ReturnType<typeof startConversationFeed> | null>(null),
     textFeed = useRef<ReturnType<typeof startTranscriptFeed> | null>(null);
   useLayoutEffect(() => messages.current ? bindMessageRegionFocus(messages.current) : undefined, [thread.id]);
-  const liveDisplay = useMemo(() => displayConversation(
-    history ? { ...history, messages: withSubmittedAttachments(history.messages, submitted) } : null,
-    transcript ? { ...transcript, messages: withSubmittedAttachments(transcript.messages, submitted) } : null,
-  ), [history, transcript, submitted]);
-  const showingDiskPreview = !!cachedPreview && !liveDisplay.messages.length && !(receivedHistory.current && receivedTranscript.current);
-  // Keep reading continuity separate from raw receipt and capability inputs.
-  // A successful rollout fallback must not erase an already readable prefix.
-  const displayScope = JSON.stringify([currentMachineId(), readingScope, thread.id]);
-  const nativeReading = useRef<{ scope: string; view: ReadableConversation } | null>(null);
-  const freshDisplay = useMemo(() => ({ ...liveDisplay, messages: uniqueDisplayMessages(liveDisplay.messages) }), [liveDisplay]);
-  const readableDisplay = useMemo(() => history?.source === "rollout"
-    ? retainReadableConversationPrefix(nativeReading.current?.scope === displayScope ? nativeReading.current.view : null, freshDisplay)
-    : { ...freshDisplay, retained: false }, [history?.source, freshDisplay, displayScope]);
-  useLayoutEffect(() => {
-    if (nativeReading.current?.scope !== displayScope) nativeReading.current = null;
-    if (history?.source === "desktop") nativeReading.current = { scope: displayScope, view: freshDisplay };
-  }, [displayScope, history?.source, freshDisplay]);
-  const diskDisplay = useMemo(() => cachedPreview ? uniqueDisplayMessages(cachedPreview.messages) : [], [cachedPreview]);
-  const shownMessages = showingDiskPreview ? diskDisplay : readableDisplay.messages;
-  const ambiguousMessageIds = useMemo(() => {
-    const seen = new Set<string>(), ambiguous = new Set<string>();
-    for (const message of shownMessages) {
-      if (seen.has(message.id)) ambiguous.add(message.id); else seen.add(message.id);
-    }
-    return ambiguous;
-  }, [shownMessages]);
-  const hasEarlierMessages = showingDiskPreview ? cachedPreview.hasMore : readableDisplay.hasMore;
+  const readModel = useConversationReadModel({ threadId: thread.id, readingScope,
+    history, transcript, submitted, cachedPreview,
+    previewAllowed: !(receivedHistory.current && receivedTranscript.current) });
+  const { liveDisplay, showingDiskPreview, shownMessages, hasEarlierMessages, ambiguousMessageIds,
+    questionsByMessage, unplacedQuestions } = readModel;
   const earlierWindow = useEarlierConversation({ threadId: thread.id, root: messages, conversationRoot, online, hasEarlierMessages,
     isComposing: () => keyboardDismiss.current.composing,
     onAutomaticStart: () => { nearBottom.current = false; setAwayFromLatest(true); } });
@@ -240,9 +218,9 @@ export default function Conversation({
     { disabled: showingDiskPreview || !online || !!historyError,
       baselineReady: networkObserved.current.history && networkObserved.current.transcript,
       refresh: () => feed.current?.refresh() });
-  const timeline = useMemo(() => queryTimeline(shownMessages.filter(message => !ambiguousMessageIds.has(message.id)),
+  const timeline = useMemo(() => queryTimeline(readModel.timelineMessages,
     submitted, visibleSubmissions, shownOutbox, deferredQueries),
-    [shownMessages, ambiguousMessageIds, submitted, visibleSubmissions, shownOutbox, deferredQueries]);
+    [readModel.timelineMessages, submitted, visibleSubmissions, shownOutbox, deferredQueries]);
   const [queryTargets, setQueryTargets] = useState<ReadonlyMap<string, HTMLElement>>(() => new Map());
   const queryRefs = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
   const queryRef = (requestId: string) => {
@@ -260,18 +238,8 @@ export default function Conversation({
   };
   useLayoutEffect(() => { submissions.observeQueue(thread.id, history?.outbox ?? []); }, [submissions, thread.id, history?.outbox]);
   useEffect(() => { if (!showingDiskPreview) submissions.observeMessages(thread.id, liveDisplay.messages); }, [submissions, thread.id, liveDisplay.messages, submitted, showingDiskPreview]);
-  const questions = useMemo(() => currentQuestions(history, transcript), [history, transcript]);
   const [questionStore] = useState(questionPresentationStore);
-  const questionsByMessage = useMemo(() => {
-    const groups = new Map<string, typeof questions>();
-    for (const question of questions) groups.set(question.sourceMessageId, [...(groups.get(question.sourceMessageId) ?? []), question]);
-    return groups;
-  }, [questions]);
-  const unplacedQuestions = useMemo(() => questions.filter(question => ambiguousMessageIds.has(question.sourceMessageId) ||
-    !shownMessages.some(message => message.id === question.sourceMessageId)), [questions, shownMessages, ambiguousMessageIds]);
-  const pocketContent = useMemo(() => earlier.active || unplacedQuestions.length ||
-    !!transcript?.pocketContent?.messageId && ambiguousMessageIds.has(transcript.pocketContent.messageId)
-    ? null : displayedPocketContent(transcript, shownMessages), [transcript, shownMessages, unplacedQuestions, earlier.active, ambiguousMessageIds]);
+  const pocketContent = earlier.active ? null : readModel.pocketContent;
   const protectedProgressIds = useMemo(() => new Set([...questionsByMessage.keys(), ...(pocketContent?.messageId ? [pocketContent.messageId] : [])]), [questionsByMessage, pocketContent?.messageId]);
   const progress = useProgressMessages({ messages: shownMessages, protectedIds: protectedProgressIds,
     root: messages, nearBottom, away: awayFromLatest, cache: historyCache, threadId: thread.id,
@@ -682,19 +650,20 @@ export default function Conversation({
     try {
       let receipt: Receipt;
       if (draft.requestId) {
-        receipt = await api<Receipt>(
-            `/api/tasks/${thread.id}/messages/${requestId}`,
-          );
+        receipt = await requestSubmissionReceipt(requestId, signal => api<Receipt>(
+          `/api/tasks/${thread.id}/messages/${requestId}`, "GET", undefined, { signal },
+        ), { kind: "read", viewSignal: controller.signal });
       } else {
-        receipt = await withSubmittedQueryPost(submissions, thread.id, requestId, () => api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
+        receipt = await withSubmittedQueryPost(submissions, thread.id, requestId, () => requestSubmissionReceipt(
+          requestId, signal => api<Receipt>(`/api/tasks/${thread.id}/messages`, "POST", {
             text: submittedText,
             requestId,
             autoDirect,
             ...(submittedAttachments.length ? { attachments: submittedAttachments.map(item => item.id) } : {}),
             ...(enqueue ? { enqueue: true } : {}),
-          }));
+          }, { signal }), { kind: "post", viewSignal: controller.signal },
+        ));
       }
-      if (receipt.requestId !== requestId) throw new Error("回执与当前消息不匹配，请重新核对。");
       usage.receipt(thread.id, requestId, receipt.status);
       submissions.receipt(thread.id, receipt);
       if (!ownsView()) return;

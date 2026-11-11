@@ -1,7 +1,7 @@
 import { readBridgeConfig } from "./bridge-config.mjs";
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppError } from './store.mjs';
@@ -16,6 +16,28 @@ const initialMessageId=id=>{
   const hash=digest(['pocket.initial-query.v1',id]);
   return `${hash.slice(0,8)}-${hash.slice(8,12)}-8${hash.slice(13,16)}-${((parseInt(hash[16],16)&3)|8).toString(16)}${hash.slice(17,20)}-${hash.slice(20,32)}`;
 };
+
+// A fast refusal only for the unambiguous default SQLite layout. Python's
+// configured Store remains authoritative; custom/unknown layouts defer to its
+// independent scope guard rather than borrowing another database's answer.
+export function readDefaultRestoreScope(codexHome,id) {
+  if(process.env.CODEX_SQLITE_HOME)return null;
+  const config=join(codexHome,'config.toml');
+  if(existsSync(config)){
+    try { const text=readFileSync(config,'utf8');if(text.includes('sqlite')||text.includes('\\'))return null; }
+    catch { return null; }
+  }
+  let db;
+  try {
+    const databases=readdirSync(codexHome).filter(name=>/^state_.*\.sqlite$/.test(name));
+    if(databases.length!==1||databases[0]!=='state_5.sqlite')return null;
+    db=new DatabaseSync(join(codexHome,'state_5.sqlite'),{readOnly:true});
+    const columns=new Set(db.prepare('PRAGMA table_info(thread_spawn_edges)').all().map(column=>column.name));
+    if(!columns.has('parent_thread_id')||!columns.has('child_thread_id'))return null;
+    return !!db.prepare('SELECT 1 FROM thread_spawn_edges WHERE parent_thread_id=? LIMIT 1').get(id);
+  } catch { return null; }
+  finally { db?.close(); }
+}
 
 function nativeRequest(script,payload) {
   const config=readBridgeConfig();
@@ -60,6 +82,7 @@ export class LifecycleService {
     this.locations=options.locations||(()=>creationLocations(store,codexHome));
     this.create=options.create||(payload=>nativeRequest('create-thread.py',payload));
     this.archive=options.archive||(payload=>nativeRequest('archive-thread.py',payload));
+    this.restoreScope=options.restoreScope||(id=>readDefaultRestoreScope(codexHome,id));
     this.tickMs=options.tickMs??15000;
     this.running=new Map();this.blocked=new Set();this.blockedOwners=new Map();this.stopped=false;
     this.receiptDirectory=join(store.directory,'lifecycle-receipts');
@@ -229,6 +252,11 @@ export class LifecycleService {
     // interrupt the original turn or its message queue.
     if(this.renamePending?.(id))throw new AppError('此会话有未确认的重命名，请先核对结果',409);
     if(this.modelPending?.(id))throw new AppError('请先在会话信息中核对思考强度',409);
+    if(!input.archived&&thread.archived&&typeof input.requestId==='string'&&uuid.test(input.requestId)&&
+      !this.store.db.prepare('SELECT 1 FROM lifecycle_operations WHERE id=?').get(input.requestId)&&this.restoreScope(id)===true){
+      const now=Date.now();
+      return {requestId:input.requestId,operation:'restore',threadId:id,status:'rejected',code:'restore_scope_conflict',createdAt:now,updatedAt:now};
+    }
     const blocker=input.archived?this.archiveBlock(id):null;
     const reserved=this.reserve(input.requestId,input.archived?'archive':'restore',id,{archived:input.archived});
     if(reserved.created){
@@ -248,7 +276,9 @@ export class LifecycleService {
     const blocker=desired?this.archiveBlock(threadId):null;
     if(blocker){this.update(id,'rejected',blocker);return;}
     if(!desired){
-      // Native restore affects only the named thread, not its archived subtree.
+      // A linked tree cannot meet this operation's root-only scope. The Python
+      // bridge also rechecks its actual configured graph before native writes.
+      if(this.restoreScope(threadId)===true){this.update(id,'rejected','restore_scope_conflict');return;}
       this.update(id,'pending',null,{plan:{threadIds:[threadId],descendantCount:0}});
       const result=await this.archive({operation:'restore',threadId,codexHome:this.codexHome});
       this.archiveResult(id,false,result);return;

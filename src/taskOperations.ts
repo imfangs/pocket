@@ -99,6 +99,8 @@ export function operationText(operation: TaskOperation) {
     ? "请求还未送达 Mac，连接恢复后可再次创建。"
     : "请求还未送达 Mac，连接恢复后可重试。";
   if (operation.code === "outbox_not_empty") return "还有待发消息，请先处理再归档。";
+  if (operation.code === "restore_scope_conflict") return "这个会话有关联子会话，请在 Codex 中取消归档。";
+  if (operation.code === "restore_scope_unconfirmed") return "暂时无法确认恢复范围，请在 Codex 中取消归档。";
   if (operation.code === "active_or_unknown_thread") return "会话尚未确认结束，请先核对状态。";
   if (["thread_active", "thread_running", "active_turn"].includes(operation.code || "")) return "会话正在运行，请先停止或等本轮结束再归档。";
   if (["dispatch_unknown", "pending_dispatch", "unresolved_dispatch", "unresolved_send"].includes(operation.code || "")) return "发送结果尚未确认，请先核对。";

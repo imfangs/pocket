@@ -188,6 +188,24 @@ def readiness(store, tree, root_only=None):
     return "ready", None
 
 
+def restore_scope_conflict(store, root_id):
+    """A direct spawned child already proves unarchive may exceed root scope.
+
+    Do not inspect child rollouts: a missing or active child is still linked.
+    The native CLI has no conditional root-only scope argument.
+    """
+    try:
+        with closing(store.connect()) as db:
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(thread_spawn_edges)")}
+            if not {"parent_thread_id", "child_thread_id"}.issubset(columns):
+                raise ArchiveError("restore_scope_unconfirmed", "The native spawned-thread graph schema is unsupported")
+            return db.execute("SELECT 1 FROM thread_spawn_edges WHERE parent_thread_id=? LIMIT 1", (root_id,)).fetchone() is not None
+    except ArchiveError:
+        raise
+    except Exception as error:
+        raise ArchiveError("restore_scope_unconfirmed", "The native restore scope could not be verified") from error
+
+
 def official(binary, operation, root_id, store):
     env = {**os.environ, "CODEX_HOME": str(store.home), "CODEX_SQLITE_HOME": str(store.sqlite_home)}
     env.pop("CODEX_THREAD_ID", None)
@@ -195,6 +213,10 @@ def official(binary, operation, root_id, store):
         verify_cli(binary, store.home, store.sqlite_home)
     except BundledCLIError as error:
         raise ArchiveError(error.code, "The official CLI behavior contract is unavailable") from error
+    # The version probe can take time. Recheck scope immediately before the
+    # mutating CLI call, without claiming an atomic native graph/CAS guarantee.
+    if operation == "restore" and restore_scope_conflict(store, root_id):
+        raise ArchiveError("restore_scope_conflict", "Linked conversations require restoring through Codex")
     print("POCKET_BRIDGE_PHASE_V1 dispatch", file=sys.stderr, flush=True)
     return subprocess.run([str(binary), "archive" if operation == "archive" else "unarchive", root_id,
                            "-c", "sqlite_home=" + json.dumps(str(store.sqlite_home))],
@@ -233,6 +255,8 @@ def execute(data, run_cli=official):
             return receipt(tree, "changed", "fingerprint_changed")
         if operation == "archive" and expected is None:
             return receipt(tree, "blocked", "fingerprint_required")
+        if operation == "restore" and restore_scope_conflict(store, root_id):
+            return receipt(tree, "blocked", "restore_scope_conflict")
         status, code = readiness(store, tree, root_id if operation == "restore" else None)
         if status != "ready" or operation == "inspect":
             return receipt(tree, status, code)
@@ -242,12 +266,16 @@ def execute(data, run_cli=official):
         status, code = readiness(store, fresh, root_id if operation == "restore" else None)
         if status != "ready":
             return receipt(fresh, status, code)
+        if operation == "restore" and restore_scope_conflict(store, root_id):
+            return receipt(fresh, "blocked", "restore_scope_conflict")
         binary = bundled_cli(CONFIG["appPath"])["entrypoint"]
         attempted = True
         result = None
         try:
             result = run_cli(binary, operation, root_id, store)
         except ArchiveError as error:
+            if operation == "restore" and error.code in ("restore_scope_conflict", "restore_scope_unconfirmed"):
+                return receipt(fresh, "blocked" if error.code == "restore_scope_conflict" else "unavailable", error.code)
             if error.code in ("cli_version_changed", "bundled_cli_unavailable"):
                 return receipt(tree, "unavailable", error.code)
         except Exception:

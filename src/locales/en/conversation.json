@@ -21,6 +21,8 @@
   "任务正在等待你确认操作，可在下方查看并响应。": "An action needs your approval. Review it below.",
   "会话历史与发送": "Conversation history and messaging",
   "会话暂不可用": "Conversation unavailable",
+  "这个会话有关联子会话，请在 Codex 中取消归档。": "This conversation has linked chats. Restore it in Codex.",
+  "暂时无法确认恢复范围，请在 Codex 中取消归档。": "The restore scope is unconfirmed. Restore this chat in Codex.",
   "会话暂时无法接收消息，请稍后重试。": "This conversation cannot receive messages right now. Try again shortly.",
   "会话来源已变化": "Conversation source changed",
   "会话正文": "Conversation messages",

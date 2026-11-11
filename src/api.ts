@@ -5,6 +5,7 @@ import { createReadResponseCache } from "./readResponseCache.ts";
 import { requestActivity, type RequestActivity } from "./requestActivity.ts";
 import { clientVersionHeaders } from "./clientVersion.ts";
 import { threadInfoCache } from "./threadInfoCache.ts";
+import { createRequestDeadline } from "./requestDeadline.ts";
 
 export function createApiClient(scope: () => MachineId | null = currentMachineId, request: typeof fetch = (...args) => fetch(...args),
   expire: (machine: MachineId) => void = machine => window.dispatchEvent(new CustomEvent("navigator-auth-expired", { detail: { machine } })),
@@ -25,8 +26,9 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
     clearReadResponses,
     invalidateAuthentication,
     setToken(value: string, machine: MachineId | null = scope()) { tokens.set(requireMachine(machine), value); },
-    async api<T>(path: string, method = "GET", body?: unknown, options: { signal?: AbortSignal; raw?: boolean; contentType?: string } = {}): Promise<T> {
+    async api<T>(path: string, method = "GET", body?: unknown, options: { signal?: AbortSignal; raw?: boolean; contentType?: string; timeoutMs?: number } = {}): Promise<T> {
       const machine = requireMachine(scope()), url = machineApiPath(path, machine);
+      const deadline = createRequestDeadline(options.signal, options.timeoutMs);
       const changesAuthentication = method === "POST" && (path === "/api/auth/logout" || path === "/api/auth/login");
       // Cookies can change as soon as headers arrive, before response.json().
       // Supersede preceding requests before dispatch, even if this action fails.
@@ -45,10 +47,13 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
       try {
         try { finishActivity = activity.begin({ machine, path, method }); }
         catch { /* Activity is optional observation, never a request precondition. */ }
-        const send = () => request(url, { method, signal: options.signal, cache: "no-store",
+        const send = () => {
+          deadline.signal.throwIfAborted();
+          return request(url, { method, signal: deadline.signal, cache: "no-store",
             headers: { ...clientVersionHeaders(), "Accept-Language": (typeof document !== "undefined" && document.documentElement?.lang === "en" ? "en" : "zh-CN"), "Content-Type": options.contentType || "application/json", ...(method === "GET" ? {} : { "X-Navigator-Token": token }),
               ...(cached ? { [method === "GET" ? "If-None-Match" : READ_VERSION_HEADER]: cached.version } : {}) },
             ...(body === undefined ? {} : { body: options.raw ? body as BodyInit : JSON.stringify(body) }) });
+        };
         let response = await send();
         checkMachineResponse(response, machine);
         if (kind && (response.status === 304 || response.status === 204)) {
@@ -69,7 +74,8 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
         // A preceding session must neither expire a new login nor retry an old
         // mutation using its credentials. Cache/source invalidation is separate.
         if (response.status === 403 && data.error === "请求已过期，请刷新页面" && currentAuthentication()) {
-          const fresh = await request(machineApiPath("/api/catalog", machine), { cache: "no-store", signal: options.signal, headers: { ...clientVersionHeaders(), "Accept-Language": (typeof document !== "undefined" && document.documentElement?.lang === "en" ? "en" : "zh-CN") } });
+          deadline.signal.throwIfAborted();
+          const fresh = await request(machineApiPath("/api/catalog", machine), { cache: "no-store", signal: deadline.signal, headers: { ...clientVersionHeaders(), "Accept-Language": (typeof document !== "undefined" && document.documentElement?.lang === "en" ? "en" : "zh-CN") } });
           checkMachineResponse(fresh, machine);
           if (fresh.ok) {
             const catalog = await fresh.json();
@@ -86,6 +92,7 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
         if (kind && epoch === readEpoch && isReadVersion(version)) reads.put(key, version!, data);
         return data;
       } finally {
+        deadline.dispose();
         release();
         try { finishActivity(); } catch { /* Preserve the actual response/error if an observer fails. */ }
       }

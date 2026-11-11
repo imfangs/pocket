@@ -73,7 +73,9 @@ test('CSRF catalog recovery and the original retry carry the same version on eit
     assert.equal(f.calls[0].headers.get('X-Navigator-Token'), 'old-token');
     assert.equal(f.calls[1].headers.get('X-Navigator-Token'), null);
     assert.equal(f.calls[2].headers.get('X-Navigator-Token'), 'new-token');
-    assert.equal(f.calls[0].body, f.calls[2].body); assert.ok(f.calls.every(call => call.signal === controller.signal));
+    assert.equal(f.calls[0].body, f.calls[2].body);
+    assert.ok(f.calls[0].signal instanceof AbortSignal);
+    assert.ok(f.calls.every(call => call.signal === f.calls[0].signal), "CSRF recovery and retry share the original bounded transport budget");
   }
 });
 

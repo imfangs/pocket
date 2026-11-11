@@ -9,7 +9,7 @@ const id='aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa', created='cccccccc-cccc-7ccc-8cc
 const rid=n=>`bbbbbbbb-bbbb-7bbb-8bbb-${String(n).padStart(12,'0')}`;
 async function fixture(t) {
   const dir=mkdtempSync(join(tmpdir(),'pocket-lifecycle-'));
-  const state={busy:true,version:'baseline',archived:false,creates:0,archives:0,opens:0,desktopReads:0};
+  const state={busy:true,version:'baseline',archived:false,creates:0,archives:0,restores:0,opens:0,desktopReads:0};
   const threads=[{id,title:'Lifecycle fixture',cwd:dir,archived:false}];
   const app=makeApp({dataDir:dir,codexHome:dir,
     readSource:()=>({threads:threads.map(t=>({...t,archived:t.id===id?state.archived:t.archived})),projects:[],sourceInfo:{}}),
@@ -29,7 +29,7 @@ async function fixture(t) {
           if(state.busy)return {...plan,status:'waiting'};
           state.archives++;state.archived=true;return {...plan,status:'archived',rootArchived:true,verified:true};
         }
-        state.archived=false;return {...plan,status:'restored',rootArchived:false,verified:true};
+        state.restores++;state.archived=false;return {...plan,status:'restored',rootArchived:false,verified:true};
       },
       tickMs:100000,
     },
@@ -104,11 +104,32 @@ test('unprocessed outbox is retained and blocks archive',async t=>{
   assert.equal(f.state.archives,0);
 });
 
-test('restoring only the root does not require its descendants to be idle',async t=>{
+test('standalone restore does not borrow archive-tree readiness from an unrelated inspection',async t=>{
   const f=await fixture(t);f.state.archived=true;f.state.inspectBlocked=true;f.app.sync();
   await f.call(`/api/tasks/${id}/archive`,'POST',{requestId:rid(9),archived:false});
   assert.equal((await f.settled(rid(9))).status,'succeeded');
   assert.equal(f.state.archived,false);
+});
+
+test('known linked restore refuses before a lifecycle reservation can suspend its owner',async t=>{
+  const f=await fixture(t);f.state.archived=true;f.app.sync();
+  f.app.lifecycle.restoreScope=()=>true;
+  let suspensions=0;f.app.lifecycle.desktop.suspendConnection=()=>{suspensions++;};
+  const result=await f.call(`/api/tasks/${id}/archive`,'POST',{requestId:rid(90),archived:false});
+  assert.equal(result.status,'rejected');assert.equal(result.code,'restore_scope_conflict');
+  assert.equal(f.app.store.db.prepare('SELECT COUNT(*) AS n FROM lifecycle_operations').get().n,0);
+  assert.equal(f.state.restores,0);assert.equal(f.state.archived,true);assert.equal(suspensions,0);
+});
+
+test('a wider graph discovered after reservation is refused before the native restore step',async t=>{
+  const f=await fixture(t);f.state.archived=true;f.app.sync();
+  let linked=false;f.app.lifecycle.restoreScope=()=>linked;
+  const initial=f.app.lifecycle.startArchive(id,{requestId:rid(91),archived:false});
+  assert.equal(initial.status,'pending');linked=true;
+  const result=await f.settled(rid(91));
+  assert.equal(result.status,'rejected');assert.equal(result.code,'restore_scope_conflict');
+  assert.equal(f.state.restores,0);assert.equal(f.state.archived,true);
+  assert.equal(f.app.lifecycle.blocked.has(id),false,'a refusal releases its local tracking reservation');
 });
 
 test('an archived root with an incomplete subtree is not reported as archive success',async t=>{
