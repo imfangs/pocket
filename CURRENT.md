@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-11。列表尾部继续上滑／滚轮自动增加80条，同scope记住已展开数量；按压／动效后复核，恢复／刷新无意图不自行翻页，旧滚动锚点让位于新位置，手动按钮保持。网页源7121f9c/builddfe23629，Pages2a3fc830单次ready/38资源及独立回读通过。2276完整全绿、14专项与46相关同版浏览器及32纯测通过；仅共享网页，两机API仍格得6f167c8／豌豆fc86637，豌豆离线更新接续包保留，未重启服务或实际操作会话。
+维护日期：2026-11-11。列表同步收成固定2px细线：实际请求动画、短暂失败／native不可读／过期只淡线，明确离线或3次／30秒且无可达列表读取才文字提示；原缓存运行、计数、排序和权限保持。源80452bf/buildf06716b2/Pages4305e937单次ready、38资源及独立回读一致；2286完整全绿、40专项／56相关同版浏览器和独立CR通过。仅共享网页，两机API仍格得6f／豌豆fc，离线接续包保持，无Mac服务或实际会话操作。
 
 ## 下一次先看
+
+- **弱网列表反馈减轻已上线（2026-11-11）。** [静默同步](docs/design/2026-11-11-quiet-list-sync.md)：用户截图中44px反复提示收为固定2px槽，已读目录普通同步不自动播报；实际catalog/status pending才动画，重试等待静态，native HTTP200 unavailable／unknown／TTL不累积网络失败。明确offline立即提示；其它失败需单链3次／30秒且没有另一列表路由在失败后证明可达，pending保留失败链、真实success清除、后台/scope重置。旧挂起请求迟到timeout污染展示诊断的独立负例已修并通过，不改变原runtime／缓存权限。首屏无缓存恢复入口保持；旧活动/通知断言仅改展示契约。40专项（12新/8活动/20通知）、56发送/列表追加/来源浏览器和2286全测全绿；暂停虚拟时钟前2个边界设施错误保留。源80452bf/buildf06716b2…/Pages4305e937…单次exit0/ready、38/38与独立version/profile/App JS一致，实际iPhone弱网不作直接实测承诺。仅共享网页，无API/Codex/connector重启或模型操作；OAuth一次28scope续期，首次只读DNS失败后的verify重试GET200，无未决。证据`.local/qa/list-sync-feedback-2026-11-11/verification.json`，CR另browser-list-sync私有报告。
 
 - **列表底部上滑加载更多已上线（2026-11-11）。** [列表展开](docs/design/2026-11-11-list-load-more.md)：已认证目录每次明确向下阅读意图加80，96px触底范围／手势安静后读取，按压与动效先稳定；scope＋limit防一手势两批，恢复／轮询／刷新／选择／横滑／inert不误加载。滚动根、原行节点与焦点保持，按钮备用及10个scope窗口仍在。同步锚点与提交前新滚动接管，真实React旧版回拉200px→修复保持；慢150ms滚轮漏触底负例也修复。14永久浏览器旧2过12失败／同版14通过、46发送/返回/弱网列表、32相关纯测与2276完整全绿；手机触摸为合成，WebKit wheel桌面缩390，真机惯性仍待使用。源7121f9c/builddfe23629…/Pages2a3fc830…单次exit0/ready、38/38与独立version/profile/App JS一致，只改共享网页；无新owner/来源导入或Mac API操作。可变QA默认报告路径误写已迁回并用未改的历史frozen文件恢复，原默认字节未冒称找回；细节在本轮私有note。证据`.local/qa/list-load-more-2026-11-11/verification.json`，无未决上传。
 
@@ -168,13 +170,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `7121f9c9afa5e361a905da4a0e585f70ab284abc`；列表明确阅读意图展开与新滚动接管，仅共享网页 |
+| 公网前端/网关源码 | `80452bf44add405a1de81593074c1acd1efe2962`；列表读取展示诊断与细线反馈，仅共享网页 |
 | 两机API源码 | 格得`6f167c822e05d6bbbcd5d17de1b5ac2028265a27`/PID56098；豌豆仍`fc86637f601cc2e7024c5b80eae9250322341139`，11-11离线未切换；格得connector12894/Codex不动，远端旧PID仅历史线索 |
-| 前端build | 共享公网/本地dist `dfe236293234cd9f0585de2b46a1fe8d59a871245b0fc473926ea80827952d01`；格得API内置仍`26d70f40…`，豌豆仍`f9ac7165…` |
-| Pages部署 | `2a3fc830-065f-440d-b10e-69c5a65c89f5`；11-11单次上传exit0/ready、38/38资源和功能及独立version/profile/App JS一致 |
-| 本次验证 | 2276完整全绿、14专项和46相关同版浏览器、32手势/列表纯测、独立真实React旧竞态/固定版CR通过；iPhone惯性未实测 |
-| 本次证据 | `.local/qa/list-load-more-2026-11-11/verification.json`、qa-verification、anchor-commit负例/永久回归/独立CR及发布/公网回读；设施错误另记 |
-| 本次数据与运行 | 仅共享网页；无新来源范围/owner/实际发送/服务生命周期或原数据修改。格得6f和豌豆fc不变，远端仍待离线接续；OAuth有效无续期/未决 |
+| 前端build | 共享公网/本地dist `f06716b2d582f35a3a89ee797340352cfa9629e31ad1c5906b263c31ee8a3893`；格得API内置仍`26d70f40…`，豌豆仍`f9ac7165…` |
+| Pages部署 | `4305e937-7191-4d20-9e3b-ef2f65cd0444`；11-11单次上传exit0/ready、38/38资源和功能及独立version/profile/App JS一致 |
+| 本次验证 | 2286完整全绿；40专项与56相关同版浏览器、45读取/缓存/健康定向与独立复核通过；虚拟时钟暂停后30秒边界完整验证，实际iPhone弱网未直接采样 |
+| 本次证据 | `.local/qa/list-sync-feedback-2026-11-11/verification.json`、qa-verification、health/SSR原红例/设施纠错/浏览器与发布回读；独立CR在browser-list-sync |
+| 本次数据与运行 | 仅共享网页；未修改API、原数据、运行权限或实际发送，不调用owner／Mac生命周期。两机6f/fc保持，豌豆离线接续待后续；OAuth单次续期及只读DNS失败重验成功，无未决 |
 
 上述最新发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；旧发布与详细描述沿对应设计记录及[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)回溯。
 
