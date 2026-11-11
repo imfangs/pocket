@@ -18,10 +18,12 @@
 
 ## 验证
 
-最终build `ffa3629ee02fb47deffe5c83a1b7dd0cd172f3ec6f9222bf2f6dbf25d87f43df`，永久14项Chromium／WebKit回归全部通过。覆盖反复来源切换、正文冲突、迟到前缀、单独transcript更新、新轮次／终态及控制与已读边界。新纯测、过程／阅读保护及整体回归均留私有日志，完整2207项中2205过，2项已知原生取消归档范围失败保留，没有skip或删除断言。
+首版build `ffa3629ee02fb47deffe5c83a1b7dd0cd172f3ec6f9222bf2f6dbf25d87f43df`，14项Chromium／WebKit专项、50项阅读／历史／返回／运行及44项发送／结构／提问浏览器回归全部通过。覆盖反复来源切换、正文冲突、迟到前缀、单独transcript更新、新轮次／终态及控制与已读边界。完整2207项中2205过，2项已知原生取消归档范围失败保留，没有skip或删除断言。
+
+首版源`7ed2af9`／Pages`1cf44715-ac76-4779-b832-0a7a910dfd4a`已单次上传并ready、38/38资源及功能通过后，第二位代理的独立helper复核找到替换首条用户时可能跨越交错轮次。新增负例在旧helper13过1失败，修正为只允许截去本轮连续区间，否则直接fresh。最终build `abac6330d20f8b921d1183edb6451995aec93c489973a05083e16b861ac2cb32`，同版14专项浏览器、44相关纯测及77／19四组结构模拟再次通过；完整2208中2206过，原2项归档差异仍保留。首版94项其它浏览器不冒称在最终build重跑；新增收紧分支有独立负例与复核，发送／阅读／消息主组件没有后续变化。最终发布是新源码与build的独立部署，首版回执保留，不重传首版。
 
 77／19结构模拟含兼容与非前缀两种最终正文，四组均无重复DOM积累；回退时可见final顶部偏移约0.125px，均能滚到末尾。fresh回退尾段确实缺少一条旧中间final，因此74→73→74是有效投影差异，不强制伪造等条数。正文长度不同、目标偏移超出较短正文的可滚范围时浏览器仍会正常夹紧；本轮没有用假高度或冻结最新正文掩盖它。
 
 用户真机完整的「持续滑不到末尾」没有在所有模拟路径唯一重现，修复的是已确认的来源身份／缩短／定位缺陷。浏览器操作与合成touch不能代替iPhone惯性或真实长期切网验证。发布版本和新增相关浏览器回归的最终结果回[CURRENT](../../CURRENT.md)。
 
-证据：`.local/qa/scroll-rebound-2026-11-11/latest-baseline.tap`、`latest-candidate-browser.{tap,json}`、`latest-candidate-dual-source-probe.{mjs,json}`、`latest-pure-final.tap`、`latest-final-full-tests.log`、`latest-final-review.md`。失败与修复分版保存，公开仓库不含会话结构或私有回执。
+证据：`.local/qa/scroll-rebound-2026-11-11/latest-baseline.tap`、`latest-candidate-browser.{tap,json}`、`latest-candidate-dual-source-probe.{mjs,json}`、`latest-pure-final.tap`、`latest-final-full-tests.log`、`latest-final-review.md`；追加保护使用`latest-interleaved-baseline.tap`、`latest-guard-browser.{tap,json}`、`latest-guard-pure.tap`、`latest-guard-dual-source-probe.{mjs,json}`、`latest-guard-full-tests.log`与`latest-guard-review.md`。失败与修复分版保存，公开仓库不含会话结构或私有回执。

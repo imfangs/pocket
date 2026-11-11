@@ -65,6 +65,9 @@ export function retainReadableConversationPrefix(
       return unchanged();
     const turnStart = before.findIndex(message => message.turnId === turnId);
     if (turnStart < 0 || turnStart > prefixEnd) return unchanged();
+    // Replacing the opening user may trim only its own contiguous turn. An
+    // interleaved turn is evidence that this is not a safe prefix boundary.
+    if (before.slice(turnStart, prefixEnd).some(message => message.turnId !== turnId)) return unchanged();
     prefixEnd = turnStart;
   }
   if (!prefixEnd) return unchanged();

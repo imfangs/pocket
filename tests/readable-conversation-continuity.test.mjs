@@ -125,3 +125,13 @@ test("neither retained nor fresh result can carry incidental execution or read a
     assert.equal(result.messages.at(-1), final);
   }
 });
+
+
+test("a replacement user cannot trim an interleaved native turn", () => {
+  const older = row("older", "older", { phase: "final_answer" });
+  const user = row("native-user", "latest", { role: "user" });
+  const interleaved = row("interleaved-final", "another", { phase: "final_answer" });
+  const progress = row("progress"), final = row("final", "latest", { phase: "final_answer" });
+  const fresh = view([row("saved-user", "latest", { role: "user" }), progress, final]);
+  assertFresh(view([older, user, interleaved, progress, final]), fresh);
+});
