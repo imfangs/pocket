@@ -26,13 +26,14 @@ export function zoomImage(value: ImageTransform, scale: number, anchor: { x: num
   return clampImageTransform({ scale: nextScale, x: anchor.x - (anchor.x - value.x) * ratio, y: anchor.y - (anchor.y - value.y) * ratio }, bounds);
 }
 type Point = { x: number; y: number };
-type Contact = Point & { start: Point; at: number; moved: boolean; image: boolean };
+type Contact = Point & { start: Point; at: number; moved: boolean; image: boolean; gallery: "pending" | "horizontal" | "blocked" };
 type Options = {
   bounds: () => ImageBounds;
   get: () => ImageTransform;
   set: (value: ImageTransform) => void;
   close: () => void;
   ready: () => boolean;
+  navigate?: (delta: -1 | 1) => void;
 };
 
 export function bindImageGestures(stage: HTMLElement, options: Options) {
@@ -41,6 +42,15 @@ export function bindImageGestures(stage: HTMLElement, options: Options) {
   let baseline: { value: ImageTransform; midpoint: Point; distance: number } | null = null;
   let lastTap: { at: number; point: Point } | null = null;
   const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+  const originalScale = () => Math.abs(options.get().scale - 1) <= 0.01;
+  const trackGallery = (point: Contact) => {
+    if (!originalScale()) point.gallery = "blocked";
+    if (point.gallery !== "pending") return;
+    const x = Math.abs(point.x - point.start.x), y = Math.abs(point.y - point.start.y);
+    // Decide direction after a little deliberate movement; a vertical start stays vertical.
+    if (x >= 12 && x >= y * 1.5) point.gallery = "horizontal";
+    else if (y >= 12 && y >= x * 1.5) point.gallery = "blocked";
+  };
   const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
   const local = (point: Point): Point => { const bounds = options.bounds(); return { x: point.x - bounds.centerX, y: point.y - bounds.centerY }; };
   const onImage = (point: Point) => {
@@ -53,10 +63,14 @@ export function bindImageGestures(stage: HTMLElement, options: Options) {
     baseline = a ? { value: options.get(), midpoint: b ? local(midpoint(a, b)) : local(a), distance: b ? Math.max(1, distance(a, b)) : 0 } : null;
   };
   const down = (event: PointerEvent) => {
-    if (event.button !== 0 || (event.target as Element | null)?.closest?.("[data-image-viewer-control]")) return;
+    if (event.button !== 0 || (event.target as Element | null)?.closest?.("[data-image-viewer-control]")) {
+      for (const point of pointers.values()) point.gallery = "blocked";
+      return;
+    }
     const point = { x: event.clientX, y: event.clientY };
     if (!pointers.size) multiple = false;
-    pointers.set(event.pointerId, { ...point, start: point, at: event.timeStamp, moved: false, image: onImage(point) });
+    pointers.set(event.pointerId, { ...point, start: point, at: event.timeStamp, moved: false, image: onImage(point),
+      gallery: options.navigate && originalScale() ? "pending" : "blocked" });
     if (pointers.size > 1) { multiple = true; lastTap = null; }
     rebase();
     try { stage.setPointerCapture(event.pointerId); } catch { /* Capture is optional for synthetic or already-cancelled input. */ }
@@ -67,7 +81,8 @@ export function bindImageGestures(stage: HTMLElement, options: Options) {
     if (!point || !baseline) return;
     point.x = event.clientX; point.y = event.clientY;
     if (distance(point, point.start) > 7) point.moved = true;
-    if (!options.ready()) return;
+    trackGallery(point);
+    if (!options.ready()) { if (options.navigate) event.preventDefault(); return; }
     const [a, b] = [...pointers.values()], bounds = options.bounds();
     if (b) {
       const center = local(midpoint(a, b)), scale = Math.max(1, Math.min(IMAGE_ZOOM_MAX, baseline.value.scale * distance(a, b) / baseline.distance));
@@ -84,10 +99,19 @@ export function bindImageGestures(stage: HTMLElement, options: Options) {
     const point = pointers.get(event.pointerId);
     if (!point) return;
     point.x = event.clientX; point.y = event.clientY;
+    if (distance(point, point.start) > 7) point.moved = true;
+    trackGallery(point);
+    const x = point.x - point.start.x, y = point.y - point.start.y;
+    const navigate = !cancelled && !multiple && pointers.size === 1 && point.gallery === "horizontal"
+      && Math.abs(x) >= 48 && Math.abs(x) >= Math.abs(y) * 1.5 && options.navigate;
     const tap = !cancelled && !multiple && !point.moved && distance(point, point.start) <= 7 && event.timeStamp - point.at < 450;
     pointers.delete(event.pointerId);
     try { stage.releasePointerCapture(event.pointerId); } catch { /* It may already be released by the browser. */ }
-    if (tap && !pointers.size) {
+    if (navigate) {
+      lastTap = null;
+      event.preventDefault();
+      navigate(x < 0 ? 1 : -1);
+    } else if (tap && !pointers.size) {
       if (!point.image && !onImage(point)) { lastTap = null; options.close(); }
       else if (options.ready()) {
         if (lastTap && event.timeStamp - lastTap.at < 320 && distance(point, lastTap.point) < 30) {
@@ -101,6 +125,7 @@ export function bindImageGestures(stage: HTMLElement, options: Options) {
   const cancel = (event: PointerEvent) => finish(event, true);
   const wheel = (event: WheelEvent) => {
     event.preventDefault();
+    for (const point of pointers.values()) point.gallery = "blocked";
     if (!options.ready()) return;
     const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 200 : 1);
     options.set(zoomImage(options.get(), options.get().scale * Math.exp(-Math.max(-300, Math.min(300, delta)) / 300), local({ x: event.clientX, y: event.clientY }), options.bounds()));

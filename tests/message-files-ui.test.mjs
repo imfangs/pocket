@@ -17,16 +17,16 @@ const files = { [path]: file }, text = `[查看文件](<${path}>)`;
 const render = (Component, props) => renderToStaticMarkup(createElement(Component, props));
 const markdown = (value = text, extra = {}) => render(Markdown, { text: value, files, threadId, ...extra });
 
-test('registered message files render a named download control without reading or exposing the local path', () => {
+test('registered PDF files render a named preview control without reading or exposing the local path', () => {
   const html = markdown();
-  assert.match(html, /class="message-file-button"/); assert.match(html, /aria-label="下载文件：交付 说明.pdf"/);
+  assert.match(html, /class="message-file-button"/); assert.match(html, /aria-label="预览文件：交付 说明.pdf"/);
   assert.doesNotMatch(html, /href=|src=|rel="preload"|\/fixture\/|pocket-file-reference/);
 });
 
 test('file citations become the same registered card while unmapped citations stay readable', () => {
   const citation = `::codex-file-citation{path="${path}"}`;
   const html = markdown(citation);
-  assert.match(html, /下载文件：交付 说明.pdf/); assert.doesNotMatch(html, /codex-file-citation|path=/);
+  assert.match(html, /预览文件：交付 说明.pdf/); assert.doesNotMatch(html, /codex-file-citation|path=/);
   const fallback = markdown(citation, { files: {} });
   assert.match(fallback, /交付 说明.pdf/); assert.match(fallback, /文件保存在电脑上/);
   assert.doesNotMatch(fallback, /codex-file-citation|<button|href=/);
@@ -75,16 +75,16 @@ test('code and user messages preserve literal file directives and do not mint fi
 
 test('assistant and question-source messages receive their signed file maps and thread identity', () => {
   const assistant = render(Message, { threadId, message: { id: 'answer', role: 'assistant', text, files } });
-  assert.match(assistant, /下载文件：交付 说明.pdf/);
+  assert.match(assistant, /预览文件：交付 说明.pdf/);
   const questions = render(Questions, { threadId, sourceText: '补充文件：\n\n' + text, sourceFiles: files, questions: [{ id: 'q', key: 'q', turnId: 'turn', sourceMessageId: 'question', title: '继续吗？', options: ['继续'] }], disabled: false, drafts: new Map(), refresh() {} });
-  assert.match(questions, /下载文件：交付 说明.pdf/);
+  assert.match(questions, /预览文件：交付 说明.pdf/);
 });
 
 test('a question source with a file is retained even when its text equals the native question projection', () => {
   const props = { threadId, sourceText: text, questions: [{ id: 'q', key: 'q', turnId: 'turn', sourceMessageId: 'question', title: text, options: [] }], disabled: false, drafts: new Map(), refresh() {} };
   assert.doesNotMatch(render(Questions, props), /class="question-source-text"/);
   const withFile = render(Questions, { ...props, sourceFiles: files });
-  assert.match(withFile, /class="question-source-text"/); assert.match(withFile, /下载文件：交付 说明.pdf/);
+  assert.match(withFile, /class="question-source-text"/); assert.match(withFile, /预览文件：交付 说明.pdf/);
 });
 
 test('truncated assistant display cannot reuse a stale cached file capability', () => {
@@ -140,6 +140,34 @@ test('text references open an in-page preview without issuing a request or weake
   assert.match(html, /预览文件：说明.md/); assert.match(html, />查看<\/span>/);
   assert.doesNotMatch(html, /<dialog|href=|src=|\/fixture\//);
   assert.doesNotMatch(markdown(`[说明](<${textPath}>)`, { files: { [textPath]: textFile }, threadId: other }), /<button/);
+});
+
+test('registered raster image files offer a compact gallery preview plus an independent original download', () => {
+  for (const extension of ['png', 'jpg', 'jpeg', 'gif', 'WEBP']) {
+    const imagePath = `/fixture/page-preview.${extension}`, imageFile = { ...file, name: `page-preview.${extension}` };
+    const html = markdown(`[页面预览](${imagePath})`, { files: { [imagePath]: imageFile } });
+    assert.match(html, /class="message-file-image-actions"/);
+    assert.match(html, /class="message-file-button"[^>]*aria-haspopup="dialog"/);
+    assert.ok(html.includes(`aria-label="预览文件：${imageFile.name}"`));
+    assert.match(html, /class="message-file-download"/);
+    assert.ok(html.includes(`aria-label="下载文件：${imageFile.name}"`));
+    assert.doesNotMatch(html, /<img|<dialog|href=|src=|\/fixture\/|pocket-file-reference/);
+  }
+});
+
+test('raster filename classification never upgrades forged file routes or another reference capability', () => {
+  const imagePath = '/fixture/page-preview.jpg', imageFile = { ...file, name: 'page-preview.jpg' };
+  for (const url of [file.url + '/image', file.url + '?preview=1', file.url.replace(threadId, other), 'https://pocket.example.com' + file.url]) {
+    assert.doesNotMatch(markdown(`[preview](${imagePath})`, { files: { [imagePath]: { ...imageFile, url } } }), /<button|aria-haspopup|<img/);
+  }
+  const forged = markdown(`[raw](${file.url}/image)\n\n[raw file](${file.url})\n\n![raw image](${file.url}/image)`, { files: { [imagePath]: imageFile } });
+  assert.doesNotMatch(forged, /<button|aria-haspopup|<img|href=/);
+  for (const name of ['photo.heic', 'photo.avif', 'photo.jpg.exe', 'photo.png?x=1']) {
+    const html = markdown(`[file](${imagePath})`, { files: { [imagePath]: { ...file, name } } });
+    assert.match(html, /下载文件/); assert.doesNotMatch(html, /message-file-image-actions|aria-haspopup|<img/);
+  }
+  const svg = markdown(`[file](${imagePath})`, { files: { [imagePath]: { ...file, name: 'vector.svg' } } });
+  assert.match(svg, /预览文件/); assert.match(svg, /aria-haspopup="dialog"/); assert.doesNotMatch(svg, /message-file-image-actions|<img/);
 });
 
 test('preview byte limits cancel early while never raising the existing download ceiling', async () => {

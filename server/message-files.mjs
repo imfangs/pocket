@@ -6,6 +6,8 @@ import { referencedMessageFiles } from '../shared/codex-directives.mjs';
 import { AppError } from './store.mjs';
 import { MAX_MESSAGE_VIDEO_BYTES, openMessageVideoStream } from './message-video-stream.mjs';
 import { createHtmlPreview, HTML_PREVIEW_LIMITS } from './html-preview.mjs';
+import { readMessageImage } from './message-image-reader.mjs';
+import { MAX_MESSAGE_AUDIO_BYTES, openMessageAudioStream, messageAudioReadError } from './message-audio-stream.mjs';
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_CHARS = 128 * 1024;
@@ -18,9 +20,10 @@ const threadIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-
 // Only assistant references in complete, visible server history can mint a
 // capability. Browser requests never supply a filesystem path to this reader.
 export class MessageFiles {
-  constructor({ now = Date.now, openFile = open } = {}) {
+  constructor({ now = Date.now, openFile = open, realpathFile = realpath } = {}) {
     this.now = now;
     this.openFile = openFile;
+    this.realpathFile = realpathFile;
     this.secret = randomBytes(32);
     this.entries = new Map();
     this.parsed = new Map();
@@ -67,6 +70,35 @@ export class MessageFiles {
         || at - entry.at >= REFERENCE_LIFETIME_MS || at < entry.at)
       throw new AppError('文件引用已过期，请刷新会话', 404);
     return entry;
+  }
+  async readImage(thread, key) {
+    return readMessageImage(this.reference(thread, key), { openFile: this.openFile, realpathFile: this.realpathFile });
+  }
+  async openAudio(thread, key, options = {}) {
+    const entry = this.reference(thread, key);
+    let file, transferred = false;
+    try {
+      const root = await this.realpathFile(entry.root), path = await this.realpathFile(entry.path);
+      if (!inside(root, path)) throw new AppError('文件不在会话目录内', 403);
+      file = await this.openFile(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      const before = await file.stat({ bigint: true });
+      if (!before.isFile()) throw new AppError('暂不支持播放此文件', 415);
+      if (before.size > BigInt(MAX_MESSAGE_AUDIO_BYTES) || before.size < 0n)
+        throw new AppError('音频超过 512 MiB，暂不支持播放', 413);
+      const verify = async () => {
+        if (!sameFile(before, await file.stat({ bigint: true })) || await this.realpathFile(entry.root) !== root ||
+            await this.realpathFile(entry.path) !== path || !sameFile(before, await stat(path, { bigint: true }))) throw changed();
+      };
+      await verify();
+      transferred = true;
+      return await openMessageAudioStream({ ...options, file, before, name: basename(entry.path), verify, reserve: () => {
+        if (this.activeVideoStreams >= 16) throw new AppError('同时播放的媒体过多，请稍后重试', 503);
+        this.activeVideoStreams++;
+        return () => { this.activeVideoStreams--; };
+      } });
+    } catch (error) {
+      throw messageAudioReadError(error);
+    } finally { if (!transferred) await file?.close().catch(() => {}); }
   }
   async openVideo(thread, key, options = {}) {
     const entry = this.reference(thread, key);

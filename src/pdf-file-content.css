@@ -1,0 +1,11 @@
+.pdf-file-content { min-width: 0; width: 100%; }
+.pdf-file-summary, .pdf-file-limit { margin: 0 0 12px; color: var(--gray-11); font-size: 13px; }
+.pdf-file-pages { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.pdf-file-page-slot { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; max-width: 1080px; flex: none; background: var(--gray-3); }
+.pdf-file-page-slot .react-pdf__Page { background: #fff; max-width: 100%; }
+.pdf-file-page-slot canvas { max-width: 100%; height: auto !important; }
+.pdf-file-page-loading { position: absolute; padding: 12px; color: var(--gray-11); font-size: 13px; }
+.pdf-file-page-number { position: absolute; right: 6px; bottom: 5px; padding: 1px 5px; border-radius: 4px; background: var(--color-panel-solid); color: var(--gray-11); font-size: 11px; pointer-events: none; }
+.pdf-file-more { display: block; min-height: 44px; margin: 16px auto; padding: 8px 16px; border: 1px solid var(--gray-6); border-radius: 8px; color: var(--gray-12); background: var(--gray-2); cursor: pointer; }
+.pdf-file-more:focus-visible { outline: 2px solid var(--accent-8); outline-offset: 2px; }
+.pdf-file-limit { margin-top: 16px; }

@@ -1,23 +1,32 @@
 import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
-import { Minus, Plus, RotateCcw, X } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { bindImageGestures, clampImageTransform, fitImage, imageIdentity, readableDiagramTransform, IMAGE_ZOOM_MAX, zoomImage, type ImageBounds, type ImageTransform } from "./imageViewerGestures";
 import "./image-viewer.css";
 import { machineApiPath } from "./machineScope";
 import { diagramDataPrefix } from "./mermaidPolicy";
+import type { ImagePreviewItem } from "./imagePreviewGallery";
 
-export default function ImageViewer({ src, alt, onClose, opener, diagram = false }: { src: string; alt: string; onClose: () => void; opener?: HTMLElement | null; diagram?: boolean }) {
+export default function ImageViewer({ src, alt, onClose, opener, diagram = false, gallery }: { src: string; alt: string; onClose: () => void; opener?: HTMLElement | null; diagram?: boolean; gallery?: readonly ImagePreviewItem[] }) {
   useLocale();
-  const imageSrc = diagram && src.startsWith(diagramDataPrefix) ? src : machineApiPath(src);
+  const items = useMemo(() => !diagram && gallery?.length && gallery.some(item => item.src === src) ? gallery : [{ src, alt }], [gallery, src, alt, diagram]);
+  const [index, setIndex] = useState(() => Math.max(0, items.findIndex(item => item.src === src)));
+  const selected = items[index] ?? { src, alt }, hasGallery = items.length > 1;
+  const imageSrc = diagram && selected.src.startsWith(diagramDataPrefix) ? selected.src : machineApiPath(selected.src);
   const noun = diagram ? "图表" : "图片";
   const dialog = useRef<HTMLDialogElement>(null), stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLDivElement>(null);
+  const picture = useRef<HTMLImageElement>(null), activeSource = useRef(selected.src);
+  activeSource.current = selected.src;
+  const galleryState = useRef({ items, index }); galleryState.current = { items, index };
+  const navigate = useRef<(delta: -1 | 1) => void>(() => {});
   const close = useRef(onClose); close.current = onClose;
   const returnFocus = useRef(opener ?? (typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null));
   const mounted = useRef(false), closing = useRef(false), generation = useRef(0);
   const [phase, setPhase] = useState<"loading" | "ready" | "failed">("loading"), ready = useRef(false);
-  const [attempt, setAttempt] = useState(0);
+  const [retry, setRetry] = useState({ src, attempt: 0 });
+  const attempt = retry.src === selected.src ? retry.attempt : 0;
   const [natural, setNatural] = useState({ width: 0, height: 0 }), naturalRef = useRef(natural);
   const [frame, setFrame] = useState({ width: 0, height: 0 });
   const [value, setValue] = useState(imageIdentity), valueRef = useRef(value);
@@ -34,6 +43,16 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
     if (dialog.current?.open) dialog.current.close();
     close.current();
     queueMicrotask(visibility);
+  };
+  navigate.current = delta => {
+    const current = galleryState.current, next = current.index + delta;
+    if (!mounted.current || closing.current || next < 0 || next >= current.items.length) return;
+    // Invalidate old image events before React commits the next picture.
+    galleryState.current = { ...current, index: next };
+    activeSource.current = current.items[next].src;
+    ready.current = false;
+    setIndex(next);
+    stage.current?.focus({ preventScroll: true });
   };
   useLayoutEffect(() => {
     const element = dialog.current;
@@ -62,9 +81,9 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
     };
   }, []);
   useLayoutEffect(() => {
-    ready.current = false; setPhase("loading"); setAttempt(0);
+    ready.current = false; setPhase("loading");
     naturalRef.current = { width: 0, height: 0 }; setNatural(naturalRef.current); commit(imageIdentity());
-  }, [src]);
+  }, [selected.src]);
   useLayoutEffect(() => {
     const element = canvas.current;
     if (!element) return;
@@ -80,30 +99,44 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
   }, []);
   useLayoutEffect(() => {
     if (!stage.current) return;
-    return bindImageGestures(stage.current, { bounds, get: () => valueRef.current, set: commit, ready: () => ready.current, close: requestClose });
-  }, []);
+    return bindImageGestures(stage.current, { bounds, get: () => valueRef.current, set: commit, ready: () => ready.current, close: requestClose,
+      ...(hasGallery ? { navigate: (delta: -1 | 1) => navigate.current(delta) } : {}) });
+  }, [hasGallery]);
   const fitted = fitImage(natural, frame);
   const changeZoom = (scale: number) => commit(zoomImage(valueRef.current, scale, { x: 0, y: 0 }, bounds()));
   if (typeof document === "undefined") return null;
-  return createPortal(<dialog ref={dialog} className="pocket-image-viewer" data-image-viewer="" data-diagram-viewer={diagram || undefined} data-reading-overlay="" aria-label={t("查看{{noun}}：{{value1}}", { noun: t(noun), value1: alt || t(noun) })}
-    onCancel={event => { event.preventDefault(); requestClose(); }}>
+  return createPortal(<dialog ref={dialog} className="pocket-image-viewer" data-image-viewer="" data-diagram-viewer={diagram || undefined} data-reading-overlay="" data-gallery-index={hasGallery ? index : undefined} aria-label={t("查看{{noun}}：{{value1}}", { noun: t(noun), value1: selected.alt || t(noun) })}
+    onCancel={event => { event.preventDefault(); requestClose(); }}
+    onKeyDown={event => {
+      if (!hasGallery || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault(); event.stopPropagation(); navigate.current(event.key === "ArrowLeft" ? -1 : 1);
+    }}>
     <div ref={stage} className="image-viewer-stage" tabIndex={-1} role="region" aria-label={t("{{noun}}预览", { noun: t(noun) })} style={{ outline: "none" }}>
       <div ref={canvas} className="image-viewer-canvas">
-        <img key={`${src}:${attempt}`} className="image-viewer-image" src={imageSrc} alt={alt || t(noun)} draggable={false} decoding="async" referrerPolicy="no-referrer"
+        <img ref={picture} key={`${selected.src}:${attempt}`} className="image-viewer-image" src={imageSrc} alt={selected.alt || t(noun)} draggable={false} decoding="async" referrerPolicy="no-referrer"
           data-scale={value.scale} style={{ width: fitted.width || undefined, height: fitted.height || undefined, visibility: phase === "ready" ? "visible" : "hidden",
             transform: `translate(-50%, -50%) translate(${value.x}px, ${value.y}px) scale(${value.scale})` }}
           onLoad={event => {
             const image = event.currentTarget;
+            if (!mounted.current || closing.current || image !== picture.current || activeSource.current !== selected.src) return;
             if (!image.naturalWidth || !image.naturalHeight) { ready.current = false; setPhase("failed"); return; }
             naturalRef.current = { width: image.naturalWidth, height: image.naturalHeight }; setNatural(naturalRef.current);
             ready.current = true; setPhase("ready"); commit(diagram ? readableDiagramTransform(bounds()) : clampImageTransform(valueRef.current, bounds()));
-          }} onError={() => { ready.current = false; setPhase("failed"); }} />
+          }} onError={event => {
+            if (!mounted.current || closing.current || event.currentTarget !== picture.current || activeSource.current !== selected.src) return;
+            ready.current = false; setPhase("failed");
+          }} />
       </div>
-      {phase !== "ready" && <div className="image-viewer-message" data-image-viewer-control="">
+      {phase !== "ready" && <div className="image-viewer-message">
         {phase === "loading" ? <p role="status">{t("正在加载图片…")}</p> : <><p role="alert">{t("图片暂时无法显示")}</p>
-          <button type="button" onClick={() => { ready.current = false; setPhase("loading"); commit(imageIdentity()); setAttempt(value => value + 1); }}>{t("重新加载图片")}</button></>}
+          <button type="button" data-image-viewer-control="" onClick={() => { ready.current = false; setPhase("loading"); commit(imageIdentity()); setRetry(previous => ({ src: selected.src, attempt: previous.src === selected.src ? previous.attempt + 1 : 1 })); }}>{t("重新加载图片")}</button></>}
       </div>}
     </div>
+    {hasGallery && <>
+      <span className="image-viewer-counter" role="status" aria-live="polite" aria-atomic="true" aria-label={t("第{{index}}张，共{{total}}张", { index: index + 1, total: items.length })}>{index + 1} / {items.length}</span>
+      <button type="button" className="image-viewer-previous" aria-label={t("上一张图片")} disabled={index === 0} onClick={() => navigate.current(-1)}><AppIcon icon={ChevronLeft} kind="navigation" aria-hidden="true" /></button>
+      <button type="button" className="image-viewer-next" aria-label={t("下一张图片")} disabled={index === items.length - 1} onClick={() => navigate.current(1)}><AppIcon icon={ChevronRight} kind="navigation" aria-hidden="true" /></button>
+    </>}
     <button type="button" className="image-viewer-close" aria-label={t("关闭{{noun}}", { noun: t(noun) })} onClick={requestClose}><AppIcon icon={X} kind="action" aria-hidden="true" /><span>{t("关闭")}</span></button>
     <div className="image-viewer-zoom" role="group" aria-label={t("{{noun}}缩放", { noun: t(noun) })}>
       <button type="button" aria-label={t("缩小{{noun}}", { noun: t(noun) })} disabled={phase !== "ready" || value.scale <= 1} onClick={() => changeZoom(valueRef.current.scale / 1.5)}><AppIcon icon={Minus} kind="action" aria-hidden="true" /></button>

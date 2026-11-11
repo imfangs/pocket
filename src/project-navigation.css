@@ -8,6 +8,7 @@
 .project-navigation .nav-item > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .project-navigation .sidebar-nav-count { flex:0 0 auto; min-width:2ch; text-align:right; font-size:12px; font-weight:400; font-variant-numeric:tabular-nums; }
 .project-navigation .sidebar-bottom { margin-top:0; }
+.project-navigation .sidebar-settings { width:100%; height:auto; min-height:44px; }
 .project-navigation .sidebar-project-label { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; }
 .sidebar-project-name, .sidebar-project-suffix { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sidebar-project-name { line-height:1.4; }

@@ -14,6 +14,7 @@ import { messageReferenceDefinitions } from "./messageDetails";
 import { displayMessageMarkdown } from "./messageEnvelope";
 import { useMemo, type Ref, type ReactNode } from "react";
 import AttachmentList from "./AttachmentList";
+import { ImagePreviewGroup } from "./ImagePreviewProvider";
 import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
 import HeartbeatTrigger from "./HeartbeatTrigger";
 import SubagentNotificationMessage from "./SubagentNotificationMessage";
@@ -60,6 +61,7 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
   const hasTimestamp = validMessageTimestamp(timestamp);
   const duration = final && message.turnDurationMs != null ? formatDuration(message.turnDurationMs) : null;
   return (
+    <ImagePreviewGroup>
     <article
       className={`conversation-message ${message.role} message-${kind}${confirmed ? " is-recently-sent" : ""}${queryDelivery ? " query-message" : ""}`}
       data-message-id={message.id}
@@ -95,5 +97,6 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
       </footer>}
       {readMarker && !notification?.text && <div ref={readMarker} data-pocket-read-marker="" aria-hidden="true" style={{ height: 1 }} />}
     </article>
+    </ImagePreviewGroup>
   );
 }

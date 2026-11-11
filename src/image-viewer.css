@@ -12,3 +12,8 @@ dialog.pocket-image-viewer::backdrop { background:#111317; backdrop-filter:none;
 .image-viewer-message { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); max-width:calc(100% - 40px); text-align:center; color:#e5e7eb; font-size:14px; }
 .image-viewer-message > p { margin:0 0 12px; }
 .image-viewer-message > button { min-height:44px; padding:0 16px; border:1px solid #ffffff70; border-radius:8px; background:#272b32; color:#fff; font:inherit; }
+.image-viewer-counter { position:absolute; z-index:2; top:calc(12px + env(safe-area-inset-top)); left:calc(12px + env(safe-area-inset-left)); display:flex; align-items:center; min-height:44px; padding:0 12px; border-radius:24px; background:#22252bcc; color:#e5e7eb; font-size:14px; font-variant-numeric:tabular-nums; }
+.pocket-image-viewer .image-viewer-previous, .pocket-image-viewer .image-viewer-next { position:absolute; z-index:2; top:50%; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; width:44px; min-width:44px; height:44px; padding:0; border:1px solid #ffffff50; border-radius:50%; background:#22252bbf; color:#fff; }
+.pocket-image-viewer .image-viewer-previous { left:calc(12px + env(safe-area-inset-left)); }
+.pocket-image-viewer .image-viewer-next { right:calc(12px + env(safe-area-inset-right)); }
+.pocket-image-viewer .image-viewer-previous:disabled, .pocket-image-viewer .image-viewer-next:disabled { opacity:.3; }

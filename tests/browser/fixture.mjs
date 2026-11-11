@@ -13,7 +13,7 @@ export const origin = 'https://pocket.test';
 export const ids = { regular: 'a7100000-0000-4000-8000-000000000001', empty: 'a7100000-0000-4000-8000-000000000002' };
 export const engines = (process.env.POCKET_TEST_BROWSERS || 'chromium,webkit').split(',');
 assert.ok(engines.length && engines.every(name => ['chromium', 'webkit'].includes(name)), 'Use chromium and/or webkit');
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
+const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
 // A browser adapter around a small synthetic Pocket service. All browser

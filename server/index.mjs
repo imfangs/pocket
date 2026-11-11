@@ -37,6 +37,8 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const mime = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".wasm": "application/wasm",
   ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
@@ -90,7 +92,7 @@ export function makeApp(options = {}) {
   const catalog = () => automations.enrich(pocketContent.catalog(store.catalog()));
   const notifications = new Notifications(store, desktop, { ...options.notifications, machineId });
   const images = new MessageImages();
-  const files = new MessageFiles();
+  const files = new MessageFiles(options.messageFiles);
   const videoRequests = new Set();
   const previewRequests = new Set();
   let acceptingVideos = true;
@@ -519,6 +521,20 @@ export function makeApp(options = {}) {
         });
         return res.end(data.bytes);
       }
+      const fileImage = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/files\/([a-f0-9]{64})\/image$/i);
+      if (fileImage) {
+        if (method !== "GET") throw new AppError("图片预览只支持读取", 405);
+        if (url.search) throw new AppError("图片预览参数无效", 400);
+        const data = await files.readImage(store.thread(fileImage[1]), fileImage[2]);
+        res.writeHead(200, {
+          "Content-Type": data.type,
+          "Content-Length": data.bytes.length,
+          "Content-Disposition": "inline",
+          "Cross-Origin-Resource-Policy": "same-origin",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+        });
+        return res.end(data.bytes);
+      }
       const htmlPreview = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/files\/([a-f0-9]{64})\/preview$/i);
       if (htmlPreview && method === "GET") {
         if (!acceptingVideos) throw new AppError("文件服务正在重启，请稍后重试", 503);
@@ -554,6 +570,34 @@ export function makeApp(options = {}) {
           req.removeListener("aborted", cancel); res.removeListener("close", cancel);
           res.removeListener("finish", complete); res.removeListener("close", complete);
         }
+      }
+      const fileAudio = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/files\/([a-f0-9]{64})\/audio$/i);
+      if (fileAudio) {
+        if (!["GET", "HEAD"].includes(method)) throw new AppError("音频预览只支持读取", 405);
+        if (url.search) throw new AppError("音频预览参数无效", 400);
+        if (!acceptingVideos) throw new AppError("媒体服务正在重启，请稍后重试", 503);
+        const controller = new AbortController();
+        videoRequests.add(controller);
+        const cancel = () => controller.abort();
+        req.once("aborted", cancel); res.once("close", cancel);
+        let audio;
+        try {
+          audio = await files.openAudio(store.thread(fileAudio[1]), fileAudio[2], {
+            method, range: req.headers.range, ifRange: req.headers["if-range"], signal: controller.signal,
+          });
+          if (controller.signal.aborted || res.destroyed) { res.destroy(); return; }
+          res.writeHead(audio.status, audio.headers);
+          if (audio.stream) await pipeline(audio.stream, res, { signal: controller.signal });
+          else res.end();
+        } catch (error) {
+          if (res.headersSent || controller.signal.aborted || res.destroyed) { res.destroy(); return; }
+          throw error;
+        } finally {
+          videoRequests.delete(controller);
+          req.removeListener("aborted", cancel); res.removeListener("close", cancel);
+          await audio?.close();
+        }
+        return;
       }
       const messageFile = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/files\/([a-f0-9]{64})$/i);
       if (messageFile && ["GET", "HEAD"].includes(method) && url.searchParams.has("video")) {

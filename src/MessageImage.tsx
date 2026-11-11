@@ -3,7 +3,7 @@ import { t, useLocale } from "./i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Maximize2 } from "lucide-react";
 import { currentMachineId, machineApiPath, type MachineId } from "./machineScope";
-import { useImagePreview } from "./ImagePreviewProvider";
+import { useImagePreview, useImagePreviewRegistration } from "./ImagePreviewProvider";
 import { diagnoseImageFailure, imageReadPermissionMessage } from "./imageFailureDiagnostic";
 
 type ImageFailure = { src: string; machine: MachineId | null; permission: boolean };
@@ -30,8 +30,9 @@ export default function MessageImage({ src, alt }: { src: string; alt: string })
     }).finally(() => { if (diagnostic.current === controller) diagnostic.current = null; });
   };
   const openImage = useImagePreview();
+  const imageRegistration = useImagePreviewRegistration(src, alt);
   return (
-    <span className="message-image">
+    <span ref={imageRegistration} className="message-image">
       {failed ? (
         <span className="message-image-frame message-image-failed">
           <span role="status">{failure.permission ? t(imageReadPermissionMessage) : t("{{name}}暂时无法显示", { name: alt || t("图片") })}</span>

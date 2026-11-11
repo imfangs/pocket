@@ -1,0 +1,2 @@
+.svg-file-content { display: flex; min-height: 160px; width: 100%; min-width: 0; align-items: center; justify-content: center; }
+.svg-file-content img { display: block; max-width: 100%; max-height: 75vh; width: auto; height: auto; }

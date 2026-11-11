@@ -1,13 +1,11 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { createHmac, createHash, randomBytes } from 'node:crypto';
-import { constants } from 'node:fs';
 import { open, realpath } from 'node:fs/promises';
-import { extname, isAbsolute, resolve, sep } from 'node:path';
+import { isAbsolute, resolve, sep } from 'node:path';
 import { AppError } from './store.mjs';
-import { messageImageReadError } from './message-image-read-error.mjs';
+import { messageImageType } from '../shared/message-media.mjs';
+import { readMessageImage } from './message-image-reader.mjs';
 
-const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
-const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_TEXT_CHARS = 128 * 1024;
 const inside = (root, path) => root !== sep && path.startsWith(root + sep);
 
@@ -15,7 +13,7 @@ function localPath(value) {
   if (typeof value !== 'string' || value.length > 4096) return null;
   try {
     const path = decodeURIComponent(value);
-    return path.startsWith('/') && !path.startsWith('//') && !path.includes('\0') && types[extname(path).toLowerCase()] ? path : null;
+    return path.startsWith('/') && !path.startsWith('//') && !path.includes('\0') && messageImageType(path) ? path : null;
   } catch { return null; }
 }
 
@@ -32,13 +30,6 @@ export function referencedImages(text) {
     if (path && !images.includes(path)) images.push(path);
   });
   return images;
-}
-
-function matchesType(bytes, type) {
-  if (type === 'image/png') return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-  if (type === 'image/jpeg') return bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-  if (type === 'image/gif') return ['GIF87a', 'GIF89a'].includes(bytes.toString('ascii', 0, 6));
-  return bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
 }
 
 // References are minted only from the visible history returned by the server.
@@ -84,33 +75,6 @@ export class MessageImages {
     const entry = this.entries.get(key);
     if (!entry || entry.threadId !== thread.id || resolve(thread.cwd || '') !== entry.root || Date.now() - entry.at > 3600000)
       throw new AppError('图片引用已过期，请刷新会话', 404);
-    let file;
-    try {
-      const root = await this.realpathFile(entry.root), path = await this.realpathFile(entry.path);
-      if (!inside(root, path)) throw new AppError('图片不在任务目录内', 403);
-      file = await this.openFile(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-      const stat = await file.stat();
-      if (!stat.isFile() || stat.size > MAX_BYTES || stat.size < 12)
-        throw new AppError('图片格式或大小暂不支持', 415);
-      if (await this.realpathFile(entry.path) !== path) throw new AppError('图片位置已变化，请刷新会话', 409);
-      const type = types[extname(entry.path).toLowerCase()];
-      const header = Buffer.alloc(12);
-      await file.read(header, 0, header.length, 0);
-      if (!matchesType(header, type)) throw new AppError('图片格式暂不支持', 415);
-      // Bound the read even if the file grows after stat().
-      const bytes = Buffer.alloc(stat.size);
-      let read = 0;
-      while (read < bytes.length) {
-        const result = await file.read(bytes, read, bytes.length - read, read);
-        if (!result.bytesRead) break;
-        read += result.bytesRead;
-      }
-      const after = await file.stat();
-      if (read !== stat.size || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || !matchesType(bytes, type))
-        throw new AppError('图片正在更新，请稍后重试', 409);
-      return { bytes, type };
-    } catch (error) {
-      throw messageImageReadError(error);
-    } finally { await file?.close(); }
+    return readMessageImage(entry, { openFile: this.openFile, realpathFile: this.realpathFile });
   }
 }

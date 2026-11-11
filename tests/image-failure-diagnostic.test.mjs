@@ -9,6 +9,22 @@ const permissionResponse = (body = permissionBody, headers = {}) => new Response
   headers: { 'Content-Type': 'application/json', 'X-Pocket-Machine': 'ged', ...headers } });
 const diagnose = response => diagnoseImageFailure(src, 'ged', new AbortController().signal, async () => response);
 
+test('registered file image diagnostics accept only the exact image view and retain the existing bounded protocol', async () => {
+  const fileImage = src.replace('/images/', '/files/') + '/image', calls = [];
+  assert.equal(await diagnoseImageFailure(fileImage, 'ged', new AbortController().signal, async (path, options) => {
+    calls.push({ path, options }); return permissionResponse();
+  }), 'permission');
+  assert.equal(calls.length, 1); assert.equal(calls[0].path, fileImage);
+  assert.equal(calls[0].options.cache, 'no-store'); assert.equal(calls[0].options.credentials, 'same-origin');
+  assert.equal(calls[0].options.headers.Accept, 'application/json');
+  let reads = 0;
+  for (const value of [fileImage.replace('/image', ''), fileImage + '?preview=1', fileImage + '#image', fileImage.replace('/image', '/preview'),
+    fileImage.replace('/image', '/video'), 'https://external.invalid' + fileImage, '/api/machines/wandou' + fileImage.slice(4)]) {
+    assert.equal(await diagnoseImageFailure(value, 'ged', new AbortController().signal, async () => { reads++; return permissionResponse(); }), null);
+  }
+  assert.equal(reads, 0);
+});
+
 test('image diagnostics read only the registered capability with current machine, same origin and version', async () => {
   const calls = [];
   const result = await diagnoseImageFailure(src, 'ged', new AbortController().signal, async (path, options) => {

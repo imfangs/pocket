@@ -51,7 +51,7 @@ for (const stage of ['root-realpath', 'image-realpath', 'open', 'read']) {
             const file = await open(value, flags);
             opened = true;
             return {
-              stat: () => file.stat(),
+              stat: options => file.stat(options),
               read: (...args) => {
                 if (stage === 'read') { failed = true; throw native; }
                 return file.read(...args);

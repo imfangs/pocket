@@ -1,16 +1,19 @@
 import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Image as ImageIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { isMessageVideo } from "../shared/message-media.mjs";
+import { isMessageImage, isMessageVideo } from "../shared/message-media.mjs";
 import type { MessageFileReference } from "./conversationFeed";
 import { checkMachineResponse, currentMachineId, machineApiPath, requireMachine, type MachineId } from "./machineScope";
 import TextFilePreview from "./TextFilePreview";
+import RichFilePreview from "./RichFilePreview";
+import { richFilePreviewKind } from "./filePreviewKind";
 import { messageFileTextFormat, textFileTooLarge } from "./messageFileText";
 import { decodeHtmlPreviewPayload, maxHtmlPreviewResponseBytes, type HtmlFileData } from "./htmlPreviewPayload";
 import { safeMessageFile } from "./messageFileReference";
 import MessageVideo from "./MessageVideo";
 import { clientVersionHeaders } from "./clientVersion";
+import { useImagePreview, useImagePreviewRegistration } from "./ImagePreviewProvider";
 import "./message-file.css";
 
 export { safeMessageFile, registeredMessageFile } from "./messageFileReference";
@@ -119,6 +122,12 @@ function MessageDocument({ file, threadId }: { file: MessageFileReference; threa
   }, [file.url, threadId]);
   const registered = file;
   const textPreview = messageFileTextFormat(registered.name) !== null;
+  const richPreview = richFilePreviewKind(registered.name);
+  const imagePreview = isMessageImage(registered.name), previewable = textPreview || imagePreview || richPreview !== null;
+  // MessageDocument only receives a safeMessageFile-validated capability.
+  // Filename classification never authorizes a raw file URL or local path.
+  const imageSrc = imagePreview ? registered.url + "/image" : "";
+  const openImage = useImagePreview(), imageRegistration = useImagePreviewRegistration(imageSrc, registered.name);
   const download = async (previewBlob?: Blob) => {
     if (active.current) return;
     // Save precisely the already-validated bytes the user is reading. This
@@ -139,21 +148,30 @@ function MessageDocument({ file, threadId }: { file: MessageFileReference; threa
       if (active.current === controller) { active.current = null; setPending(false); }
     }
   };
-  return <span className="message-file">
-    <button type="button" className="message-file-button" disabled={!textPreview && pending} aria-busy={!textPreview && pending || undefined}
-      aria-label={t("{{action}}：{{name}}", { action: textPreview ? t("预览文件") : pending ? t("正在下载") : t("下载文件"), name: registered.name })} onClick={event => {
-        if (textPreview) {
+  const card = <button type="button" className="message-file-button" disabled={!previewable && pending} aria-busy={!previewable && pending || undefined}
+      aria-haspopup={previewable ? "dialog" : undefined}
+      aria-label={t("{{action}}：{{name}}", { action: previewable ? t("预览文件") : pending ? t("正在下载") : t("下载文件"), name: registered.name })} onClick={event => {
+        if (imagePreview) openImage(imageSrc, registered.name, event.currentTarget);
+        else if (textPreview || richPreview) {
           try { setPreview({ opener: event.currentTarget, machine: requireMachine() }); } catch { setError("请选择电脑后继续。"); }
         } else void download();
       }}>
-      <AppIcon icon={FileText} kind="auxiliary" aria-hidden="true" />
+      <AppIcon icon={imagePreview ? ImageIcon : FileText} kind="auxiliary" aria-hidden="true" />
       <span className="message-file-name">{registered.name}</span>
-      <span className="message-file-action">{textPreview ? t("查看") : pending ? t("下载中…") : t("下载")}</span>
-      {!textPreview && <AppIcon icon={Download} kind="auxiliary" aria-hidden="true" />}
-    </button>
+      <span className="message-file-action">{previewable ? t("查看") : pending ? t("下载中…") : t("下载")}</span>
+      {!previewable && <AppIcon icon={Download} kind="auxiliary" aria-hidden="true" />}
+    </button>;
+  return <span ref={imagePreview ? imageRegistration : undefined} className="message-file">
+    {imagePreview ? <span className="message-file-image-actions">{card}
+      <button type="button" className="message-file-download" disabled={pending} aria-busy={pending || undefined}
+        aria-label={t("{{action}}：{{name}}", { action: pending ? t("正在下载") : t("下载文件"), name: registered.name })}
+        onClick={() => void download()}><AppIcon icon={Download} kind="action" aria-hidden="true" /></button>
+    </span> : card}
     {error && <span className="message-file-error" role="alert">{t(error)}</span>}
-    {preview && <TextFilePreview key={`${preview.machine}/${threadId}/${registered.url}/${registered.name}`} file={registered} threadId={threadId} machine={preview.machine} opener={preview.opener}
+    {preview && (richPreview ? <RichFilePreview key={`${preview.machine}/${threadId}/${registered.url}/${registered.name}`} file={registered} threadId={threadId} kind={richPreview} machine={preview.machine} opener={preview.opener}
+      onClose={() => setPreview(null)} readFile={fetchMessageFile} download={blob => void download(blob)} downloading={pending} downloadError={error} />
+      : <TextFilePreview key={`${preview.machine}/${threadId}/${registered.url}/${registered.name}`} file={registered} threadId={threadId} machine={preview.machine} opener={preview.opener}
       onClose={() => setPreview(null)} readFile={fetchMessageFile} readHtmlPreview={fetchMessageHtmlPreview}
-      download={blob => void download(blob)} downloading={pending} downloadError={error} />}
+      download={blob => void download(blob)} downloading={pending} downloadError={error} />)}
   </span>;
 }

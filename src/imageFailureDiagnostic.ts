@@ -3,7 +3,7 @@ import { checkMachineResponse, currentMachineId, machineApiPath, type MachineId 
 import { createRequestDeadline } from "./requestDeadline.ts";
 
 export const imageReadPermissionMessage = "Mac 服务无权读取这张图片，请在电脑上检查文件访问权限";
-const registeredImage = /^\/api\/tasks\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\/images\/[a-f0-9]{64}$/i;
+const registeredImage = /^\/api\/tasks\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\/(?:images\/[a-f0-9]{64}|files\/[a-f0-9]{64}\/image)$/i;
 const maxErrorBytes = 1024;
 
 // Only an already registered image that failed to decode may use this bounded

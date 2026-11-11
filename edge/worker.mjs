@@ -229,8 +229,9 @@ export default {
       const conditionalRead = request.method === "GET" && (pathname === "/api/catalog" ||
         /^\/api\/tasks\/[a-f0-9-]{36}\/(?:transcript|history)$/i.test(pathname));
       const conditionalSync = request.method === "POST" && pathname === "/api/sync";
-      const videoRead = ["GET", "HEAD"].includes(request.method) && url.searchParams.get("video") === "1" &&
-        /^\/api\/tasks\/[a-f0-9-]{36}\/files\/[a-f0-9]{64}$/i.test(pathname);
+      const videoRead = ["GET", "HEAD"].includes(request.method) && (url.searchParams.get("video") === "1" &&
+        /^\/api\/tasks\/[a-f0-9-]{36}\/files\/[a-f0-9]{64}$/i.test(pathname) ||
+        /^\/api\/tasks\/[a-f0-9-]{36}\/files\/[a-f0-9]{64}\/audio$/i.test(pathname));
       for (const key of [
         "Content-Type",
         ...(feedbackHook ? ["webhook-id", "webhook-timestamp", "webhook-signature"] : ["X-Navigator-Token"]),

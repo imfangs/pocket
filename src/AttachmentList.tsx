@@ -1,11 +1,11 @@
 import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { FileText, Image as ImageIcon, Paperclip, RefreshCw, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { attachmentSize, canRemoveLocalAttachment, safeAttachmentUrl, type AttachmentDraftController, type DraftAttachment, type PublicAttachment } from "./attachments";
 import "./attachments.css";
 import { machineApiPath } from "./machineScope";
-import { useImagePreview } from "./ImagePreviewProvider";
+import { ImagePreviewGroup, useImagePreview, useImagePreviewRegistration } from "./ImagePreviewProvider";
 import { readableRequestError } from "./requestError";
 
 function Preview({ attachment, image }: { attachment?: PublicAttachment; image: boolean }) {
@@ -15,23 +15,32 @@ function Preview({ attachment, image }: { attachment?: PublicAttachment; image: 
     : <span className="attachment-placeholder" aria-hidden="true">{image ? <AppIcon icon={ImageIcon} kind="auxiliary" /> : <AppIcon icon={FileText} kind="auxiliary" />}</span>;
 }
 
-export default function AttachmentList({ attachments = [] }: { attachments?: readonly PublicAttachment[] }) {
-  useLocale();
+function ImageAttachment({ attachment, url, children }: { attachment: PublicAttachment; url: string; children: ReactNode }) {
   const openImage = useImagePreview();
-  if (!attachments.length) return null;
+  const imageButton = useImagePreviewRegistration(url, attachment.name);
+  return <button ref={imageButton} type="button" className="attachment-card" data-attachment-id={attachment.id}
+    aria-haspopup="dialog" aria-label={t("查看大图：{{value0}}", { value0: attachment.name })}
+    onClick={event => openImage(url, attachment.name, event.currentTarget)}>{children}</button>;
+}
+
+function AttachmentCards({ attachments }: { attachments: readonly PublicAttachment[] }) {
+  useLocale();
   return <div className="attachment-list" aria-label={t("消息附件")}>
     {attachments.map(attachment => {
       const url = safeAttachmentUrl(attachment.url);
       const contents = <><Preview attachment={attachment} image={attachment.kind === "image"} /><span className="attachment-details">
         <span className="attachment-name" title={attachment.name}>{attachment.name}</span><small>{attachmentSize(attachment.size)}</small></span></>;
-      return url && attachment.kind === "image" ? <button type="button" className="attachment-card" key={attachment.id} data-attachment-id={attachment.id}
-        aria-haspopup="dialog" aria-label={t("查看大图：{{value0}}", { value0: attachment.name })}
-        onClick={event => openImage(url, attachment.name, event.currentTarget)}>{contents}</button>
+      return url && attachment.kind === "image" ? <ImageAttachment key={attachment.id} attachment={attachment} url={url}>{contents}</ImageAttachment>
         : url ? <a className="attachment-card" key={attachment.id} data-attachment-id={attachment.id} href={machineApiPath(url)} target="_blank" rel="noopener noreferrer"
         {...(attachment.kind === "file" ? { download: attachment.name } : {})} aria-label={t("查看附件 {{value0}}", { value0: attachment.name })}>{contents}</a>
         : <div className="attachment-card" key={attachment.id} data-attachment-id={attachment.id}>{contents}</div>;
     })}
   </div>;
+}
+
+export default function AttachmentList({ attachments = [] }: { attachments?: readonly PublicAttachment[] }) {
+  if (!attachments.length) return null;
+  return <ImagePreviewGroup fallback><AttachmentCards attachments={attachments} /></ImagePreviewGroup>;
 }
 
 const labels: Record<DraftAttachment["status"], string> = { queued: "等待上传", uploading: "上传中…", uploaded: "已上传", failed: "上传未完成", unknown: "结果待核对", removing: "正在移除…" };

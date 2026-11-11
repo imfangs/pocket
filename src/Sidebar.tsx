@@ -155,6 +155,16 @@ export default function Sidebar(p: Props) {
               <span>{tr("隐藏")}</span>
               <small className="sidebar-nav-count" aria-hidden="true">{counts.hidden}</small>
             </button>
+            <button
+              data-view="archived"
+              aria-label={tr("已归档")}
+              aria-current={p.view === "archived" ? "page" : undefined}
+              className={`nav-item ${p.view === "archived" ? "selected" : ""}`}
+              onClick={() => p.onView("archived")}
+            >
+              <AppIcon icon={Archive} kind="navigation" aria-hidden="true" />
+              <span>{tr("已归档")}</span>
+            </button>
           </nav>
           {projects.length > 0 && <nav className="sidebar-projects" aria-label={tr("项目")}>
             <p className="sidebar-projects-heading">{tr("项目")}</p>
@@ -181,22 +191,15 @@ export default function Sidebar(p: Props) {
         </div>
         <div className="sidebar-bottom">
           <div className="sidebar-tools">
-            <button
-              className={`nav-item ${p.view === "archived" ? "selected" : ""}`}
-              aria-current={p.view === "archived" ? "page" : undefined}
-              onClick={() => p.onView("archived")}
-            >
-              <AppIcon icon={Archive} kind="navigation" />
-              <span>{tr("已归档")}</span>
-            </button>
-            <IconButton type="button"
-              className="icon-button sidebar-settings"
+            <button type="button"
+              className="nav-item sidebar-settings"
               onClick={p.onSettings}
               aria-label={tr("设置")}
               title={tr("设置")}
             >
               <AppIcon icon={Settings2} kind="navigation" aria-hidden="true" />
-            </IconButton>
+              <span>{tr("设置")}</span>
+            </button>
           </div>
         </div>
       </aside>

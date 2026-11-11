@@ -4,6 +4,19 @@ import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync } from "node:fs";
 import { frontendVersion, versionManifest } from "./bin/build-version.mjs";
 const version = frontendVersion(fileURLToPath(new URL(".", import.meta.url)));
+function pdfSupportAssets() {
+  const assets = new Map<string, URL>();
+  const collect = (directory: URL, output: string) => {
+    for (const item of readdirSync(directory, { withFileTypes: true })) {
+      if (item.name === "quickjs-eval.wasm") continue;
+      if (item.isDirectory()) collect(new URL(item.name + "/", directory), `${output}/${item.name}`);
+      else if (item.isFile()) assets.set(`${output}/${item.name}`, new URL(item.name, directory));
+    }
+  };
+  const pdf = new URL("./node_modules/pdfjs-dist/", import.meta.url);
+  for (const directory of ["cmaps", "standard_fonts", "wasm"]) collect(new URL(directory + "/", pdf), `assets/pdfjs/${directory}`);
+  return assets;
+}
 export default defineConfig({
   plugins: [react(), versionManifest(version), {
     name: "feedback-third-party-notices",
@@ -14,6 +27,32 @@ export default defineConfig({
       const licenses = readdirSync(new URL("licenses/", base)).sort().map(name =>
         `\n\n${name}\n\n${readFileSync(new URL(`licenses/${name}`, base), "utf8")}`);
       this.emitFile({ type: "asset", fileName: "feedback-kit-notices.txt", source: notice + licenses.join("") });
+    },
+  }, {
+    name: "document-preview-assets",
+    configureServer(server) {
+      const assets = pdfSupportAssets();
+      server.middlewares.use((request, response, next) => {
+        let pathname: string;
+        try { pathname = decodeURIComponent(new URL(request.url || "/", "http://localhost").pathname).slice(1); }
+        catch { return next(); }
+        const asset = assets.get(pathname);
+        if (!asset || !["GET", "HEAD"].includes(request.method || "")) return next();
+        const bytes = readFileSync(asset);
+        response.setHeader("Content-Type", pathname.endsWith(".js") ? "text/javascript" : pathname.endsWith(".wasm") ? "application/wasm" : "application/octet-stream");
+        response.setHeader("Content-Length", bytes.length);
+        response.setHeader("X-Content-Type-Options", "nosniff");
+        response.end(request.method === "HEAD" ? undefined : bytes);
+      });
+    },
+    generateBundle() {
+      for (const [fileName, asset] of pdfSupportAssets()) this.emitFile({ type: "asset", fileName, source: readFileSync(asset) });
+      const sources = [
+        ["react-pdf", "LICENSE"], ["pdfjs-dist", "LICENSE"], ["mammoth", "LICENSE"], ["exceljs", "LICENSE"],
+        ["fast-xml-parser", "LICENSE"], ["dompurify", "LICENSE"], ["fflate-modern", "LICENSE"],
+      ];
+      const text = sources.map(([name, file]) => `\n${name}\n\n${readFileSync(new URL(`./node_modules/${name}/${file}`, import.meta.url), "utf8")}`).join("\n\n");
+      this.emitFile({ type: "asset", fileName: "document-preview-notices.txt", source: text });
     },
   }],
   define: { __POCKET_BUILD_ID__: JSON.stringify(version) },

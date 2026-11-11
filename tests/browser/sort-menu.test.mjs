@@ -200,7 +200,7 @@ for (const engine of engines) {
         const page = await h.open(null);
         for (const scope of ['archived', 'hidden']) {
           await page.locator('.workspace-header .mobile-only').click();
-          await page.locator(scope === 'hidden' ? '.sidebar.mobile-open [data-view="hidden"]' : '.sidebar.mobile-open .sidebar-tools > .nav-item').click();
+          await page.locator(`.sidebar.mobile-open [data-view="${scope}"]`).click();
           await page.waitForFunction(() => !document.querySelector('.sidebar.mobile-open'));
           assert.equal(await page.locator('.activity-filters .needs-input-toggle').count(), 0);
           assert.equal(await page.locator('.activity-filters > .thread-sort-trigger').count(), 1);
