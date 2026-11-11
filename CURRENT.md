@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-11。列表同步收成固定2px细线：实际请求动画、短暂失败／native不可读／过期只淡线，明确离线或3次／30秒且无可达列表读取才文字提示；原缓存运行、计数、排序和权限保持。源80452bf/buildf06716b2/Pages4305e937单次ready、38资源及独立回读一致；2286完整全绿、40专项／56相关同版浏览器和独立CR通过。仅共享网页，两机API仍格得6f／豌豆fc，离线接续包保持，无Mac服务或实际会话操作。
+维护日期：2026-11-11。本轮失败状态与活跃阅读预取已上线：列表呈现真实轮次失败，详情按原轮次展示原因；未读／运行正文定期预取，新缓存可先于打开后的实时响应接续旧正文。完整2338项、10专项与68相关浏览器全绿，独立CR通过；格得API9c577fa与网页源5550a4e/buildb8fb9714/Pagesf765406e已发布，38资源及功能通过。豌豆仍fc86637且离线，最新接续包保留；旧queued、凭据、偏好、订阅保持，Codex和connector未重启。
 
 ## 下一次先看
+
+- **失败原因与未读／运行正文预取已上线（2026-11-11）。** [实现与边界](docs/design/2026-11-11-failed-turns-and-live-prefetch.md)：实际「开曼 - 经营总控」两次服务繁忙失败原生／保存结构已只读核对，修复旧保存`task_complete.error`被当成功、列表终态归idle以及详情丢失原因；独立有界`turnFailures`按原轮次显示，不合成AI正文、不猜工具失败为整轮失败，当前运行／等待优先，后续重试保留前次原因。预取保持8候选／1并发，未读加权优先，运行约5秒／未读约30秒可重新调度，版本变化及时读取、运行结束再核对一次；常规目录poll不再取消正文读取，前台输入／发送／读取仍优先，隐藏／离线暂停。较新的已认证同scope缓存在本次实时响应前先展示，选区／输入／阅读意图保持，版本地板防目录追赶与淘汰导致3→2回退；后台不标读，可见且入场稳定后才记水位。2338全测、10失败与真实App/L1缓存交接浏览器、68相关回归及三个方向独立复核全绿。格得不可变API9c577fa一次切换、193 inactive测试／临时HTTP6项及保护数据回读通过，旧2条queued、凭据／偏好／订阅保持；只读真实native history保留2次原因；当前saved快读仅11条且未含旧失败，有界窗口是可能原因，未凭消息数断言唯一病因，不承诺所有旧失败始终在首窗口。共享网页源5550a4e/buildb8fb9714…/Pagesf765406e…单次exit0/ready、38/38与功能及独立version/profile/App JS一致。Codex／connector未重启，无实际发送、连接、停止或原数据修改；豌豆离线未上传／切换，接续`turn-failure-2026-11-11/api-deploy/wandou-continuation.json`。iPhone挂起不持续执行，第9个未读可能不在固定工作集，不承诺全部未读瞬开；证据`.local/qa/turn-failure-2026-11-11/verification.json`，无未决Pages上传。
 
 - **弱网列表反馈减轻已上线（2026-11-11）。** [静默同步](docs/design/2026-11-11-quiet-list-sync.md)：用户截图中44px反复提示收为固定2px槽，已读目录普通同步不自动播报；实际catalog/status pending才动画，重试等待静态，native HTTP200 unavailable／unknown／TTL不累积网络失败。明确offline立即提示；其它失败需单链3次／30秒且没有另一列表路由在失败后证明可达，pending保留失败链、真实success清除、后台/scope重置。旧挂起请求迟到timeout污染展示诊断的独立负例已修并通过，不改变原runtime／缓存权限。首屏无缓存恢复入口保持；旧活动/通知断言仅改展示契约。40专项（12新/8活动/20通知）、56发送/列表追加/来源浏览器和2286全测全绿；暂停虚拟时钟前2个边界设施错误保留。源80452bf/buildf06716b2…/Pages4305e937…单次exit0/ready、38/38与独立version/profile/App JS一致，实际iPhone弱网不作直接实测承诺。仅共享网页，无API/Codex/connector重启或模型操作；OAuth一次28scope续期，首次只读DNS失败后的verify重试GET200，无未决。证据`.local/qa/list-sync-feedback-2026-11-11/verification.json`，CR另browser-list-sync私有报告。
 
@@ -170,13 +172,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `80452bf44add405a1de81593074c1acd1efe2962`；列表读取展示诊断与细线反馈，仅共享网页 |
-| 两机API源码 | 格得`6f167c822e05d6bbbcd5d17de1b5ac2028265a27`/PID56098；豌豆仍`fc86637f601cc2e7024c5b80eae9250322341139`，11-11离线未切换；格得connector12894/Codex不动，远端旧PID仅历史线索 |
-| 前端build | 共享公网/本地dist `f06716b2d582f35a3a89ee797340352cfa9629e31ad1c5906b263c31ee8a3893`；格得API内置仍`26d70f40…`，豌豆仍`f9ac7165…` |
-| Pages部署 | `4305e937-7191-4d20-9e3b-ef2f65cd0444`；11-11单次上传exit0/ready、38/38资源和功能及独立version/profile/App JS一致 |
-| 本次验证 | 2286完整全绿；40专项与56相关同版浏览器、45读取/缓存/健康定向与独立复核通过；虚拟时钟暂停后30秒边界完整验证，实际iPhone弱网未直接采样 |
-| 本次证据 | `.local/qa/list-sync-feedback-2026-11-11/verification.json`、qa-verification、health/SSR原红例/设施纠错/浏览器与发布回读；独立CR在browser-list-sync |
-| 本次数据与运行 | 仅共享网页；未修改API、原数据、运行权限或实际发送，不调用owner／Mac生命周期。两机6f/fc保持，豌豆离线接续待后续；OAuth单次续期及只读DNS失败重验成功，无未决 |
+| 公网前端/网关源码 | `5550a4e86fe8c8bda263fec3b4788488337371e5`；真实失败呈现与活跃阅读预取，保留细线同步反馈 |
+| 两机API源码 | 格得`9c577fac34c3d6c5c8ff9c985231a2ffaa4566ee`/PID28785；豌豆仍`fc86637f601cc2e7024c5b80eae9250322341139`，11-11离线未切换；格得connector12894/Codex不动，远端旧PID仅历史线索 |
+| 前端build | 共享公网/本地dist及格得API内置 `b8fb97146d4c41206192c518961c72391437bb4637f29bfcae8e9e52fd31c36b`；豌豆仍`f9ac7165…` |
+| Pages部署 | `f765406e-6b6c-4b25-8f49-345611cbb98c`；11-11单次上传exit0/ready、38/38资源和功能及独立version/profile/App JS一致 |
+| 本次验证 | 2338完整全绿；10失败／真实App缓存交接与68相关同版浏览器、后端118／预取56／不可变API193及独立CR通过；实际iPhone挂起与全部未读瞬开未实测 |
+| 本次证据 | `.local/qa/turn-failure-2026-11-11/verification.json`、实际失败结构／部署只读回读、三个方向CR、完整／浏览器／API测试及Pages回执 |
+| 本次数据与运行 | 格得API一次数据安全切换及共享网页发布；旧2条queued、凭据／偏好／订阅保持，Codex／connector未重启，无模型请求重放或原数据修改。豌豆离线，最新接续包保留；OAuth单次28scope续期及账号／项目GET200，无未决 |
 
 上述最新发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；旧发布与详细描述沿对应设计记录及[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)回溯。
 
@@ -189,7 +191,7 @@
 | 阅读与输入 | 默认单条输入栏，展开保留原textarea、草稿、选区和IME；错误在对应卡片/输入条内轻量呈现。见[单条输入栏](docs/design/2026-10-13-reading-composer-and-row-state.md)、[反馈收敛](docs/design/2026-10-22-reading-errors-and-sort.md) |
 | 导航与排序 | 分类/项目、状态、排序是独立维度。全部/关注/置顶保持；Pocket关注与Codex置顶独立。创建按创建时间，活动及列表显示时间按最后消息时间，不能用点击时间冒充。见[智能排序](docs/design/2026-10-14-smart-navigation.md) |
 | 多机与模型 | 电脑信息只在设置，记住选择，原owner/目录/模型/权限不跨机。支持同型号思考强度；新建保留目标桌面的有效默认强度，不能统一硬编码Ultra。跨型号仍未开放。见[多机](docs/design/2026-10-17-multi-machine.md)、[模型](docs/design/2026-10-18-model-settings.md) |
-| 发送与缓存 | 自动直接发送默认开，只影响新提交并逐条保存策略；旧队列不升级，未知不重放。状态预取最多32项，正文固定8候选/1并发，当前交互优先；不后台连接或标读。见[直发](docs/design/2026-10-22-auto-direct-send.md)、[预取](docs/design/2026-10-22-active-thread-prefetch.md) |
+| 发送与缓存 | 自动直接发送默认开，只影响新提交并逐条保存策略；旧队列不升级，未知不重放。状态预取最多32项，正文固定8候选/1并发，未读加权，运行约5秒／未读约30秒可再次验证，当前交互优先；较新缓存可先于实时响应展示，后台不连接或标读。见[直发](docs/design/2026-10-22-auto-direct-send.md)、[预取](docs/design/2026-10-22-active-thread-prefetch.md)、[活跃阅读接续](docs/design/2026-11-11-failed-turns-and-live-prefetch.md) |
 | 消息与附件 | 用户长Query可展开；文件引用与Codex标记走统一受控解析。附件、下载、发送回执不借阅读缓存扩大权限。见[消息组件](docs/design/2026-10-22-message-components.md)、[附件](docs/design/2026-10-10-attachments.md) |
 
 其它功能和代码路由只在[AGENTS](AGENTS.md)维护；能力对照见[DESKTOP-PARITY](docs/DESKTOP-PARITY.md)。
@@ -217,7 +219,7 @@
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；API用稳定`config/local-service.json`（指向不可变release）和FBT local。个人Pages更新必须用`.local/compatibility/oss-preparation-2026-11-04/pages-site-compatible.json`，它显式引导ged/wandou profile；不要裸用通用build默认local覆盖现有站点。源代码内公开模板不含私人profile。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 格得当前6f167c8 release复用fc86637所指的9e7不可变依赖，324个生产包无更动；直接回退fc86637及依赖祖先继续保留。豌豆仍fc86637。本轮切换/停机备份/逐条保护在`stage-cr-2026-11-11/api-deploy/`，清理前按实际软链重新核验，不按日期删除。
+- 格得当前9c577fa release复用9e7不可变依赖，324个生产包无更动；直接回退6f167c8及依赖祖先继续保留。豌豆仍fc86637。本轮切换／停机备份／逐条保护和最新远端接续包在`turn-failure-2026-11-11/api-deploy/`，旧stage-cr转移包由新包替代，旧回执保持；清理前按实际软链重新核验，不按日期删除。
 - Pages认证失败先按[FBT认证恢复](/Users/fangs/workspace/fbt/workflows/pages-site/docs/auth-recovery.md)识别生效来源与未决记录，恢复后核对上传阶段；已上传但验证未过使用原部署 `resume --resume-verification`。不要用可能隐式续期的whoami试探未知refresh。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。
