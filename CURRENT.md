@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-11。本地图片权限提示与重试保护已上线：实际图片引用与目录正确，但后台Node被macOS拒绝读取文稿；权限错误改为明确403，失败卡中英解释原因，旧诊断不覆盖新重试或其他会话。格得API0f1e0d2与网页源d27060d/builda71da0ae/Pages2cbfa6c6单次发布，38资源及功能通过；2364全测／24浏览器／217不可变API测试和独立CR通过。目标图实际仍403，文稿授权待本人开启，不能称图片已恢复。原失败展示／活跃预取保持；旧2queued、凭据、偏好、订阅保持，Codex／connector未重启。豌豆未更新，最新离线接续包保留。
+维护日期：2026-11-12。常见文件预览、同消息图库和归档分类入口已上线：普通JPG文件卡可预览并下载，PDF/SVG/现代Office/ZIP/音频按类型展示；图片左右切换保留缩放、焦点与阅读，归档回上方分类、底部只设置。源e9a5529/API26770、网页978d80e/buildc7be8a18/Pages5afc4f01；2484全测、102同版浏览器、284不可变API和243资源回读通过。实际指定JPEG预览200/50294字节等于原件并正常解码；旧2queued及凭据/偏好/订阅保持，Codex/connector未重启。此前Documents目录许可仍待本人，豌豆未更新，最新接续包保留。
 
 ## 下一次先看
+
+- **常见文件链接与同消息图库已上线（2026-11-12）。** [契约与格式](docs/design/2026-11-12-common-file-previews.md)：实际指定JPEG普通file link旧版仅下载，原件原本200；新files/image复用登记能力、格式/8MiB/签名/目录/inode核对，实际新端点200/image/jpeg/50294字节等于原件，浏览器解码1100×904。正文图／图片文件卡／附件按单消息注册、顺序／去重／scope／32窗口快照；单指原比横滑48px切图、放大拖动仍平移，按钮/键盘/张数、加载失败可切走，同dialog／旧图事件／读节点／草稿／IME／回焦保持。归档移上方分类无数量，底部设置图标+文字；原筛选和归档处理不变。PDF惰性同源Worker/CMap/字体与画布预算、静态SVG、现代Office有界Worker内容/ZIP目录、nativeaudio受控512MiB Range生命周期，原下载/HTML/文本/视频保持。新增库仅前端dev构建依赖，324 API生产图不变；定向补丁后npm audit0。14Office／6PDFSVG专项及独立资源CR，媒体短EOF漏helperP2修复409并独立复验；开发PDF资产和模块MIME也已实证修复。最终2484全绿、102同版浏览器(图库/分类32+旧52+JPG8+PDFSVG音频4+Office6)、284 inactiveAPI/临时HTTP通过，无skip。JPEG/PDF/SVG旧断言、WebKit焦点/Blob/媒体request分类、loading图缓存与toolbar SVG计数等设施错误分别保留。格得不可变APIe9a5529一次保护切换/PID26770，旧2queued、凭据／偏好／订阅及原所有者保持；网页源978d80e/buildc7be8a18…/Pages5afc4f01…单次ready、243/243资源/功能与独立version/profile/App/PDFWorker/CMap正常DNS/TLS哈希一致，重build全部246文件与已测release逐字节相同。urllib静态读取被HTTP拒绝的传输对照单独保存，未重传。无模型消息／真实归档／Codex源或系统授权修改，Codex/connector不重启；此前Documents图仍待本人授权，Office为内容预览，物理iPhone/全部codec不作保证。证据`.local/qa/file-previews-2026-11-12/verification.json`；豌豆原fc未连接更新，最新`api-deploy/wandou-continuation.json`完整包替代旧0f传输包，无未决Pages。
 
 - **图片权限原因与重试提示已上线，实际访问待本人授权（2026-11-11）。** [图片契约](docs/IMAGES.md#mac-文件访问权限)：实际目标catalog cwd正确、两路正文有图片引用，828274字节PNG在前台读取成功，原后台两路GET均404；对应PID与实际Node的TCC DocumentsFolder请求明确authValue0，排除引用／目录／容量问题，但不据此猜测旧版Node是否曾授权。EPERM/EACCES现在403＋固定原因，其他原生失败仍404，原403／415／409保持，路径／errno不出站。只有已登记图片加载失败后才一次3秒／1KiB有界诊断，scope／响应机器／客户端版本保持，成功body取消；重试／切会话／卸载使旧诊断失效，中英原地提示，原查看器与输入／选区保持。旧16浏览器负例全部失败→最终20专项＋4既有查看器回归同build通过，2364全测／217 inactiveAPI／6临时HTTP及独立CR绿；4项无关URL期待纠正单独保留。格得API0f1e0d2/PID48040一次保护切换，原2queued和凭据／偏好／订阅保持；目标最新GET已只读确认403明确原因，**目录权限未报告开启，未恢复200，不要把提示改进当成图片修好**。需要本人在Mac「文件与文件夹」核对实际Node并允许文稿，若列表没有则继续实际授权入口调查，不改TCC库或扩大图片根。共享网页源d27060d/builda71da0ae…/Pages2cbfa6c6…单次ready、38/38与功能及独立version/profile/App JS一致。无Codex／connector重启或原会话／模型发送；证据`.local/qa/local-visual-2026-11-11/verification.json`。豌豆仍fc未升级，最新接续`api-deploy/wandou-continuation.json`，旧9c转移包由本轮完整包替代。
 
@@ -174,13 +176,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `d27060dbc863598ff091fd5a18d97220fd901b89`；图片权限提示与重试保护，原失败／活跃预取／细线反馈保持 |
-| 两机API源码 | 格得`0f1e0d23f8bf952466af1e7acef1643cb93bba93`/PID48040；豌豆仍`fc86637f601cc2e7024c5b80eae9250322341139`，11-11离线后本轮未连接／切换；格得connector12894/Codex不动，远端旧PID仅历史线索 |
-| 前端build | 共享公网/本地dist及格得API内置 `a71da0ae7e3fb3f8d3f085d4aa4f42eb2e575cda244d067a235d73629aa268ad`；豌豆仍`f9ac7165…` |
-| Pages部署 | `2cbfa6c6-3404-4ebf-8ad1-82fd359887c9`；单次上传exit0/ready、38/38资源和功能及独立version/profile/App JS一致 |
-| 本次验证 | 2364完整全绿；20权限／语言／重试／切会话专项＋4既有查看器回归同版浏览器、37图片定向／217不可变API测试及独立CR通过；实际目标仍403待目录许可，真实iPhone及授权后200未验证 |
-| 本次证据 | `.local/qa/local-visual-2026-11-11/verification.json`、目标登记／直接与后台读取差异／精确TCC拒绝、原红例／设施纠错／独立CR／API与Pages回执 |
-| 本次数据与运行 | 格得API一次数据安全切换及共享网页发布；旧2条queued、凭据／偏好／订阅保持，Codex／connector未重启，无模型请求重放／原数据／系统权限修改。豌豆未连接、最新离线接续包保留；OAuth单次28scope续期及账号／项目GET200，无未决 |
+| 公网前端/网关源码 | `978d80ea7e3a51388ce687a0f7af780be53a3735`；同消息图库／常见文件预览／归档分类，原状态预取与弱网反馈保持 |
+| 两机API源码 | 格得`e9a552913d33be8e36c25af09bfbd10ae7eab914`/PID26770；豌豆仍`fc86637f601cc2e7024c5b80eae9250322341139`，本轮未连接或切换；格得connector12894/Codex不动 |
+| 前端build | 共享公网/本地dist及格得API内置 `c7be8a180c72a73c82abc4cfb2609743c9ddcc42dbbbaa07689bae14f9b65219`；豌豆内置仍`f9ac7165…` |
+| Pages部署 | `5afc4f01-32c3-4543-8bdb-ba1047bf39f4`；单次上传exit0/ready、243/243资源/功能、独立五资源哈希一致 |
+| 本次验证 | 2484完整全绿、102同版浏览器、284不可变API、真实JPEG200/bytes/hash/解码、独立CR/开发资产/module MIME/资源预算验证；物理iPhone及全部原生codec另验 |
+| 本次证据 | `.local/qa/file-previews-2026-11-12/verification.json`、actual-jpg-preview/decode、独立CR、原红例/设施对照、API与Pages/静态回执；图库及菜单早期证据留image-gallery-2026-11-12 |
+| 本次数据与运行 | 格得API一次保护切换及网页单次发布；旧2queued/凭据/偏好/订阅保持，Codex/connector未重启，无真实发送/归档/源数据/目录授权修改。豌豆未连接、最新完整接续包保留；OAuth原有效仅verify，无本轮续期或未决 |
 
 上述最新发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；旧发布与详细描述沿对应设计记录及[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)回溯。
 
@@ -222,7 +224,7 @@
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；API用稳定`config/local-service.json`（指向不可变release）和FBT local。个人Pages更新必须用`.local/compatibility/oss-preparation-2026-11-04/pages-site-compatible.json`，它显式引导ged/wandou profile；不要裸用通用build默认local覆盖现有站点。源代码内公开模板不含私人profile。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 格得当前0f1e0d2 release复用9e7不可变依赖，324个生产包无更动；直接回退9c577fa及依赖祖先继续保留。豌豆仍fc86637。本轮切换／停机备份／逐条保护和最新远端接续包在`local-visual-2026-11-11/api-deploy/`，旧turn-failure转移包由新包替代，旧回执保持；清理前按实际软链重新核验，不按日期删除。
+- 格得当前e9a5529 release复用9e7不可变依赖，324个生产包无更动；直接回退0f1e0d2及依赖祖先继续保留。豌豆仍fc86637。本轮切换／停机备份／逐条保护和最新远端接续包在`file-previews-2026-11-12/api-deploy/`，旧local-visual转移包由新包替代，旧回执保持；清理前按实际软链重新核验，不按日期删除。
 - Pages认证失败先按[FBT认证恢复](/Users/fangs/workspace/fbt/workflows/pages-site/docs/auth-recovery.md)识别生效来源与未决记录，恢复后核对上传阶段；已上传但验证未过使用原部署 `resume --resume-verification`。不要用可能隐式续期的whoami试探未知refresh。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。
