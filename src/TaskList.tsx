@@ -20,6 +20,7 @@ import type { TaskStatus } from "./taskStatuses";
 import SwipeTaskRow from "./SwipeTaskRow";
 import { bindTaskListMotion } from "./taskListMotion";
 import { bindListInteraction, heldListRows } from "./listInteraction";
+import { bindListLoadMore } from "./listLoadMore";
 import { inspectorEntryFromClick, type InspectorEntryOrigin } from "./inspectorFocus";
 import type { CreationCue } from "./creationList";
 import "./task-list-status.css";
@@ -100,7 +101,7 @@ export default function TaskList(p: Props) {
     return () => { control.dispose(); interaction.current = null; };
   }, []);
   useLayoutEffect(() => { interaction.current?.scopeChanged(); }, [scope]);
-  const anchor = useRef<{ scope: string; id: string; offset: number } | null>(null);
+  const anchor = useRef<{ scope: string; id: string; offset: number; scrollTop: number } | null>(null);
   useLayoutEffect(() => {
     if (!list.current) return;
     const controller = bindTaskListMotion(list.current);
@@ -113,8 +114,42 @@ export default function TaskList(p: Props) {
     if (panel.scrollTop < 1) { anchor.current = null; return; }
     const top = panel.getBoundingClientRect().top;
     const first = [...root.querySelectorAll<HTMLElement>("[data-thread-id]")].find(node => node.getBoundingClientRect().bottom > top);
-    anchor.current = first ? { scope, id: first.dataset.threadId!, offset: first.getBoundingClientRect().top - top } : null;
+    anchor.current = first ? { scope, id: first.dataset.threadId!, offset: first.getBoundingClientRect().top - top, scrollTop: panel.scrollTop } : null;
   }, [scope]);
+  // A user may continue reading between a paging update and its DOM commit.
+  // Capture that new position before layout, not the browser's later clamp.
+  const panelBeforeCommit = list.current?.closest<HTMLElement>(".list-panel");
+  if (anchor.current?.scope === scope && panelBeforeCommit && Math.abs(panelBeforeCommit.scrollTop - anchor.current.scrollTop) > 2) {
+    anchor.current = null;
+    rememberAnchor();
+  }
+  const appendMore = useCallback(() => {
+    if (latest.current.scope !== scope) return;
+    rememberAnchor();
+    setLimits(previous => {
+      if ((previous.get(scope) ?? 80) !== limit || p.threads.length <= limit) return previous;
+      const next = new Map(previous);
+      next.delete(scope); next.set(scope, limit + 80);
+      if (next.size > 10) next.delete(next.keys().next().value!);
+      return next;
+    });
+  }, [scope, limit, p.threads.length, rememberAnchor]);
+  const paging = useRef({ scope, limit, more: p.threads.length > limit, held: !!held, blocked: p.busy || !!pendingId || !!openRowId, appendMore });
+  paging.current = { scope, limit, more: p.threads.length > limit, held: !!held, blocked: p.busy || !!pendingId || !!openRowId, appendMore };
+  const loadMore = useRef<ReturnType<typeof bindListLoadMore> | null>(null);
+  useEffect(() => {
+    const panel = list.current?.closest<HTMLElement>(".list-panel");
+    if (!panel) return;
+    const binding = bindListLoadMore(panel, {
+      pageKey: () => JSON.stringify([paging.current.scope, paging.current.limit]),
+      canLoad: () => paging.current.more && !paging.current.blocked,
+      waitForLayout: () => paging.current.held || !!motion.current?.isMoving(),
+      load: () => paging.current.appendMore(),
+    });
+    loadMore.current = binding;
+    return () => { binding(); if (loadMore.current === binding) loadMore.current = null; };
+  }, []);
+  useLayoutEffect(() => { loadMore.current?.cancel(); }, [scope]);
   useEffect(() => {
     const panel = list.current?.closest<HTMLElement>(".list-panel");
     let frame = 0;
@@ -372,12 +407,7 @@ export default function TaskList(p: Props) {
           {p.threads.length > limit && (
             <button
               className="load-more"
-              onClick={() => setLimits(previous => {
-                const next = new Map(previous);
-                next.delete(scope); next.set(scope, limit + 80);
-                if (next.size > 10) next.delete(next.keys().next().value!);
-                return next;
-              })}
+              onClick={appendMore}
             >{tr("显示更多 · 还有 {{count}} 条", { count: p.threads.length - limit })}</button>
           )}
         </div>
