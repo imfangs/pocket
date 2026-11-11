@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-11。一轮代码库CR与重构完成：新建输入退休、阅读投影、发送运输及历史控制回执职责集中；修复过期／取消输入遗留、缓存阅读不标读、迟到关注和审批／压缩时序，统一请求预算并保留190秒上传。关联根会话取消归档明确拒绝扩大范围，独立／叶恢复保持。源码6f167c8，网页源090869e/build26d70f40，Pagesf6cde136 ready/38资源与独立回读通过；最终2268全测全绿、30同版浏览器及此前114宽回归通过。格得API56098已更新且凭据／偏好／两条待发／订阅保持，Codex和connector未重启；豌豆已多路确认离线，仍fc86637，接续包保留，没有远端上传或切换。
+维护日期：2026-11-11。列表尾部继续上滑／滚轮自动增加80条，同scope记住已展开数量；按压／动效后复核，恢复／刷新无意图不自行翻页，旧滚动锚点让位于新位置，手动按钮保持。网页源7121f9c/builddfe23629，Pages2a3fc830单次ready/38资源及独立回读通过。2276完整全绿、14专项与46相关同版浏览器及32纯测通过；仅共享网页，两机API仍格得6f167c8／豌豆fc86637，豌豆离线更新接续包保留，未重启服务或实际操作会话。
 
 ## 下一次先看
+
+- **列表底部上滑加载更多已上线（2026-11-11）。** [列表展开](docs/design/2026-11-11-list-load-more.md)：已认证目录每次明确向下阅读意图加80，96px触底范围／手势安静后读取，按压与动效先稳定；scope＋limit防一手势两批，恢复／轮询／刷新／选择／横滑／inert不误加载。滚动根、原行节点与焦点保持，按钮备用及10个scope窗口仍在。同步锚点与提交前新滚动接管，真实React旧版回拉200px→修复保持；慢150ms滚轮漏触底负例也修复。14永久浏览器旧2过12失败／同版14通过、46发送/返回/弱网列表、32相关纯测与2276完整全绿；手机触摸为合成，WebKit wheel桌面缩390，真机惯性仍待使用。源7121f9c/builddfe23629…/Pages2a3fc830…单次exit0/ready、38/38与独立version/profile/App JS一致，只改共享网页；无新owner/来源导入或Mac API操作。可变QA默认报告路径误写已迁回并用未改的历史frozen文件恢复，原默认字节未冒称找回；细节在本轮私有note。证据`.local/qa/list-load-more-2026-11-11/verification.json`，无未决上传。
 
 - **代码库CR与职责集中已完成（2026-11-11）。** [审查与取舍](docs/design/2026-11-11-codebase-review-refactor.md)：creationArrival统一临时输入与固定确认期限，明确取消／关闭预填也释放无入口副本；阅读模型集中纯投影和精确缓存水位，raw回执／权限保持。HTTP25秒／消息18秒／旧回执10秒，附件显式190秒；未知不重放，后续接受优先。关注来源检查与原统一修订保护并存；HistoryActionReconciler捕获读取起点的accepted／unknown，只用负向证据核对已有操作，pending留自身RPC。root-only恢复有子会话或未知图时明确拒绝，真实叶／独立恢复仍通过；无原生图CAS保证，不称完整解决原生能力。最终2268全测全绿、30同版浏览器／此前114宽回归／三个方向复核／179不可变API测试／临时端口HTTP通过；同来源关注修订误报经完整setter回读撤回，测试设施失败单独保留。API源码6f167c8／web090869e/build26d70f40…／Pagesf6cde136…单次上传ready、38/38与独立version/profile/App JS一致。格得一次API切换、两条旧queued和凭据/偏好/订阅保持，Codex/connector未重启；豌豆Tailscale Online=false、SSH banner超时与relay离线，未上传/切换。私有总验收`.local/qa/stage-cr-2026-11-11/verification.json`；远端接续`api-deploy/wandou-continuation.json`，保留同SHA13.8MB包，上线前先复核源与数据；无未决Pages操作。
 
@@ -166,13 +168,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | `090869e1dea46b3da9b31280c2fd4a80d723e9e8`；运行时来自已审查源码`6f167c822e05d6bbbcd5d17de1b5ac2028265a27`，差别仅格得服务选版 |
+| 公网前端/网关源码 | `7121f9c9afa5e361a905da4a0e585f70ab284abc`；列表明确阅读意图展开与新滚动接管，仅共享网页 |
 | 两机API源码 | 格得`6f167c822e05d6bbbcd5d17de1b5ac2028265a27`/PID56098；豌豆仍`fc86637f601cc2e7024c5b80eae9250322341139`，11-11离线未切换；格得connector12894/Codex不动，远端旧PID仅历史线索 |
-| 前端build | 共享公网／本地dist及格得release `26d70f40d8956eebee2893fc5f85fa889128d675dc38aceab84b58e4d864b49f`；豌豆API内置仍`f9ac7165…` |
-| Pages部署 | `f6cde136-d135-44a9-9f6e-8adaeafdb130`；11-11单次上传exit0/ready、38/38资源和功能及独立version/profile/App JS一致 |
-| 本次验证 | 最终2268完整检查全绿；最终同版30浏览器（新建/阅读/来源/中英）通过，较早编译版114发送/返回/运行/结构/提问/阅读宽回归分版保留。179不可变API测试、临时端口HTTP、独立复核通过；真机弱网与长上传不作实测承诺 |
-| 本次证据 | `.local/qa/stage-cr-2026-11-11/verification.json`、API预备/切换/独立只读与Pages/public回读；前端退休私有证据另`.local/qa/codebase-cr-2026-11-11/frontend/`，原红例和纠错记录保留 |
-| 本次数据与运行 | 格得API与共享网页更新，旧queued2、凭据/偏好/订阅保持，不恢复业务备份、不操作原会话/Codex/connector。豌豆离线未触及；OAuth单次28scope续期并验证目标，无未决上传 |
+| 前端build | 共享公网/本地dist `dfe236293234cd9f0585de2b46a1fe8d59a871245b0fc473926ea80827952d01`；格得API内置仍`26d70f40…`，豌豆仍`f9ac7165…` |
+| Pages部署 | `2a3fc830-065f-440d-b10e-69c5a65c89f5`；11-11单次上传exit0/ready、38/38资源和功能及独立version/profile/App JS一致 |
+| 本次验证 | 2276完整全绿、14专项和46相关同版浏览器、32手势/列表纯测、独立真实React旧竞态/固定版CR通过；iPhone惯性未实测 |
+| 本次证据 | `.local/qa/list-load-more-2026-11-11/verification.json`、qa-verification、anchor-commit负例/永久回归/独立CR及发布/公网回读；设施错误另记 |
+| 本次数据与运行 | 仅共享网页；无新来源范围/owner/实际发送/服务生命周期或原数据修改。格得6f和豌豆fc不变，远端仍待离线接续；OAuth有效无续期/未决 |
 
 上述最新发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；旧发布与详细描述沿对应设计记录及[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)回溯。
 
