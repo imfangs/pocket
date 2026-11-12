@@ -21,13 +21,13 @@ const exceeded = () => new AppError('这份会话历史超过了单次读取限�
 const finite = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 const validId = value => typeof value === 'string' && value.length <= 1024;
 
-async function sourceFor(codexHome, threadId) {
+async function sourceFor(codexHome, threadId, signal) {
   const db = new DatabaseSync(join(codexHome, 'state_5.sqlite'), { readOnly: true });
   let row;
   try { row = db.prepare('SELECT rollout_path FROM threads WHERE id=?').get(threadId); }
   finally { db.close(); }
   if (!row?.rollout_path) throw new AppError('暂时没有可读取的会话历史', 404);
-  return resolveHistorySource({ filePath: row.rollout_path, codexHome, threadId }, { limits: sourceLimits });
+  return resolveHistorySource({ filePath: row.rollout_path, codexHome, threadId }, { limits: sourceLimits, signal });
 }
 
 function prune() {
@@ -70,7 +70,7 @@ function decodeCursor(value) {
 
 // Keep only record positions and display metadata. Raw text exists for one
 // bounded record, and for the last assistant while resolving compacted wrappers.
-async function indexSource(source, prefixEnd = null) {
+async function indexSource(source, prefixEnd = null, signal) {
   const rows = [], nativeIds = new Set(), summaries = new Set(), responses = new Map(), turns = new Map();
   let currentTurn = null, lastAssistant = null, records = 0, indexBytes = 0;
   let parts = [], length = 0, offset = 0, byteEnd = 0;
@@ -132,7 +132,7 @@ async function indexSource(source, prefixEnd = null) {
     if (indexBytes > limits.maxIndexBytes || responses.size + nativeIds.size + turns.size + summaries.size > limits.maxReferences)
       throw exceeded();
   }
-  for await (const chunk of iterateHistoryChunks(source, { limits: sourceLimits })) {
+  for await (const chunk of iterateHistoryChunks(source, { limits: sourceLimits, signal })) {
     hash.update(chunk);
     if (prefixHash && byteEnd < prefixEnd) prefixHash.update(chunk.subarray(0, Math.min(chunk.length, prefixEnd - byteEnd)));
     byteEnd += chunk.length;
@@ -161,22 +161,22 @@ async function indexSource(source, prefixEnd = null) {
     hash: hash.digest('hex'), prefixHash: prefixHash?.digest('hex'), validatedVersion: source.version, usedAt: Date.now() };
 }
 
-async function page({ codexHome, threadId, before: token, limit }) {
+async function page({ codexHome, threadId, before: token, limit }, signal) {
   prune();
   const position = token ? decodeCursor(token) : null;
   let snapshot = position ? snapshots.get(position.key) : null;
   if (position && (!snapshot || snapshot.source.threadId !== threadId)) throw changed();
-  const source = await sourceFor(codexHome, threadId);
+  const source = await sourceFor(codexHome, threadId, signal);
   if (position && (snapshot.source.codexHome !== source.codexHome || snapshot.source.identity !== source.identity)) throw changed();
   if (!snapshot) snapshot = [...snapshots.values()].find(value => value.source.threadId === threadId &&
     value.source.codexHome === source.codexHome && value.source.identity === source.identity && value.source.version === source.version);
-  if (!snapshot) snapshot = await indexSource(source);
+  if (!snapshot) snapshot = await indexSource(source, null, signal);
   else if (snapshot.validatedVersion !== source.version) {
     // A larger file is not sufficient proof of append-only history. Verify its
     // entire old prefix in the worker, and refresh cross-boundary visibility so
     // a newly appended compacted event cannot expose an older internal summary.
     if (source.compression !== 'none' || source.size <= snapshot.source.size) throw changed();
-    const current = await indexSource(source, snapshot.byteEnd);
+    const current = await indexSource(source, snapshot.byteEnd, signal);
     if (current.prefixHash !== snapshot.hash || current.byteEnd < snapshot.byteEnd) throw changed();
     snapshot.messages = current.messages.filter(row => row.offset < snapshot.byteEnd);
     snapshot.validatedVersion = source.version;
@@ -193,7 +193,7 @@ async function page({ codexHome, threadId, before: token, limit }) {
   }
   selected.reverse();
   const buffers = await readHistoryRanges(source, selected.map(row => ({ startOffset: row.offset, endOffset: row.offset + row.length })),
-    { limits: sourceLimits });
+    { limits: sourceLimits, signal });
   const messages = selected.map((row, index) => {
     let record;
     try { record = JSON.parse(buffers[index].toString('utf8')); }
@@ -205,17 +205,18 @@ async function page({ codexHome, threadId, before: token, limit }) {
     return { ...message, text: text.slice(0, 24000), truncated: text.length > 24000,
       ...(text.length <= 24000 && attachmentPaths?.length ? { attachmentPaths } : {}) };
   });
+  signal.throwIfAborted();
   retain(snapshot);
   const hasMore = selected.length > 0 && start > 0;
   return { source: 'rollout', messages, hasMore, nextCursor: hasMore ? cursor(snapshot, selected[0].offset) : null,
     page: { kind: token ? 'older' : 'recent' } };
 }
 
-async function recent({ codexHome, threadId }) {
-  const source = await sourceFor(codexHome, threadId);
+async function recent({ codexHome, threadId }, signal) {
+  const source = await sourceFor(codexHome, threadId, signal);
   const tail = [], maximum = 4 * 1024 * 1024 + 1;
   let kept = 0, size = 0;
-  for await (const chunk of iterateHistoryChunks(source, { limits: sourceLimits })) {
+  for await (const chunk of iterateHistoryChunks(source, { limits: sourceLimits, signal })) {
     tail.push(chunk); kept += chunk.length; size += chunk.length;
     while (kept > maximum) {
       const remove = Math.min(tail[0].length, kept - maximum);
@@ -239,15 +240,24 @@ async function recent({ codexHome, threadId }) {
 // Stream/decode work is async, but its per-source indexes and memory budget are
 // shared: serialize requests inside this worker as well as bounding the queue.
 let active = Promise.resolve();
+const jobs = new Map();
 parentPort.on('message', request => {
+  if (request.kind === 'cancel') {
+    jobs.get(request.id)?.abort(new AppError('会话历史读取已取消', 499));
+    return;
+  }
+  const controller = new AbortController();
+  jobs.set(request.id, controller);
   active = active.then(async () => {
     try {
+      controller.signal.throwIfAborted();
       parentPort.postMessage({ id: request.id, ...(request.kind === 'recent'
-        ? await recent(request) : { data: await page(request) }) });
+        ? await recent(request, controller.signal) : { data: await page(request, controller.signal) }) });
     }
     catch (error) {
       parentPort.postMessage({ id: request.id, error: { status: error instanceof AppError ? error.status : 503,
         message: error instanceof AppError ? error.message : '历史读取暂时不可用，请重试' } });
     }
+    finally { jobs.delete(request.id); }
   });
 });

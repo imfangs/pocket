@@ -36,9 +36,27 @@ async function fixture(t, { compressed = false, historyPages, readState } = {}) 
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { await new Promise(resolve => app.server.close(resolve)); rmSync(root, { recursive: true, force: true }); });
   const base = `http://127.0.0.1:${app.server.address().port}`;
-  const get = (path, headers = {}) => fetch(base + path, { headers: { Authorization: `Bearer ${app.auth.localToken}`, ...headers } });
+  const get = (path, headers = {}, options = {}) => fetch(base + path, { ...options, headers: { Authorization: `Bearer ${app.auth.localToken}`, ...headers } });
   return { root, app, get, nativeCalls: () => nativeCalls };
 }
+
+for (const compressed of [false, true]) test(`HTTP disconnect cancels only its asynchronous ${compressed ? 'compressed recent' : 'page'} read without native control`, async t => {
+  let started, aborted, release;
+  const ready = new Promise(done => { started = done; });
+  const cancelled = new Promise(done => { aborted = done; });
+  const read = (_home, _id, options) => new Promise((resolve, reject) => {
+    release = resolve; started(options.signal);
+    options.signal.addEventListener('abort', () => { aborted(); reject(Object.assign(new Error('cancelled'), { status: 499 })); }, { once: true });
+  });
+  const f = await fixture(t, { compressed, historyPages: { read, recent: read, close() { release?.({ messages: [] }); } } });
+  const controller = new AbortController();
+  const request = f.get(`/api/tasks/${id}/${compressed ? 'transcript' : 'transcript-page'}`, {}, { signal: controller.signal });
+  const failed = assert.rejects(request, error => error.name === 'AbortError');
+  const signal = await ready;
+  assert.equal(signal.aborted, false); controller.abort(); await failed; await cancelled;
+  assert.equal(signal.aborted, true); assert.equal(f.nativeCalls(), 0);
+  assert.equal(f.app.store.db.prepare('SELECT count(*) AS n FROM read_state_receipts').get().n, 0);
+});
 
 test('authenticated HTTP pagination traverses past 80 messages without granting control or read observations', async t => {
   const f = await fixture(t), path = `/api/tasks/${id}/transcript-page`;

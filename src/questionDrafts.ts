@@ -1,4 +1,4 @@
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 import type { PendingRequest } from "./conversationFeed";
 
 export type AnswerMode = "options" | "custom";

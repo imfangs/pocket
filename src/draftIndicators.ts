@@ -1,4 +1,4 @@
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 import { hasDraftAttachments } from "./attachments.ts";
 
 function rootThreadId(key: string) {

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { PendingRequest } from "./conversationFeed";
 import { holdReload, useReloadGuard } from "./updateSafety";
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 import AutoTextarea from "./AutoTextarea";
 import { captureDraft } from "./draftTransaction";
 import { requestAnswerKey, requestAnswerValues } from "./questionDrafts";

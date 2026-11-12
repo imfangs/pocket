@@ -1,4 +1,4 @@
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 import { hasAnswerText } from "./questionDrafts.ts";
 import { machineStorageKey } from "./machineScope.ts";
 

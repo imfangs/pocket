@@ -3,7 +3,7 @@ import AutoTextarea from "./AutoTextarea";
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { QueuedMessage } from "./conversationFeed";
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 import { api } from "./api";
 import { waitForSubmission, type SubmissionReceipt } from "./submissionReceipt";
 import { holdReload, useReloadGuard } from "./updateSafety";
@@ -150,7 +150,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
       const base = `/api/tasks/${threadId}/outbox/${item.id}`;
       const expectedRevision = editing?.id === item.id ? editing.revision : item.revision;
       if (action === "check") {
-        if (uploadActions && pendingSubmittedUpload(item)) {
+        if (uploadActions && (uploadActions.owns?.(item.id) || pendingSubmittedUpload(item))) {
           await uploadActions.check(item.id);
           if (currentView()) await refresh();
           return;
@@ -177,8 +177,10 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         // should not hold the editor disabled after that acknowledgement.
         void refresh()?.catch(() => {});
       } else {
-        if (action === "cancel" && uploadActions && pendingSubmittedUpload(item)) {
-          await uploadActions.cancel(item.id);
+        if (action === "cancel" && uploadActions && (uploadActions.owns?.(item.id) || pendingSubmittedUpload(item))) {
+          const recovered = await uploadActions.cancel(item.id);
+          if (typeof recovered === "number") submissions?.dismiss(threadId, item.id);
+          if (currentView() && typeof recovered === "number") onAttachmentRecovery?.(recovered);
           if (currentView()) await refresh();
           return;
         }

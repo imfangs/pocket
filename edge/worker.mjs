@@ -253,6 +253,10 @@ export default {
       const uploading = request.method === "PUT" &&
         /^\/api\/tasks\/[a-f0-9-]{36}\/attachments\/[a-f0-9-]{36}$/i.test(pathname);
       const readingHistoryPage = request.method === "GET" && /^\/api\/tasks\/[a-f0-9-]{36}\/transcript-page$/i.test(pathname);
+      const timeout = videoRead ? null : AbortSignal.timeout(uploading ? 180000 : readingHistoryPage ? 45000 : 20000);
+      // A reader leaving the page withdraws its own GET. Writes keep their
+      // original outcome/timeout contract: disconnect is never non-delivery.
+      const readSignal = ["GET", "HEAD"].includes(request.method) && request.signal;
       // Once fetch starts, a lost reply cannot prove the Mac did not execute.
       forwarded = true;
       const upstreamOptions = {
@@ -262,7 +266,7 @@ export default {
           ? undefined
           : request.body,
         redirect: "manual",
-        ...(videoRead ? {} : { signal: AbortSignal.timeout(uploading ? 180000 : readingHistoryPage ? 45000 : 20000) }),
+        ...(videoRead ? {} : { signal: readSignal ? AbortSignal.any([timeout, readSignal]) : timeout }),
       };
       const response = videoRead ? await fetchVideo(target, upstreamOptions, request.signal) : await fetch(target, upstreamOptions);
       const upstreamMachine = response.headers.get("X-Pocket-Machine");

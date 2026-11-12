@@ -1,4 +1,4 @@
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 
 // An async result may only change the exact draft that started its operation.
 // Compare identity rather than text: a later edit can contain identical text.

@@ -7,8 +7,9 @@ export type AttachmentUploadDescriptor = Readonly<{
   status?: "missing" | "queued" | "uploading" | "uploaded" | "failed" | "unknown"; error?: string;
 }>;
 export type SubmittedUploadActions = {
+  owns?: (requestId: string) => boolean;
   retry: (requestId: string) => Promise<void> | void;
-  cancel: (requestId: string) => Promise<void> | void;
+  cancel: (requestId: string) => Promise<number | void> | number | void;
   check: (requestId: string) => Promise<void> | void;
 };
 export type SubmittedQueryStatus = "uploading" | "upload_failed" | "submitting" | "connecting" | "pending" | "queued" | "editing" | "accepted" | "unknown" | "rejected" | "not_found" | "cancelled" | "not_queued";
@@ -46,8 +47,10 @@ export function submittedQueryDisplayStatus(entry: Pick<SubmittedQuery, "status"
   if (entry.uploadProgress?.status === "ready" && ["uploading", "upload_failed"].includes(entry.status)) return "queued";
   return entry.status;
 }
+const uploadRecoveryCodes = new Set(["attachment_cleanup_pending", "attachment_recovery_pending"]);
+const uploadNeedsRecovery = (entry: Pick<SubmittedQuery, "uploadProgress">) => uploadRecoveryCodes.has(entry.uploadProgress?.code ?? "");
 export function pendingSubmittedUpload(entry: Pick<SubmittedQuery, "status" | "uploadProgress">) {
-  if (entry.status === "cancelled" && entry.uploadProgress?.code === "attachment_cleanup_pending") return true;
+  if (entry.status === "cancelled" && uploadNeedsRecovery(entry)) return true;
   return !["accepted", "cancelled"].includes(entry.status) && !!entry.uploadProgress && entry.uploadProgress.status !== "ready";
 }
 export function submittedUploadNeedsCheck(entry: Pick<SubmittedQuery, "attachmentUploads" | "uploadProgress">) {
@@ -202,13 +205,14 @@ export function createSubmittedQueryStore() {
     receipt,
     finishCancelledUpload(threadId: string, requestId: string) {
       change(threadId, entries => entries.map(entry => entry.requestId === requestId && entry.status === "cancelled"
-        && entry.uploadProgress?.code === "attachment_cleanup_pending"
+        && uploadNeedsRecovery(entry)
         ? Object.freeze({ ...entry, uploadProgress: undefined, attachmentUploads: undefined }) : entry));
     },
     updateUpload(threadId: string, requestId: string, update: SubmittedUploadUpdate) {
       change(threadId, entries => {
         const index = entries.findIndex(entry => entry.requestId === requestId), entry = entries[index];
-        if (!entry || entry.status === "cancelled" || entry.dismissed || entry.echoed || entry.bodyReleased) return entries;
+        if (!entry || entry.dismissed || entry.echoed || entry.bodyReleased || entry.status === "cancelled"
+          && !(uploadNeedsRecovery(entry) && uploadRecoveryCodes.has(update.progress?.code ?? ""))) return entries;
         const descriptors = entry.status !== "accepted" && update.descriptors ? copyDescriptors(update.descriptors) : entry.attachmentUploads;
         const incoming = update.attachments ? [...new Map(update.attachments.map(item => {
           const copy = copyPublicAttachment(item, threadId); return [copy.id, copy] as const;
@@ -219,7 +223,7 @@ export function createSubmittedQueryStore() {
         }
         const attachments = incoming ? Object.freeze([...(entry.attachments ?? []), ...incoming.filter(item => !entry.attachments?.some(known => known.id === item.id))]) : entry.attachments;
         let uploadProgress = entry.status !== "accepted" && update.progress ? copyProgress(update.progress) : entry.uploadProgress;
-        if (entry.uploadProgress?.status === "ready" && update.progress?.code !== "attachment_cleanup_pending") uploadProgress = entry.uploadProgress;
+        if (entry.uploadProgress?.status === "ready" && !uploadRecoveryCodes.has(update.progress?.code ?? "")) uploadProgress = entry.uploadProgress;
         else if (uploadProgress && entry.uploadProgress?.total === uploadProgress.total && entry.uploadProgress.uploaded > uploadProgress.uploaded)
           uploadProgress = copyProgress({ ...uploadProgress, uploaded: entry.uploadProgress.uploaded });
         const next = { ...entry, uploadProgress, attachmentUploads: descriptors, attachments };
@@ -320,6 +324,7 @@ export function submittedOutbox(entries: readonly SubmittedQuery[], messages: re
 
 export function submittedQueryLabel(entry: SubmittedQuery, connecting = false) {
   if (entry.status === "accepted") return "已发送";
+  if (entry.status === "cancelled" && entry.uploadProgress?.code === "attachment_recovery_pending") return "附件暂未取回";
   if (pendingSubmittedUpload(entry) && submittedUploadNeedsCheck(entry)) return "上传结果待核对";
   if (submittedQueryDisplayStatus(entry) === "upload_failed") return "附件上传未完成";
   if (submittedQueryDisplayStatus(entry) === "uploading") return "上传中 {{uploaded}}/{{total}}";

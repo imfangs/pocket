@@ -1,21 +1,12 @@
 import { api } from "./api.ts";
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
+import type { PublicAttachment, DraftAttachment } from "./attachmentTypes";
+export type { PublicAttachment, DraftAttachment } from "./attachmentTypes";
 import { captureDraft } from "./draftTransaction.ts";
 import { attachmentHashScheduler, attachmentUploadScheduler, type AttachmentUploadScheduler } from "./attachmentUploadScheduler.ts";
 import { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES } from "../shared/attachment-limits.mjs";
 export { MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES } from "../shared/attachment-limits.mjs";
 
-export type PublicAttachment = {
-  id: string; name: string; size: number; mime: string; kind: "image" | "file"; url: string; sha256: string;
-  sourceSha256?: string; sourceSize?: number; previewUrl?: string;
-  previewSha256?: string; previewMime?: string; previewSize?: number;
-};
-export type DraftAttachment = {
-  id: string; name: string; size: number; mime: string; kind: "image" | "file";
-  status: "queued" | "uploading" | "uploaded" | "failed" | "unknown" | "removing";
-  file?: File; attachment?: PublicAttachment; sourceSha256?: string; error?: string; checking?: boolean;
-  deletePending?: boolean;
-};
 const empty: readonly DraftAttachment[] = Object.freeze([]);
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export const attachmentPath = (threadId: string, id: string) => `/api/tasks/${threadId}/attachments/${id}`;
@@ -46,18 +37,20 @@ export async function fileSha256(file: File) {
   return [...new Uint8Array(bytes)].map(value => value.toString(16).padStart(2, "0")).join("");
 }
 type Transport = {
-  upload: (threadId: string, item: DraftAttachment, requestId?: string) => Promise<PublicAttachment>;
-  metadata: (threadId: string, id: string) => Promise<PublicAttachment>;
-  list: (threadId: string) => Promise<{ attachments: PublicAttachment[] }>;
-  remove: (threadId: string, id: string) => Promise<unknown>;
+  upload: (threadId: string, item: DraftAttachment, requestId?: string, signal?: AbortSignal) => Promise<PublicAttachment>;
+  metadata: (threadId: string, id: string, signal?: AbortSignal) => Promise<PublicAttachment>;
+  list: (threadId: string, signal?: AbortSignal) => Promise<{ attachments: PublicAttachment[] }>;
+  remove: (threadId: string, id: string, signal?: AbortSignal) => Promise<unknown>;
 };
 const attachmentUploadTimeoutMs = 190000;
+const boundedSignal = (signal: AbortSignal | undefined, timeout: number) => signal
+  ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : AbortSignal.timeout(timeout);
 const transport: Transport = {
-  upload: (threadId, item, requestId) => api(`${attachmentPath(threadId, item.id)}?name=${encodeURIComponent(item.name)}${requestId ? `&requestId=${encodeURIComponent(requestId)}` : ""}`, "PUT", item.file,
-    { raw: true, contentType: item.mime, signal: AbortSignal.timeout(attachmentUploadTimeoutMs), timeoutMs: attachmentUploadTimeoutMs }),
-  metadata: (threadId, id) => api(`${attachmentPath(threadId, id)}?metadata=1`, "GET", undefined, { signal: AbortSignal.timeout(15000) }),
-  list: threadId => api(`/api/tasks/${threadId}/attachments`, "GET", undefined, { signal: AbortSignal.timeout(15000) }),
-  remove: (threadId, id) => api(attachmentPath(threadId, id), "DELETE", undefined, { signal: AbortSignal.timeout(15000) }),
+  upload: (threadId, item, requestId, signal) => api(`${attachmentPath(threadId, item.id)}?name=${encodeURIComponent(item.name)}${requestId ? `&requestId=${encodeURIComponent(requestId)}` : ""}`, "PUT", item.file,
+    { raw: true, contentType: item.mime, signal: boundedSignal(signal, attachmentUploadTimeoutMs), timeoutMs: attachmentUploadTimeoutMs }),
+  metadata: (threadId, id, signal) => api(`${attachmentPath(threadId, id)}?metadata=1`, "GET", undefined, { signal: boundedSignal(signal, 15000) }),
+  list: (threadId, signal) => api(`/api/tasks/${threadId}/attachments`, "GET", undefined, { signal: boundedSignal(signal, 15000) }),
+  remove: (threadId, id, signal) => api(attachmentPath(threadId, id), "DELETE", undefined, { signal: boundedSignal(signal, 15000) }),
 };
 
 // Files stay in memory with the shared controller, independent of a composer.
@@ -65,6 +58,9 @@ const transport: Transport = {
 export function createAttachmentDraftController(drafts: Map<string, QueryDraft>, request: Transport = transport, digest = fileSha256,
   scheduler: AttachmentUploadScheduler = attachmentUploadScheduler, hashScheduler: AttachmentUploadScheduler = attachmentHashScheduler) {
   const listeners = new Map<string, Set<() => void>>(), active = new Map<string, Promise<void>>(), groups = new Map<string, object>();
+  const lifetime = new AbortController();
+  let disposed = false;
+  const requireOwner = () => { if (disposed) throw new Error("会话已关闭，请重新打开后继续。"); };
   type Bundle = { threadId: string; requestId: string; items: readonly DraftAttachment[]; held: boolean; cancelled: boolean };
   const bundles = new Map<string, Bundle>(), owners = new Map<string, string>();
   const submissionListeners = new Map<string, Set<() => void>>(), cancelling = new Map<string, Promise<boolean>>();
@@ -76,13 +72,14 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
     const identity = scheduledKey(threadId, id);
     hashScheduler.cancel(identity); scheduler.cancel(identity);
   };
-  const get = (threadId: string) => drafts.get(threadId)?.attachments ?? empty;
+  const get = (threadId: string) => disposed ? empty : drafts.get(threadId)?.attachments ?? empty;
   const bundleFor = (threadId: string, id: string) => bundles.get(owners.get(key(threadId, id)) ?? "");
   const find = (threadId: string, id: string) => (bundleFor(threadId, id)?.items ?? get(threadId)).find(item => item.id === id);
   const getSubmission = (threadId: string, requestId: string) => bundles.get(key(threadId, requestId))?.items ?? empty;
-  const notify = (threadId: string) => listeners.get(threadId)?.forEach(listener => listener());
-  const notifySubmission = (threadId: string, requestId: string) => submissionListeners.get(key(threadId, requestId))?.forEach(listener => listener());
+  const notify = (threadId: string) => { if (!disposed) listeners.get(threadId)?.forEach(listener => listener()); };
+  const notifySubmission = (threadId: string, requestId: string) => { if (!disposed) submissionListeners.get(key(threadId, requestId))?.forEach(listener => listener()); };
   const change = (threadId: string, edit: (items: readonly DraftAttachment[]) => readonly DraftAttachment[]) => {
+    if (disposed) return;
     const previous = get(threadId), next = edit(previous);
     if (previous === next) return;
     const draft = { ...(drafts.get(threadId) ?? { text: "" }), attachments: next.length ? next : undefined };
@@ -90,6 +87,7 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
     notify(threadId);
   };
   const editItems = (threadId: string, id: string, edit: (items: readonly DraftAttachment[]) => readonly DraftAttachment[]) => {
+    if (disposed) return;
     const bundle = bundleFor(threadId, id);
     if (!bundle) { change(threadId, edit); return; }
     const next = edit(bundle.items);
@@ -102,6 +100,7 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
   });
   const drop = (threadId: string, id: string) => editItems(threadId, id, items => items.some(item => item.id === id) ? items.filter(item => item.id !== id) : items);
   const run = (threadId: string, id: string) => {
+    if (disposed) return Promise.resolve();
     const identity = key(threadId, id);
     if (active.has(identity)) return active.get(identity)!;
     let group = groups.get(threadId);
@@ -138,9 +137,10 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
           if (!current || removing.has(identity)) return;
           if (owner?.held || owner?.cancelled) { update(threadId, id, value => ({ ...value, status: "queued" })); return; }
           try {
-            const uploaded = validateAttachment(await request.upload(threadId, current, owner?.requestId), threadId, id, current);
+            const uploaded = validateAttachment(await request.upload(threadId, current, owner?.requestId, lifetime.signal), threadId, id, current);
             update(threadId, id, value => ({ ...value, attachment: uploaded, status: removing.has(identity) ? "removing" : "uploaded", error: undefined }));
           } catch (failure) {
+            if (disposed) return;
             const status = (failure as Error & { status?: number }).status, definite = !!status && status < 500 && status !== 409;
             update(threadId, id, value => ({ ...value, status: definite ? "failed" : removing.has(identity) ? "removing" : "unknown",
               error: definite ? (failure as Error).message || "上传未完成，可重试。" : "上传结果待确认，请核对状态。" }));
@@ -148,7 +148,7 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
               try {
                 const source = find(threadId, id);
                 if (!source) return;
-                const uploaded = validateAttachment(await request.metadata(threadId, id), threadId, id, source);
+                const uploaded = validateAttachment(await request.metadata(threadId, id, lifetime.signal), threadId, id, source);
                 update(threadId, id, value => ({ ...value, attachment: uploaded, status: removing.has(identity) ? "removing" : "uploaded", error: undefined }));
               } catch { /* Keep the original upload ID and File for a read-only check. */ }
             }
@@ -161,6 +161,7 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
     return task;
   };
   const pump = (threadId: string) => {
+    if (disposed) return;
     const items = [...get(threadId), ...[...bundles.values()].filter(bundle => bundle.threadId === threadId && !bundle.held && !bundle.cancelled).flatMap(bundle => bundle.items)];
     items.filter(item => item.status === "queued").forEach(item => { void run(threadId, item.id); });
   };
@@ -169,16 +170,38 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
     getSubmission,
     hasSubmission: (threadId: string, requestId: string) => bundles.has(key(threadId, requestId)),
     notify,
+    // Drop this browser owner's bytes and scheduled work without issuing a
+    // remote DELETE or rewriting the Mac's persisted submission outcome.
+    dispose() {
+      if (disposed) return;
+      const identities = new Set([...active.keys(), ...owners.keys()]);
+      for (const [threadId, draft] of drafts) for (const item of draft.attachments ?? []) identities.add(key(threadId, item.id));
+      disposed = true;
+      for (const identity of identities) {
+        hashScheduler.cancel(`${schedulerOwner}/${identity}`); scheduler.cancel(`${schedulerOwner}/${identity}`);
+      }
+      lifetime.abort();
+      for (const [threadId, draft] of drafts) if (draft.attachments?.length) {
+        const { attachments: _files, ...remaining } = draft;
+        drafts.set(threadId, remaining);
+      }
+      listeners.clear(); submissionListeners.clear(); bundles.clear(); owners.clear(); active.clear(); groups.clear();
+      cancelling.clear(); removing.clear(); claimed.clear(); recovering.clear();
+      if (controllers.get(drafts) === controller) controllers.delete(drafts);
+    },
     subscribe(threadId: string, listener: () => void) {
+      if (disposed) return () => {};
       const subscribers = listeners.get(threadId) ?? new Set(); subscribers.add(listener); listeners.set(threadId, subscribers);
       return () => { subscribers.delete(listener); if (!subscribers.size) listeners.delete(threadId); };
     },
     subscribeSubmission(threadId: string, requestId: string, listener: () => void) {
+      if (disposed) return () => {};
       const identity = key(threadId, requestId), subscribers = submissionListeners.get(identity) ?? new Set();
       subscribers.add(listener); submissionListeners.set(identity, subscribers);
       return () => { subscribers.delete(listener); if (!subscribers.size) submissionListeners.delete(identity); };
     },
     takeSubmission(threadId: string, requestId: string, expectedItems: readonly DraftAttachment[]) {
+      requireOwner();
       const identity = key(threadId, requestId), existing = bundles.get(identity);
       if (existing) return existing.items;
       if (!uuid.test(requestId) || !expectedItems.length || expectedItems.length > MAX_ATTACHMENTS || new Set(expectedItems.map(item => item.id)).size !== expectedItems.length)
@@ -196,6 +219,7 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
       return items;
     },
     restoreSubmission(threadId: string, requestId: string, text: string) {
+      requireOwner();
       const identity = key(threadId, requestId), bundle = bundles.get(identity), previous = drafts.get(threadId);
       if (!bundle || bundle.cancelled || !bundle.held) throw new Error("请先核对原消息并暂停附件上传，再重新编辑。");
       if (previous?.text || previous?.requestId || hasDraftAttachments(previous)) throw new Error("输入框已有新草稿，请先处理后再重新编辑这条消息。");
@@ -208,19 +232,23 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
       return restored;
     },
     resumeSubmission(threadId: string, requestId: string) {
+      if (disposed) return;
       const bundle = bundles.get(key(threadId, requestId));
       if (!bundle || bundle.cancelled) return;
       bundle.held = false; pump(threadId);
     },
     retrySubmission(threadId: string, requestId: string) {
+      if (disposed) return;
       const bundle = bundles.get(key(threadId, requestId));
       if (!bundle || bundle.cancelled) return;
       bundle.items.forEach(item => { if (item.status === "failed") controller.retry(threadId, item.id); });
     },
     async checkSubmission(threadId: string, requestId: string) {
+      if (disposed) return;
       await Promise.all(getSubmission(threadId, requestId).filter(item => item.status === "unknown").map(item => controller.check(threadId, item.id)));
     },
     cancelSubmission(threadId: string, requestId: string) {
+      if (disposed) return Promise.resolve(false);
       const identity = key(threadId, requestId);
       if (cancelling.has(identity)) return cancelling.get(identity)!;
       const bundle = bundles.get(identity);
@@ -239,6 +267,7 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
       bundles.delete(identity); submissionListeners.delete(identity);
     },
     confirmSubmission(threadId: string, requestId: string, files: readonly PublicAttachment[]) {
+      if (disposed) return false;
       const bundle = bundles.get(key(threadId, requestId));
       if (!bundle || bundle.cancelled || files.length !== bundle.items.length) return false;
       const confirmed = bundle.items.map(item => {
@@ -250,6 +279,7 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
       return true;
     },
     add(threadId: string, files: readonly File[]) {
+      requireOwner();
       if (get(threadId).length + files.length > MAX_ATTACHMENTS) throw new Error(`每条消息最多添加${MAX_ATTACHMENTS}个附件。`);
       if (files.some(file => file.size > MAX_ATTACHMENT_BYTES)) throw new Error("单个附件不能超过20 MB。");
       const additions: DraftAttachment[] = files.map(file => ({ id: crypto.randomUUID(), file, name: file.name || "附件", size: file.size,
@@ -258,20 +288,23 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
       return additions.map(item => item.id);
     },
     retry(threadId: string, id: string) {
+      if (disposed) return;
       const item = find(threadId, id);
       if (!item?.file || item.status !== "failed" || active.has(key(threadId, id))) return;
       update(threadId, id, value => ({ ...value, status: "queued", error: undefined })); void pump(threadId);
     },
     async check(threadId: string, id: string) {
+      if (disposed) return;
       const item = find(threadId, id);
       if (!item || item.checking || active.has(key(threadId, id)) || removing.has(key(threadId, id))) return;
       update(threadId, id, value => ({ ...value, checking: true }));
       try {
-        const uploaded = validateAttachment(await request.metadata(threadId, id), threadId, id, item);
+        const uploaded = validateAttachment(await request.metadata(threadId, id, lifetime.signal), threadId, id, item);
         const cancelled = bundleFor(threadId, id)?.cancelled;
         update(threadId, id, value => ({ ...value, attachment: uploaded, status: cancelled ? "unknown" : "uploaded", checking: false,
           deletePending: !!cancelled, error: cancelled ? "附件仍待移除，可重试取消。" : undefined }));
       } catch (failure) {
+        if (disposed) return;
         const status = (failure as Error & { status?: number }).status;
         if (status === 404 && item.deletePending) { claimed.add(key(threadId, id)); drop(threadId, id); return; }
         update(threadId, id, value => ({ ...value, checking: false, error: status === 409 ? "附件仍在上传，请稍后核对。"
@@ -279,35 +312,42 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
       }
     },
     async remove(threadId: string, id: string) {
+      if (disposed) return;
       const identity = key(threadId, id), original = find(threadId, id);
       if (!original || removing.has(identity) || original.checking) return;
       removing.add(identity); update(threadId, id, item => ({ ...item, status: "removing", error: undefined }));
       cancelQueued(threadId, id);
       try {
         await active.get(identity);
+        if (disposed) return;
         const item = find(threadId, id);
         if (!item) return;
         if (!item.attachment && (["queued", "failed"].includes(original.status) || item.status === "failed")) { drop(threadId, id); return; }
         if (!item.attachment && original.status === "uploading" && !item.error && item.status === "removing") { drop(threadId, id); return; }
-        await request.remove(threadId, id);
+        await request.remove(threadId, id, lifetime.signal);
+        if (disposed) return;
         claimed.add(identity); drop(threadId, id);
       } catch (failure) {
         update(threadId, id, item => ({ ...item, status: "unknown", deletePending: true, error: "附件未能移除，请核对状态或重试移除。" }));
       } finally { removing.delete(identity); }
     },
-    claim(threadId: string, ids: readonly string[]) { ids.forEach(id => claimed.add(key(threadId, id))); },
-    unclaim(threadId: string, ids: readonly string[]) { ids.forEach(id => claimed.delete(key(threadId, id))); },
+    claim(threadId: string, ids: readonly string[]) { if (!disposed) ids.forEach(id => claimed.add(key(threadId, id))); },
+    unclaim(threadId: string, ids: readonly string[]) { if (!disposed) ids.forEach(id => claimed.delete(key(threadId, id))); },
     async releaseQueued(threadId: string, ids: readonly string[]) {
+      requireOwner();
       controller.unclaim(threadId, ids);
       // A list requested before cancellation can still describe bound files.
       // Finish it first, then read the released draft attachments afresh.
       await recovering.get(threadId)?.catch(() => {});
+      requireOwner();
       await controller.recover(threadId);
       return get(threadId).filter(item => ids.includes(item.id)).length;
     },
     async restoreFiles(threadId: string, files: readonly PublicAttachment[]) {
+      requireOwner();
       if (!files.length) return [];
-      const result = await request.list(threadId);
+      const result = await request.list(threadId, lifetime.signal);
+      requireOwner();
       return files.map(file => {
         const found = result.attachments.find(item => item.id === file.id && item.sha256 === file.sha256);
         if (!found) throw new Error("部分附件已进入待发消息或不再可用，请刷新后查看。");
@@ -316,6 +356,7 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
       });
     },
     async restoreDraft(threadId: string, submission: { status: string; text: string; attachments?: readonly PublicAttachment[] }, currentView = () => true) {
+      requireOwner();
       if (!["rejected", "not_found"].includes(submission.status)) throw new Error("请先核对原消息的发送结果。");
       const previous = drafts.get(threadId);
       if (previous?.text || previous?.requestId || hasDraftAttachments(previous)) throw new Error("输入框已有新草稿，请先处理后再重新编辑这条消息。");
@@ -327,8 +368,10 @@ export function createAttachmentDraftController(drafts: Map<string, QueryDraft>,
       return value;
     },
     recover(threadId: string) {
+      requireOwner();
       if (recovering.has(threadId)) return recovering.get(threadId)!;
-      const task = request.list(threadId).then(result => {
+      const task = request.list(threadId, lifetime.signal).then(result => {
+        if (disposed) return;
         const files = result.attachments.map(item => validateAttachment(item, threadId));
         let extra = 0;
         change(threadId, items => {

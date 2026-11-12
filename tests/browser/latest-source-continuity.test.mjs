@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { assistantContentVersion } from '../../server/pocket-content.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHarness, engines, ids, refresh } from './fixture.mjs';
@@ -40,9 +40,17 @@ const history = (messages, source = 'desktop', extra = {}) => ({ messages, sourc
   resumeState: source === 'desktop' ? 'resumed' : 'not_loaded', runtime: 'idle', canSend: source === 'desktop',
   canStop: false, activeTurnId: null, latestTurnId: messages.at(-1)?.turnId, latestTurnStatus: 'completed',
   turnTiming: timing(messages.at(-1)?.turnId), outbox: [], pendingRequests: [], asyncQuestions: [], ...extra });
-const transcript = (messages, extra = {}) => ({ messages, hasMore: true, source: 'rollout', turnTiming: timing(messages.at(-1)?.turnId),
-  pocketContent: { known: true, scope: 'smoke-ged', revision: 123,
-    version: createHash('sha256').update(JSON.stringify(messages)).digest('hex'), messageId: messages.at(-1)?.id }, ...extra });
+let contentRevision = 122, lastContentVersion;
+const transcript = (messages, extra = {}) => {
+  const latest = messages.findLast(message => message.role === 'assistant');
+  // A different earlier window is not a different latest assistant version.
+  // Actual content changes have a newer monotonic revision, never a new hash
+  // under the same revision; otherwise the fixture is legitimately stale.
+  const version = assistantContentVersion(latest?.id, latest?.text, latest?.phase);
+  if (version !== lastContentVersion) { contentRevision++; lastContentVersion = version; }
+  return { messages, hasMore: true, source: 'rollout', turnTiming: timing(messages.at(-1)?.turnId),
+    pocketContent: { known: true, scope: 'smoke-ged', revision: contentRevision, version, messageId: latest?.id }, ...extra };
+};
 function install(h, nativeMessages = native, savedMessages = tail, nativeExtra = {}, savedExtra = {}) {
   h.patchHistory(ids.regular, history(nativeMessages, 'desktop', nativeExtra));
   h.patchTranscript(ids.regular, transcript(savedMessages, savedExtra));

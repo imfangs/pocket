@@ -10,6 +10,22 @@ const env = {
     }),
   },
 };
+test('gateway read cancellation follows its consumer while an already forwarded write retains its outcome contract', async t => {
+  const signals = [];
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    signals.push(options.signal);
+    return new Response('{}', { headers: { 'X-Pocket-Machine': 'ged' } });
+  });
+  for (const method of ['GET', 'POST', 'PUT']) {
+    const controller = new AbortController();
+    const path = method === 'GET' ? '/api/catalog' : method === 'POST'
+      ? '/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/messages'
+      : '/api/tasks/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa/attachments/bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb';
+    await worker.fetch(new Request('https://pocket.example.com' + path, { method, signal: controller.signal,
+      ...(method === 'GET' ? {} : { body: '{}', headers: { Origin: 'https://pocket.example.com', 'Content-Type': 'application/json' } }) }), env);
+    controller.abort(); assert.equal(signals.at(-1).aborted, method === 'GET', method);
+  }
+});
 test("client versions cross the gateway as optional bounded diagnostics, never as an access gate", async () => {
   const original = globalThis.fetch;
   const seen = [];

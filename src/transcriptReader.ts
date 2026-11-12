@@ -102,6 +102,16 @@ export function createTranscriptReader(options: ReaderOptions) {
         // A known conflicting scope, however, cannot be shown under this owner.
         if (data.pocketContent?.known && data.pocketContent.scope !== options.scope)
           throw Object.assign(new Error("会话来源已变化"), { name: "AbortError", code: "transcript_scope_changed" });
+        // Foreground and speculative consumers validate through the same read.
+        // Keep their scalar floor even when selection removes the candidate or
+        // a subsequent body eviction makes the reading cache miss.
+        const content = prefetchContent(data.pocketContent, options.scope);
+        if (content) {
+          const floor = knownFloor(id);
+          if (floor && !coversPrefetchContent(content, floor))
+            throw Object.assign(new Error("读取版本尚未同步，请重试。"), { name: "AbortError", code: "transcript_content_regressed" });
+          rememberFloor(id, content);
+        }
         return data;
       }).finally(() => { if (flights.get(id) === entry) flights.delete(id); });
       // All consumers may cancel before a transport settles.
@@ -184,21 +194,23 @@ export function createTranscriptReader(options: ReaderOptions) {
       // The directory may catch up in steps behind a body already validated by
       // this owner. Neither a new candidate key nor an evicted cache can lower
       // that floor, and a higher directory version remains required too.
-      const expected = [state.coveredContent, state.candidate.content].filter((value): value is PrefetchContent => !!value);
+      const expected = [knownFloor(state.candidate.id), state.coveredContent, state.candidate.content]
+        .filter((value): value is PrefetchContent => !!value);
       if (!content || expected.some(value => !coversPrefetchContent(content, value))) { state.done = state.unusable = true; return; }
       // An uncachable response must not be downloaded repeatedly just to fight
       // the cache's existing schema or capacity limits. A new version retries.
       const remembered = options.cache.rememberTranscript(options.machine, options.scope, state.candidate.id, data);
       if (remembered) resetCooldown();
       state.coveredContent = content;
-      rememberFloor(state.candidate.id, content);
       state.unusable = !remembered;
       state.done = !remembered || !state.candidate.refresh;
       state.nextAt = now() + (state.candidate.refresh ? transcriptRefreshMs[state.candidate.refresh] : 0);
       state.failures = 0;
     } catch (error) {
       if (current() && ticket === generation && candidates.get(state.candidate.id) === state) {
-        if ((error as { code?: string })?.code === "transcript_scope_changed") { state.done = state.unusable = true; return; }
+        if (["transcript_scope_changed", "transcript_content_regressed"].includes((error as { code?: string })?.code ?? "")) {
+          state.done = state.unusable = true; return;
+        }
         if (!controller.signal.aborted || timedOut) state.failures++;
         state.nextAt = now() + (controller.signal.aborted && !timedOut ? 1000 : Math.min(60000, 2000 * 2 ** Math.min(state.failures - 1, 5)));
       }

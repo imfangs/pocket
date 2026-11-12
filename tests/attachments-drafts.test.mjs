@@ -531,3 +531,69 @@ test('a late re-edit read cannot overwrite a new draft or resurrect content afte
   const leaving = f.controller.restoreDraft(thread, { status: 'rejected', text: '', attachments: [attachment] }, () => false);
   const left = assert.rejects(leaving, /页面已变化/); finish({ attachments: [attachment] }); await left; assert.equal(f.drafts.has(thread), false);
 });
+
+test('disposing one controller aborts its active PUT, releases shared capacity to another owner and never sends DELETE', async t => {
+  const scheduler = createAttachmentUploadScheduler(1), started = [], signals = new Map(); let finishOther, metadata = 0, deletes = 0;
+  const request = {
+    upload: (_thread, item, _owner, signal) => new Promise((resolve, reject) => {
+      started.push(item.id); signals.set(item.id, signal);
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      if (item.name === 'other.txt') finishOther = () => resolve(publicFile(item.id, { name: item.name }));
+    }),
+    metadata: async () => { metadata++; throw statusError(404); }, list: async () => ({ attachments: [] }), remove: async () => { deletes++; },
+  };
+  const firstDrafts = new Map([[thread, { text: 'Preserved independent text' }]]), otherDrafts = new Map();
+  const first = createAttachmentDraftController(firstDrafts, request, async () => hash, scheduler);
+  const other = createAttachmentDraftController(otherDrafts, request, async () => hash, scheduler);
+  t.after(() => { first.dispose(); other.dispose(); });
+  const [firstId] = first.add(thread, [file('first.txt')]), [otherId] = other.add(thread, [file('other.txt')]);
+  await until(() => started.length === 1);
+  first.dispose(); await until(() => finishOther);
+  assert.equal(signals.get(firstId).aborted, true); assert.equal(signals.get(otherId).aborted, false);
+  assert.deepEqual(first.get(thread), []); assert.equal(firstDrafts.get(thread).text, 'Preserved independent text');
+  assert.equal(firstDrafts.get(thread).attachments, undefined); assert.equal(deletes, 0); assert.equal(metadata, 0);
+  finishOther(); await until(() => readyAttachments(other.get(thread)));
+  assert.deepEqual(started, [firstId, otherId]); assert.equal(other.get(thread)[0].attachment.id, otherId);
+});
+
+test('disposing a held source hash drops its File and ignores its late result without consuming a network slot', async t => {
+  let finishHash, puts = 0, deletes = 0, updates = 0;
+  const drafts = new Map([[thread, { text: '', answerMode: 'custom', customText: 'An independent answer draft' }]]);
+  const controller = createAttachmentDraftController(drafts, { upload: async (_thread, item) => { puts++; return publicFile(item.id); },
+    metadata: async () => { throw statusError(404); }, list: async () => ({ attachments: [] }), remove: async () => { deletes++; } },
+    () => new Promise(resolve => { finishHash = () => resolve(hash); }), createAttachmentUploadScheduler());
+  t.after(() => { controller.dispose(); finishHash?.(); });
+  controller.subscribe(thread, () => updates++);
+  controller.add(thread, [file()]); await until(() => finishHash);
+  controller.dispose(); const before = updates;
+  finishHash(); await setImmediate(); await setImmediate();
+  assert.equal(puts, 0); assert.equal(deletes, 0); assert.equal(updates, before); assert.deepEqual(controller.get(thread), []);
+  assert.deepEqual(drafts.get(thread), { text: '', answerMode: 'custom', customText: 'An independent answer draft' });
+  assert.throws(() => controller.add(thread, [file()]), /会话已关闭/);
+});
+
+test('a disposed owner cannot restore a late server draft or expose late metadata', async t => {
+  let finishList, finishMetadata;
+  const f = fixture({ list: (_thread, signal) => new Promise(resolve => { finishList = result => { assert.equal(signal.aborted, true); resolve(result); }; }),
+    metadata: (_thread, fileId, signal) => new Promise(resolve => { finishMetadata = () => { assert.equal(signal.aborted, true); resolve(publicFile(fileId)); }; }) });
+  t.after(() => f.controller.dispose());
+  const recovered = f.controller.recover(thread), attachment = publicFile(uuid(301));
+  f.drafts.set(thread, { text: 'Plain text retained', attachments: [{ ...attachment, status: 'unknown' }] });
+  const checked = f.controller.check(thread, attachment.id); await until(() => finishMetadata);
+  f.controller.dispose(); finishList({ attachments: [attachment] }); finishMetadata();
+  await Promise.all([recovered, checked]);
+  assert.deepEqual(f.controller.get(thread), []); assert.deepEqual(f.drafts.get(thread), { text: 'Plain text retained' });
+  assert.deepEqual(f.calls, []);
+});
+
+test('disposing during a user-requested in-flight removal does not issue a new DELETE after the PUT aborts', async t => {
+  let signal, deletes = 0;
+  const f = fixture({ upload: (_thread, _item, _owner, current) => new Promise((_resolve, reject) => {
+    signal = current; current.addEventListener('abort', () => reject(current.reason), { once: true });
+  }), remove: async () => { deletes++; } });
+  t.after(() => f.controller.dispose());
+  const [id] = f.controller.add(thread, [file()]); await until(() => signal);
+  const removal = f.controller.remove(thread, id);
+  f.controller.dispose(); await removal; await setImmediate();
+  assert.equal(signal.aborted, true); assert.equal(deletes, 0); assert.deepEqual(f.controller.get(thread), []);
+});

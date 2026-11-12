@@ -75,6 +75,33 @@ const queueItem = (id, status = 'unknown', revision = 0) => ({ id, text: 'Queued
 const cardProps = items => ({ items, connecting: false, paused: false, disabled: false, dismiss() {}, check: async value => { throw Error(`核对 ${value.requestId} 失败`); } });
 const queueProps = items => ({ threadId: 'thread', items, disabled: false, allowSend: true, refresh: async () => {}, drafts: new Map() });
 
+test('dismiss stays busy until cleanup settles and retains its controlled cancelled-row recovery error', async () => {
+  const original = item('a', 'rejected'); let fail, calls = 0;
+  const pending = new Promise((_resolve, reject) => { fail = reject; });
+  const props = { ...cardProps([original]), dismiss: () => { calls++; return pending; } };
+  const ui = mount('SubmittedQueryCards.tsx', props);
+  try {
+    button(row(ui.output, 'a'), '收起').props.onClick(); await ui.flush();
+    assert.equal(button(row(ui.output, 'a'), '收起').props.disabled, true); assert.equal(calls, 1);
+    const cancelled = { ...original, status: 'cancelled', uploadProgress: { total: 1, uploaded: 0, status: 'failed', code: 'attachment_cleanup_pending' } };
+    ui.render({ ...props, items: [cancelled] });
+    fail(new Error('发送已取消，附件清理结果待核对，请重试取消。')); await ui.flush();
+    assert.ok(row(ui.output, 'a')); assert.deepEqual(alerts(ui.output), ['发送已取消，附件清理结果待核对，请重试取消。']);
+    assert.equal(button(row(ui.output, 'a'), '收起').props.disabled, false);
+  } finally { ui.close(); }
+});
+
+test('ready upload cancellation follows its owner rather than calling the legacy queue transport', async () => {
+  const queued = { ...queueItem('a', 'queued'), uploadProgress: { total: 1, uploaded: 1, status: 'ready' } };
+  let cancelled = 0;
+  const props = { ...queueProps([queued]), uploadActions: { owns: id => id === 'a', check() {}, retry() {}, cancel: async () => { cancelled++; } } };
+  const ui = mount('Outbox.tsx', props, () => assert.fail('An owned upload must not bypass its submission lifecycle'));
+  try {
+    button(row(ui.output, 'a'), '删除').props.onClick(); await ui.flush();
+    assert.equal(cancelled, 1);
+  } finally { ui.close(); }
+});
+
 test('card errors follow their own receipt version and never clear another message', async () => {
   const a = item('a'), b = item('b'), props = cardProps([a, b]), ui = mount('SubmittedQueryCards.tsx', props);
   try {

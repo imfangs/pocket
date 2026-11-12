@@ -42,7 +42,7 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
   paused: boolean;
   disabled: boolean;
   check: (item: SubmittedQuery) => Promise<void>;
-  dismiss: (requestId: string) => void;
+  dismiss: (requestId: string) => void | Promise<void>;
   restore?: (item: SubmittedQuery) => Promise<void>;
   uploadActions?: SubmittedUploadActions;
   suppressNetworkErrors?: boolean;
@@ -118,9 +118,26 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
   const actOnUpload = async (item: SubmittedQuery, action: "retry" | "cancel") => {
     if (!uploadActions || uploadBusy || checking) return;
     setUploadBusy(item.requestId); clearError(item.requestId);
-    try { await uploadActions[action](item.requestId); }
-    catch (error) { recordError(item, error); }
+    try {
+      const result = await uploadActions[action](item.requestId);
+      if (action === "cancel" && typeof result === "number") await dismiss(item.requestId);
+    }
+    catch (error) {
+      const current = currentItems.current.find(value => value.requestId === item.requestId && value.threadId === item.threadId);
+      recordError(current?.status === "cancelled" && pendingSubmittedUpload(current) ? current : item, error);
+    }
     finally { setUploadBusy(null); }
+  };
+  const dismissQuery = async (item: SubmittedQuery) => {
+    if (uploadBusy || checking || restoring) return;
+    setUploadBusy(item.requestId); clearError(item.requestId);
+    try { await dismiss(item.requestId); }
+    catch (error) {
+      // Cleanup can legitimately move rejected -> cancelled before its reply
+      // is lost. Keep that recovery error on the current cancelled row only.
+      const current = currentItems.current.find(value => value.requestId === item.requestId && value.threadId === item.threadId);
+      recordError(current?.status === "cancelled" && pendingSubmittedUpload(current) ? current : item, error);
+    } finally { setUploadBusy(null); }
   };
   const copy = async (item: SubmittedQuery) => {
     try { await navigator.clipboard.writeText(item.text); setCopied(item.requestId); clearError(item.requestId); }
@@ -160,11 +177,11 @@ export default function SubmittedQueryCards({ items, connecting, paused, disable
         {uploadPending && <SubmittedUploadDetails items={item.attachmentUploads} />}
         {uploadPending && uploadActions && <div className="submitted-query-actions">
           {submittedUploadCanRetry(item) && <button type="button" disabled={disabled || !!checking || !!uploadBusy} onClick={() => void actOnUpload(item, "retry")}>{t("重试失败附件")}</button>}
-          <button type="button" disabled={disabled || !!checking || !!uploadBusy} onClick={() => void actOnUpload(item, "cancel")}>{t("取消发送")}</button>
+          <button type="button" disabled={disabled || !!checking || !!uploadBusy} onClick={() => void actOnUpload(item, "cancel")}>{t(item.uploadProgress?.code === "attachment_recovery_pending" ? "取回附件" : "取消发送")}</button>
         </div>}
         {(canDismiss || restore && ["rejected", "not_found"].includes(item.status)) && <div className="submitted-query-actions">
-          {restore && ["rejected", "not_found"].includes(item.status) && <button type="button" disabled={disabled || !!checking || !!restoring} onClick={() => void editAgain(item)}>{restoring === item.requestId ? t("正在取回…") : t("重新编辑")}</button>}
-          {canDismiss && <button type="button" onClick={() => dismiss(item.requestId)}>{t("收起")}</button>}
+          {restore && ["rejected", "not_found"].includes(item.status) && <button type="button" disabled={disabled || !!checking || !!restoring || !!uploadBusy} onClick={() => void editAgain(item)}>{restoring === item.requestId ? t("正在取回…") : t("重新编辑")}</button>}
+          {canDismiss && <button type="button" disabled={disabled || !!checking || !!restoring || !!uploadBusy} aria-busy={uploadBusy === item.requestId || undefined} onClick={() => void dismissQuery(item)}>{t("收起")}</button>}
         </div>}
         {showError && <p className="receipt-action-error submitted-query-error" role="alert">{t(readableRequestError(error.failure, "暂时无法核对，请稍后再试。"))}</p>}
       </Row>;

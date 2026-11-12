@@ -47,7 +47,7 @@ import type { AcceptedFeedback } from "./submissionFeedback";
 import SubmittedQueryCards from "./SubmittedQueryCards";
 import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, withSubmittedQueryPost } from "./submittedQueries";
 import type { SubmittedQuery, SubmittedQueryStore, SubmittedQueryReceipt } from "./submittedQueries";
-import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATTACHMENTS, readyAttachments, sameAttachments, type DraftAttachment } from "./attachments";
+import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATTACHMENTS, readyAttachments, sameAttachments } from "./attachments";
 import { attachmentSubmissionManager } from "./attachmentSubmissionManager";
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 import { useReadingComposer } from "./useReadingComposer";
@@ -67,11 +67,8 @@ import { readAutoDirectPreference, shouldEnqueueNewMessage, subscribeSendingPref
 import { compactionKeepsComposerExpanded, desktopComposerHint } from "./composerStatus";
 import { recordUsageFailure, usage } from "./usageAnalytics";
 import { useUsageConversation } from "./useUsageConversation";
-export type QueryDraft = {
-  text: string; requestId?: string; revision?: number;
-  attachments?: readonly DraftAttachment[];
-  answerMode?: "options" | "custom"; customText?: string; optionText?: string;
-};
+import type { QueryDraft } from "./queryDraft";
+export type { QueryDraft } from "./queryDraft";
 const statuses: Record<string, string> = {
   active: "正在运行",
   systemError: "上次运行出错",
@@ -927,7 +924,7 @@ export default function Conversation({
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
         <SubmittedQueryCards items={visibleSubmissions} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
-          disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} uploadActions={uploadActions} />
+          disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => uploadSubmissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} uploadActions={uploadActions} />
         {working && <ConversationActivity turnId={history!.activeTurnId!} />}
         </div>
         {earlier.active && <div className="earlier-history-messages">

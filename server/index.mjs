@@ -14,6 +14,7 @@ import { DesktopService } from "./desktop.mjs";
 import { ReadStateService } from "./read-state.mjs";
 import { PocketContentService, POCKET_CONTENT } from "./pocket-content.mjs";
 import { HistoryPageReader } from "./history.mjs";
+import { withReadRequest } from "./read-request.mjs";
 import { createPocketFeedback, isFeedbackMachineRoute } from "./feedback.mjs";
 import { ThreadAutomations } from "./thread-automations.mjs";
 import { LifecycleService } from "./lifecycle.mjs";
@@ -473,9 +474,10 @@ export function makeApp(options = {}) {
           throw new AppError("历史分页参数无效", 400);
         const rawLimit = url.searchParams.get("limit");
         if (rawLimit !== null && !/^(?:[1-9]|[1-7]\d|80)$/.test(rawLimit)) throw new AppError("历史分页条数无效", 400);
-        const data = await historyPages.read(codexHome, id, {
-          before: url.searchParams.get("before"), limit: rawLimit === null ? 80 : Number(rawLimit),
-        });
+        const data = await withReadRequest(req, res, signal => historyPages.read(codexHome, id, {
+          before: url.searchParams.get("before"), limit: rawLimit === null ? 80 : Number(rawLimit), signal,
+        }));
+        if (!data) return;
         res.setHeader("Server-Timing", `history_page;dur=${(performance.now() - start).toFixed(1)}`);
         // Historical pages are display-only. Do not mint read observations or
         // pass these messages into the live history/receipt controllers.
@@ -486,20 +488,22 @@ export function makeApp(options = {}) {
       if (transcript && method === "GET") {
         const start = performance.now();
         const thread = store.thread(transcript[1]);
-        let observed;
-        try {
-          observed = readState.observeTranscript(transcript[1], () => pocketContent.transcript(transcript[1], desktop.transcript(transcript[1])));
-        }
-        catch (error) {
-          if (error.code !== "ENOENT") throw error;
-          const recent = await historyPages.recent(codexHome, transcript[1]);
-          const saved = desktop.attachments.enrich(transcript[1], { source: "rollout", messages: recent.messages,
-            hasMore: !!recent.hasMore, turnTiming: recent.turnTiming || null, checkedAt: Date.now(),
-            [POCKET_CONTENT]: recent[POCKET_CONTENT] });
-          // This source was read asynchronously. A later native before/after
-          // pair cannot authorize marking a newer desktop snapshot as read.
-          observed = { ...pocketContent.transcript(transcript[1], saved), readObservation: null };
-        }
+        const observed = await withReadRequest(req, res, async signal => {
+          try {
+            return readState.observeTranscript(transcript[1], () => pocketContent.transcript(transcript[1], desktop.transcript(transcript[1])));
+          }
+          catch (error) {
+            if (error.code !== "ENOENT") throw error;
+            const recent = await historyPages.recent(codexHome, transcript[1], { signal });
+            const saved = desktop.attachments.enrich(transcript[1], { source: "rollout", messages: recent.messages,
+              hasMore: !!recent.hasMore, turnTiming: recent.turnTiming || null, checkedAt: Date.now(),
+              [POCKET_CONTENT]: recent[POCKET_CONTENT] });
+            // This source was read asynchronously. A later native before/after
+            // pair cannot authorize marking a newer desktop snapshot as read.
+            return { ...pocketContent.transcript(transcript[1], saved), readObservation: null };
+          }
+        });
+        if (!observed) return;
         const data = files.attach(thread, images.attach(thread, observed));
         res.setHeader("Server-Timing", `transcript;dur=${(performance.now() - start).toFixed(1)}`);
         return sendCatalog(res, data, req.headers["accept-encoding"], { path, method, machineId, headers: req.headers });

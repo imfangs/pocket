@@ -79,7 +79,17 @@ export class DesktopService {
   }
   isLifecycleBlocked(id) { return this.lifecycleBlocked?.(id) === true; }
   requireLifecycleOpen(id) {
-    if (this.isLifecycleBlocked(id)) throw new AppError("此会话正在等待归档或核对管理操作，请先取消或完成该操作", 409);
+    if (this.isLifecycleBlocked(id)) throw Object.assign(new AppError("此会话正在等待归档或核对管理操作，请先取消或完成该操作", 409), { dispatchCode: "lifecycle_pending" });
+  }
+  requireDispatchReady(id, { automatic = false, ownsSending = false } = {}) {
+    this.requireLifecycleOpen(id);
+    const unavailable = (message, code) => { throw Object.assign(new AppError(message, 409), { dispatchCode: code }); };
+    const thread = this.store.thread(id);
+    if (thread.archived || thread.missing) unavailable("请先恢复会话", "thread_not_ready");
+    if (this.compactionPending(id)) unavailable("请先核对上下文压缩状态", "compaction_pending");
+    if (this.models.pending(id)) unavailable("请先在会话信息中核对思考强度", "model_settings_pending");
+    if (this.stops.pending(id) || automatic && this.stops.pause(id)) unavailable("待发消息已暂停，请先核对停止状态", "queue_paused");
+    if (!ownsSending && this.sending.has(id)) unavailable("会话正在提交另一条消息", "dispatch_busy");
   }
   suspendConnection(id) {
     this.cache.delete(id);
@@ -507,6 +517,27 @@ export class DesktopService {
       .get(requestId, id);
     return row ? this.receipt(row) : { requestId, status: "not_found" };
   }
+  completeDispatch(id, requestId, result, fallbackStatus) {
+    // A correlated native-history receipt outranks a late RPC response, including
+    // its turn ID and diagnostic. Both direct and queued delivery settle here.
+    const observed = this.getReceipt(id, requestId);
+    const succeeded = result.ok === true;
+    const accepted = observed.status === "accepted" || succeeded;
+    const turnId = observed.status === "accepted" ? observed.turnId || (succeeded ? result.turnId : null) || null : result.turnId || observed.turnId || null;
+    const status = accepted ? "accepted" : fallbackStatus;
+    this.transaction(() => {
+      this.store.db.prepare("UPDATE dispatches SET status=?,turn_id=?,code=? WHERE id=? AND thread_id=?")
+        .run(status, turnId, accepted ? null : result.code || null, requestId, id);
+      if (accepted) this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=? AND thread_id=?").run(requestId, id);
+    });
+    this.cache.delete(id);
+    const receipt = this.getReceipt(id, requestId);
+    if (accepted) {
+      try { this.onAccepted?.(id, receipt.turnId); }
+      catch { /* Notification bookkeeping cannot invalidate a persisted receipt. */ }
+    }
+    return receipt;
+  }
   outbox(id) {
     return this.store.db.prepare("SELECT o.id,o.text,o.revision,d.status,d.code,d.created_at AS createdAt,d.auto_direct AS autoDirect FROM outgoing_messages o JOIN dispatches d ON d.id=o.id WHERE o.thread_id=? ORDER BY d.created_at,d.rowid").all(id)
       .map(row => ({ ...row, autoDirect: row.autoDirect === 1, attachments: this.attachments.forDispatch(id, row.id).map(a => this.attachments.public(a)),
@@ -577,24 +608,24 @@ export class DesktopService {
   async dispatchQueued(id, requestId, input, delivery = "now", resumeAfterTurnId = null) {
     const automatic = delivery !== "now";
     const queueEpoch = this.queueEpoch;
-    this.requireLifecycleOpen(id);
-    const thread = this.store.thread(id);
-    if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
-    if (this.compactionPending(id)) throw new AppError("请先核对上下文压缩状态", 409);
-    if (this.models.pending(id)) throw new AppError("请先在会话信息中核对思考强度", 409);
-    if (this.stops.pending(id) || (delivery !== "now" && this.stops.pause(id))) throw new AppError("待发消息已暂停，请先核对停止状态", 409);
+    this.requireDispatchReady(id, { automatic });
     if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("发送参数无效", 400);
-    const row = this.queued(id, requestId, input.expectedRevision, automatic ? ["queued"] : ["queued", "rejected"]);
-    if (this.uploadReservations.row(requestId) && !await this.uploadReservations.finalize(id, requestId)) throw new AppError("附件尚未上传齐，请完成上传或取消此消息", 409);
-    if (automatic && this.outbox(id)[0]?.id !== requestId) throw new AppError("待发顺序已变化，请重新核对", 409);
-    if (delivery === "auto-now" && !row.autoDirect) throw new AppError("这条消息未开启自动直接发送", 409);
-    if (this.sending.has(id)) throw new AppError("会话正在提交另一条消息", 409);
+    this.queued(id, requestId, input.expectedRevision, automatic ? ["queued"] : ["queued", "rejected"]);
+    // Missing uploads return immediately from finalize(). The lock covers only
+    // actual verification/preflight, not the time a manifest waits for files.
     this.sending.add(id);
-    const claim = this.store.db.prepare(`UPDATE dispatches SET status='pending',code=NULL WHERE id=? AND ${automatic ? "status='queued'" : "status IN('queued','rejected')"} AND EXISTS(SELECT 1 FROM outgoing_messages WHERE id=? AND revision=?)`)
-      .run(requestId, requestId, input.expectedRevision);
-    if (!claim.changes) { this.sending.delete(id); throw new AppError("待发消息已变化，请刷新", 409); }
-    let result;
+    let result, row, claimed = false, deferred = false, nativeStarted = false;
     try {
+      if (this.uploadReservations.row(requestId) && !await this.uploadReservations.finalize(id, requestId)) throw new AppError("附件尚未上传齐，请完成上传或取消此消息", 409);
+      this.requireDispatchReady(id, { automatic, ownsSending: true });
+      if (automatic && queueEpoch !== this.queueEpoch) throw new AppError("待发消息已暂停，请稍后核对", 409);
+      row = this.queued(id, requestId, input.expectedRevision, automatic ? ["queued"] : ["queued", "rejected"]);
+      if (automatic && this.outbox(id)[0]?.id !== requestId) throw new AppError("待发顺序已变化，请重新核对", 409);
+      if (delivery === "auto-now" && !row.autoDirect) throw new AppError("这条消息未开启自动直接发送", 409);
+      const claim = this.store.db.prepare(`UPDATE dispatches SET status='pending',code=NULL WHERE id=? AND ${automatic ? "status='queued'" : "status IN('queued','rejected')"} AND EXISTS(SELECT 1 FROM outgoing_messages WHERE id=? AND revision=?)`)
+        .run(requestId, requestId, input.expectedRevision);
+      if (!claim.changes) throw new AppError("待发消息已变化，请刷新", 409);
+      claimed = true;
       const saved = this.attachments.forDispatch(id, requestId);
       let attachments = [];
       if (saved.length) {
@@ -603,26 +634,28 @@ export class DesktopService {
       }
       if (!result && automatic && (queueEpoch !== this.queueEpoch || this.stops.pause(id) || this.stops.pending(id)))
         result = { ok: false, code: "queue_paused", sent: false };
-      if (!result) result = await this.request({ operation: "send", threadId: id, codexHome: this.codexHome,
-        text: row.text, requestId, delivery, ...(attachments.length ? { attachments } : {}), ...(resumeAfterTurnId ? { resumeAfterTurnId } : {}) });
-    } catch { result = { ok: false, code: "dispatch_unknown", sent: null }; }
+      if (!result) this.requireDispatchReady(id, { automatic, ownsSending: true });
+      if (!result) {
+        nativeStarted = true;
+        result = await this.request({ operation: "send", threadId: id, codexHome: this.codexHome,
+          text: row.text, requestId, delivery, ...(attachments.length ? { attachments } : {}), ...(resumeAfterTurnId ? { resumeAfterTurnId } : {}) });
+      }
+    } catch (error) {
+      if (!claimed) throw error;
+      deferred = !nativeStarted && !!error.dispatchCode;
+      result = { ok: false, code: deferred ? error.dispatchCode : "dispatch_unknown", sent: deferred ? false : null };
+    }
     finally { this.sending.delete(id); }
-    const observed = this.getReceipt(id, requestId);
     const recoverableConnection = this.recoverableConnectionFailure(result);
     const reconnect = delivery === "now" && recoverableConnection;
     const waitAgain = automatic && result.sent === false && (result.code === "queue_paused" ||
       row.autoDirect && (recoverableConnection || ["thread_not_ready", "thread_changed"].includes(result.code)));
-    const status = observed.status === "accepted" || result.ok ? "accepted"
-      : result.code === "thread_active" && result.sent === false ? "queued"
+    const status = deferred || result.code === "thread_active" && result.sent === false ? "queued"
       : reconnect || waitAgain ? "queued"
       : result.sent === false ? "rejected" : "unknown";
-    this.store.db.prepare("UPDATE dispatches SET status=?,turn_id=COALESCE(?,turn_id),code=? WHERE id=?")
-      .run(status, result.turnId || null, result.code || null, requestId);
-    if (status === "accepted") this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(requestId);
-    if (status === "accepted") this.onAccepted?.(id, this.getReceipt(id, requestId).turnId);
-    this.cache.delete(id);
-    if (status === "queued" && reconnect) this.connectForSubmission(id);
-    return this.getReceipt(id, requestId);
+    const receipt = this.completeDispatch(id, requestId, result, status);
+    if (receipt.status === "queued" && reconnect) this.connectForSubmission(id);
+    return receipt;
   }
   async processQueue() {
     const epoch = this.queueEpoch;
@@ -750,7 +783,7 @@ export class DesktopService {
       this.connectForSubmission(id);
       return this.getReceipt(id, input.requestId);
     }
-    let result;
+    let result, deferred = false, nativeStarted = false;
     this.sending.add(id);
     // Keep room for this submission if a slow preflight finds an active turn.
     // Later explicit enqueues must not consume its fallback slot.
@@ -763,49 +796,42 @@ export class DesktopService {
       }
       if (!result && input.autoDirect === true && (this.stops.pause(id) || this.stops.pending(id)))
         result = { ok: false, code: "queue_paused", sent: false };
-      if (!result) result = await this.request({
-        operation: "send",
-        threadId: id,
-        codexHome: this.codexHome,
-        text,
-        requestId: input.requestId,
-        ...(input.autoDirect === true ? { delivery: "now" } : {}),
-        ...(attachments.length ? { attachments } : {}),
-      });
-    } catch {
-      result = { ok: false, code: "dispatch_unknown", sent: null };
+      if (!result) this.requireDispatchReady(id, { automatic: input.autoDirect === true, ownsSending: true });
+      if (!result) {
+        nativeStarted = true;
+        result = await this.request({
+          operation: "send",
+          threadId: id,
+          codexHome: this.codexHome,
+          text,
+          requestId: input.requestId,
+          ...(input.autoDirect === true ? { delivery: "now" } : {}),
+          ...(attachments.length ? { attachments } : {}),
+        });
+      }
+    } catch (error) {
+      deferred = !nativeStarted && !!error.dispatchCode;
+      result = { ok: false, code: deferred ? error.dispatchCode : "dispatch_unknown", sent: deferred ? false : null };
     } finally {
       this.sending.delete(id);
       this.queueReservations.delete(id);
     }
     const observed = this.getReceipt(id, input.requestId);
-    if (observed.status !== "accepted" && result.sent === false &&
+    if (observed.status !== "accepted" && (deferred || result.sent === false &&
         (result.code === "thread_active" || input.autoDirect === true &&
-          ["queue_paused", "thread_not_ready", "thread_changed"].includes(result.code))) {
+          ["queue_paused", "thread_not_ready", "thread_changed"].includes(result.code)))) {
       this.queue(id, input.requestId, text);
-      return this.getReceipt(id, input.requestId);
+      return this.completeDispatch(id, input.requestId, deferred ? result : { ...result, code: null }, "queued");
     }
     if (observed.status !== "accepted" && this.recoverableConnectionFailure(result)) {
       this.queue(id, input.requestId, text);
       this.connectForSubmission(id);
-      return this.getReceipt(id, input.requestId);
+      return this.completeDispatch(id, input.requestId, { ...result, code: null }, "queued");
     }
-    const status = observed.status === "accepted" || result.ok
-      ? "accepted"
-      : result.sent === false
+    const status = result.sent === false
         ? "rejected"
         : "unknown";
-    this.store.db
-      .prepare("UPDATE dispatches SET status=?,turn_id=?,code=? WHERE id=?")
-      .run(status, result.turnId || observed.turnId || null, status === "accepted" ? null : result.code || null, input.requestId);
-    if (status === "accepted") this.onAccepted?.(id, result.turnId);
-    if (status === "accepted") this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(input.requestId);
-    this.cache.delete(id);
-    return this.receipt(
-      this.store.db
-        .prepare("SELECT * FROM dispatches WHERE id=?")
-        .get(input.requestId),
-    );
+    return this.completeDispatch(id, input.requestId, result, status);
   }
   reserveAttachmentUploads(id, input) {
     const text = input.text.trim(), descriptors = this.uploadReservations.validate(input.attachmentUploads);

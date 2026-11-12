@@ -1,4 +1,4 @@
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 import type { HistoryCache } from "./conversationFeed";
 import { hasAnswerText } from "./questionDrafts.ts";
 import { hasDraftAttachments } from "./attachments.ts";

@@ -6,7 +6,7 @@ import { Archive, ArchiveRestore, ArrowUpRight, ChevronDown, ChevronLeft, Clipbo
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import type { Thread } from "./types";
 import Conversation from "./Conversation";
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 import { bindInspectorViewport } from "./mobileInspector";
 import { bindInspectorMotion } from "./inspectorMotion";
 import type { HistoryCache } from "./conversationFeed";

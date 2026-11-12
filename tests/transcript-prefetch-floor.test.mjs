@@ -29,6 +29,58 @@ test('a selected view retains its floor through body eviction and permits a genu
   assert.deepEqual(revisions(f, 1), [3, 4]); f.reader.stop(); await flush();
 });
 
+test('a foreground read records the floor before selection exits and the cached body is evicted', async () => {
+  const f = controlledFixture({ gapMs: 10, latency: () => 10000 });
+  f.selected(id(1));
+  const reading = f.reader.read(id(1), new AbortController().signal); await flush();
+  f.requests.at(-1).resolve(response(candidate(1, 3)));
+  assert.equal((await reading).pocketContent.revision, 3);
+  assert.equal(f.writes.length, 0, 'foreground ownership still leaves body persistence to its consumer');
+  f.selected(null);
+  await validate(f, candidate(1, 2, 'running'));
+  assert.deepEqual(revisions(f, 1), [], 'an empty body cache does not let the background forget foreground version 3');
+  await validate(f, candidate(1, 4, 'running'));
+  assert.deepEqual(revisions(f, 1), [4]); f.reader.stop(); await flush();
+});
+
+test('foreground reads reject an older verified body after eviction but accept a higher version', async () => {
+  const f = controlledFixture({ gapMs: 10, latency: () => 10000 });
+  f.selected(id(1));
+  const readVersion = async revision => {
+    const reading = f.reader.read(id(1), new AbortController().signal); await flush();
+    f.requests.at(-1).resolve(response(candidate(1, revision))); return reading;
+  };
+  assert.equal((await readVersion(3)).pocketContent.revision, 3);
+  await assert.rejects(readVersion(2), { name: 'AbortError', code: 'transcript_content_regressed' });
+  assert.equal((await readVersion(4)).pocketContent.revision, 4);
+  assert.equal(f.writes.length, 0); f.reader.stop(); await flush();
+});
+
+test('cancelled and foreign-scope foreground responses never establish a floor', async () => {
+  for (const reason of ['cancelled', 'foreign']) {
+    const f = controlledFixture({ gapMs: 10, latency: () => 10000 });
+    f.selected(id(1));
+    const controller = new AbortController(), reading = f.reader.read(id(1), controller.signal); await flush();
+    const rejection = assert.rejects(reading, { name: 'AbortError' });
+    const latest = response(candidate(1, 9));
+    if (reason === 'cancelled') controller.abort();
+    else latest.pocketContent.scope = 'another-scope';
+    f.requests.at(-1).resolve(latest); await rejection; await flush();
+    f.selected(null); await validate(f, candidate(1, 2, 'running'));
+    assert.deepEqual(revisions(f, 1), [2], reason); f.reader.stop(); await flush();
+  }
+});
+
+test('foreground data without verified metadata stays readable without inventing a floor', async () => {
+  const f = controlledFixture({ gapMs: 10, latency: () => 10000 });
+  f.selected(id(1));
+  const reading = f.reader.read(id(1), new AbortController().signal); await flush();
+  const legacy = response(candidate(1, 9)); delete legacy.pocketContent;
+  f.requests.at(-1).resolve(legacy); assert.deepEqual(await reading, legacy);
+  f.selected(null); await validate(f, candidate(1, 2, 'running'));
+  assert.deepEqual(revisions(f, 1), [2]); f.reader.stop(); await flush();
+});
+
 test('the 256-entry floor ledger evicts the least recently used metadata and retains a touched floor', async () => {
   const f = controlledFixture({ gapMs: 10, latency: () => 10000 });
   for (let n = 1; n <= 256; n++) await validate(f, candidate(n), candidate(n, 3));

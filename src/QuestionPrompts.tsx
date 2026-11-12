@@ -5,7 +5,7 @@ import type { Ref } from "react";
 import AutoTextarea from "./AutoTextarea";
 import { api } from "./api";
 import type { AsyncQuestion, Message } from "./conversationFeed";
-import type { QueryDraft } from "./Conversation";
+import type { QueryDraft } from "./queryDraft";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { captureDraft } from "./draftTransaction";
 import { answerMode, editAnswer, hasAnswerText, switchAnswerMode } from "./questionDrafts";

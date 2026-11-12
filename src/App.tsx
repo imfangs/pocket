@@ -47,6 +47,7 @@ import type { Catalog, Thread, View } from "./types";
 import NewConversationDialog, { type NewConversationInput } from "./NewConversationDialog";
 import { startUsageAnalytics } from "./usageAnalytics";
 import { createSubmittedQueryStore, seedSubmittedQuery, visibleSubmittedQueries } from "./submittedQueries";
+import { attachmentSubmissionManager } from "./attachmentSubmissionManager";
 import { authorizeImageReadCache } from "./imageReadCache";
 import { prepareCreationDialog, type CreationClipboard } from "./creationQuery";
 import type { CreateLocation, TaskOperation } from "./taskOperations";
@@ -110,6 +111,10 @@ export default function App({
   const [draftIndicatorRevision, setDraftIndicatorRevision] = useState(0);
   const [conversationDrafts] = useState(() => ({ current: createDraftMap(() => setDraftIndicatorRevision(value => value + 1)) }));
   const [submissions] = useState(createSubmittedQueryStore);
+  const [uploadSubmissions] = useState(() => attachmentSubmissionManager(conversationDrafts.current, submissions));
+  // Uploads survive inspector changes, but never outlive their authenticated
+  // App session. The owner lease also handles StrictMode effect replay.
+  useEffect(() => uploadSubmissions.retainOwner(), [uploadSubmissions]);
   useEffect(() => submissions.subscribe(() => setDraftIndicatorRevision(value => value + 1)), [submissions]);
   const creationDismiss = useRef<(requestId: string) => void>(() => {});
   const [creationArrival] = useState(() => createCreationArrival({ confirmedAt: readCreationConfirmations(),

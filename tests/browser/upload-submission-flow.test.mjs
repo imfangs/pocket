@@ -293,7 +293,23 @@ for (const engine of engines) {
     assert.equal(await row.count(), 1); assert.equal(await row.evaluate(node => node === window.syntheticUploadQueryRow), true);
     assert.equal(service.calls.filter(call => call.method === 'POST' && call.action === 'messages').length, 1);
     service.releasePuts(1); await until(() => service.puts.every(put => put.finished));
-    await assertState(row, 'queued'); service.accept(); await checkRow(row, locale); await assertState(row, 'accepted');
+    await assertState(row, 'queued');
+    // A complete queued row has ordinary edit/delete/send controls. Its owner
+    // automatically checks the original receipt, without a separate check tap.
+    const acceptedResponse = page.waitForResponse(async response => {
+      if (response.request().method() !== 'GET' || response.status() !== 200 ||
+          !new URL(response.url()).pathname.endsWith(`/messages/${record.input.requestId}`)) return false;
+      const receipt = await response.json().catch(() => null);
+      return receipt?.requestId === record.input.requestId && receipt.status === 'accepted';
+    });
+    service.accept();
+    const received = await acceptedResponse, receipt = await received.json();
+    assert.equal(received.headers()['x-pocket-machine'], 'ged');
+    assert.equal(receipt.uploadProgress.status, 'ready'); assert.equal(receipt.uploadProgress.total, 2); assert.equal(receipt.uploadProgress.uploaded, 2);
+    await assertState(row, 'accepted');
+    assert.equal(await row.evaluate(node => node === window.syntheticUploadQueryRow), true);
+    assert.equal(service.calls.filter(call => call.method === 'POST' && call.action === 'messages').length, 1);
+    assert.equal(service.puts.length, 2);
   });
 
   flow(engine, 'en-US/390: definite failure retries the same upload id; uncertainty offers metadata verification without retransmission', { locale: 'en-US', width: 390 }, async ({ page, install, locale }) => {

@@ -17,6 +17,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | 左滑隐藏、隐藏分类、取消隐藏、隐藏缓存/修订 | [会话隐藏](docs/design/2026-11-03-hidden-conversations.md)：Pocket独立偏好、普通分类排除/隐藏集合找回、hiddenRevision与scope保护，保留原会话/草稿/运行 |
 | 阶段性CR、历史窗口重构、提交正文回收、可重复浏览器验收 | [10-31阶段审查](docs/design/2026-10-31-stage-refactor.md)：结构/Spec分轴、历史协调职责、终态正文与防重身份分离；后端取消链路等候选有独立重开条件 |
 | 当前代码库CR、临时输入退休、整体请求预算、旧历史控制回执 | [11-11代码质量](docs/design/2026-11-11-codebase-review-refactor.md)：creationArrival／阅读投影／读取观察集中；pending RPC保留自身结果、负向观察按起点身份；API25秒／消息18秒／附件190秒，原请求与只读核对保持；root-only恢复范围不明或关联树明确拒绝 |
+| 独立CR、提交与认证所有者、ready排队取消、版本地板与读取取消 | [11-12生命周期归属](docs/design/2026-11-12-independent-cr-and-ownership.md)：App owner lease／确定拒绝与unknown分开／已上传原件恢复；纯草稿类型、统一read版本判定、共享Worker按consumer取消；派发准备门槛及accepted完成政策集中 |
 | 全界面并行实操、空结果键盘恢复、回答回执保护、Markdown文件代码Tab、口令显隐 | [11-09扩大界面QA](docs/design/2026-11-09-expanded-interface-qa.md)：固定基线、模块归属、同版集成；焦点/选区与原请求身份保持，真实设备和异常回执发生率分开记录 |
 | 会话信息打开时高度跳动、定时任务/模型摘要重复读取 | [稳定布局与信息缓存](docs/design/2026-10-31-info-dialog-cache.md)：加载/空态同一行、30秒页面内缓存、过期保留显示后台读取；模型权限/回执不缓存，修改仍实时核对 |
 | 设置/会话信息紧凑布局、顶部创建/活动/加号默认透明 | [控件与信息减法](docs/design/2026-10-30-compact-settings-and-controls.md)：统一节奏、元数据两列、局部Modal标题margin、44px点击区和选中反馈保持 |

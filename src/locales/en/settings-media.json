@@ -447,5 +447,8 @@
   "取消发送": "Cancel send",
   "发送已取消，附件清理结果待核对，请重试取消。": "Sending is cancelled. Verify attachment cleanup or retry cancelling.",
   "附件正在移除，请稍后再发送。": "An attachment is being removed. Send when it finishes.",
-  "请先核对原消息的提交结果。": "Verify the original submission before continuing."
+  "请先核对原消息的提交结果。": "Verify the original submission before continuing.",
+  "附件暂未取回": "Attachments need recovery",
+  "取回附件": "Recover files",
+  "发送已取消，附件暂未取回，请重试取消。": "Sending is cancelled. Retry to recover your attachments."
 }
