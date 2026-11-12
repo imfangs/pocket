@@ -11,3 +11,5 @@
 真实指定样本的候选投影已用只读 Pocket DB 核对：raw SHA 与旧保存消息一致，显示 Query SHA 与原生 Query 一致，准确关联原已上传 PNG，原 accepted 状态保持。没有复制文件、开启目录权限、修改 Codex 原数据、连接 owner、发送消息或发布；图片字节/解码和手机实际显示由集成验收另证。
 
 `tests/uploaded-user-envelope.test.mjs` 覆盖真实四段接缝的合成等价样本、多图与文件混合、原文/指纹保持、纯文本伪造、代码/引用、未知/未闭合标签、计数/路径/provenance 负例、foreign thread、未知来源、旧 wrapper 与缓存只保存显示证明。真实样本和核验回执仅留 `.local/qa/uploaded-envelope-2026-11-12/`。最终全量、浏览器和发布结果由负责人回写 CURRENT。
+
+同日集成：新实际API只读回读确认该507字raw SHA保持、attachmentEnvelope=true并准确绑定1件附件；910583字节PNG原件200／签名一致。总回归／发布和权限边界见[上传与图片缓存](2026-11-12-upload-pipeline-and-image-cache.md#同日集成与发布)与CURRENT；不把这次读取当成模型发送或Documents权限已恢复。

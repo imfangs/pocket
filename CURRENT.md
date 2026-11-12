@@ -1,8 +1,10 @@
 # Pocket 当前状态
 
-维护日期：2026-11-12。常见文件预览、同消息图库和归档分类入口已上线：普通JPG文件卡可预览并下载，PDF/SVG/现代Office/ZIP/音频按类型展示；图片左右切换保留缩放、焦点与阅读，归档回上方分类、底部只设置。源e9a5529/API26770、网页978d80e/buildc7be8a18/Pages5afc4f01；2484全测、102同版浏览器、284不可变API和243资源回读通过。实际指定JPEG预览200/50294字节等于原件并正常解码；旧2queued及凭据/偏好/订阅保持，Codex/connector未重启。此前Documents目录许可仍待本人，豌豆未更新，最新接续包保留。
+维护日期：2026-11-12。附件上传与并行读取已上线：每条16件、上传16路／正文预取8路／图片8路／音视频共用32路；上传中可发送并保持同一消息行，实际accepted才变绿。图片新增12MiB内存＋64MiB私有磁盘缓存，WebKit字节存储与撤销竞态已修；保存历史的已上传图片包装可正常显示Query和附件。格得API553834b/PID67841、网页f5aae23/build e753f4a6/Pages91deec47；2577全测、94同版浏览器、356不可变API、243公网资源及独立回读通过。原2queued与凭据／偏好保持，Codex／connector未重启。豌豆SSH本次超时，最新完整接续包保留；此前Documents目录许可仍待本人。
 
 ## 下一次先看
+
+- **上传不中断输入、图片缓存与网络路数翻倍已上线（2026-11-12）。** [契约](docs/design/2026-11-12-upload-pipeline-and-image-cache.md)、[上传包装](docs/design/2026-11-12-uploaded-user-envelope.md)。16附件／16网络上传／2散列／8正文预取／8图片读取／音视频共享32，同会话原生发送仍1路。File／原uploadId转到独立提交所有者，Mac持久清单和队列位置，全部到齐并核对后才能派发；原requestId／指纹／revision／暂停／旧直发策略保持。原POST不重放，未知只读核对，移除中的附件不能转移，迟到accepted优先；失败清理可继续核对。实际回执才绿，0或部分历史回显只触发原GET，不提前接受；UI／下一草稿／IME／滚动和原消息DOM稳定。图片使用已有idb，L1 12MiB／IDB 64MiB、内容SHA／机器／来源／变体隔离，认证／来源／清理撤销迟到结果；未知SHA仅会话L1，>8MiB附件原图只短租约、原20MiB上限保持。WebKit实际Blob put UnknownError修为ArrayBuffer落盘；旧Blob迁移按最新epochs／身份／key存在核对，修复并独立复验移除／LRU竞态复活。已上传typed包装只生成显示证明，raw ID／role／正文／指纹保持，纯文本伪造不授予文件，分页同样富化。实际原507字保存消息保留SHA并绑定1件PNG、910583字节原件200／签名正常。8预取保留8候选、前台抢占／同ID单飞／弱网退避，256标量地板防淘汰后3→2。最终2577全测、94同版浏览器（14上传＋80图片）、25存储模型、58预取独立CR、356inactiveAPI＋6临时HTTP均绿；旧126行为／28中间缓存导航回归分版保留，不冒称同版。四组主上传峰值16／POST1，冷重开图片GET0；不宣称物理iPhone吞吐或iOS挂起持续上传。格得API553834b一次保护切换／PID67841，旧2queued、凭据／偏好／订阅保持，Codex／connector不动；网页f5aae23/build e753f4a6/Pages91deec47单次上传exit0／ready、243/243和功能、独立version/profile/App JS一致，重build246文件与已测API内置dist逐字节相同。首轮401和服务选择后的dirty配置均发生在上传前；OAuth单次28scope续期＋账号项目200，未重传。豌豆本次SSH banner超时，无远端上传／切换，最新21,975,040字节包与SHA从`upload-flow-2026-11-12/api-deploy/wandou-continuation.json`接续，旧e9包标记替代。总证据`.local/qa/upload-flow-2026-11-12/verification.json`；权限待本人授权，无模型消息／真实归档／原数据或系统许可改写，无未决Pages。
 
 - **常见文件链接与同消息图库已上线（2026-11-12）。** [契约与格式](docs/design/2026-11-12-common-file-previews.md)：实际指定JPEG普通file link旧版仅下载，原件原本200；新files/image复用登记能力、格式/8MiB/签名/目录/inode核对，实际新端点200/image/jpeg/50294字节等于原件，浏览器解码1100×904。正文图／图片文件卡／附件按单消息注册、顺序／去重／scope／32窗口快照；单指原比横滑48px切图、放大拖动仍平移，按钮/键盘/张数、加载失败可切走，同dialog／旧图事件／读节点／草稿／IME／回焦保持。归档移上方分类无数量，底部设置图标+文字；原筛选和归档处理不变。PDF惰性同源Worker/CMap/字体与画布预算、静态SVG、现代Office有界Worker内容/ZIP目录、nativeaudio受控512MiB Range生命周期，原下载/HTML/文本/视频保持。新增库仅前端dev构建依赖，324 API生产图不变；定向补丁后npm audit0。14Office／6PDFSVG专项及独立资源CR，媒体短EOF漏helperP2修复409并独立复验；开发PDF资产和模块MIME也已实证修复。最终2484全绿、102同版浏览器(图库/分类32+旧52+JPG8+PDFSVG音频4+Office6)、284 inactiveAPI/临时HTTP通过，无skip。JPEG/PDF/SVG旧断言、WebKit焦点/Blob/媒体request分类、loading图缓存与toolbar SVG计数等设施错误分别保留。格得不可变APIe9a5529一次保护切换/PID26770，旧2queued、凭据／偏好／订阅及原所有者保持；网页源978d80e/buildc7be8a18…/Pages5afc4f01…单次ready、243/243资源/功能与独立version/profile/App/PDFWorker/CMap正常DNS/TLS哈希一致，重build全部246文件与已测release逐字节相同。urllib静态读取被HTTP拒绝的传输对照单独保存，未重传。无模型消息／真实归档／Codex源或系统授权修改，Codex/connector不重启；此前Documents图仍待本人授权，Office为内容预览，物理iPhone/全部codec不作保证。证据`.local/qa/file-previews-2026-11-12/verification.json`；豌豆原fc未连接更新，最新`api-deploy/wandou-continuation.json`完整包替代旧0f传输包，无未决Pages。
 
@@ -177,12 +179,12 @@
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
 | 公网前端/网关源码 | `978d80ea7e3a51388ce687a0f7af780be53a3735`；同消息图库／常见文件预览／归档分类，原状态预取与弱网反馈保持 |
-| 两机API源码 | 格得`e9a552913d33be8e36c25af09bfbd10ae7eab914`/PID26770；豌豆仍`fc86637f601cc2e7024c5b80eae9250322341139`，本轮未连接或切换；格得connector12894/Codex不动 |
-| 前端build | 共享公网/本地dist及格得API内置 `c7be8a180c72a73c82abc4cfb2609743c9ddcc42dbbbaa07689bae14f9b65219`；豌豆内置仍`f9ac7165…` |
-| Pages部署 | `5afc4f01-32c3-4543-8bdb-ba1047bf39f4`；单次上传exit0/ready、243/243资源/功能、独立五资源哈希一致 |
-| 本次验证 | 2484完整全绿、102同版浏览器、284不可变API、真实JPEG200/bytes/hash/解码、独立CR/开发资产/module MIME/资源预算验证；物理iPhone及全部原生codec另验 |
-| 本次证据 | `.local/qa/file-previews-2026-11-12/verification.json`、actual-jpg-preview/decode、独立CR、原红例/设施对照、API与Pages/静态回执；图库及菜单早期证据留image-gallery-2026-11-12 |
-| 本次数据与运行 | 格得API一次保护切换及网页单次发布；旧2queued/凭据/偏好/订阅保持，Codex/connector未重启，无真实发送/归档/源数据/目录授权修改。豌豆未连接、最新完整接续包保留；OAuth原有效仅verify，无本轮续期或未决 |
+| 两机API源码 | 格得`553834b300df0f18834acc77652d66ec607f4744`/PID67841；豌豆最后确认`fc86637f601cc2e7024c5b80eae9250322341139`，本轮SSH超时未重新核验或切换；格得connector12894/Codex不动 |
+| 前端build | 共享公网/本地dist及格得API内置 `e753f4a697c5b869697fdaa1530d7266738292c28cbf135ca67bf334581b1d08`；豌豆内置最后确认`f9ac7165…` |
+| Pages部署 | 网页源`f5aae23515e9d2098bb56997b556d0c46cf06a65`；`91deec47-9575-4be4-9708-73e58b17a833`；单次上传exit0/ready、243/243资源/功能、独立三资源SHA一致 |
+| 本次验证 | 2577完整全绿、94同版浏览器、356不可变API与6临时HTTP；真实上传包装/PNG200与原SHA；预取/提交/存储独立CR。iPhone实际吞吐、挂起和Documents授权另验 |
+| 本次证据 | `.local/qa/upload-flow-2026-11-12/verification.json`，private-image-cache／transcript-prefetch-parallel／uploaded-envelope同日证据及原红例/设施修正；API、Pages、独立回读和清理分层保留 |
+| 本次数据与运行 | 格得API一次保护切换及网页单次上传；旧2queued/凭据/偏好/订阅保持，Codex/connector未重启，无模型发送/归档/原数据/目录授权修改。豌豆SSH超时，最新完整接续包保留；OAuth单次28scope续期，原权限不变、目标200，无未决 |
 
 上述最新发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；旧发布与详细描述沿对应设计记录及[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)回溯。
 
@@ -195,7 +197,7 @@
 | 阅读与输入 | 默认单条输入栏，展开保留原textarea、草稿、选区和IME；错误在对应卡片/输入条内轻量呈现。见[单条输入栏](docs/design/2026-10-13-reading-composer-and-row-state.md)、[反馈收敛](docs/design/2026-10-22-reading-errors-and-sort.md) |
 | 导航与排序 | 分类/项目、状态、排序是独立维度。全部/关注/置顶保持；Pocket关注与Codex置顶独立。创建按创建时间，活动及列表显示时间按最后消息时间，不能用点击时间冒充。见[智能排序](docs/design/2026-10-14-smart-navigation.md) |
 | 多机与模型 | 电脑信息只在设置，记住选择，原owner/目录/模型/权限不跨机。支持同型号思考强度；新建保留目标桌面的有效默认强度，不能统一硬编码Ultra。跨型号仍未开放。见[多机](docs/design/2026-10-17-multi-machine.md)、[模型](docs/design/2026-10-18-model-settings.md) |
-| 发送与缓存 | 自动直接发送默认开，只影响新提交并逐条保存策略；旧队列不升级，未知不重放。状态预取最多32项，正文固定8候选/1并发，未读加权，运行约5秒／未读约30秒可再次验证，当前交互优先；较新缓存可先于实时响应展示，后台不连接或标读。见[直发](docs/design/2026-10-22-auto-direct-send.md)、[预取](docs/design/2026-10-22-active-thread-prefetch.md)、[活跃阅读接续](docs/design/2026-11-11-failed-turns-and-live-prefetch.md) |
+| 发送与缓存 | 自动直接发送默认开，只影响新提交并逐条保存策略；旧队列不升级，未知不重放。状态预取最多32项，正文固定8候选/8并发，未读加权，运行约5秒／未读约30秒可再次验证，当前交互优先；较新缓存可先于实时响应展示，后台不连接或标读。上传16路、图片读取8路并使用12MiB内存／64MiB私有IDB；见[本轮上传与缓存](docs/design/2026-11-12-upload-pipeline-and-image-cache.md)、[直发](docs/design/2026-10-22-auto-direct-send.md)、[预取](docs/design/2026-10-22-active-thread-prefetch.md)、[活跃阅读接续](docs/design/2026-11-11-failed-turns-and-live-prefetch.md) |
 | 消息与附件 | 用户长Query可展开；文件引用与Codex标记走统一受控解析。附件、下载、发送回执不借阅读缓存扩大权限。见[消息组件](docs/design/2026-10-22-message-components.md)、[附件](docs/design/2026-10-10-attachments.md) |
 
 其它功能和代码路由只在[AGENTS](AGENTS.md)维护；能力对照见[DESKTOP-PARITY](docs/DESKTOP-PARITY.md)。
@@ -224,7 +226,7 @@
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；API用稳定`config/local-service.json`（指向不可变release）和FBT local。个人Pages更新必须用`.local/compatibility/oss-preparation-2026-11-04/pages-site-compatible.json`，它显式引导ged/wandou profile；不要裸用通用build默认local覆盖现有站点。源代码内公开模板不含私人profile。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 格得当前e9a5529 release复用9e7不可变依赖，324个生产包无更动；直接回退0f1e0d2及依赖祖先继续保留。豌豆仍fc86637。本轮切换／停机备份／逐条保护和最新远端接续包在`file-previews-2026-11-12/api-deploy/`，旧local-visual转移包由新包替代，旧回执保持；清理前按实际软链重新核验，不按日期删除。
+- 格得当前553834b release复用原不可变依赖，324个生产包无更动；直接回退e9a5529及依赖祖先继续保留。豌豆版本本次未重新核验，最后确认fc86637。本轮切换／停机备份／逐条保护和最新远端接续包在`upload-flow-2026-11-12/api-deploy/`，旧e9转移包由新包替代，旧回执保持；清理前按实际软链重新核验，不按日期删除。
 - Pages认证失败先按[FBT认证恢复](/Users/fangs/workspace/fbt/workflows/pages-site/docs/auth-recovery.md)识别生效来源与未决记录，恢复后核对上传阶段；已上传但验证未过使用原部署 `resume --resume-verification`。不要用可能隐式续期的whoami试探未知refresh。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。

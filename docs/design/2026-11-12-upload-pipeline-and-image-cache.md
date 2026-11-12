@@ -61,3 +61,13 @@
 模型／HTTP回归覆盖16路准入、第17路拒绝、配额预留、File归属、取消和迟到回执；浏览器回归覆盖同一消息行、实际上传峰值16、未知结果只读核对、输入／IME与滚动保持。图片回归覆盖持久复用、签名／SHA、认证／scope、LRU、单飞和租约。8路正文预取有固定源码哈希的独立只读CR与58项聚焦复跑。
 
 证据分属 `.local/qa/upload-flow-2026-11-12/`、`.local/qa/private-image-cache-2026-11-12/`、`.local/qa/transcript-prefetch-parallel-2026-11-12/` 与 `.local/qa/uploaded-envelope-2026-11-12/`。同版集成、完整回归与发布回读由负责人写回CURRENT，不沿用旧候选结果充当新版本验收。受控调度／合成浏览器不等于实体iPhone吞吐、后台执行或体感提速实测。
+
+## 同日集成与发布
+
+最终2577项全测、94项同build浏览器（上传14／图片80）、356项不可变API和6项临时HTTP通过；预取、提交恢复、图片存储各有独立CR。WebKit Blob写入与旧Blob迁移后移除／LRU复活的实际失败均保留负例及修复复验，不能以早期纯模型全绿替代浏览器结果。
+
+格得API源码553834b一次保护切换，旧2条queued、凭据／偏好／订阅保持，Codex及connector未重启。网页源码f5aae23／build e753f4a6／Pages91deec47仅上传一次，243个公开资源与功能、独立version／profile／App JS回读通过；正式重build246文件与已测API内置产物一致。先前401和本机选择配置未提交导致的preflight均发生在上传前；OAuth单次原28scope续期并核对目标200。
+
+实际指定保存消息的507字raw SHA保留，生成展示证明并绑定原1件PNG；原件200／910583字节及签名一致。无模型发送或原Codex数据修改。豌豆本次SSH banner超时，未传包或切换，最新完整包及SHA从本轮私有continuation接续。Documents许可仍待本人；物理iPhone吞吐、挂起及全部弱网实际体验未测。
+
+总验收`.local/qa/upload-flow-2026-11-12/verification.json`；已清理4份候选重复build和被替代的旧豌豆tar，保留正式dist、当前／回退API与依赖、停机保护快照、最新接续包及必要失败证据。后续回源以CURRENT为准，不重复切换或上传。
