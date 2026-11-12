@@ -1,7 +1,10 @@
 export type SubmissionReceipt = {
   requestId: string;
-  status: "accepted" | "queued" | "pending" | "unknown" | "rejected" | "not_found";
+  status: "accepted" | "queued" | "editing" | "cancelled" | "pending" | "unknown" | "rejected" | "not_found";
   code?: string;
+  queueRevision?: number;
+  uploadProgress?: import("./submittedQueries").AttachmentUploadProgress;
+  attachmentUploads?: readonly (import("./submittedQueries").AttachmentUploadDescriptor & { attachment?: import("./attachments").PublicAttachment })[];
 };
 
 function delay(ms: number, signal: AbortSignal) {

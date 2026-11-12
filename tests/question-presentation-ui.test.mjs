@@ -99,6 +99,8 @@ test('local source images and truncation remain visible even when the title repe
   const imageQuestion = { ...question, title: `![Diagram](${imagePath})` };
   const html = render({ questions: [imageQuestion], sourceText: imageQuestion.title, sourceImages: { [imagePath]: route }, sourceTruncated: true });
   assert.match(html, /class="question-source-text"/);
-  assert.ok(html.includes(`<img src="${route}"`));
+  assert.ok(html.includes(`data-registered-source="${route}"`));
+  assert.match(html, /aria-label="查看大图：Diagram"/);assert.match(html, /aria-haspopup="dialog"/);
+  assert.doesNotMatch(html, /<img\b|<link\b|\ssrc=/);
   assert.match(html, /内容较长，此处已截取。/);
 });

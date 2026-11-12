@@ -25,6 +25,7 @@ from contracts import CompatibilityError, ordered_turns as validated_turns
 # Leave room for their UTF-8 encoding and trusted routing metadata.
 MAX_PAYLOAD_BYTES = 256 * 1024
 MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+MAX_ATTACHMENTS = 16
 
 
 class NavigatorIPC(AppIPC):
@@ -136,7 +137,7 @@ def valid_attachment_path(value):
 def valid_attachments(attachments):
     # The HTTP layer owns byte/signature checks, thread binding and immutable
     # private storage. This process accepts only its bounded local-file envelope.
-    if not isinstance(attachments, list) or len(attachments) > 6:
+    if not isinstance(attachments, list) or len(attachments) > MAX_ATTACHMENTS:
         return False
     seen = set()
     for attachment in attachments:

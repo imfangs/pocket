@@ -38,6 +38,7 @@ function mount(file, initial, request = async () => {}, clipboard = async () => 
     './submittedQueries': queries, './submissionFeedback': feedback, './requestError': requestErrors,
     './i18n': { t: sourceTranslation, useLocale: () => 'zh-CN' },
     './AutoTextarea': { default: 'textarea' }, './AttachmentList': { default: 'attachments' },
+    './SubmittedUploadDetails': { default: 'upload-details' },
     './api': { api: request }, './submissionReceipt': { waitForSubmission: async receipt => receipt },
     './updateSafety': { holdReload: () => () => {}, useReloadGuard() {} },
     './draftTransaction': { captureDraft }, './attachments': { attachmentDraftController: () => ({}) },

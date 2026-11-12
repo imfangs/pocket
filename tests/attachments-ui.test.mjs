@@ -34,10 +34,14 @@ function composer(items, extra = {}) {
 const submission = status => ({ threadId, requestId: 'submitted-one', text: '', attachments: [image, file], status, createdAt: 1 });
 const renderSubmitted = status => render(Submitted, { items: [submission(status)], connecting: false, paused: false, disabled: false, check: async () => {}, dismiss() {}, restore: async () => {} });
 
-test('attachment-only composer permits sending only after every selected attachment is uploaded', () => {
+test('attachment-only composer can submit a stable upload row while removal still blocks ownership transfer', () => {
   assert.equal(buttons(composer([draftAttachment()])).find(button => button.text === '发送').disabled, false);
-  for (const status of ['queued', 'uploading', 'unknown', 'failed', 'removing']) {
-    assert.equal(buttons(composer([draftAttachment(), { ...draftAttachment(status), id: file.id }])).find(button => button.text === '发送').disabled, true, status);
+  for (const status of ['queued', 'uploading', 'unknown', 'failed']) {
+    assert.equal(buttons(composer([draftAttachment(), { ...draftAttachment(status), id: file.id }])).find(button => button.text === '发送').disabled, false, status);
+  }
+  for (const extra of [{ status: 'removing' }, { status: 'unknown', deletePending: true }, { status: 'uploaded', deletePending: true }]) {
+    const status = JSON.stringify(extra);
+    assert.equal(buttons(composer([draftAttachment(), { ...draftAttachment(), ...extra, id: file.id }])).find(button => button.text === '发送').disabled, true, status);
   }
   assert.equal(buttons(composer([])).find(button => button.text === '发送').disabled, true);
   assert.equal(buttons(composer([draftAttachment()], { thread: { id: threadId, archived: true, missing: false } })).find(button => button.text === '发送').disabled, true);
@@ -74,7 +78,8 @@ test('offline removal is available only for a local attachment in an editable co
 
 test('attachment-only native messages show a thumbnail and a downloadable file without an empty copy action', () => {
   const html = render(Message, { message: { id: 'native', role: 'user', text: '', attachments: [image, file], timestamp: 1 } });
-  assert.match(html, /aria-label="消息附件"/); assert.match(html, /<img[^>]*src="\/api\/tasks\//);
+  assert.match(html, /aria-label="消息附件"/); assert.match(html, /attachment-placeholder/);
+  assert.match(html, /aria-label="查看大图：现场图片.heic"/); assert.doesNotMatch(html, /<img\b/);
   assert.match(html, /download="完整说明与检查清单/); assert.match(html, /rel="noopener noreferrer"/);
   assert.doesNotMatch(html, /复制这条消息/);
   assert.ok(html.includes(`aria-label="查看附件 ${file.name}"`));
@@ -86,7 +91,8 @@ test('attachment-only native messages show a thumbnail and a downloadable file w
 test('small image previews use a same-page image viewer trigger rather than a thumbnail link', () => {
   const previewUrl = `${image.url}?preview=1`;
   const html = render(AttachmentList, { attachments: [{ ...image, previewUrl }] });
-  assert.ok(html.includes(`src="${previewUrl}"`)); assert.match(html, /<button[^>]+aria-haspopup="dialog"/);
+  assert.match(html, /attachment-placeholder/); assert.doesNotMatch(html, /<img\b/);
+  assert.match(html, /<button[^>]+aria-haspopup="dialog"/);
   assert.doesNotMatch(html, /<a\b|target="_blank"/);
   assert.ok(!html.includes(`href="${previewUrl}"`));
 });

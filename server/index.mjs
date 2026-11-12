@@ -409,10 +409,13 @@ export function makeApp(options = {}) {
         if (method === "GET" && !uploadId)
           return json(res, 200, desktop.attachments.list(threadId));
         if (method === "PUT" && uploadId) {
-          if ([...url.searchParams.keys()].some(key => key !== "name")) throw new AppError("附件参数无效");
+          if ([...url.searchParams.keys()].some(key => !["name", "requestId"].includes(key)) || url.searchParams.getAll("name").length !== 1 || url.searchParams.getAll("requestId").length > 1) throw new AppError("附件参数无效");
           if (Number(req.headers["content-length"]) > desktop.attachments.maxBytes) throw new AppError("每个附件最多 20 MiB", 413);
           req.setTimeout(120000, () => req.destroy());
-          return json(res, 200, await desktop.attachments.upload(threadId, uploadId, url.searchParams.get("name"), req.headers["content-type"], req));
+          const pendingRequest = url.searchParams.get("requestId");
+          return json(res, 200, await (pendingRequest === null
+            ? desktop.attachments.upload(threadId, uploadId, url.searchParams.get("name"), req.headers["content-type"], req)
+            : desktop.attachments.uploadReserved(threadId, pendingRequest, uploadId, url.searchParams.get("name"), req.headers["content-type"], req)));
         }
         if (method === "DELETE" && uploadId)
           return json(res, 200, desktop.attachments.remove(threadId, uploadId));
@@ -476,7 +479,8 @@ export function makeApp(options = {}) {
         res.setHeader("Server-Timing", `history_page;dur=${(performance.now() - start).toFixed(1)}`);
         // Historical pages are display-only. Do not mint read observations or
         // pass these messages into the live history/receipt controllers.
-        return sendCatalog(res, files.attach(thread, images.attach(thread, data)), req.headers["accept-encoding"]);
+        const enriched = desktop.attachments.enrich(id, { ...data, source: data.source || "rollout" });
+        return sendCatalog(res, files.attach(thread, images.attach(thread, enriched)), req.headers["accept-encoding"]);
       }
       const transcript = path.match(/^\/api\/tasks\/([a-f0-9-]{36})\/transcript$/i);
       if (transcript && method === "GET") {

@@ -14,6 +14,7 @@ import { messageReferenceDefinitions } from "./messageDetails";
 import { displayMessageMarkdown } from "./messageEnvelope";
 import { useMemo, type Ref, type ReactNode } from "react";
 import AttachmentList from "./AttachmentList";
+import UnavailableAttachmentList from "./UnavailableAttachmentList";
 import { ImagePreviewGroup } from "./ImagePreviewProvider";
 import UserQueryBody, { type QueryDisclosure } from "./UserQueryBody";
 import HeartbeatTrigger from "./HeartbeatTrigger";
@@ -31,10 +32,10 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
   const notification = useMemo(() => subagentNotification(message.text), [message.text]);
   const presentation = useMemo<ReturnType<typeof presentUserMessage>>(() => {
     if (notification) return { text: notification.text, copyText: [t(notification.label), notification.text, notification.continuation].filter(Boolean).join("\n\n"), annotations: [] };
-    if (message.role === "user") return presentUserMessage(message.text, t);
+    if (message.role === "user") return presentUserMessage(message.text, t, !message.truncated && message.attachmentEnvelope === true);
     const text = readableCodexMarkdown(message.text, t);
     return { text, copyText: text, annotations: [], automationInstructions: undefined };
-  }, [message.role, message.text, notification, locale]);
+  }, [message.role, message.text, message.truncated, message.attachmentEnvelope, notification, locale]);
   const displayText = presentation.text;
   const taskParts = useMemo(() => message.role === "assistant" && !notification
     ? createdThreadParts(message.text) : [], [message.role, message.text, notification]);
@@ -87,6 +88,7 @@ export default function ConversationMessage({ message, threadId, recentlySent = 
         files={message.role === "assistant" && !message.truncated ? message.files : undefined} threadId={threadId} codex={false} />}
       {presentation.annotations.length > 0 && <AnnotationQuotes annotations={presentation.annotations} changeLayout={changeLayout} />}
       <AttachmentList attachments={message.attachments} />
+      {!message.attachments?.length && <UnavailableAttachmentList attachments={presentation.envelopeAttachments} />}
       {message.truncated && <small>{t("内容较长，此处已截取。")}</small>}
       {queryDelivery?.controls}
       {kind === "progress" ? hasTimestamp && <ProgressMessageFooter timestamp={timestamp} /> : (hasTimestamp || copyable || confirmed || duration) && <footer className="message-footer">

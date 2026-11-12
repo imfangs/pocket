@@ -5,20 +5,24 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { bindImageGestures, clampImageTransform, fitImage, imageIdentity, readableDiagramTransform, IMAGE_ZOOM_MAX, zoomImage, type ImageBounds, type ImageTransform } from "./imageViewerGestures";
 import "./image-viewer.css";
-import { machineApiPath } from "./machineScope";
+import { currentMachineId } from "./machineScope";
 import { diagramDataPrefix } from "./mermaidPolicy";
 import type { ImagePreviewItem } from "./imagePreviewGallery";
+import { useImageReadUrl } from "./imageReadCacheReact";
 
 export default function ImageViewer({ src, alt, onClose, opener, diagram = false, gallery }: { src: string; alt: string; onClose: () => void; opener?: HTMLElement | null; diagram?: boolean; gallery?: readonly ImagePreviewItem[] }) {
   useLocale();
   const items = useMemo(() => !diagram && gallery?.length && gallery.some(item => item.src === src) ? gallery : [{ src, alt }], [gallery, src, alt, diagram]);
   const [index, setIndex] = useState(() => Math.max(0, items.findIndex(item => item.src === src)));
   const selected = items[index] ?? { src, alt }, hasGallery = items.length > 1;
-  const imageSrc = diagram && selected.src.startsWith(diagramDataPrefix) ? selected.src : machineApiPath(selected.src);
+  const machine = useRef(currentMachineId()).current;
+  const cached = useImageReadUrl({ src: diagram ? "" : selected.src, machine });
+  const imageSrc = diagram && selected.src.startsWith(diagramDataPrefix) ? selected.src : cached.url;
   const noun = diagram ? "图表" : "图片";
   const dialog = useRef<HTMLDialogElement>(null), stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLDivElement>(null);
   const picture = useRef<HTMLImageElement>(null), activeSource = useRef(selected.src);
   activeSource.current = selected.src;
+  const activeBlob = useRef(imageSrc); activeBlob.current = imageSrc;
   const galleryState = useRef({ items, index }); galleryState.current = { items, index };
   const navigate = useRef<(delta: -1 | 1) => void>(() => {});
   const close = useRef(onClose); close.current = onClose;
@@ -83,7 +87,10 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
   useLayoutEffect(() => {
     ready.current = false; setPhase("loading");
     naturalRef.current = { width: 0, height: 0 }; setNatural(naturalRef.current); commit(imageIdentity());
-  }, [selected.src]);
+  }, [selected.src, attempt, imageSrc]);
+  useLayoutEffect(() => {
+    if (!diagram && cached.phase === "failed") { ready.current = false; setPhase("failed"); }
+  }, [diagram, cached.phase]);
   useLayoutEffect(() => {
     const element = canvas.current;
     if (!element) return;
@@ -113,23 +120,23 @@ export default function ImageViewer({ src, alt, onClose, opener, diagram = false
     }}>
     <div ref={stage} className="image-viewer-stage" tabIndex={-1} role="region" aria-label={t("{{noun}}预览", { noun: t(noun) })} style={{ outline: "none" }}>
       <div ref={canvas} className="image-viewer-canvas">
-        <img ref={picture} key={`${selected.src}:${attempt}`} className="image-viewer-image" src={imageSrc} alt={selected.alt || t(noun)} draggable={false} decoding="async" referrerPolicy="no-referrer"
+        {imageSrc && <img ref={picture} key={`${selected.src}:${attempt}:${imageSrc}`} className="image-viewer-image" src={imageSrc} data-registered-source={selected.src} alt={selected.alt || t(noun)} draggable={false} decoding="async" referrerPolicy="no-referrer"
           data-scale={value.scale} style={{ width: fitted.width || undefined, height: fitted.height || undefined, visibility: phase === "ready" ? "visible" : "hidden",
             transform: `translate(-50%, -50%) translate(${value.x}px, ${value.y}px) scale(${value.scale})` }}
           onLoad={event => {
             const image = event.currentTarget;
-            if (!mounted.current || closing.current || image !== picture.current || activeSource.current !== selected.src) return;
+            if (!mounted.current || closing.current || image !== picture.current || activeSource.current !== selected.src || image.getAttribute("src") !== activeBlob.current) return;
             if (!image.naturalWidth || !image.naturalHeight) { ready.current = false; setPhase("failed"); return; }
             naturalRef.current = { width: image.naturalWidth, height: image.naturalHeight }; setNatural(naturalRef.current);
             ready.current = true; setPhase("ready"); commit(diagram ? readableDiagramTransform(bounds()) : clampImageTransform(valueRef.current, bounds()));
           }} onError={event => {
-            if (!mounted.current || closing.current || event.currentTarget !== picture.current || activeSource.current !== selected.src) return;
+            if (!mounted.current || closing.current || event.currentTarget !== picture.current || activeSource.current !== selected.src || event.currentTarget.getAttribute("src") !== activeBlob.current) return;
             ready.current = false; setPhase("failed");
-          }} />
+          }} />}
       </div>
       {phase !== "ready" && <div className="image-viewer-message">
         {phase === "loading" ? <p role="status">{t("正在加载图片…")}</p> : <><p role="alert">{t("图片暂时无法显示")}</p>
-          <button type="button" data-image-viewer-control="" onClick={() => { ready.current = false; setPhase("loading"); commit(imageIdentity()); setRetry(previous => ({ src: selected.src, attempt: previous.src === selected.src ? previous.attempt + 1 : 1 })); }}>{t("重新加载图片")}</button></>}
+          <button type="button" data-image-viewer-control="" onClick={() => { ready.current = false; setPhase("loading"); commit(imageIdentity()); if (!diagram) cached.retry(); setRetry(previous => ({ src: selected.src, attempt: previous.src === selected.src ? previous.attempt + 1 : 1 })); }}>{t("重新加载图片")}</button></>}
       </div>}
     </div>
     {hasGallery && <>

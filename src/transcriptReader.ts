@@ -1,6 +1,6 @@
 import type { SavedTranscript } from "./conversationFeed";
 import type { ReadingCache } from "./readingCache";
-import { prefetchContent, coversPrefetchContent, transcriptPrefetchLimit, transcriptRefreshMs, validPrefetchId, type PrefetchContent, type TranscriptPrefetchCandidate } from "./prefetchPriority.ts";
+import { prefetchContent, coversPrefetchContent, transcriptPrefetchLimit, transcriptPrefetchConcurrency, transcriptPrefetchFloorLimit, transcriptRefreshMs, validPrefetchId, type PrefetchContent, type TranscriptPrefetchCandidate } from "./prefetchPriority.ts";
 
 export type TranscriptRead = (threadId: string, signal: AbortSignal) => Promise<SavedTranscript>;
 export type HoldTranscriptPrefetch = () => () => void;
@@ -19,6 +19,8 @@ type Consumer = { background: boolean; cancel: () => void };
 type Flight = { controller: AbortController; consumers: Set<Consumer>; promise: Promise<SavedTranscript> };
 type CandidateState = { candidate: TranscriptPrefetchCandidate; key: string; done: boolean; unusable: boolean;
   checkedCache: boolean; coveredContent?: PrefetchContent; failures: number; nextAt: number; attempt: number };
+type BackgroundOperation = { state: CandidateState; controller: AbortController };
+type ContentFloor = Pick<PrefetchContent, "revision" | "version" | "messageId">;
 const abortError = () => new DOMException("读取已取消", "AbortError");
 const candidateKey = ({ id, content }: TranscriptPrefetchCandidate) => JSON.stringify([id, content?.scope, content?.revision, content?.version, content?.messageId]);
 function untilAbort<T>(promise: Promise<T>, signal: AbortSignal) {
@@ -35,28 +37,52 @@ function untilAbort<T>(promise: Promise<T>, signal: AbortSignal) {
 export function createTranscriptReader(options: ReaderOptions) {
   const now = options.now ?? Date.now, later = options.setTimeout ?? setTimeout, clear = options.clearTimeout ?? clearTimeout;
   const flights = new Map<string, Flight>();
+  // This reader owns one machine/source scope. Retain only scalar version
+  // metadata across rank changes/body eviction; never bodies or capabilities.
+  const floors = new Map<string, ContentFloor>();
   let stopped = false, generation = 0, enabled = false, foregroundId: string | null = null;
   let candidates = new Map<string, CandidateState>(), timer: ReturnType<typeof setTimeout> | undefined;
-  let background: { state: CandidateState; controller: AbortController } | null = null;
+  const background = new Map<string, BackgroundOperation>();
   let foregroundConsumers = 0, attempt = 0;
   let preemptions = 0, backgroundAfter = 0;
   const selectedId = () => options.getForegroundId ? options.getForegroundId() : foregroundId;
-  const current = () => !stopped && options.current();
+  const current = () => {
+    const available = !stopped && options.current();
+    if (!available) floors.clear();
+    return available;
+  };
   const allowed = () => current() && enabled && !foregroundConsumers && (options.canPrefetch?.() ?? true);
   const resetCooldown = () => { preemptions = 0; backgroundAfter = 0; };
-  const cancelBackground = (preempted = true) => {
-    if (!background || background.controller.signal.aborted) return;
+  const knownFloor = (id: string): PrefetchContent | undefined => {
+    const floor = floors.get(id);
+    if (!floor) return;
+    floors.delete(id); floors.set(id, floor);
+    return { known: true, scope: options.scope, ...floor };
+  };
+  const rememberFloor = (id: string, content: PrefetchContent) => {
+    const previous = knownFloor(id);
+    if (previous && !coversPrefetchContent(content, previous)) return;
+    floors.delete(id); floors.set(id, { revision: content.revision, version: content.version, messageId: content.messageId });
+    // At entry 257 the least recently used floor is forgotten. A later return
+    // of that thread again relies on its candidate/cache proof, not old history.
+    while (floors.size > transcriptPrefetchFloorLimit) floors.delete(floors.keys().next().value!);
+  };
+  const cancelBackground = (matches: (operation: BackgroundOperation) => boolean, preempted = true) => {
+    const interrupted = [...background.values()].filter(operation => !operation.controller.signal.aborted && matches(operation));
+    if (!interrupted.length) return;
     if (preempted) {
       // One queue-wide cooldown: rotating eight candidates must not bypass it
-      // when foreground polling repeatedly cuts a slow transfer short.
+      // when foreground polling repeatedly cuts slow transfers short. Aborting
+      // multiple lanes for one action is one preemption, not separate penalties.
       preemptions = Math.min(preemptions + 1, 5);
       backgroundAfter = now() + Math.min(30000, 2000 * 2 ** (preemptions - 1));
     }
-    background.controller.abort();
+    for (const operation of interrupted) operation.controller.abort();
   };
   const schedule = (delay = options.gapMs ?? 750) => {
     clear(timer); timer = undefined;
-    if (allowed() && !background) timer = later(() => { timer = undefined; void pump(); }, Math.max(0, delay, backgroundAfter - now()));
+    if (allowed() && background.size < transcriptPrefetchConcurrency)
+      timer = later(() => { timer = undefined; pump(); }, Math.max(0, delay, backgroundAfter - now()));
   };
 
   const read = (id: string, signal: AbortSignal, isBackground = false): Promise<SavedTranscript> => {
@@ -102,7 +128,7 @@ export function createTranscriptReader(options: ReaderOptions) {
       if (!isBackground) {
         foregroundConsumers++;
         clear(timer); timer = undefined;
-        if (background && background.state.candidate.id !== id) cancelBackground();
+        cancelBackground(operation => operation.state.candidate.id !== id);
       }
       signal.addEventListener("abort", consumer.cancel, { once: true });
       if (signal.aborted) consumer.cancel();
@@ -110,19 +136,29 @@ export function createTranscriptReader(options: ReaderOptions) {
     });
   };
 
-  async function pump() {
-    if (!allowed() || background) return;
+  function pump() {
+    if (!allowed() || background.size >= transcriptPrefetchConcurrency) return;
     const at = now();
     if (at < backgroundAfter) { schedule(); return; }
-    const pending = [...candidates.values()].filter(state => !state.done);
-    const state = pending.filter(item => item.nextAt <= at).sort((a, b) => a.attempt - b.attempt)[0];
-    if (!state) {
+    const pending = [...candidates.values()].filter(state => !state.done && !background.has(state.candidate.id) && state.candidate.id !== selectedId());
+    const ready = pending.filter(item => item.nextAt <= at).sort((a, b) => a.attempt - b.attempt)
+      .slice(0, transcriptPrefetchConcurrency - background.size);
+    if (!ready.length) {
       if (pending.length) schedule(Math.max(0, Math.min(...pending.map(item => item.nextAt)) - at));
       return;
     }
+    for (const state of ready) void runBackground(state);
+    // A slower transfer must not be the clock for other free lanes. Refreshes
+    // can become due at different times while this batch is still running.
+    const waiting = pending.filter(state => !background.has(state.candidate.id));
+    if (waiting.length && background.size < transcriptPrefetchConcurrency)
+      schedule(Math.max(0, Math.min(...waiting.map(state => state.nextAt)) - at));
+  }
+
+  async function runBackground(state: CandidateState) {
     const controller = new AbortController(), operation = { state, controller }, ticket = generation;
     state.attempt = ++attempt;
-    background = operation;
+    background.set(state.candidate.id, operation);
     const stillCandidate = () => current() && ticket === generation && !controller.signal.aborted && candidates.get(state.candidate.id) === state;
     let timedOut = false;
     const deadline = later(() => { timedOut = true; controller.abort(); }, options.timeoutMs ?? 12000);
@@ -135,6 +171,7 @@ export function createTranscriptReader(options: ReaderOptions) {
         if (cachedContent && (!state.candidate.content || coversPrefetchContent(cachedContent, state.candidate.content)) &&
           (!state.coveredContent || coversPrefetchContent(cachedContent, state.coveredContent))) {
           state.coveredContent = cachedContent;
+          rememberFloor(state.candidate.id, cachedContent);
           if (!state.candidate.refresh) { state.done = true; return; }
         }
       }
@@ -154,6 +191,7 @@ export function createTranscriptReader(options: ReaderOptions) {
       const remembered = options.cache.rememberTranscript(options.machine, options.scope, state.candidate.id, data);
       if (remembered) resetCooldown();
       state.coveredContent = content;
+      rememberFloor(state.candidate.id, content);
       state.unusable = !remembered;
       state.done = !remembered || !state.candidate.refresh;
       state.nextAt = now() + (state.candidate.refresh ? transcriptRefreshMs[state.candidate.refresh] : 0);
@@ -166,7 +204,7 @@ export function createTranscriptReader(options: ReaderOptions) {
       }
     } finally {
       clear(deadline);
-      if (background === operation) background = null;
+      if (background.get(state.candidate.id) === operation) background.delete(state.candidate.id);
       schedule();
     }
   }
@@ -184,7 +222,7 @@ export function createTranscriptReader(options: ReaderOptions) {
         if (updated.size >= transcriptPrefetchLimit) break;
         if (candidate.id === foregroundId || !(prefetchContent(candidate.content, options.scope) ||
           candidate.content === null && candidate.refresh === "running") || !validPrefetchId(candidate.id) || updated.has(candidate.id)) continue;
-        const key = candidateKey(candidate), previous = candidates.get(candidate.id);
+        const key = candidateKey(candidate), previous = candidates.get(candidate.id), floor = knownFloor(candidate.id);
         if (previous?.key === key) {
           const modeChanged = previous.candidate.refresh !== candidate.refresh;
           previous.candidate = candidate;
@@ -197,21 +235,23 @@ export function createTranscriptReader(options: ReaderOptions) {
           }
           updated.set(candidate.id, previous);
         } else updated.set(candidate.id, { candidate, key, done: false, unusable: false, checkedCache: false,
-          coveredContent: previous?.coveredContent, failures: 0, nextAt: 0, attempt: 0 });
+          coveredContent: previous?.coveredContent ?? floor, failures: 0, nextAt: 0, attempt: 0 });
       }
       candidates = updated;
-      if (background && background.state.candidate.id !== selectedId() &&
-          (!allowed() || candidates.get(background.state.candidate.id) !== background.state)) cancelBackground(!allowed() && !returnedToList);
+      cancelBackground(operation => operation.state.candidate.id !== selectedId() &&
+        (!allowed() || candidates.get(operation.state.candidate.id) !== operation.state), !allowed() && !returnedToList);
       schedule();
     },
     wake(forcePause = false) {
-      if (background && (forcePause || !allowed() && background.state.candidate.id !== selectedId())) cancelBackground();
+      cancelBackground(operation => forcePause || !allowed() && operation.state.candidate.id !== selectedId());
       schedule();
     },
     stop() {
       if (stopped) return;
       stopped = true; generation++; enabled = false;
-      clear(timer); timer = undefined; background?.controller.abort(); candidates.clear();
+      clear(timer); timer = undefined;
+      for (const operation of background.values()) operation.controller.abort();
+      background.clear(); candidates.clear(); floors.clear();
       for (const entry of flights.values()) {
         for (const consumer of [...entry.consumers]) consumer.cancel();
         entry.controller.abort();

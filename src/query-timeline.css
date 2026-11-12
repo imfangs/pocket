@@ -1,5 +1,6 @@
 .query-message { position: relative; isolation: isolate; }
 .query-message[data-query-state="submitting"],
+.query-message[data-query-state="uploading"],
 .query-message[data-query-state="connecting"],
 .query-message[data-query-state="queued"],
 .query-message[data-query-state="pending"] {
@@ -24,7 +25,8 @@
 .query-inline-actions button:disabled { opacity: .5; }
 .query-inline-actions small { font-size: 12px; }
 .query-inline-actions[data-feedback-state="accepted"] { color: var(--send-green); }
-.query-message:has(.query-inline-actions:is([data-feedback-state="paused"], [data-feedback-state="editing"], [data-feedback-state="unknown"], [data-feedback-state="rejected"])) {
+.query-message[data-query-state="upload_failed"],
+.query-message:has(.query-inline-actions:is([data-feedback-state="paused"], [data-feedback-state="editing"], [data-feedback-state="unknown"], [data-feedback-state="rejected"], [data-feedback-state="upload_failed"])) {
   border-color: var(--line); background: var(--surface-soft);
 }
 .query-inline-actions textarea { width: 100%; min-height: 88px; margin-block: 4px; }

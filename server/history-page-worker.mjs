@@ -200,9 +200,10 @@ async function page({ codexHome, threadId, before: token, limit }) {
     catch { throw changed(); }
     const projected = historyMessageProjection(record);
     if (!projected) throw changed();
-    const { text } = visibleContent(projected.item);
+    const { text, attachmentPaths } = visibleContent(projected.item);
     const { offset: _offset, length: _length, textLength: _textLength, ...message } = row;
-    return { ...message, text: text.slice(0, 24000), truncated: text.length > 24000 };
+    return { ...message, text: text.slice(0, 24000), truncated: text.length > 24000,
+      ...(text.length <= 24000 && attachmentPaths?.length ? { attachmentPaths } : {}) };
   });
   retain(snapshot);
   const hasMore = selected.length > 0 && start > 0;

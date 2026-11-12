@@ -101,11 +101,11 @@ test('a failed adoption transaction retains the complete orphan for a later iden
   assert.deepEqual(readdirSync(f.attachments.root).filter(name => name.startsWith('.pending-')), []);
 });
 
-test('ordinary upload recovery stays explicit, and internal reservations do not consume six user draft slots', async t => {
+test('ordinary upload recovery stays explicit, and internal reservations do not consume sixteen user draft slots', async t => {
   const f = fixture(t);
-  for (let n = 1; n <= 6; n++) await f.attachments.upload(thread, id(n), 'notes.txt', 'text/plain', Readable.from([text]));
-  await f.upload(); assert.equal(f.attachments.list(thread).attachments.length, 6);
-  await assert.rejects(f.attachments.upload(thread, id(7), 'notes.txt', 'text/plain', Readable.from([text])), error => error.status === 409);
+  for (let n = 1; n <= 16; n++) await f.attachments.upload(thread, id(n), 'notes.txt', 'text/plain', Readable.from([text]));
+  await f.upload(); assert.equal(f.attachments.list(thread).attachments.length, 16);
+  await assert.rejects(f.attachments.upload(thread, id(17), 'notes.txt', 'text/plain', Readable.from([text])), error => error.status === 409);
   const fresh = fixture(t); mkdirSync(fresh.folder); writeFileSync(join(fresh.folder, 'original.txt'), text);
   await assert.rejects(fresh.attachments.upload(thread, asset, 'feedback.txt', 'text/plain', Readable.from([text])), error => error.status === 409);
   assert.equal(existsSync(fresh.folder), true);
@@ -130,15 +130,15 @@ test('cancelling an internal queued message keeps its assets out of drafts after
   f.restart();
   assert.equal(f.attachments.row(thread, asset).internalRequestId, request);
   assert.deepEqual(f.attachments.list(thread).attachments, []);
-  for (let n = 1; n <= 6; n++) await f.attachments.upload(thread, id(n), 'notes.txt', 'text/plain', Readable.from([text]));
-  assert.equal(f.attachments.list(thread).attachments.length, 6);
+  for (let n = 1; n <= 16; n++) await f.attachments.upload(thread, id(n), 'notes.txt', 'text/plain', Readable.from([text]));
+  assert.equal(f.attachments.list(thread).attachments.length, 16);
   assert.equal(f.attachments.forDispatch(thread, request)[0].internalRequestId, request);
   f.attachments.cleanup();
   assert.equal(existsSync(f.folder), true);
   f.store.db.prepare("UPDATE attachments SET created_at=0,data=json_set(data,'$.internalReleasedAt',0) WHERE id=?").run(asset);
   f.attachments.cleanup();
   assert.equal(existsSync(f.folder), false);
-  assert.equal(f.attachments.list(thread).attachments.length, 6);
+  assert.equal(f.attachments.list(thread).attachments.length, 16);
 });
 
 test('internal ownership survives release and cannot be changed into an ordinary draft or another request', async t => {

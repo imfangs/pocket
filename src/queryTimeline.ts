@@ -1,6 +1,5 @@
 import type { Message, QueuedMessage } from "./conversationFeed";
-import type { SubmittedQuery, SubmittedQueryStatus } from "./submittedQueries";
-import { sameAttachments } from "./attachments.ts";
+import { completeSubmittedAttachments, submittedQueryDisplayStatus, type SubmittedQuery, type SubmittedQueryStatus } from "./submittedQueries.ts";
 
 export type TimelineQuery = {
   requestId: string;
@@ -16,6 +15,10 @@ export function queryTimeline(messages: readonly Message[], entries: readonly Su
   const submissions = new Map(entries.map(entry => [entry.requestId, entry]));
   const controls = new Set([...pending.map(entry => entry.requestId), ...outbox.map(item => item.id)]);
   const queue = new Map(outbox.map(item => [item.id, item]));
+  const state = (requestId: string) => {
+    const entry = submissions.get(requestId), item = queue.get(requestId);
+    return entry?.status === "accepted" ? "accepted" as const : item ? submittedQueryDisplayStatus(item) : entry ? submittedQueryDisplayStatus(entry) : undefined;
+  };
   const byMessage = new Map<string, TimelineQuery>(), placed = new Map<string, string>(), hiddenMessages = new Set<string>();
   const localMessage = (requestId: string, entry?: SubmittedQuery, item?: QueuedMessage): Message => ({
     id: `submitted:${requestId}`, clientMessageId: requestId, role: "user",
@@ -24,8 +27,8 @@ export function queryTimeline(messages: readonly Message[], entries: readonly Su
   });
   const waiting = new Map([...controls].map(id => [id, localMessage(id, submissions.get(id), queue.get(id))]));
   const candidates = new Map(messages.filter(message => deferred.has(message.id)).map(message => [message.id,
-    [...waiting].filter(([, local]) => message.text.trim() === local.text.trim()
-      && sameAttachments(message.attachments, local.attachments)).map(([id]) => id)]));
+    [...waiting].filter(([id, local]) => message.text.trim() === local.text.trim()
+      && completeSubmittedAttachments(submissions.get(id) ?? queue.get(id) ?? { attachments: local.attachments }, message.attachments)).map(([id]) => id)]));
   for (const message of messages) {
     if (deferred.has(message.id)) {
       const ids = candidates.get(message.id) ?? [], requestId = ids.length === 1 ? ids[0] : undefined;
@@ -34,7 +37,7 @@ export function queryTimeline(messages: readonly Message[], entries: readonly Su
       // original record will reappear if the bounded verification fails.
       if (requestId && !placed.has(requestId) && [...candidates.values()].filter(values => values.includes(requestId)).length === 1) {
         byMessage.set(message.id, { requestId, message: waiting.get(requestId)!,
-          state: queue.get(requestId)?.status ?? submissions.get(requestId)?.status, hasControls: true });
+          state: state(requestId), hasControls: true });
         placed.set(requestId, message.id);
       } else hiddenMessages.add(message.id);
       continue;
@@ -45,9 +48,9 @@ export function queryTimeline(messages: readonly Message[], entries: readonly Su
     // Exact identity allows one row even before its full history is available.
     // Keep the complete submitted body until text/attachments have caught up.
     const complete = !message.truncated && (!local || message.text.trim() === local.text.trim()
-      && sameAttachments(message.attachments, local.attachments));
+      && completeSubmittedAttachments(entry ?? item ?? { attachments: local.attachments }, message.attachments));
     const row = { requestId, message: complete || !local ? message : { ...message, ...local, id: message.id, truncated: false },
-      state: item?.status ?? entry?.status, hasControls: controls.has(requestId) };
+      state: state(requestId), hasControls: controls.has(requestId) };
     const anchor = placed.get(requestId);
     if (anchor) {
       // A pending steering item and its confirmed item may coexist in a feed.
@@ -62,7 +65,7 @@ export function queryTimeline(messages: readonly Message[], entries: readonly Su
   const tail = [...controls].filter(id => !placed.has(id)).map(requestId => {
     const entry = submissions.get(requestId), item = queue.get(requestId);
     return { requestId, message: localMessage(requestId, entry, item),
-      state: item?.status ?? entry?.status, hasControls: true };
+      state: state(requestId), hasControls: true };
   }).sort((a, b) => (a.message.timestamp ?? 0) - (b.message.timestamp ?? 0));
   return { byMessage, tail, hiddenMessages };
 }

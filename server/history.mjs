@@ -12,6 +12,7 @@ import { AppError } from "./store.mjs";
 import { POCKET_CONTENT, EMPTY_CONTENT_VERSION, assistantContentVersion, contentFileVersion, contentEvidence } from './pocket-content.mjs';
 import { historyMessageProjection } from './history-message.mjs';
 import { turnFailureFromError } from '../shared/turn-failure.mjs';
+import { userAttachmentEnvelope } from '../shared/user-attachment-envelope.mjs';
 
 const injectedKinds = new Set([
   "agents_md.instructions", "environments.environment_context", "hooks.additional_context",
@@ -19,6 +20,32 @@ const injectedKinds = new Set([
   "permissions.instructions", "collaboration_mode.instructions",
   "multi_agent.role_instructions", "multi_agent.mode_instructions",
 ]);
+
+const descriptivePath = value => typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') &&
+  value.length <= 4096 && !/[\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(value);
+
+function userAttachmentPaths(content, text) {
+  const localImages = content.filter(part => part.type === 'localImage' && descriptivePath(part.path));
+  if (localImages.length) return [...new Map(localImages.slice(0, 32).map(part =>
+    [part.path, { path: part.path, name: part.path.split('/').at(-1), kind: 'image' }])).values()];
+  const envelope = userAttachmentEnvelope(text);
+  if (!envelope?.imageTransport) return [];
+  const images = envelope.attachments.filter(attachment => attachment.kind === 'image');
+  // The rollout represents an uploaded image as text(open), typed image, then
+  // text(close). Require that exact native seam; a literal XML example cannot
+  // promote paths into even descriptive attachment metadata.
+  if (content.length !== 1 + images.length * 3 ||
+      !['input_text', 'text'].includes(content[0]?.type) ||
+      userAttachmentEnvelope(content[0]?.text)?.query !== envelope.query) return [];
+  for (let index = 0; index < images.length; index++) {
+    const [open, image, close] = content.slice(1 + index * 3, 4 + index * 3);
+    if (open?.type !== 'input_text' || open.text !== `<image name=[Image #${index + 1}] path="${images[index].path}">` ||
+        image?.type !== 'input_image' || typeof image.image_url !== 'string' ||
+        !/^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(image.image_url) ||
+        close?.type !== 'input_text' || close.text !== '</image>') return [];
+  }
+  return envelope.attachments;
+}
 
 export function visibleContent(item) {
   const content = Array.isArray(item.content) ? item.content : [];
@@ -40,9 +67,11 @@ export function visibleContent(item) {
       : c.type === "localImage" ? ["path"] : c.type === "image" ? ["url"] : [];
     return fields.some(field => typeof c[field] === "string" && c[field].length > 0);
   });
+  const paths = item.role === 'user' ? userAttachmentPaths(visible, value) : [];
+  const projection = { text: value, hasMedia, ...(paths.length ? { attachmentPaths: paths } : {}) };
   if (Array.isArray(kinds)) {
     if (kinds.length && kinds.every(kind => injectedKinds.has(kind))) return { text: "", hasMedia: false };
-    return { text: value, hasMedia };
+    return projection;
   }
   // Legacy records lack provenance. Recognize only full runtime envelopes;
   // ordinary discussion of AGENTS or memory remains a user message.
@@ -50,7 +79,7 @@ export function visibleContent(item) {
     /^# AGENTS\.md instructions for [^\n]+\n+<INSTRUCTIONS>[\s\S]*<\/INSTRUCTIONS>(?:\s*<environment_context>[\s\S]*<\/environment_context>)?\s*$/.test(value) ||
     /^<environment_context>[\s\S]*<\/environment_context>\s*$/.test(value)
   )) return { text: "", hasMedia: false };
-  return { text: value, hasMedia };
+  return projection;
 }
 
 export function parseHistoryLines(text, startOffset = 0) {
@@ -109,7 +138,7 @@ export function parseHistory(text, startOffset = 0) {
       const projected = historyMessageProjection(record), displayItem = projected?.item;
       if (displayItem && ["user", "assistant"].includes(displayItem.role) &&
         displayItem.phase !== "analysis" && displayItem.channel !== "analysis") {
-        const { text: value, hasMedia } = visibleContent(displayItem);
+        const { text: value, hasMedia, attachmentPaths } = visibleContent(displayItem);
         if (value || hasMedia) {
           const id = displayItem.id || `rollout:${offset}`;
           const message = {
@@ -121,6 +150,7 @@ export function parseHistory(text, startOffset = 0) {
             timestamp: Number.isFinite(timestamp) ? timestamp : null,
             truncated: value.length > 24000,
             ...(projected.origin ? { origin: projected.origin } : {}),
+            ...(attachmentPaths?.length ? { attachmentPaths } : {}),
           };
           messages.push(message);
           if (displayItem.role === "assistant" && value)

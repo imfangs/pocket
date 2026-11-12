@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHarness, engines, ids, refresh } from './fixture.mjs';
 import { runScenario } from './scenario.mjs';
+import { syntheticPng, imageSha256 } from './helpers/synthetic-png.mjs';
 
 const results = [];
 after(() => {
@@ -16,8 +17,8 @@ const sources = Object.fromEntries(['a', 'b', 'd'].map(key => [key, `/api/tasks/
 const attachmentId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 sources.c = `/api/tasks/${ids.regular}/attachments/${attachmentId}`;
 const paths = { a: '/synthetic/first.png', b: '/synthetic/second.png', d: '/synthetic/other.png' };
-const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#567899"/><path d="M100 100L1100 700M1100 100L100 700" stroke="#fff" stroke-width="24"/></svg>';
-const attachment = { id: attachmentId, name: 'Third synthetic image.png', size: 800, mime: 'image/png', kind: 'image', sha256: 'c'.repeat(64), url: sources.c, previewUrl: sources.c + '?preview=1' };
+const png = syntheticPng();
+const attachment = { id: attachmentId, name: 'Third synthetic image.png', size: png.length, mime: 'image/png', kind: 'image', sha256: imageSha256(png), url: sources.c, previewUrl: sources.c + '?preview=1', previewSha256: imageSha256(png), previewMime: 'image/png', previewSize: png.length };
 const message = (id, text, extra = {}) => ({ id, role: 'assistant', phase: 'final', text, turnId: 'gallery-turn', timestamp: Date.now(), ...extra });
 const imageText = (key, name) => `![${name}](<${paths[key]}>)`;
 const gallery = (extra = {}) => message(rowId, `Synthetic ordered gallery.\n\n${imageText('a', 'First image')}\n\n${imageText('b', 'Second image')}`,
@@ -47,12 +48,13 @@ async function openGallery(page, index = 1) {
 }
 async function start(h, { media } = {}) {
   const page = await h.open(null), reads = [];
+  await page.route(/^blob:https:\/\/pocket\.test\//, route => route.continue());
   await page.route(/\/api\/tasks\/[^/]+\/(?:images\/[a-f0-9]{64}|attachments\/[a-f0-9-]{36})(?:\?.*)?$/, async route => {
     const url = new URL(route.request().url()), key = Object.keys(sources).find(key => sources[key] === url.pathname);
     reads.push({ key, type: route.request().resourceType(), path: url.pathname, query: url.search });
     if (!key) throw new Error('Unknown synthetic gallery image');
     if (media && await media({ route, key, reads, url })) return;
-    await route.fulfill({ status: 200, contentType: 'image/svg+xml', headers: { 'Cache-Control': 'no-store', 'X-Pocket-Machine': 'ged' }, body: svg });
+    await route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Cache-Control': 'no-store', 'X-Pocket-Machine': 'ged' }, body: png });
   });
   await page.goto(page.url() + '&task=' + ids.regular); await row(page).waitFor();
   return { page, reads };
@@ -81,12 +83,12 @@ function flow(engine, locale, width, name, run) {
 for (const engine of engines) {
   flow(engine, 'en-US', 320, 'body and attachment order opens the second image with translated accessible controls', async (h, evidence) => {
     install(h); const { page, reads } = await start(h); await openGallery(page); await position(page, 2); await ready(page);
-    assert.equal(await viewer(page).locator('img').getAttribute('src'), sources.b);
+    assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), sources.b);
     const labels = words('en-US');
     assert.equal(await viewer(page).getByRole('button', { name: labels.previous, exact: true }).count(), 1);
     assert.equal(await viewer(page).getByRole('button', { name: labels.next, exact: true }).count(), 1);
     await viewer(page).getByRole('button', { name: labels.next, exact: true }).click(); await position(page, 3); await ready(page); await sameDialog(page);
-    assert.equal(await viewer(page).locator('img').getAttribute('src'), sources.c, 'The original image attachment follows the two body images');
+    assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), sources.c, 'The original image attachment follows the two body images');
     assert.ok(reads.some(read => read.path === sources.c && !read.query), 'Viewer loads the original attachment rather than its thumbnail');
     evidence.geometry = await viewer(page).locator('.image-viewer-previous,.image-viewer-next,.image-viewer-close,.image-viewer-counter').evaluateAll(elements => elements.map(element => {
       const box = element.getBoundingClientRect(); return { width: box.width, height: box.height, left: box.left, right: box.right }; }));
@@ -111,8 +113,10 @@ for (const engine of engines) {
     await pointer(page, { dx: -80, dy: 70 }); await position(page, 1);
     await pointer(page); await position(page, 2); await ready(page); await sameDialog(page);
     await viewer(page).locator('.image-viewer-zoom button').last().click();
+    await page.waitForFunction(() => Number(document.querySelector('dialog[data-image-viewer] img')?.getAttribute('data-scale')) > 1);
     const before = await viewer(page).locator('img').getAttribute('style'); await pointer(page);
     await position(page, 2); assert.ok(Number(await viewer(page).locator('img').getAttribute('data-scale')) > 1);
+    await page.waitForFunction(before => document.querySelector('dialog[data-image-viewer] img')?.getAttribute('style') !== before, before, { timeout: 1500 });
     assert.notEqual(await viewer(page).locator('img').getAttribute('style'), before, 'The zoomed image actually pans');
     await viewer(page).locator('.image-viewer-reset').click(); await pointer(page); await position(page, 3); await sameDialog(page);
     assert.equal(Number(await viewer(page).locator('img').getAttribute('data-scale')), 1);
@@ -140,10 +144,10 @@ for (const engine of engines) {
       await openGallery(page, 2); await position(page, 3); await viewer(page).locator('.image-viewer-message [role="status"]').waitFor({ timeout: 1500 });
       const deadline = Date.now() + 1500;
       while (!held && Date.now() < deadline) await page.waitForTimeout(20);
-      assert.equal(held, true); await viewer(page).locator('img').evaluate(image => { window.previousGalleryImage = image; });
+      assert.equal(held, true); assert.equal(await viewer(page).locator('img').count(), 0, 'The loading capability has no image node before its bounded Blob read completes');
       evidence.loadingReads = reads.filter(read => read.key === 'c');
       await pointer(page, { target: '.image-viewer-message p', dx: 90 }); await position(page, 2); await ready(page); await sameDialog(page);
-      release(); await page.evaluate(() => window.previousGalleryImage.dispatchEvent(new Event('error'))); await page.waitForTimeout(120);
+      release(); await page.waitForTimeout(120);
       assert.equal(await viewer(page).locator('[role="alert"]').count(), 0); await ready(page); evidence.oldErrorIgnored = true;
     } finally { release(); }
   });
@@ -166,11 +170,11 @@ for (const engine of engines) {
     const doubled = gallery({ text: `${imageText('a', 'First image')}\n\n${imageText('a', 'Repeated first image')}\n\n${imageText('b', 'Second image')}` });
     install(h, [doubled, other()]); const { page } = await start(h);
     await row(page).locator('.message-image-frame[aria-haspopup="dialog"]').nth(1).click(); await position(page, 1); await page.keyboard.press('ArrowRight'); await position(page, 2);
-    assert.equal(await viewer(page).locator('img').getAttribute('src'), sources.b);
+    assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), sources.b);
     await page.keyboard.press('Escape'); await viewer(page).waitFor({ state: 'detached' });
     await page.locator('[data-message-id="other-gallery-message"] .message-image-frame').click(); await ready(page);
     assert.equal(await viewer(page).locator('.image-viewer-counter,.image-viewer-next,.image-viewer-previous').count(), 0);
-    await pointer(page); assert.equal(await viewer(page).locator('img').getAttribute('src'), sources.d);
+    await pointer(page); assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), sources.d);
   });
 
   flow(engine, 'zh-CN', 390, 'Mermaid remains a standalone diagram even alongside a message gallery', async h => {
@@ -191,7 +195,7 @@ for (const engine of engines) {
     await row(page).getByText('Updated source card without the original inline images.', { exact: true }).waitFor();
     assert.equal(await row(page).locator('.message-image,.attachment-card').count(), 0);
     await sameDialog(page); await position(page, 2); await page.keyboard.press('ArrowRight'); await position(page, 3); await ready(page);
-    assert.equal(await viewer(page).locator('img').getAttribute('src'), sources.c); evidence.snapshotRetained = true;
+    assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), sources.c); evidence.snapshotRetained = true;
   });
 
   flow(engine, 'zh-CN', 390, 'close and conversation switching preserve scroll root, draft, composition and opener focus', async (h, evidence) => {

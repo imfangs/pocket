@@ -9,6 +9,7 @@ import { runBridge } from "./bridge-process.mjs";
 import { ThreadModels } from "./thread-models.mjs";
 import { Attachments, messageFingerprint } from "./attachments.mjs";
 import { HistoryActionReconciler } from "./history-action-reconciliation.mjs";
+import { AttachmentUploadReservations } from "./attachment-uploads.mjs";
 
 const compatibilityHints = {
   desktop_protocol_incompatible: "Mac 中的 Codex 接口与 Pocket 不兼容，暂时无法发送或压缩。草稿和待发消息已保留。",
@@ -60,6 +61,15 @@ export class DesktopService {
     store.db.exec("CREATE TABLE IF NOT EXISTS request_responses(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,request_key TEXT NOT NULL,decision TEXT NOT NULL,status TEXT NOT NULL,code TEXT,created_at INTEGER NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS question_answers(id TEXT PRIMARY KEY REFERENCES dispatches(id),thread_id TEXT NOT NULL,question_key TEXT NOT NULL)");
     this.attachments = new Attachments(store, attachmentOptions);
+    this.uploadReservations = new AttachmentUploadReservations(store, this.attachments, action => this.transaction(action), (threadId, requestId) => {
+      this.cache.delete(threadId);
+      // Verification may finish while the queue is paused or the browser has
+      // gone away. This only seals storage; the ordinary worker owns dispatch.
+      void this.uploadReservations.finalize(threadId, requestId).then(() => {
+        this.cache.delete(threadId);
+        if (this.queueStarted) return this.processQueueForThread(threadId, true);
+      }).catch(() => { /* The durable worker repeats verification after restart. */ });
+    });
     this.models = new ThreadModels(store, payload => this.request({ ...payload, codexHome: this.codexHome }), {
       busy: id => this.isLifecycleBlocked(id) || this.sending.has(id) || this.queueReservations.has(id) ||
         this.compactionPending(id) || this.stops.pending(id) || this.renamePending?.(id),
@@ -217,6 +227,7 @@ export class DesktopService {
     if (!this.openThread || this.sending.has(id) || this.stops.pause(id) || this.stops.pending(id) || this.compactionPending(id)) return;
     const head = this.outbox(id)[0];
     if (head?.status !== "queued") return;
+    if (this.uploadReservations.blocked(head.id)) return;
     // Never reopen from an automatic queue tick or replay an uncertain send.
     this.connect(id, { open: false });
   }
@@ -313,7 +324,7 @@ export class DesktopService {
       if (message.clientMessageId)
         this.store.db
           .prepare(
-            "UPDATE dispatches SET status='accepted',turn_id=?,code=NULL WHERE id=? AND thread_id=?",
+            "UPDATE dispatches SET status='accepted',turn_id=?,code=NULL WHERE id=? AND thread_id=? AND NOT EXISTS(SELECT 1 FROM attachment_upload_messages m WHERE m.request_id=dispatches.id AND m.status<>'ready')",
           )
           .run(message.turnId || null, message.clientMessageId, id);
       if (message.clientMessageId)
@@ -478,11 +489,15 @@ export class DesktopService {
     } finally { this.sending.delete(id); this.cache.delete(id); }
   }
   receipt(row) {
+    const progress = this.uploadReservations.progress(row.thread_id, row.id);
+    const queued = progress && this.store.db.prepare("SELECT revision FROM outgoing_messages WHERE id=? AND thread_id=?").get(row.id, row.thread_id);
     return {
       requestId: row.id,
       status: row.status,
       turnId: row.turn_id,
       code: row.code,
+      ...(progress || {}),
+      ...(queued ? { queueRevision: queued.revision } : {}),
     };
   }
   getReceipt(id, requestId) {
@@ -494,7 +509,8 @@ export class DesktopService {
   }
   outbox(id) {
     return this.store.db.prepare("SELECT o.id,o.text,o.revision,d.status,d.code,d.created_at AS createdAt,d.auto_direct AS autoDirect FROM outgoing_messages o JOIN dispatches d ON d.id=o.id WHERE o.thread_id=? ORDER BY d.created_at,d.rowid").all(id)
-      .map(row => ({ ...row, autoDirect: row.autoDirect === 1, attachments: this.attachments.forDispatch(id, row.id).map(a => this.attachments.public(a)) }));
+      .map(row => ({ ...row, autoDirect: row.autoDirect === 1, attachments: this.attachments.forDispatch(id, row.id).map(a => this.attachments.public(a)),
+        ...(this.uploadReservations.progress(id, row.id) || {}) }));
   }
   queueSize(id, saved = this.outbox(id).length) {
     return saved + (this.queueReservations.has(id) ? 1 : 0);
@@ -528,6 +544,7 @@ export class DesktopService {
     const text = input.text.trim();
     this.transaction(() => {
       this.queued(id, requestId, input.expectedRevision, ["queued", "rejected", "editing"]);
+      if (this.uploadReservations.blocked(requestId)) throw new AppError("附件尚未上传齐，请完成上传或取消此消息", 409);
       const attachments = this.attachments.forDispatch(id, requestId);
       if (!text && !attachments.length) throw new AppError("请输入消息或添加附件");
       this.store.db.prepare("UPDATE outgoing_messages SET text=?,revision=revision+1 WHERE id=?").run(text, requestId);
@@ -541,6 +558,7 @@ export class DesktopService {
     if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("取消参数无效", 400);
     this.transaction(() => {
       this.queued(id, requestId, input.expectedRevision, ["queued", "rejected", "editing"]);
+      this.uploadReservations.cancel(requestId);
       this.store.db.prepare("DELETE FROM outgoing_messages WHERE id=?").run(requestId);
       this.store.db.prepare("UPDATE dispatches SET status='cancelled',code=NULL WHERE id=?").run(requestId);
       this.attachments.release(requestId);
@@ -551,7 +569,7 @@ export class DesktopService {
     if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("编辑参数无效", 400);
     this.transaction(() => {
       this.queued(id, requestId, input.expectedRevision, resume ? ["editing"] : ["queued", "rejected"]);
-      this.store.db.prepare("UPDATE dispatches SET status=?,code=NULL WHERE id=?").run(resume ? "queued" : "editing", requestId);
+      this.store.db.prepare("UPDATE dispatches SET status=?,code=CASE WHEN EXISTS(SELECT 1 FROM attachment_upload_messages m WHERE m.request_id=dispatches.id AND m.status IN('uploading','failed')) THEN code ELSE NULL END WHERE id=?").run(resume ? "queued" : "editing", requestId);
       this.store.db.prepare("UPDATE outgoing_messages SET revision=revision+1 WHERE id=?").run(requestId);
     });
     return { outbox: this.outbox(id) };
@@ -567,6 +585,7 @@ export class DesktopService {
     if (this.stops.pending(id) || (delivery !== "now" && this.stops.pause(id))) throw new AppError("待发消息已暂停，请先核对停止状态", 409);
     if (!input || Object.keys(input).some(k => k !== "expectedRevision")) throw new AppError("发送参数无效", 400);
     const row = this.queued(id, requestId, input.expectedRevision, automatic ? ["queued"] : ["queued", "rejected"]);
+    if (this.uploadReservations.row(requestId) && !await this.uploadReservations.finalize(id, requestId)) throw new AppError("附件尚未上传齐，请完成上传或取消此消息", 409);
     if (automatic && this.outbox(id)[0]?.id !== requestId) throw new AppError("待发顺序已变化，请重新核对", 409);
     if (delivery === "auto-now" && !row.autoDirect) throw new AppError("这条消息未开启自动直接发送", 409);
     if (this.sending.has(id)) throw new AppError("会话正在提交另一条消息", 409);
@@ -635,13 +654,17 @@ export class DesktopService {
     if (epoch !== this.queueEpoch) return;
     if (this.isLifecycleBlocked(id)) return;
     const thread = this.store.thread(id);
-    if (thread.archived || thread.missing || this.sending.has(id) || this.stops.pause(id) || this.stops.pending(id)) return;
+    if (thread.archived || thread.missing || this.sending.has(id)) return;
+    const initial = this.outbox(id)[0];
+    if (!initial || !["queued", "editing"].includes(initial.status)) return;
+    if (this.uploadReservations.row(initial.id) && !await this.uploadReservations.finalize(id, initial.id)) return;
+    if (epoch !== this.queueEpoch || this.stops.pause(id) || this.stops.pending(id)) return;
     if (this.models.pending(id)) {
       await this.models.read(id);
       if (epoch !== this.queueEpoch || this.models.pending(id)) return;
     }
     const head = this.outbox(id)[0];
-    if (!head || head.status !== "queued") return;
+    if (!head || head.id !== initial.id || head.status !== "queued" || this.uploadReservations.blocked(head.id)) return;
     const history = await this.history(id);
     if (epoch !== this.queueEpoch) return;
     const stopped = this.stops.latest(id);
@@ -685,11 +708,12 @@ export class DesktopService {
       throw new AppError("请先恢复会话", 409);
     if (
       !input ||
-      Object.keys(input).some((k) => !["text", "requestId", "enqueue", "attachments", "autoDirect"].includes(k)) ||
+      Object.keys(input).some((k) => !["text", "requestId", "enqueue", "attachments", "attachmentUploads", "autoDirect"].includes(k)) ||
+      (input.attachments !== undefined && input.attachmentUploads !== undefined) ||
       (input.enqueue !== undefined && input.enqueue !== true) ||
       (input.autoDirect !== undefined && typeof input.autoDirect !== "boolean") ||
       typeof input.text !== "string" ||
-      (!input.text.trim() && !input.attachments?.length) ||
+      (!input.text.trim() && !input.attachments?.length && !input.attachmentUploads?.length) ||
       input.text.length > 16000 ||
       typeof input.requestId !== "string" ||
       !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
@@ -697,6 +721,8 @@ export class DesktopService {
       )
     )
       throw new AppError("消息需为 1–16000 字，且带有效请求编号", 400);
+    if (input.attachmentUploads !== undefined) return this.reserveAttachmentUploads(id, input);
+    if (this.uploadReservations.row(input.requestId)) throw new AppError("请求编号已用于另一条消息", 409);
     const text = input.text.trim(),
       uploaded = this.attachments.resolve(id, input.attachments === undefined ? [] : input.attachments, input.requestId),
       hash = messageFingerprint(text, uploaded);
@@ -780,5 +806,27 @@ export class DesktopService {
         .prepare("SELECT * FROM dispatches WHERE id=?")
         .get(input.requestId),
     );
+  }
+  reserveAttachmentUploads(id, input) {
+    const text = input.text.trim(), descriptors = this.uploadReservations.validate(input.attachmentUploads);
+    const old = this.store.db.prepare("SELECT * FROM dispatches WHERE id=?").get(input.requestId);
+    const intent = this.uploadReservations.intent(text, descriptors, input);
+    if (old) {
+      const manifest = this.uploadReservations.row(input.requestId);
+      if (old.thread_id !== id || !manifest || manifest.intent_hash !== intent)
+        throw new AppError("请求编号已用于另一条消息", 409);
+      return this.receipt(old);
+    }
+    if (this.queueSize(id) >= 20) throw new AppError("这条任务最多保留 20 条待发消息", 409);
+    this.transaction(() => {
+      this.store.db.prepare("INSERT INTO dispatches(id,thread_id,text_hash,status,code,created_at,auto_direct) VALUES(?,?,?,'queued','attachments_uploading',?,?)")
+        .run(input.requestId, id, intent, Date.now(), Number(input.autoDirect === true));
+      this.store.db.prepare("INSERT INTO outgoing_messages(id,thread_id,text) VALUES(?,?,?)").run(input.requestId, id, text);
+      this.uploadReservations.reserve(id, input.requestId, text, descriptors, input);
+    });
+    this.cache.delete(id);
+    const receipt = this.getReceipt(id, input.requestId);
+    if (this.queueStarted) void this.processQueueForThread(id, true).catch(() => {});
+    return receipt;
   }
 }

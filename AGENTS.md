@@ -64,9 +64,9 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | Logo、设置减法、标题信息入口与工具栏 | [品牌与界面收敛](docs/design/2026-10-11-brand-and-interface.md)、[矢量主稿](design/brand/README.md) |
 | 整体 UI、导航、筛选、阅读层级与表单 | [工作区交互打磨](docs/design/2026-10-08-notion-inspired-workspace.md)；整体减法或同类删减再次出现时，先按[迭代复盘](docs/research/2026-10-11-pocket-interaction-retrospective.md)第4、6节审视完整路径的相邻区域，确定覆盖范围与保留理由 |
 | 列表运行/等待状态、过期或弱网跳位 | [列表运行状态](docs/design/2026-10-08-running-status.md)与[列表活动缓存](docs/design/2026-11-10-list-activity-cache.md)：fresh读取保持，machine/scope本页展示回退统一标签/计数/过滤/rank，明确新状态撤销；不授控制或复亮详情dots |
-| 轮次失败／原因不可见、未读／运行中正文预取与旧缓存遮挡 | [失败与活跃预取](docs/design/2026-11-11-failed-turns-and-live-prefetch.md)：真实task_complete.error／nativefailed独立DTO，当前运行／等待优先；8候选/单并发5s/30s再验证、跨key版本地板与认证较新阅读预览接续，不自动连接/发消息/标读/授权 |
+| 轮次失败／原因不可见、未读／运行中正文预取与旧缓存遮挡 | [失败与活跃预取](docs/design/2026-11-11-failed-turns-and-live-prefetch.md)：真实task_complete.error／nativefailed独立DTO，当前运行／等待优先；5s/30s再验证、认证较新阅读预览接续；[11-12并发契约](docs/design/2026-11-12-upload-pipeline-and-image-cache.md)更新为固定8候选／8路及256项版本地板，不自动连接/发消息/标读/授权 |
 | 列表弱网同步提示过重、动态细线／持续失败提示 | [静默同步](docs/design/2026-11-11-quiet-list-sync.md)：固定2px／真实请求动画，native不可读与过期不当断网；明确离线或3次/30秒且无可达列表读取才提示，健康诊断不改变运行／权限／缓存水位 |
-| 未读/近期会话后台状态与正文预取、缓存接管和抢占冷却 | [正文预取](docs/design/2026-10-31-transcript-prefetch.md)：统一rank＋未读加权、固定8候选/单并发、前台接管、版本/身份边界；[状态预取](docs/design/2026-10-22-active-thread-prefetch.md)继续32项批量提示与公平轮转，不制造访问/已读或后台连接 |
+| 未读/近期会话后台状态与正文预取、缓存接管和抢占冷却 | [正文预取](docs/design/2026-10-31-transcript-prefetch.md)：统一rank＋未读加权、固定8候选／8路、前台接管与批量取消冷却，版本／身份边界见[11-12契约](docs/design/2026-11-12-upload-pipeline-and-image-cache.md)；[状态预取](docs/design/2026-10-22-active-thread-prefetch.md)继续32项批量提示与公平轮转，不制造访问/已读或后台连接 |
 | 列表、来源导入、元数据恢复、阅读缓存 | [数据与接口](docs/ARCHITECTURE.md)、[桌面列表范围](docs/design/2026-10-14-desktop-list-scope.md)、[待输入视图](docs/design/2026-09-29-input-inbox.md) |
 | IndexedDB、缓存数量设置、恢复/清理、跨标签失效、304/204与读取流量 | [分层阅读缓存](docs/design/2026-10-28-reading-cache.md)：客户端条数偏好、认证后展示、纯阅读投影、来源/epoch与容量边界、条件响应及旧接口兼容；[选型](docs/research/2026-10-28-cache-components.md) |
 | 阅读后清除未读、跨端重复未读、运行中排除未读、内容版本与缓存 | [阅读状态与已读合并](docs/design/2026-10-22-pocket-read-state.md)：有效运行状态仅抑制列表未读；本地水位、真实可见阅读与精确版本桌面提示保持，原生写回仅旧客户端兼容 |
@@ -79,6 +79,7 @@ Mac 上 Codex 的手机入口：按电脑查看和接续原会话，管理名称
 | subagent_notification的XML/JSON裸露、子任务结果与复制 | [子任务通知](docs/design/2026-10-28-subagent-notifications.md)：完整已知格式、紧凑披露与安全Markdown；原role/ID保持，包装不授予文件或执行权限 |
 | 历史、发送、排队、停止、压缩、提问或审批 | [会话契约](docs/CONVERSATION.md)；正文与执行状态分离读[文字优先](docs/design/2026-09-30-transcript-first.md)，慢发送/未知回执读[发送修复](docs/design/2026-09-30-send-reliability.md) |
 | 手机上传、附件草稿、图片/文件发送及队列恢复 | [附件发送](docs/design/2026-10-10-attachments.md)：私有落盘、原owner输入、上传/发送编号及文件保留边界；[状态工作台与可读性](docs/design/2026-11-09-attachment-state-workbench.md)：真实组件状态、完整草稿文件名、操作换行与合成回归 |
+| 16附件、上传中提交、并发／图片磁盘缓存、上传包装裸露 | [11-12上传与图片缓存](docs/design/2026-11-12-upload-pipeline-and-image-cache.md)：16上传／2散列／8正文／8图片／共用32媒体；持久清单全齐才派发、accepted才绿、未知不重放；12MiB L1＋64MiB IDB认证／scope／SHA与清理；[保存用户附件展示](docs/design/2026-11-12-uploaded-user-envelope.md)保持raw及回执身份，分页同契约 |
 | 手机键盘、返回、草稿、刷新恢复 | [验证与改进](docs/QUALITY.md)、[连续性修复](docs/design/2026-09-30-steady-interaction.md) |
 | Markdown、定时消息正文空白/XML代码框、Codex专用标记、本地图片 | [消息标记](docs/design/2026-09-30-codex-markup-and-current-questions.md)：heartbeat/子任务的纯引用尾段单独消解，内部代码与完整shape保护；原文从Pocket只读接口核对，Codex展示投影可能省略引用。图片边界见[图片契约](docs/IMAGES.md) |
 | created-thread任务卡片；文本文件页内预览/下载 | [消息组件](docs/design/2026-10-22-message-components.md)：assistant顶层结构会话卡/同机scope目录，不新增owner读取；受控文件权限/1MiB预览/原件复用，文件正文不继承会话组件 |

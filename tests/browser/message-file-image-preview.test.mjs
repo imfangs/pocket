@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHarness, engines, ids } from './fixture.mjs';
 import { runScenario } from './scenario.mjs';
+import { syntheticPng, imageSha256 } from './helpers/synthetic-png.mjs';
 
 const results = [];
 after(() => {
@@ -16,7 +17,8 @@ const file = { url: `/api/tasks/${ids.regular}/files/${'f'.repeat(64)}`, name: '
 const original = { url: `/api/tasks/${ids.regular}/files/${'c'.repeat(64)}`, name: 'notes.pdf' };
 const bodySrc = `/api/tasks/${ids.regular}/images/${'a'.repeat(64)}`;
 const attachmentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', attachmentSrc = `/api/tasks/${ids.regular}/attachments/${attachmentId}`;
-const attachment = { id: attachmentId, name: 'Attached image.png', size: 10, mime: 'image/png', kind: 'image', sha256: 'b'.repeat(64), url: attachmentSrc, previewUrl: attachmentSrc + '?preview=1' };
+const png = syntheticPng({ width: 160, height: 100 });
+const attachment = { id: attachmentId, name: 'Attached image.png', size: png.length, mime: 'image/png', kind: 'image', sha256: imageSha256(png), url: attachmentSrc, previewUrl: attachmentSrc + '?preview=1', previewSha256: imageSha256(png), previewMime: 'image/png', previewSize: png.length };
 const messageId = 'synthetic-file-image', imageSrc = file.url + '/image';
 const makeMessage = extra => ({ id: messageId, role: 'assistant', phase: 'final', turnId: 'file-image-turn', timestamp: Date.now(),
   text: `![Body image](${bodyPath})\n\n[Page preview](${filePath})\n\n[Ordinary file](/synthetic/notes.pdf)`,
@@ -30,13 +32,14 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 
 async function start(h, media) {
   const page = await h.open(null), reads = [];
+  await page.route(/^blob:https:\/\/pocket\.test\//, route => route.continue());
   // All image bytes originate from this synthetic canvas, never a user file.
   const synthetic = await page.evaluate(() => {
     const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = 100;
     const context = canvas.getContext('2d'); context.fillStyle = '#567899'; context.fillRect(0, 0, 160, 100);
     return { jpeg: canvas.toDataURL('image/jpeg').split(',')[1], png: canvas.toDataURL('image/png').split(',')[1] };
   });
-  const jpeg = Buffer.from(synthetic.jpeg, 'base64'), png = Buffer.from(synthetic.png, 'base64');
+  const jpeg = Buffer.from(synthetic.jpeg, 'base64');
   await page.route(/\/api\/tasks\/[^/]+\/(?:images\/[a-f0-9]{64}|files\/[a-f0-9]{64}(?:\/image)?|attachments\/[a-f0-9-]{36})(?:\?.*)?$/, async route => {
     const url = new URL(route.request().url()), path = url.pathname;
     reads.push({ path, type: route.request().resourceType(), query: url.search, method: route.request().method() });
@@ -78,11 +81,11 @@ for (const engine of engines) {
       await input.evaluate(element => { window.fileImageInput = element; element.setSelectionRange(2, 9); });
       await previewButton(page).click(); await viewer(page).waitFor(); await position(page, 2); await ready(page);
       await viewer(page).evaluate(element => { window.fileImageDialog = element; });
-      assert.equal(await viewer(page).locator('img').getAttribute('src'), imageSrc);
+      assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), imageSrc);
       await page.keyboard.press('ArrowLeft'); await position(page, 1); await ready(page);
-      assert.equal(await viewer(page).locator('img').getAttribute('src'), bodySrc);
+      assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), bodySrc);
       await page.keyboard.press('ArrowRight'); await position(page, 2); await page.keyboard.press('ArrowRight'); await position(page, 3); await ready(page);
-      assert.equal(await viewer(page).locator('img').getAttribute('src'), attachmentSrc);
+      assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), attachmentSrc);
       assert.equal(await viewer(page).evaluate(element => element === window.fileImageDialog), true);
       await page.keyboard.press('Escape'); await viewer(page).waitFor({ state: 'detached' });
       assert.equal(await previewButton(page).evaluate(element => document.activeElement === element), true);
@@ -123,7 +126,7 @@ for (const engine of engines) {
     });
     await previewButton(page).click(); await viewer(page).waitFor(); await position(page, 2); await viewer(page).locator('[role="alert"]').waitFor();
     await page.keyboard.press('ArrowRight'); await position(page, 3); await ready(page);
-    assert.equal(await viewer(page).locator('img').getAttribute('src'), attachmentSrc);
+    assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), attachmentSrc);
     await page.keyboard.press('Escape'); await viewer(page).waitFor({ state: 'detached' });
     assert.equal(await previewButton(page).evaluate(element => document.activeElement === element), true);
   });

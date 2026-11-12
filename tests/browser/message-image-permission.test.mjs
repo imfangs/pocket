@@ -15,6 +15,9 @@ const source = `/api/tasks/${ids.regular}/images/${'a'.repeat(64)}`;
 const original = '/synthetic/card.png';
 const permission = 'Mac 服务无权读取这张图片，请在电脑上检查文件访问权限';
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+const invalidPng = Buffer.concat([png.subarray(0, 8), Buffer.alloc(32)]);
+const diagnosticRequest = request => request.headers().accept === 'application/json';
+async function permitLocalBlobs(page) { await page.route(/^blob:https:\/\/pocket\.test\//, route => route.continue()); }
 const words = {
   'zh-CN': { retry: '重试', reason: permission },
   'en-US': { retry: 'Retry', reason: 'The Mac service cannot read this image. Check file access permissions on your computer.' },
@@ -47,6 +50,7 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) for (cons
   flow(engine, locale, width, 'permission reason stays in the image frame and explicit retry decodes the same image', async (h, evidence) => {
     const machine = width === 320 ? 'wandou' : 'ged'; install(h, machine);
     const page = await h.open(null, machine), requests = []; let denied = true;
+    await permitLocalBlobs(page);
     await page.route('**/images/' + 'a'.repeat(64), async route => {
       const request = route.request(); requests.push({ path: new URL(request.url()).pathname, type: request.resourceType(), headers: request.headers() });
       await route.fulfill({ status: denied ? 403 : 200, contentType: denied ? 'application/json' : 'image/png',
@@ -56,11 +60,11 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) for (cons
     const picture = page.locator('.message-image');
     await picture.getByText(words[locale].reason, { exact: true }).waitFor({ timeout: 1500 });
     evidence.failureGeometry = await failureGeometry(picture);
-    assert.equal(requests.length, 2, 'One image load and one diagnostic GET; no automatic retry');
-    assert.deepEqual(requests.map(request => request.type), ['image', 'fetch']);
+    assert.equal(requests.length, 1, 'The fixed HTTP 403 response supplies the permission reason without another diagnostic GET or automatic retry');
+    assert.deepEqual(requests.map(request => request.type), ['fetch']);
     const expectedPath = machine === 'ged' ? source : '/api/machines/' + machine + source.slice(4);
-    assert.ok(requests.every(request => request.path === expectedPath), 'Both reads stay on the selected machine and original capability');
-    assert.ok(requests[1].headers['x-pocket-client-version'], 'The diagnostic includes the client version');
+    assert.ok(requests.every(request => request.path === expectedPath), 'All reads stay on the selected machine and original capability');
+    assert.ok(requests[0].headers['x-pocket-client-version'], 'The image cache read includes the client version');
     const input = page.locator('.conversation-composer textarea'); await input.fill('Unsent synthetic draft');
     await input.evaluate(element => { window.permissionComposer = element; element.setSelectionRange(2, 7);
       element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: 'synthetic' })); });
@@ -72,7 +76,7 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) for (cons
     evidence.translatedFailureGeometry = await failureGeometry(picture);
     assert.equal(await input.evaluate(element => element === window.permissionComposer && document.activeElement === element && element.selectionStart === 2 && element.selectionEnd === 7), true);
     await input.evaluate(element => element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'synthetic' })));
-    assert.equal(requests.length, 2, 'Language changes translate the stored reason without another request');
+    assert.equal(requests.length, 1, 'Language changes translate the stored reason without another request');
     denied = false; await picture.getByRole('button', { name: changed.retry, exact: true }).click(); await decode(page);
     assert.equal(await picture.locator('.message-image-failed').count(), 0);
     assert.equal(await input.inputValue(), 'Unsent synthetic draft');
@@ -95,13 +99,14 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) for (cons
     await h.addInitScript(() => { const request = window.fetch.bind(window); window.fetch = (url, options) =>
       String(url).includes('/images/') ? request(url, { ...options, signal: undefined }) : request(url, options); });
     const page = await h.open(null);
+    await permitLocalBlobs(page);
     await page.route('**/images/' + 'a'.repeat(64), async route => {
       const request = route.request();
-      if (request.resourceType() === 'fetch') { diagnosticStarted = true; await delayed;
+      if (diagnosticRequest(request)) { diagnosticStarted = true; await delayed;
         return route.fulfill({ status: 403, contentType: 'application/json', headers: { 'X-Pocket-Machine': 'ged' }, body: JSON.stringify({ error: permission }) }); }
       imageReads++;
-      await route.fulfill({ status: imageReads === 1 ? 403 : 200, contentType: imageReads === 1 ? 'application/json' : 'image/png',
-        headers: { 'Cache-Control': 'no-store', 'X-Pocket-Machine': 'ged' }, body: imageReads === 1 ? JSON.stringify({ error: permission }) : png });
+      await route.fulfill({ status: 200, contentType: 'image/png',
+        headers: { 'Cache-Control': 'no-store', 'X-Pocket-Machine': 'ged' }, body: imageReads === 1 ? invalidPng : png });
     });
     try {
       await page.goto(page.url() + '&task=' + ids.regular);
@@ -125,9 +130,11 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) {
       String(url).includes('/images/') ? request(url, { ...options, signal: undefined }) : request(url, options); });
     let release, diagnosticStarted = false;
     const delayed = new Promise(done => { release = done; }), page = await h.open(null);
+    await permitLocalBlobs(page);
     await page.route('**/images/' + 'a'.repeat(64), async route => {
-      if (route.request().resourceType() === 'fetch') { diagnosticStarted = true; await delayed; }
-      await route.fulfill({ status: 403, contentType: 'application/json', headers: { 'X-Pocket-Machine': 'ged' }, body: JSON.stringify({ error: permission }) });
+      if (diagnosticRequest(route.request())) { diagnosticStarted = true; await delayed;
+        await route.fulfill({ status: 403, contentType: 'application/json', headers: { 'X-Pocket-Machine': 'ged' }, body: JSON.stringify({ error: permission }) });
+      } else await route.fulfill({ status: 200, contentType: 'image/png', headers: { 'X-Pocket-Machine': 'ged' }, body: invalidPng });
     });
     await page.route('**/images/' + 'b'.repeat(64), route => route.fulfill({ status: 200, contentType: 'image/png',
       headers: { 'Cache-Control': 'no-store', 'X-Pocket-Machine': 'ged' }, body: png }));
@@ -141,7 +148,7 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) {
       await page.locator(`[data-thread-id="${ids.empty}"]`).click(); await decode(page);
       release(); await page.waitForTimeout(180);
       assert.equal(await page.locator('.message-image-failed').count(), 0);
-      assert.equal(await page.locator('.message-image-frame img').getAttribute('src'), nextSrc);
+      assert.equal(await page.locator('.message-image-frame img').getAttribute('data-registered-source'), nextSrc);
       assert.equal(await page.locator('[data-message-id="next-picture"]').count(), 1); evidence.previousConversationIgnored = true;
     } finally { release(); }
   });

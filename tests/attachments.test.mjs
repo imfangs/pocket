@@ -62,8 +62,8 @@ test("stream size, count, quota, filenames and image masquerades are rejected wi
   await assert.rejects(f.upload(1, Buffer.from("text"), "image.png", "image/png"), e => e.status === 415);
   await assert.rejects(f.upload(1, Buffer.from("text"), "image.txt", "image/jpeg"), e => e.status === 415);
   assert.deepEqual(readdirSync(f.service.attachments.root), []);
-  for (let n = 1; n <= 6; n++) await f.upload(n);
-  await assert.rejects(f.upload(7), e => e.status === 409);
+  for (let n = 1; n <= 16; n++) await f.upload(n);
+  await assert.rejects(f.upload(17), e => e.status === 409);
   const quota = fixture(t, { maxBytes: 16, maxTotalBytes: 52 });
   await quota.upload(1);
   await assert.rejects(quota.upload(2), e => e.status === 413);

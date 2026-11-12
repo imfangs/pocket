@@ -92,7 +92,7 @@ export class MessageFiles {
       await verify();
       transferred = true;
       return await openMessageAudioStream({ ...options, file, before, name: basename(entry.path), verify, reserve: () => {
-        if (this.activeVideoStreams >= 16) throw new AppError('同时播放的媒体过多，请稍后重试', 503);
+        if (this.activeVideoStreams >= 32) throw new AppError('同时播放的媒体过多，请稍后重试', 503);
         this.activeVideoStreams++;
         return () => { this.activeVideoStreams--; };
       } });
@@ -121,7 +121,7 @@ export class MessageFiles {
       // The stream owns the FD even when its construction or sniffing fails.
       transferred = true;
       return await openMessageVideoStream({ ...options, file, before, name: basename(entry.path), verify, reserve: () => {
-        if (this.activeVideoStreams >= 16) throw new AppError('同时播放的视频过多，请稍后重试', 503);
+        if (this.activeVideoStreams >= 32) throw new AppError('同时播放的视频过多，请稍后重试', 503);
         this.activeVideoStreams++;
         return () => { this.activeVideoStreams--; };
       } });

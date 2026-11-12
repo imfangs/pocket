@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   prioritizedReadThreads, readPriorityScore, transcriptPrefetchCandidates,
-  transcriptPrefetchLimit, unreadPrefetchBoost,
+  transcriptPrefetchLimit, transcriptPrefetchConcurrency, transcriptPrefetchFloorLimit, unreadPrefetchBoost,
 } from '../src/prefetchPriority.ts';
 import { smartThreadOrder, smartThreadScore } from '../src/smartOrder.ts';
 import { hasUnreadContent } from '../src/unread.ts';
@@ -149,6 +149,8 @@ test('transcript candidates reject unknown, foreign or malformed content identit
 
 test('transcript selection excludes the current detail and applies the eight-item cap after eligibility', () => {
   assert.equal(transcriptPrefetchLimit, 8);
+  assert.equal(transcriptPrefetchConcurrency, 8);
+  assert.equal(transcriptPrefetchFloorLimit, 256);
   const selected = thread(99, { pocketUnread: true, lastMessageAt: now });
   const eligible = Array.from({ length: 12 }, (_, index) => thread(index + 1));
   const blocked = Array.from({ length: 12 }, (_, index) => thread(index + 100, {

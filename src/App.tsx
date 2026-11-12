@@ -47,6 +47,7 @@ import type { Catalog, Thread, View } from "./types";
 import NewConversationDialog, { type NewConversationInput } from "./NewConversationDialog";
 import { startUsageAnalytics } from "./usageAnalytics";
 import { createSubmittedQueryStore, seedSubmittedQuery, visibleSubmittedQueries } from "./submittedQueries";
+import { authorizeImageReadCache } from "./imageReadCache";
 import { prepareCreationDialog, type CreationClipboard } from "./creationQuery";
 import type { CreateLocation, TaskOperation } from "./taskOperations";
 import type { CreationPreference } from "./creationPreference";
@@ -293,7 +294,7 @@ export default function App({
       catalogScope.current = scope; catalogFresh.current = true; setCatalogFromDisk(false);
       if (!c.sourceError) {
         setCatalogLoaded(true);
-        const machine = currentMachineId(); if (machine) cacheRef.current?.rememberCatalog(machine, c);
+        const machine = currentMachineId(); if (machine) { cacheRef.current?.rememberCatalog(machine, c); void authorizeImageReadCache(machine, scope ?? null); }
       }
     },
     onPendingChange(pending) { catalogReadHealthStore.observe({ type: pending ? "pending" : "settled" }); setCatalogReading(pending); if (pending) setReadError(""); },

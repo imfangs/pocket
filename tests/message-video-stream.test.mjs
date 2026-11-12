@@ -233,15 +233,15 @@ test('closing or aborting a never-consumed stream releases its slot and FD exact
   assert.equal(tracked.opened[2].closed, 1);
 });
 
-test('at most 16 GET streams stay open; HEAD and 416 do not consume slots', async t => {
+test('at most 32 GET streams stay open; HEAD and 416 do not consume slots', async t => {
   const tracked = tracker(), f = fixture(t, { openFile: tracked.openFile }), streams = [];
   t.after(async () => { for (const stream of streams) await stream.close(); });
-  for (let index = 0; index < 16; index++) streams.push(await f.video());
-  assert.equal(f.service.activeVideoStreams, 16);
+  for (let index = 0; index < 32; index++) streams.push(await f.video());
+  assert.equal(f.service.activeVideoStreams, 32);
   await assert.rejects(f.video(), error => error.status === 503);
   assert.equal((await f.video({ method: 'HEAD' })).status, 200);
   assert.equal((await f.video({ range: 'bytes=999999-' })).status, 416);
-  assert.equal(f.service.activeVideoStreams, 16);
+  assert.equal(f.service.activeVideoStreams, 32);
   await streams[0].close(); streams.push(await f.video());
   for (const stream of streams) await stream.close();
   assert.equal(f.service.activeVideoStreams, 0); assert.ok(tracked.opened.every(file => file.closed === 1));

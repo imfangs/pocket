@@ -4,6 +4,8 @@ import { hasUnreadContent } from "./unread.ts";
 
 export const unreadPrefetchBoost = 200;
 export const transcriptPrefetchLimit = 8;
+export const transcriptPrefetchConcurrency = 8;
+export const transcriptPrefetchFloorLimit = 256;
 export const validPrefetchId = (id: unknown): id is string => typeof id === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id);
 export type ReadPriorityOptions = SmartOrderOptions & { selectedId?: string | null; excludedThreadIds?: readonly string[] };
 export type PrefetchContent = { known: true; scope: string; revision: number; version: string; messageId: string | null };

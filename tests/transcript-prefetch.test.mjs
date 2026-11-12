@@ -40,9 +40,9 @@ test('the fixed eight-item window checks matching cached versions once without d
   f.reader.stop();assert.equal(f.timers.size,0);
 });
 
-test('background reads stay single-file, then persist only the matching source content',async()=>{
+test('background reads fill independent lanes, then persist only the matching source content',async()=>{
   const a=candidate(1),b=candidate(2),f=fixture();f.update([a,b]);await f.advance(10);
-  assert.equal(f.requests.length,1);await f.advance(30);assert.equal(f.requests.length,1);
+  assert.equal(f.requests.length,2);await f.advance(30);assert.equal(f.requests.length,2);
   f.requests[0].resolve(response(a));await f.advance(10);
   assert.equal(f.writes.length,1);assert.equal(f.requests.length,2);
   f.requests[1].resolve(response(b));await f.advance(500);
@@ -88,12 +88,12 @@ test('each foreground signal cancels only its own consumer; the last one aborts 
 test('foreground work on another thread preempts background work and pauses the next slot',async()=>{
   const a=candidate(1),b=candidate(2),f=fixture();f.update([a,b]);await f.advance(10);
   const c=new AbortController(),pending=f.reader.read(id(99),c.signal);await flush();
-  assert.equal(f.requests[0].signal.aborted,true);assert.equal(f.requests[1].threadId,id(99));
-  await f.advance(500);assert.equal(f.requests.length,2);
-  f.requests[1].resolve(response(candidate(99)));await pending;await f.advance(10);
-  assert.equal(f.requests.length,2,'foreground completion does not bypass the queue cooldown');
+  assert.ok(f.requests.slice(0,2).every(item=>item.signal.aborted));assert.equal(f.requests[2].threadId,id(99));
+  await f.advance(500);assert.equal(f.requests.length,3);
+  f.requests[2].resolve(response(candidate(99)));await pending;await f.advance(10);
+  assert.equal(f.requests.length,3,'foreground completion does not bypass the queue cooldown');
   await f.advance(2000);
-  assert.equal(f.requests[2].threadId,b.id);f.reader.stop();
+  assert.deepEqual(f.requests.slice(3,5).map(item=>item.threadId),[a.id,b.id]);f.reader.stop();
 });
 
 test('failed high-rank work backs off without starving untried candidates',async()=>{
@@ -204,14 +204,15 @@ test('an unread cache hit still receives a real read and then validates at the s
   f.reader.stop();
 });
 
-test('eight repeated candidates stay single-file and untried unread work precedes another active refresh', async () => {
+test('eight repeated candidates use eight lanes and unread work precedes another active refresh', async () => {
   const items = Array.from({ length: 8 }, (_, n) => ({ ...candidate(n + 1), refresh: n === 7 ? 'unread' : 'running' }));
   const f = fixture(); f.update(items); await f.advance(10);
-  for (let n = 0; n < items.length; n++) {
-    assert.equal(f.requests.length, n + 1, 'only one background read is in flight');
+  assert.equal(f.requests.length, 8, 'eight background reads fill the bounded lanes');
+  for (let n = 0; n < 8; n++) {
     assert.equal(f.requests[n].threadId, items[n].id);
-    f.requests[n].resolve(response(items[n])); await f.advance(10);
+    f.requests[n].resolve(response(items[n]));
   }
+  await f.advance(10);
   assert.equal(f.writes.length, 8); assert.deepEqual(f.requests.map(item => item.threadId), items.map(item => item.id));
   await f.advance(5000); assert.equal(f.requests[8].threadId, items[0].id);
   f.reader.stop();
@@ -350,14 +351,16 @@ for(const mode of ['shared-reader','request-activity'])for(const count of [1,8])
   test(`repeated ${mode} preemption cools the whole ${count}-candidate queue and recovers`,async t=>{
     const f=pollingFixture(mode,count);await f.advance(60000);
     const interrupted=f.requests.filter(x=>x.background);
-    assert.ok(interrupted.length>0&&interrupted.length<=6,'sixty seconds of foreground polls must not create 29 wasted transfers');
+    const batches=new Set(interrupted.map(item=>item.at));
+    assert.ok(interrupted.length>0&&batches.size<=6,'sixty seconds of foreground polls must not create 29 wasted batches');
+    assert.ok(interrupted.length<=6*Math.min(8,count),'each interrupted batch has at most eight transfers');
     assert.ok(interrupted.every(x=>x.aborted));assert.equal(f.writes.length,0);
     if(mode==='shared-reader'){
       const foreground=f.requests.filter(x=>!x.background);
       assert.equal(foreground.length,30,'foreground cadence is unchanged by background cooldown');
       assert.ok(foreground.every(x=>x.completedAt-x.at===50),'foreground requests are never queued behind cooldown');
     }
-    t.diagnostic(JSON.stringify({mode,candidates:count,seconds:60,backgroundStarts:interrupted.length,backgroundAborts:interrupted.filter(x=>x.aborted).length}));
+    t.diagnostic(JSON.stringify({mode,candidates:count,seconds:60,backgroundBatches:batches.size,backgroundStarts:interrupted.length,backgroundAborts:interrupted.filter(x=>x.aborted).length}));
     f.stopPolling();const stoppedAt=f.now();
     if(count===1){
       f.returnToList();await f.advance(3000);
@@ -369,7 +372,8 @@ for(const mode of ['shared-reader','request-activity'])for(const count of [1,8])
       const restored=f.requests.filter(x=>x.background).slice(interrupted.length);
       assert.ok(f.writes.length>1,'a quiet detail resumes useful prefetch within the bounded cooldown');
       assert.ok(restored[0].at-stoppedAt<=30000);
-      assert.equal(restored[1].at-restored[0].completedAt,750,'a successful prefetch resets the cooldown');
+      assert.equal(restored.length,8,'the recovered fixed window needs only one batch');
+      assert.ok(restored.every(item=>item.at===restored[0].at&&item.completedAt-item.at===1500));
     }
     f.reader.stop();
   });

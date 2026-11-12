@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
-import { createAttachmentDraftController, attachmentPath, attachmentRefs, canRemoveLocalAttachment, readyAttachments, validateAttachment, MAX_ATTACHMENT_BYTES } from '../src/attachments.ts';
+import { createAttachmentDraftController, attachmentPath, attachmentRefs, canRemoveLocalAttachment, readyAttachments, validateAttachment, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from '../src/attachments.ts';
 import { createDraftMap, draftThreadIds } from '../src/draftIndicators.ts';
 import { hasUpdateBlockingDraft } from '../src/updateDrafts.ts';
+import { createAttachmentUploadScheduler } from '../src/attachmentUploadScheduler.ts';
 
 const thread = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa', hash = 'b'.repeat(64);
 const file = (name = 'small.txt') => new File(['hello'], name, { type: 'text/plain' });
@@ -11,7 +12,7 @@ const publicFile = (id, overrides = {}) => ({ id, name: 'small.txt', size: 5, mi
 const uuid = n => `cccccccc-cccc-7ccc-8ccc-${String(n).padStart(12, '0')}`;
 const statusError = status => Object.assign(new Error(`HTTP ${status}`), { status });
 async function until(check) { for (let n = 0; n < 30; n++) { if (check()) return; await setImmediate(); } assert.ok(check(), 'async draft operation should settle'); }
-function fixture(overrides = {}, digest = async () => hash) {
+function fixture(overrides = {}, digest = async () => hash, scheduler = createAttachmentUploadScheduler()) {
   const calls = [], drafts = createDraftMap(() => {});
   const request = {
     upload: async (_thread, item) => { calls.push(['PUT', item.id, item.file]); return publicFile(item.id, { name: item.name }); },
@@ -20,8 +21,275 @@ function fixture(overrides = {}, digest = async () => hash) {
     remove: async (_thread, id) => { calls.push(['DELETE', id]); return { deleted: true }; },
     ...overrides,
   };
-  return { controller: createAttachmentDraftController(drafts, request, digest), drafts, calls, request };
+  return { controller: createAttachmentDraftController(drafts, request, digest, scheduler, createAttachmentUploadScheduler(2)), drafts, calls, request };
 }
+
+test('sixteen global upload slots are shared across controllers and threads, with fair refill and no duplicate upload', async () => {
+  const scheduler = createAttachmentUploadScheduler(), other = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb';
+  const started = [], waiting = new Map(); let concurrent = 0, peak = 0;
+  const upload = (threadId, item) => {
+    started.push([threadId, item.id]); concurrent++; peak = Math.max(peak, concurrent);
+    return new Promise(resolve => { waiting.set(item.id, () => { concurrent--; resolve(publicFile(item.id, { name: item.name, url: attachmentPath(threadId, item.id) })); }); });
+  };
+  const first = fixture({ upload }, undefined, scheduler), second = fixture({ upload }, undefined, scheduler);
+  const firstIds = first.controller.add(thread, Array.from({ length: MAX_ATTACHMENTS }, (_, n) => file(`first-${n}.txt`)));
+  const secondIds = second.controller.add(other, Array.from({ length: MAX_ATTACHMENTS }, (_, n) => file(`second-${n}.txt`)));
+  await until(() => started.length === 16);
+  assert.equal([...first.controller.get(thread), ...second.controller.get(other)].filter(item => item.status === 'uploading').length, 16);
+  assert.equal([...first.controller.get(thread), ...second.controller.get(other)].filter(item => item.status === 'queued').length, 16);
+  assert.ok(started.some(item => item[0] === thread)); assert.ok(started.some(item => item[0] === other));
+  for (const id of firstIds.slice(0, 2)) { waiting.get(id)(); waiting.delete(id); }
+  await until(() => started.length === 18);
+  assert.deepEqual(new Set(started.slice(16, 18).map(item => item[0])), new Set([thread, other]));
+  for (;;) {
+    for (const [id, finish] of [...waiting]) { waiting.delete(id); finish(); }
+    await setImmediate();
+    if (readyAttachments(first.controller.get(thread)) && readyAttachments(second.controller.get(other))) break;
+  }
+  assert.equal(peak, 16);
+  assert.deepEqual(new Set(started.map(item => item[1])), new Set([...firstIds, ...secondIds]));
+  assert.equal(started.length, 32);
+});
+
+test('the production default shares one sixteen-slot scheduler across separately created controllers', async () => {
+  const finish = []; let active = 0, peak = 0, puts = 0;
+  const request = { upload: async (_thread, item) => {
+    active++; puts++; peak = Math.max(peak, active);
+    await new Promise(resolve => finish.push(() => { active--; resolve(); }));
+    return publicFile(item.id);
+  }, metadata: async () => { throw statusError(404); }, list: async () => ({ attachments: [] }), remove: async () => {} };
+  const first = createAttachmentDraftController(new Map(), request, async () => hash);
+  const second = createAttachmentDraftController(new Map(), request, async () => hash);
+  first.add(thread, Array.from({ length: 10 }, () => file())); second.add(thread, Array.from({ length: 10 }, () => file()));
+  await until(() => puts === 16); assert.equal(active, 16);
+  for (let n = 0; n < 30 && (!readyAttachments(first.get(thread)) || !readyAttachments(second.get(thread))); n++) {
+    finish.splice(0).forEach(release => release()); await setImmediate();
+  }
+  assert.equal(readyAttachments(first.get(thread)), true); assert.equal(readyAttachments(second.get(thread)), true);
+  assert.equal(puts, 20); assert.equal(peak, 16);
+});
+
+test('production SHA preparation shares two slots without consuming the independent sixteen upload slots', async () => {
+  const hashing = [], uploading = []; let liveHashes = 0, peakHashes = 0, liveUploads = 0, peakUploads = 0, puts = 0;
+  const digest = () => { liveHashes++; peakHashes = Math.max(peakHashes, liveHashes); return new Promise(resolve => hashing.push(() => { liveHashes--; resolve(hash); })); };
+  const request = { upload: async (_thread, item) => {
+    liveUploads++; puts++; peakUploads = Math.max(peakUploads, liveUploads);
+    await new Promise(resolve => uploading.push(() => { liveUploads--; resolve(); })); return publicFile(item.id);
+  }, metadata: async () => { throw statusError(404); }, list: async () => ({ attachments: [] }), remove: async () => {} };
+  const first = createAttachmentDraftController(new Map(), request, digest), secondDrafts = new Map();
+  const second = createAttachmentDraftController(secondDrafts, request, digest);
+  first.add(thread, Array.from({ length: 16 }, () => file()));
+  secondDrafts.set(thread, { text: '', attachments: Array.from({ length: 16 }, (_, n) => ({ id: uuid(200 + n), name: 'cached.txt', size: 5,
+    file: file(), mime: 'text/plain', kind: 'file', status: 'failed', sourceSha256: hash })) });
+  for (const item of second.get(thread)) second.retry(thread, item.id);
+  await until(() => liveHashes === 2 && puts === 16);
+  assert.equal(peakHashes, 2); assert.equal(peakUploads, 16);
+  assert.equal(first.get(thread).filter(item => item.status === 'queued').length, 16, 'hash preparation stays queued until a network slot starts its PUT');
+  for (let n = 0; n < 40 && (!readyAttachments(first.get(thread)) || !readyAttachments(second.get(thread))); n++) {
+    hashing.splice(0).forEach(finish => finish()); uploading.splice(0).forEach(finish => finish()); await setImmediate();
+  }
+  assert.equal(readyAttachments(first.get(thread)), true); assert.equal(readyAttachments(second.get(thread)), true);
+  assert.equal(puts, 32); assert.equal(peakHashes, 2); assert.equal(peakUploads, 16);
+});
+
+test('explicit rejected-reservation restore keeps original Files, IDs and unknown status, including an old active PUT receipt', async () => {
+  const requestId = uuid(110), selected = [file('active.txt'), file('queued.txt')], calls = [];
+  let finishUpload, finishHash;
+  const f = fixture({ upload: async (_thread, item, owner) => {
+    calls.push([item.id, item.file, owner]);
+    if (item.name === 'active.txt') return new Promise(resolve => { finishUpload = () => resolve(publicFile(item.id)); });
+    return publicFile(item.id);
+  } }, selected => selected.name === 'queued.txt' ? new Promise(resolve => { finishHash = () => resolve(hash); }) : Promise.resolve(hash));
+  const ids = f.controller.add(thread, selected); await until(() => finishUpload && finishHash);
+  const unknownId = uuid(111), unknownFile = file('unknown.txt');
+  f.drafts.set(thread, { text: '', attachments: [...f.controller.get(thread), { id: unknownId, file: unknownFile, name: unknownFile.name,
+    size: 5, mime: 'text/plain', kind: 'file', status: 'unknown', sourceSha256: hash, error: 'Upload result unknown' }] });
+  f.controller.takeSubmission(thread, requestId, f.controller.get(thread)); assert.equal(f.controller.hasSubmission(thread, requestId), true);
+  let oldBundleUpdates = 0; f.controller.subscribeSubmission(thread, requestId, () => oldBundleUpdates++);
+  const restored = f.controller.restoreSubmission(thread, requestId, 'original rejected text');
+  assert.equal(restored.text, 'original rejected text'); assert.equal(f.controller.hasSubmission(thread, requestId), false);
+  assert.deepEqual(restored.attachments.map(item => item.id), [...ids, unknownId]);
+  assert.equal(restored.attachments[0].file, selected[0]); assert.equal(restored.attachments[1].file, selected[1]);
+  assert.equal(restored.attachments[2].file, unknownFile); assert.equal(restored.attachments[2].status, 'unknown');
+  finishHash(); finishUpload();
+  await until(() => f.controller.get(thread).slice(0, 2).every(item => item.status === 'uploaded'));
+  assert.equal(f.drafts.get(thread).text, 'original rejected text'); assert.equal(oldBundleUpdates, 0);
+  assert.equal(f.controller.get(thread)[2].status, 'unknown'); assert.equal(calls.some(call => call[0] === unknownId), false);
+  assert.deepEqual(calls, [[ids[0], selected[0], undefined], [ids[1], selected[1], undefined]]);
+});
+
+test('rejected-reservation restore refuses a new draft, active reservation, or cancelled bundle and retains its Files', async () => {
+  const f = fixture(), requestId = uuid(112), selected = file();
+  f.controller.add(thread, [selected]); f.controller.takeSubmission(thread, requestId, f.controller.get(thread));
+  f.drafts.set(thread, { text: 'new independent text' });
+  assert.throws(() => f.controller.restoreSubmission(thread, requestId, 'old text'), /已有新草稿/);
+  assert.equal(f.drafts.get(thread).text, 'new independent text'); assert.equal(f.controller.getSubmission(thread, requestId)[0].file, selected);
+  assert.equal(f.controller.hasSubmission(thread, requestId), true); f.drafts.set(thread, { text: '', attachments: [{ id: uuid(113), status: 'unknown' }] });
+  assert.throws(() => f.controller.restoreSubmission(thread, requestId, 'old text'), /已有新草稿/);
+  f.drafts.delete(thread); f.controller.resumeSubmission(thread, requestId);
+  assert.throws(() => f.controller.restoreSubmission(thread, requestId, 'old text'), /暂停附件/);
+  await until(() => readyAttachments(f.controller.getSubmission(thread, requestId)));
+  await f.controller.cancelSubmission(thread, requestId);
+  assert.throws(() => f.controller.restoreSubmission(thread, requestId, 'old text'), /暂停附件/);
+});
+
+test('a synchronous uploading callback can transfer and hold the bundle before PUT, then resume its queued original ID', async () => {
+  const requestId = uuid(114), calls = []; let taken = false;
+  const f = fixture({ upload: async (_thread, item, owner) => { calls.push([item.id, owner]); return publicFile(item.id); } });
+  f.controller.subscribe(thread, () => {
+    if (!taken && f.controller.get(thread)[0]?.status === 'uploading') {
+      taken = true; f.controller.takeSubmission(thread, requestId, f.controller.get(thread));
+    }
+  });
+  const [id] = f.controller.add(thread, [file()]);
+  await until(() => taken && f.controller.getSubmission(thread, requestId)[0].status === 'queued');
+  assert.deepEqual(calls, []); f.drafts.set(thread, { text: 'next draft' });
+  f.controller.resumeSubmission(thread, requestId);
+  await until(() => readyAttachments(f.controller.getSubmission(thread, requestId)));
+  assert.deepEqual(calls, [[id, requestId]]); assert.equal(f.drafts.get(thread).text, 'next draft');
+});
+
+test('removing a queued file frees it immediately without waiting for unrelated active uploads or issuing a PUT', async () => {
+  const scheduler = createAttachmentUploadScheduler(), other = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb';
+  const started = [], finishes = [], unrelated = [];
+  const occupied = fixture({ upload: (_thread, item) => new Promise(resolve => unrelated.push(() => resolve(publicFile(item.id, { url: attachmentPath(other, item.id) })))) }, undefined, scheduler);
+  occupied.controller.add(other, Array.from({ length: 8 }, () => file()));
+  await until(() => unrelated.length === 8);
+  const f = fixture({ upload: (_thread, item) => { started.push(item.id); return new Promise(resolve => finishes.push(() => resolve(publicFile(item.id)))); } }, undefined, scheduler);
+  const ids = f.controller.add(thread, Array.from({ length: MAX_ATTACHMENTS }, () => file()));
+  await until(() => started.length === 8);
+  assert.equal(started.length + unrelated.length, 16, 'unrelated Files occupy half of the real sixteen-slot scheduler');
+  await f.controller.remove(thread, ids[8]);
+  assert.equal(f.controller.get(thread).length, 15);
+  assert.equal(started.includes(ids[8]), false);
+  assert.deepEqual(f.calls, []);
+  while (!readyAttachments(f.controller.get(thread))) { finishes.splice(0).forEach(finish => finish()); await setImmediate(); }
+  assert.equal(started.length, 15);
+  assert.equal(started.includes(ids[8]), false);
+  unrelated.forEach(finish => finish()); await until(() => readyAttachments(occupied.controller.get(other)));
+});
+
+test('a request bundle keeps active PUT and hash ownership after the composer closes and a new draft begins', async () => {
+  const requestId = uuid(100), selected = [file('put.txt'), file('hash.txt')];
+  let finishHash, finishUpload, previousUpdates = 0, nextUpdates = 0;
+  const calls = [];
+  const f = fixture({ upload: async (_thread, item, owner) => {
+    calls.push([item.name, item.id, owner, item.file]);
+    if (item.name === 'put.txt') return new Promise(resolve => { finishUpload = () => resolve(publicFile(item.id)); });
+    return publicFile(item.id, { name: item.name });
+  } }, selected => selected.name === 'hash.txt' ? new Promise(resolve => { finishHash = () => resolve(hash); }) : Promise.resolve(hash));
+  const leave = f.controller.subscribe(thread, () => previousUpdates++);
+  f.drafts.set(thread, { text: 'original text' });
+  const ids = f.controller.add(thread, selected); await until(() => finishUpload && finishHash);
+  const expected = f.controller.get(thread), snapshot = f.controller.takeSubmission(thread, requestId, expected);
+  assert.equal(Object.isFrozen(snapshot), true); assert.equal(snapshot[0].file, selected[0]); assert.equal(snapshot[1].file, selected[1]);
+  assert.equal(f.drafts.get(thread).text, 'original text'); assert.deepEqual(f.controller.get(thread), []);
+  leave(); const previous = previousUpdates;
+  let bundleUpdates = 0;
+  const unsubscribe = f.controller.subscribeSubmission(thread, requestId, () => bundleUpdates++);
+  f.drafts.set(thread, { text: 'independent new text' });
+  const [newId] = f.controller.add(thread, [file('next.txt')]);
+  finishHash(); finishUpload();
+  await until(() => f.controller.getSubmission(thread, requestId)[0].status === 'uploaded' && f.controller.getSubmission(thread, requestId)[1].status === 'queued');
+  await until(() => readyAttachments(f.controller.get(thread)));
+  assert.equal(calls.some(call => call[0] === 'hash.txt'), false, 'held bundle waits for its durable reservation');
+  assert.equal(previousUpdates, previous); assert.ok(bundleUpdates > 0);
+  const nextLeave = f.controller.subscribe(thread, () => nextUpdates++);
+  f.controller.resumeSubmission(thread, requestId);
+  await until(() => readyAttachments(f.controller.getSubmission(thread, requestId)));
+  assert.equal(f.drafts.get(thread).text, 'independent new text'); assert.deepEqual(f.controller.get(thread).map(item => item.id), [newId]);
+  assert.equal(nextUpdates, 0, 'old upload callbacks never notify or edit the new draft');
+  assert.deepEqual(calls.filter(call => ids.includes(call[1])).map(call => [call[0], call[2]]), [['put.txt', undefined], ['hash.txt', requestId]]);
+  f.controller.completeSubmission(thread, requestId); assert.deepEqual(f.controller.getSubmission(thread, requestId), []);
+  f.request.list = async () => ({ attachments: ids.map(id => publicFile(id)) });
+  await f.controller.recover(thread); assert.deepEqual(f.controller.get(thread).map(item => item.id), [newId]);
+  unsubscribe(); nextLeave();
+});
+
+test('takeSubmission moves only captured IDs and preserves attachments and text added since that snapshot', async () => {
+  const f = fixture(), [id] = f.controller.add(thread, [file()]);
+  await until(() => readyAttachments(f.controller.get(thread)));
+  const expected = f.controller.get(thread);
+  const [newId] = f.controller.add(thread, [file('next.txt')]);
+  f.drafts.set(thread, { ...f.drafts.get(thread), text: 'newer independent text' });
+  const snapshot = f.controller.takeSubmission(thread, uuid(101), expected);
+  assert.deepEqual(snapshot.map(item => item.id), [id]); assert.deepEqual(f.controller.get(thread).map(item => item.id), [newId]);
+  assert.equal(f.drafts.get(thread).text, 'newer independent text');
+  await until(() => readyAttachments(f.controller.get(thread)));
+  assert.throws(() => f.controller.takeSubmission(thread, uuid(102), expected), /已变化/);
+  assert.deepEqual(f.controller.get(thread).map(item => item.id), [newId]);
+});
+
+test('unknown request uploads retain the original File and ID, with read-only checks and no upload retry', async () => {
+  const requestId = uuid(103); let puts = 0, reads = 0, found = false;
+  const f = fixture({ upload: async () => { puts++; throw new Error('lost PUT response'); },
+    metadata: async (_thread, id) => { reads++; if (!found) throw statusError(404); return publicFile(id); } });
+  const selected = file(), [id] = f.controller.add(thread, [selected]);
+  f.controller.takeSubmission(thread, requestId, f.controller.get(thread)); f.drafts.set(thread, { text: 'next draft' });
+  f.controller.resumeSubmission(thread, requestId);
+  await until(() => f.controller.getSubmission(thread, requestId)[0].status === 'unknown' && reads === 1); await setImmediate();
+  f.controller.retrySubmission(thread, requestId); await f.controller.checkSubmission(thread, requestId);
+  assert.equal(puts, 1); assert.equal(reads, 2); assert.equal(f.controller.getSubmission(thread, requestId)[0].file, selected);
+  found = true; await f.controller.checkSubmission(thread, requestId);
+  assert.equal(f.controller.getSubmission(thread, requestId)[0].attachment.id, id); assert.equal(puts, 1); assert.equal(reads, 3);
+  assert.equal(f.drafts.get(thread).text, 'next draft'); assert.equal(f.controller.get(thread).length, 0);
+});
+
+test('request bundle retries require an explicit action and keep the original File, upload ID, and request ID', async () => {
+  const requestId = uuid(104), calls = []; let accept = false;
+  const f = fixture({ upload: async (_thread, item, owner) => { calls.push([item.id, item.file, owner]); if (!accept) throw statusError(413); return publicFile(item.id); } });
+  const selected = file(), [id] = f.controller.add(thread, [selected]);
+  f.controller.takeSubmission(thread, requestId, f.controller.get(thread)); f.controller.resumeSubmission(thread, requestId);
+  await until(() => f.controller.getSubmission(thread, requestId)[0].status === 'failed'); await setImmediate();
+  assert.equal(calls.length, 1); accept = true; f.controller.retrySubmission(thread, requestId);
+  await until(() => readyAttachments(f.controller.getSubmission(thread, requestId)));
+  assert.deepEqual(calls, [[id, selected, requestId], [id, selected, requestId]]);
+});
+
+test('request cancellation withdraws queued work, waits for original active PUTs, and cannot restart through late callbacks', async () => {
+  const requestId = uuid(105), started = [], finish = new Map(), deleted = [], unrelated = [];
+  const scheduler = createAttachmentUploadScheduler(), other = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb';
+  const occupied = fixture({ upload: (_thread, item) => new Promise(resolve => unrelated.push(() => resolve(publicFile(item.id, { url: attachmentPath(other, item.id) })))) }, undefined, scheduler);
+  occupied.controller.add(other, Array.from({ length: 8 }, () => file()));
+  await until(() => unrelated.length === 8);
+  const f = fixture({ upload: (_thread, item) => { started.push(item.id); return new Promise(resolve => finish.set(item.id, () => resolve(publicFile(item.id)))); },
+    remove: async (_thread, id) => { deleted.push(id); } }, undefined, scheduler);
+  const ids = f.controller.add(thread, Array.from({ length: 12 }, () => file()));
+  await until(() => started.length === 8); f.controller.takeSubmission(thread, requestId, f.controller.get(thread));
+  assert.equal(started.length + unrelated.length, 16, 'cancellation runs while the real shared scheduler is full');
+  let updates = 0; f.controller.subscribeSubmission(thread, requestId, () => updates++);
+  f.drafts.set(thread, { text: 'new independent input' });
+  const cancellation = f.controller.cancelSubmission(thread, requestId);
+  assert.equal(deleted.length, 0); assert.equal(started.length, 8);
+  f.controller.resumeSubmission(thread, requestId); f.controller.retrySubmission(thread, requestId);
+  for (const release of finish.values()) release();
+  assert.equal(await cancellation, true); assert.equal(started.length, 8); assert.deepEqual(new Set(deleted), new Set(ids.slice(0, 8)));
+  assert.ok(updates > 0); assert.deepEqual(f.controller.getSubmission(thread, requestId), []);
+  assert.equal(f.drafts.get(thread).text, 'new independent input'); assert.equal(f.controller.get(thread).length, 0);
+  f.controller.completeSubmission(thread, requestId);
+  f.controller.resumeSubmission(thread, requestId); await setImmediate(); assert.equal(started.length, 8);
+  unrelated.forEach(release => release()); await until(() => readyAttachments(occupied.controller.get(other)));
+});
+
+test('an uncertain request cancellation stays unsendable and read-only checks can finish DELETE without replaying PUT', async () => {
+  const requestId = uuid(106); let failDelete = true, puts = 0, reads = 0, deletes = 0, gone = false;
+  const f = fixture({ upload: async (_thread, item) => { puts++; return publicFile(item.id); },
+    remove: async () => { deletes++; if (failDelete) throw new Error('lost DELETE response'); },
+    metadata: async (_thread, id) => { reads++; if (gone) throw statusError(404); return publicFile(id); } });
+  f.controller.add(thread, [file()]); await until(() => readyAttachments(f.controller.get(thread)));
+  f.controller.takeSubmission(thread, requestId, f.controller.get(thread));
+  assert.equal(await f.controller.cancelSubmission(thread, requestId), false);
+  assert.equal(f.controller.getSubmission(thread, requestId)[0].status, 'unknown');
+  await f.controller.checkSubmission(thread, requestId);
+  assert.equal(f.controller.getSubmission(thread, requestId)[0].status, 'unknown');
+  assert.equal(f.controller.getSubmission(thread, requestId)[0].deletePending, true);
+  assert.equal(readyAttachments(f.controller.getSubmission(thread, requestId)), false);
+  assert.throws(() => f.controller.completeSubmission(thread, requestId), /尚未确认/);
+  f.controller.resumeSubmission(thread, requestId); f.controller.retrySubmission(thread, requestId); assert.equal(puts, 1);
+  gone = true; await f.controller.checkSubmission(thread, requestId);
+  assert.deepEqual(f.controller.getSubmission(thread, requestId), []); assert.equal(reads, 2); assert.equal(deletes, 1); assert.equal(puts, 1);
+  f.controller.completeSubmission(thread, requestId);
+});
 
 test('an offline selection can be removed locally without networking or losing independent text', async () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
@@ -98,7 +366,7 @@ test('definite upload rejection can retry the original File and ID only after an
 
 test('selection count and size limits reject the new batch without replacing any previous draft', () => {
   const f = fixture(); f.drafts.set(thread, { text: 'Keep this text' });
-  assert.throws(() => f.controller.add(thread, Array.from({ length: 7 }, () => file())), /6个/);
+  assert.throws(() => f.controller.add(thread, Array.from({ length: MAX_ATTACHMENTS + 1 }, () => file())), /16个/);
   assert.throws(() => f.controller.add(thread, [{ name: 'huge.bin', size: MAX_ATTACHMENT_BYTES + 1, type: '' }]), /20 MB/);
   assert.equal(f.controller.get(thread).length, 0); assert.equal(f.drafts.get(thread).text, 'Keep this text');
 });
@@ -108,6 +376,10 @@ test('removing an in-flight file waits for that upload then deletes once without
   const f = fixture({ upload: (_thread, item) => new Promise(resolve => { uploaded = () => resolve(publicFile(item.id)); }), remove: async () => { deletes++; } });
   const [id] = f.controller.add(thread, [file()]); await until(() => uploaded);
   const removing = f.controller.remove(thread, id); assert.equal(f.controller.get(thread)[0].status, 'removing'); assert.equal(deletes, 0);
+  const captured = f.controller.get(thread);
+  assert.throws(() => f.controller.takeSubmission(thread, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', captured), /附件正在移除/);
+  assert.equal(f.controller.get(thread), captured, 'Rejected ownership transfer preserves the pending removal and its original File');
+  assert.equal(f.controller.hasSubmission(thread, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'), false);
   f.drafts.set(thread, { ...f.drafts.get(thread), text: 'Keep new text' }); uploaded(); await removing;
   assert.equal(deletes, 1); assert.equal(f.controller.get(thread).length, 0); assert.equal(f.drafts.get(thread).text, 'Keep new text');
 });
@@ -191,15 +463,15 @@ test('cancelling a queued attachment restores it after a pre-cancel list read an
 });
 
 test('cancelled queue attachments respect draft capacity and remain available through the explicit recovery retry', async () => {
-  const existing = Array.from({ length: 6 }, (_, n) => publicFile(uuid(40 + n)));
-  const cancelled = publicFile(uuid(50));
+  const existing = Array.from({ length: MAX_ATTACHMENTS }, (_, n) => publicFile(uuid(40 + n)));
+  const cancelled = publicFile(uuid(70));
   const f = fixture({ list: async () => ({ attachments: [cancelled] }) });
   f.drafts.set(thread, { text: 'Current text', attachments: existing.map(attachment => ({ ...attachment, status: 'uploaded', attachment })) });
   f.controller.claim(thread, [cancelled.id]);
   await assert.rejects(f.controller.releaseQueued(thread, [cancelled.id]), error => error.code === 'attachment_recovery_limit');
   assert.deepEqual(f.controller.get(thread).map(item => item.id), existing.map(item => item.id));
   await f.controller.remove(thread, existing[0].id); await f.controller.recover(thread);
-  assert.equal(f.controller.get(thread).length, 6); assert.ok(f.controller.get(thread).some(item => item.id === cancelled.id));
+  assert.equal(f.controller.get(thread).length, MAX_ATTACHMENTS); assert.ok(f.controller.get(thread).some(item => item.id === cancelled.id));
   assert.equal(f.drafts.get(thread).text, 'Current text');
 });
 
@@ -217,9 +489,9 @@ test('late server drafts fill only remaining slots and report overflow without d
   let resolveList;
   const f = fixture({ list: () => new Promise(resolve => { resolveList = resolve; }) }, () => new Promise(() => {}));
   const recovery = f.controller.recover(thread), rejection = assert.rejects(recovery, error => error.code === 'attachment_recovery_limit');
-  const ids = f.controller.add(thread, Array.from({ length: 6 }, (_, n) => file(`chosen-${n}.txt`)));
+  const ids = f.controller.add(thread, Array.from({ length: MAX_ATTACHMENTS }, (_, n) => file(`chosen-${n}.txt`)));
   resolveList({ attachments: [publicFile(uuid(10)), publicFile(uuid(11))] }); await rejection;
-  assert.deepEqual(f.controller.get(thread).map(item => item.id), ids); assert.equal(f.controller.get(thread).length, 6);
+  assert.deepEqual(f.controller.get(thread).map(item => item.id), ids); assert.equal(f.controller.get(thread).length, MAX_ATTACHMENTS);
 });
 
 test('HEIC verification compares original source bytes while keeping converted image metadata', async () => {

@@ -111,14 +111,17 @@ test('all display citation cleaners preserve code inside a details HTML block wi
 test('split disclosures share the original first Markdown definition across body and surrounding parts', () => {
   const text = `[image]: ${imagePath}\n\n${disclosure('![图][image]\n\n[报告][file]')}\n\n[file]: ${filePath}\n\n[image]: /fixture/task/other.png`;
   const html = md(text, { images: { [imagePath]: image }, files: { [filePath]: file } });
-  assert.equal((html.match(/<img\b/g) || []).length, 1); assert.ok(html.includes(`src="${image}"`));
+  assert.equal((html.match(/data-registered-source=/g) || []).length, 1); assert.ok(html.includes(`data-registered-source="${image}"`));
+  assert.match(html, /aria-label="查看大图：图"/);assert.doesNotMatch(html, /<img\b|<link\b|\ssrc=/);
   assert.match(html, /预览文件：report.md/); assert.doesNotMatch(html, /!\[图\]|\[报告\]|other\.png|\/fixture\//);
 });
 
 test('metadata bodies cannot borrow capabilities while ordinary continuations use only existing grants', () => {
   const source = child(`![内部](${imagePath})\n\n[内部报告](${filePath})`) + `\n\n${disclosure(`![外部](${imagePath})\n\n[外部报告](${filePath})`)}`;
   const html = render(source, 'assistant', { images: { [imagePath]: image }, files: { [filePath]: file } });
-  assert.equal((html.match(/<img\b/g) || []).length, 1); assert.equal((html.match(/class="message-file-button"/g) || []).length, 1);
+  assert.equal((html.match(/data-registered-source=/g) || []).length, 1); assert.equal((html.match(/class="message-file-button"/g) || []).length, 1);
+  assert.ok(html.includes(`data-registered-source="${image}"`));assert.match(html, /aria-label="查看大图：外部"/);
+  assert.doesNotMatch(html, /查看大图：内部|<img\b|<link\b|\ssrc=/);
   assert.match(html, /文件保存在电脑上/);
   const outside = `${heartbeat('合成摘要。')}\n\n![音效对照](/fixture/outside/compare.wav)\n\n${disclosure('![重载参数](/fixture/outside/preview.jpg)')}`;
   const original = { id: 'raw', role: 'assistant', phase: 'final', text: outside }, history = { messages: [original] };

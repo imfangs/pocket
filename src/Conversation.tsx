@@ -48,6 +48,7 @@ import SubmittedQueryCards from "./SubmittedQueryCards";
 import { createSubmittedQueryStore, submittedOutbox, visibleSubmittedQueries, withSubmittedQueryPost } from "./submittedQueries";
 import type { SubmittedQuery, SubmittedQueryStore, SubmittedQueryReceipt } from "./submittedQueries";
 import { attachmentDraftController, attachmentRefs, hasDraftAttachments, MAX_ATTACHMENTS, readyAttachments, sameAttachments, type DraftAttachment } from "./attachments";
+import { attachmentSubmissionManager } from "./attachmentSubmissionManager";
 import { AttachmentPicker, DraftAttachmentList } from "./AttachmentList";
 import { useReadingComposer } from "./useReadingComposer";
 import { bindMessageScrollDismiss } from "./messageScrollDismiss";
@@ -115,6 +116,8 @@ export default function Conversation({
   const autoDirect = useSyncExternalStore(subscribeSendingPreference, readAutoDirectPreference, readAutoDirectPreference);
   const submitted = useSyncExternalStore(submissions.subscribe, () => submissions.getThread(thread.id), () => submissions.getThread(thread.id));
   const [uploads] = useState(() => attachmentDraftController(drafts));
+  const [uploadSubmissions] = useState(() => attachmentSubmissionManager(drafts, submissions));
+  const uploadActions = useMemo(() => uploadSubmissions.actions(thread.id), [uploadSubmissions, thread.id]);
   const subscribeAttachments = useCallback((listener: () => void) => uploads.subscribe(thread.id, listener), [uploads, thread.id]);
   const attachments = useSyncExternalStore(subscribeAttachments, () => uploads.get(thread.id), () => uploads.get(thread.id));
   const [attachmentError, setAttachmentError] = useState("");
@@ -469,7 +472,8 @@ export default function Conversation({
   const restoreSubmitted = async (item: SubmittedQuery) => {
     if (!["rejected", "not_found"].includes(item.status)) return;
     const generation = readViewGeneration.current;
-    const value = await uploads.restoreDraft(thread.id, item, () => generation === readViewGeneration.current);
+    const value = await uploadSubmissions.restore(thread.id, item.requestId, item.text, () => generation === readViewGeneration.current)
+      ?? await uploads.restoreDraft(thread.id, item, () => generation === readViewGeneration.current);
     setDraft(value);
     submissions.dismiss(thread.id, item.requestId); setAttachmentError("");
   };
@@ -540,7 +544,11 @@ export default function Conversation({
         uploads.claim(thread.id, [...(data.outbox ?? []).filter(item => !cancelledRequests.has(item.id)).flatMap(item => item.attachments?.map(file => file.id) ?? []), ...data.messages.flatMap(message => message.attachments?.map(file => file.id) ?? [])]);
         const queueChecks = new Set(submissions.observeQueue(thread.id, data.outbox ?? []));
         if (data.source === "desktop") for (const message of data.messages) {
-          if (message.role === "user" && message.clientMessageId) submissions.receipt(thread.id, { requestId: message.clientMessageId, status: "accepted" });
+          if (message.role === "user" && message.clientMessageId) {
+            const pendingUpload = submissions.getThread(thread.id).find(item => item.requestId === message.clientMessageId && item.uploadProgress);
+            if (pendingUpload) queueChecks.add(message.clientMessageId);
+            else submissions.receipt(thread.id, { requestId: message.clientMessageId, status: "accepted" });
+          }
         }
         const queuedIds = new Set((data.outbox ?? []).map(item => item.id));
         for (const entry of submissions.getThread(thread.id)) {
@@ -644,7 +652,8 @@ export default function Conversation({
   };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sending || (!draft.requestId && ((!draft.text.trim() && !attachments.length) || !readyAttachments(attachments)))) return;
+    if (sending || (!draft.requestId && ((!draft.text.trim() && !attachments.length) || attachments.length > MAX_ATTACHMENTS ||
+      attachments.some(item => item.status === "removing" || item.deletePending)))) return;
     earlierWindow.leave();
     const release = holdReload();
     setSending(true);
@@ -653,6 +662,27 @@ export default function Conversation({
     const controller = new AbortController();
     const requestId = draft.requestId || crypto.randomUUID();
     const submittedText = draft.text;
+    if (!draft.requestId && attachments.length && !readyAttachments(attachments)) {
+      const ownsView = () => !controller.signal.aborted && receiptRead.current === controller;
+      receiptRead.current = controller; nearBottom.current = true;
+      feedbackTracker.trackQueued(requestId, { uploadProgress: { total: attachments.length,
+        uploaded: attachmentRefs(attachments).length, status: "uploading" } });
+      usage.submit(thread.id, requestId, { action: "send", mode: enqueue ? "queue" : "direct", attachment_count: attachments.length });
+      const submitted = uploadSubmissions.submit({ threadId: thread.id, requestId, text: submittedText, files: attachments, autoDirect, enqueue });
+      if (uploadSubmissions.hasSubmission(thread.id, requestId)) { updateDraft({ text: "" }, false); setAttachmentError(""); }
+      try {
+        const receipt = await submitted;
+        usage.receipt(thread.id, requestId, receipt.status);
+        if (ownsView()) { if (receipt.status === "accepted") receive(receipt); void load(); }
+      } catch (failure) {
+        if (ownsView() && (failure as Error & { status?: number }).status && (failure as Error & { status: number }).status < 500)
+          setError((failure as Error).message);
+      } finally {
+        release();
+        if (receiptRead.current === controller) { receiptRead.current = null; if (!controller.signal.aborted) setSending(false); }
+      }
+      return;
+    }
     const submittedAttachments = attachmentRefs(attachments);
     usage.submit(thread.id, requestId, { action: draft.requestId ? "check" : "send", mode: enqueue ? "queue" : "direct", attachment_count: submittedAttachments.length });
     receiptRead.current = controller;
@@ -897,7 +927,7 @@ export default function Conversation({
         {!!unplacedQuestions.length && <QuestionPrompts threadId={thread.id} questions={unplacedQuestions}
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
         <SubmittedQueryCards items={visibleSubmissions} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
-          disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} />
+          disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => submissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} uploadActions={uploadActions} />
         {working && <ConversationActivity turnId={history!.activeTurnId!} />}
         </div>
         {earlier.active && <div className="earlier-history-messages">
@@ -924,7 +954,7 @@ export default function Conversation({
         </div>}
       </div>
       <RequestActions threadId={thread.id} requests={history?.pendingRequests ?? []} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked} refresh={load} drafts={drafts} />
-      <Outbox threadId={thread.id} suppressNetworkErrors={!!historyError || connectionFailed || !online} items={shownOutbox} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} focusRoot={messages} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} onActivity={onActivity}
+      <Outbox threadId={thread.id} suppressNetworkErrors={!!historyError || connectionFailed || !online} items={shownOutbox} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} focusRoot={messages} paused={history?.queuePaused} disabled={!online || managementBlocked} allowSend={canAttemptSend} connectionPending={history?.source !== "desktop"} refresh={load} drafts={drafts} submissions={submissions} uploadActions={uploadActions} onActivity={onActivity}
         onAccepted={receipt => confirmAccepted(receipt, "queue")} onAttachmentRecovery={(recovered, error) => {
           setAttachmentRecoveryError(error ? readableRequestError(error, "附件暂未同步，请重试。") : ""); setAttachmentRecoveryNeeded(!!error);
           setNotice(error ? "待发消息已删除，附件可重新载入草稿。" : recovered ? "待发消息已删除，附件已放回草稿。" : "待发消息已删除。");
@@ -1022,7 +1052,7 @@ export default function Conversation({
             disabled={
               restoreOnlyAction ? !online || thread.missing || managementBlocked || restoring || sending : connectionOnlyAction ? !online || connecting || preconnectBlocked : sending || restoring ||
               !online ||
-              (!draft.requestId && (!hasComposerContent || !readyAttachments(attachments) ||
+              (!draft.requestId && (!hasComposerContent || attachments.length > MAX_ATTACHMENTS || attachments.some(item => item.status === "removing" || item.deletePending) ||
                 (enqueue ? !canQueue : !targetAvailable || !history?.canSend)))
             }
           >

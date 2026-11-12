@@ -9,20 +9,21 @@ import { waitForSubmission, type SubmissionReceipt } from "./submissionReceipt";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { captureDraft } from "./draftTransaction";
 import { queueFeedbackState, queueHeadState } from "./submissionFeedback";
-import type { SubmittedQueryReceipt, SubmittedQueryStore } from "./submittedQueries";
-import { withSubmittedQueryPost } from "./submittedQueries";
+import type { SubmittedQueryReceipt, SubmittedQueryStore, SubmittedUploadActions } from "./submittedQueries";
+import { pendingSubmittedUpload, submittedUploadCanRetry, submittedUploadNeedsCheck, withSubmittedQueryPost } from "./submittedQueries";
 import AttachmentList from "./AttachmentList";
 import { attachmentDraftController } from "./attachments";
 import "./submission-feedback.css";
 import "./submitted-queries.css";
 import { NO_HANDOFF_IDS, useHandoffRows } from "./useReceiptHandoff";
 import { isNetworkError, readableRequestError } from "./requestError";
+import SubmittedUploadDetails from "./SubmittedUploadDetails";
 
 type Action = "edit" | "save" | "cancel" | "send" | "check" | "resume";
 type OutboxError = { status: QueuedMessage["status"]; revision: number; failure: unknown };
 const matchesError = (error: OutboxError, item: QueuedMessage) => error.status === item.status && error.revision === item.revision;
 const outboxKey = (item: QueuedMessage) => item.id;
-export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, onActivity, onAccepted, onAttachmentRecovery, suppressNetworkErrors = false, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS, inlineTargets, focusRoot }: {
+export default function Outbox({ threadId, items, paused, disabled, allowSend, connectionPending, refresh, drafts, submissions, uploadActions, onActivity, onAccepted, onAttachmentRecovery, suppressNetworkErrors = false, exitIds = NO_HANDOFF_IDS, explicitExitIds = NO_HANDOFF_IDS, inlineTargets, focusRoot }: {
   threadId: string;
   items: QueuedMessage[];
   paused?: { stopId: string } | null;
@@ -35,6 +36,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   refresh: () => Promise<void> | undefined;
   drafts: Map<string, QueryDraft>;
   submissions?: SubmittedQueryStore;
+  uploadActions?: SubmittedUploadActions;
   suppressNetworkErrors?: boolean;
   exitIds?: ReadonlySet<string>;
   explicitExitIds?: ReadonlySet<string>;
@@ -84,7 +86,8 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
     const current = currentItems.current.find(value => value.id === item.id && value.revision === item.revision);
     if (!current) return;
     const receipt = submissions?.getThread(threadId).find(value => value.requestId === item.id);
-    const status = receipt?.queueRevision === item.revision ? receipt.status : current.status;
+    const observedStatus = receipt?.queueRevision === item.revision ? receipt.status : current.status;
+    const status = observedStatus === "uploading" || observedStatus === "upload_failed" ? current.status : observedStatus;
     if (!["queued", "editing", "pending", "unknown", "rejected"].includes(status)) return;
     // Sending may have just advanced the shared receipt to unknown before the
     // parent render. Bind the error to that current receipt, not its old button.
@@ -133,6 +136,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   }, [editing]);
   const act = async (item: QueuedMessage, action: Action) => {
     if (busy) return;
+    if (pendingSubmittedUpload(item) && ["send", "edit", "save"].includes(action)) return;
     const release = holdReload();
     const generation = viewGeneration.current;
     const currentView = () => viewGeneration.current === generation;
@@ -146,6 +150,11 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
       const base = `/api/tasks/${threadId}/outbox/${item.id}`;
       const expectedRevision = editing?.id === item.id ? editing.revision : item.revision;
       if (action === "check") {
+        if (uploadActions && pendingSubmittedUpload(item)) {
+          await uploadActions.check(item.id);
+          if (currentView()) await refresh();
+          return;
+        }
         const result = await api<SubmittedQueryReceipt>(`/api/tasks/${threadId}/messages/${item.id}`);
         if (result.requestId !== item.id) throw new Error("回执与这条待发消息不匹配，请核对状态。");
         submissions?.receipt(threadId, result);
@@ -168,6 +177,11 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         // should not hold the editor disabled after that acknowledgement.
         void refresh()?.catch(() => {});
       } else {
+        if (action === "cancel" && uploadActions && pendingSubmittedUpload(item)) {
+          await uploadActions.cancel(item.id);
+          if (currentView()) await refresh();
+          return;
+        }
         let result = await withSubmittedQueryPost(action === "send" ? submissions : undefined, threadId, item.id,
           () => api<SubmissionReceipt & { outbox?: QueuedMessage[] }>(action === "send" ? `${base}/send` : action === "resume" ? `${base}/resume` : base,
           action === "save" ? "PATCH" : action === "cancel" ? "DELETE" : "POST",
@@ -215,6 +229,14 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
       if (currentView()) setBusy(null);
     }
   };
+  const retryUpload = async (item: QueuedMessage) => {
+    if (!uploadActions || busy || !submittedUploadCanRetry(item)) return;
+    const generation = viewGeneration.current;
+    setBusy(item.id); clearError(item.id);
+    try { await uploadActions.retry(item.id); }
+    catch (failure) { if (viewGeneration.current === generation) recordError(item, failure); }
+    finally { if (viewGeneration.current === generation) setBusy(null); }
+  };
   const resumeQueue = async () => {
     if (!paused || busy) return;
     const release = holdReload();
@@ -244,6 +266,8 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
         const target = inlineTargets?.get(item.id);
         if (inlineTargets && !target) return null;
         const accepted = item.status === "accepted" || acceptedItems.has(item.id);
+        const uploadPending = !accepted && pendingSubmittedUpload(item);
+        const uploadUnknown = uploadPending && submittedUploadNeedsCheck(item);
         const mutable = !accepted && ["queued", "rejected", "editing"].includes(item.status);
         const error = errors.get(item.id);
         const showError = !accepted && error && matchesError(error, item) && items.some(current => current.id === item.id) &&
@@ -255,14 +279,23 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
             onChange={e => { setText(e.target.value); drafts.set(key(item.id), { text: e.target.value, revision: editing.revision }); }} />
             : !inlineTargets && <p className="outbox-text">{drafts.get(key(item.id))?.text ?? item.text}</p>}
           {!inlineTargets && <AttachmentList attachments={item.attachments} />}
+          {uploadPending && <SubmittedUploadDetails items={item.attachmentUploads} />}
           <div className="outbox-actions">
-            <small>{accepted ? t("已发送") : busy === item.id || item.status === "pending" ? t("正在提交…") :
-              item.status === "unknown" ? t("结果待确认，不会自动重发") :
+            <small>{accepted ? t("已发送") : item.status === "unknown" ? t("结果待确认，不会自动重发") : uploadPending ? uploadUnknown ? t("上传结果待核对")
+              : item.uploadProgress?.status === "failed" ? t("附件上传未完成") : t("上传中 {{uploaded}}/{{total}}", { uploaded: item.uploadProgress?.uploaded ?? 0, total: item.uploadProgress?.total ?? 0 })
+              : busy === item.id || item.status === "pending" ? t("正在提交…") :
               item.status === "editing" ? editing?.id === item.id ? t("编辑中，已暂停发送") : t("已暂停") :
               item.status === "rejected" ? t("发送未完成，可编辑后重试") : paused ? t("已暂停") : t("排队中")}</small>
             {editing?.id === item.id ? <>
               <button disabled={!!busy || disabled || (!text.trim() && !item.attachments?.length)} onClick={() => void act(item, "save")}>{paused ? t("保存并保持暂停") : t("保存并排队")}</button>
               <button disabled={!!busy} onClick={() => discardEdit(item)}>{t("放弃修改")}</button>
+            </> : uploadPending ? <>
+              {uploadActions && submittedUploadCanRetry(item) && <button disabled={!!busy || disabled} onClick={() => void retryUpload(item)}>{t("重试失败附件")}</button>}
+              <button disabled={!!busy || disabled} onClick={() => void act(item, "check")}>{t("核对状态")}</button>
+              {mutable && <button aria-label={t("删除第 {{value1}} 条待发消息", { value1: index + 1 })} disabled={!!busy || disabled} onClick={() => void act(item, "cancel")}>{t("取消发送")}</button>}
+              {mutable && <button data-outbox-action="edit" disabled title={t("附件上传完成后可编辑")} onClick={() => void act(item, "edit")}>{t("编辑")}</button>}
+              {mutable && (item.status === "editing" ? <button disabled={!!busy || disabled} onClick={() => void act(item, "resume")}>{t("恢复排队")}</button>
+                : <button disabled title={t("附件上传完成后发送")} onClick={() => void act(item, "send")}>{t("直接发送")}</button>)}
             </> : mutable ? <>
               <button data-outbox-action="edit" aria-label={t(item.status === "editing" ? "继续编辑第 {{index}} 条待发消息" : "编辑第 {{index}} 条待发消息", { index: index + 1 })} disabled={!!busy || disabled} onClick={() => void act(item, "edit")}>{item.status === "editing" ? t("继续编辑") : t("编辑")}</button>
               <button aria-label={t("删除第 {{value1}} 条待发消息", { value1: index + 1 })} disabled={!!busy || disabled} onClick={() => void act(item, "cancel")}>{t("删除")}</button>
@@ -278,7 +311,7 @@ export default function Outbox({ threadId, items, paused, disabled, allowSend, c
   if (inlineTargets) return <>{renderedRows}</>;
   return (
     <section ref={section} className="outbox" aria-label={t("Pocket 待发消息")}>
-      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? t("待发送 · {{value1}}", { value1: remainingCount }) : t("已发送")}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? t("首条结果待核对，队列已暂停") : paused ? t("队列已暂停") : headEditing ? editing?.id === items[0]?.id ? t("首条编辑中，队列已暂停") : t("首条已暂停") : items[0]?.status === "rejected" ? t("首条发送未完成，请先处理") : connectionPending ? t("连接恢复后依次发送") : items[0]?.autoDirect === true ? t("可接收时依次发送") : t("本轮结束后依次发送")}</span>}
+      <div className="outbox-heading" aria-hidden={!items.length || undefined} style={!items.length ? { visibility: "hidden" } : undefined}><strong>{remainingCount ? t("待发送 · {{value1}}", { value1: remainingCount }) : t("已发送")}</strong>{remainingCount > 0 && <span>{items[0]?.status === "unknown" ? t("首条结果待核对，队列已暂停") : paused ? t("队列已暂停") : headEditing ? editing?.id === items[0]?.id ? t("首条编辑中，队列已暂停") : t("首条已暂停") : items[0]?.status === "rejected" ? t("首条发送未完成，请先处理") : items[0] && pendingSubmittedUpload(items[0]) ? t("附件上传完成后发送") : connectionPending ? t("连接恢复后依次发送") : items[0]?.autoDirect === true ? t("可接收时依次发送") : t("本轮结束后依次发送")}</span>}
         {paused && <button className="resume-queue" disabled={disabled || !!busy || !allowSend} onClick={() => void resumeQueue()}>{t("恢复排队")}</button>}
       </div>
       {renderedRows}

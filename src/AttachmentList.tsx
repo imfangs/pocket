@@ -2,17 +2,26 @@ import { AppIcon } from "./ui/AppIcon";
 import { t, useLocale } from "./i18n";
 import { FileText, Image as ImageIcon, Paperclip, RefreshCw, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
-import { attachmentSize, canRemoveLocalAttachment, safeAttachmentUrl, type AttachmentDraftController, type DraftAttachment, type PublicAttachment } from "./attachments";
+import { attachmentSize, canRemoveLocalAttachment, safeAttachmentUrl, MAX_ATTACHMENTS, type AttachmentDraftController, type DraftAttachment, type PublicAttachment } from "./attachments";
 import "./attachments.css";
 import { machineApiPath } from "./machineScope";
 import { ImagePreviewGroup, useImagePreview, useImagePreviewRegistration } from "./ImagePreviewProvider";
 import { readableRequestError } from "./requestError";
+import { useImageReadProof, useImageReadUrl } from "./imageReadCacheReact";
 
 function Preview({ attachment, image }: { attachment?: PublicAttachment; image: boolean }) {
   useLocale();
   const url = attachment && safeAttachmentUrl(attachment.previewUrl ?? attachment.url);
-  return image && url ? <img className="attachment-preview" src={machineApiPath(url)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-    : <span className="attachment-placeholder" aria-hidden="true">{image ? <AppIcon icon={ImageIcon} kind="auxiliary" /> : <AppIcon icon={FileText} kind="auxiliary" />}</span>;
+  const preview = url?.endsWith("?preview=1");
+  useImageReadProof({ src: image && attachment ? safeAttachmentUrl(attachment.url) : "", sha256: attachment?.sha256,
+    mime: attachment?.mime, size: attachment?.size, variant: "original" });
+  const cached = useImageReadUrl({ src: image && url ? url : "", sha256: preview ? attachment?.previewSha256 : attachment?.sha256,
+    mime: preview ? attachment?.previewMime : attachment?.mime, size: preview ? attachment?.previewSize : attachment?.size,
+    variant: preview ? "preview" : "original" }, { lazy: true });
+  return <span ref={cached.ref} className={image && cached.url ? "attachment-preview" : "attachment-placeholder"} aria-hidden="true">
+    {image && cached.url ? <img className="attachment-preview" src={cached.url} data-registered-source={url} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+      : image ? <AppIcon icon={ImageIcon} kind="auxiliary" /> : <AppIcon icon={FileText} kind="auxiliary" />}
+  </span>;
 }
 
 function ImageAttachment({ attachment, url, children }: { attachment: PublicAttachment; url: string; children: ReactNode }) {
@@ -63,7 +72,7 @@ export function DraftAttachmentList({ threadId, items, controller, disabled, loc
         <button type="button" disabled={disabled && !(localRemovalAllowed && canRemoveLocalAttachment(item)) || item.status === "removing" || item.checking} aria-label={t("移除附件 {{value0}}", { value0: item.name })} onClick={() => void controller.remove(threadId, item.id)}><AppIcon icon={X} kind="action" /></button>
       </div>
     </div>)}
-    {(error || items.length > 6) && <p className="attachment-error" role="alert">{error ? t(readableRequestError(error, "附件暂未同步，请重试。")) : t("每条消息最多6个附件，请移除多余附件。")}</p>}
+    {(error || items.length > MAX_ATTACHMENTS) && <p className="attachment-error" role="alert">{error ? t(readableRequestError(error, "附件暂未同步，请重试。")) : t("每条消息最多{{count}}个附件，请移除多余附件。", { count: MAX_ATTACHMENTS })}</p>}
     {onRecover && <button type="button" className="text-button" disabled={disabled} onClick={onRecover}>{t("载入已上传附件")}</button>}
   </section>;
 }

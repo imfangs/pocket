@@ -2,6 +2,7 @@ import type { ThreadConnection } from "./threadConnection";
 import type { ReadObservation } from "./readObservation";
 import type { PocketContent } from "./pocketReadState";
 import type { PublicAttachment } from "./attachments";
+import type { AttachmentUploadDescriptor, AttachmentUploadProgress } from "./submittedQueries";
 
 export type MessageFileReference = { url: string; name: string };
 export type MessageFiles = Record<string, MessageFileReference>;
@@ -21,6 +22,7 @@ export type Message = {
   images?: Record<string, string>;
   files?: MessageFiles;
   attachments?: PublicAttachment[];
+  attachmentEnvelope?: boolean;
 };
 export type TurnTiming = {
   turnId: string | null;
@@ -71,6 +73,8 @@ export type QueuedMessage = {
   createdAt: number;
   attachments?: PublicAttachment[];
   autoDirect?: boolean;
+  uploadProgress?: AttachmentUploadProgress;
+  attachmentUploads?: readonly AttachmentUploadDescriptor[];
 };
 export type ProgressViewState = { expanded: string[]; deferred: string[]; seen: string[] };
 export type HistoryCache = Map<string, {

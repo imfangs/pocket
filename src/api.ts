@@ -6,6 +6,7 @@ import { requestActivity, type RequestActivity } from "./requestActivity.ts";
 import { clientVersionHeaders } from "./clientVersion.ts";
 import { threadInfoCache } from "./threadInfoCache.ts";
 import { createRequestDeadline } from "./requestDeadline.ts";
+import { invalidateImageReadCache } from "./imageReadCache.ts";
 
 export function createApiClient(scope: () => MachineId | null = currentMachineId, request: typeof fetch = (...args) => fetch(...args),
   expire: (machine: MachineId) => void = machine => window.dispatchEvent(new CustomEvent("navigator-auth-expired", { detail: { machine } })),
@@ -20,6 +21,7 @@ export function createApiClient(scope: () => MachineId | null = currentMachineId
     authenticationEpochs.set(machine, authenticationEpoch(machine) + 1);
     tokens.delete(machine);
     clearReadResponses(machine);
+    void invalidateImageReadCache(machine);
     try { activity.clearMachine(machine); } catch { /* An observer must not change authentication. */ }
   };
   return {

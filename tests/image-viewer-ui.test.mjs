@@ -20,8 +20,9 @@ test('a conversation image has an accessible same-page button rather than a raw 
   const html = render(MessageImage, { src: imageUrl, alt: '合成示意图' });
   assert.match(html, /<button\b[^>]*aria-label="查看大图：合成示意图"/);
   assert.doesNotMatch(html, /<a\b|target="_blank"/);
-  assert.ok(html.includes(`src="${imageUrl}"`));
-  assert.match(html, /loading="lazy"/);
+  assert.ok(html.includes(`data-registered-source="${imageUrl}"`));
+  assert.match(html, /class="message-image-frame" aria-haspopup="dialog"/);
+  assert.doesNotMatch(html, /<img\b|<link\b|\ssrc=/, 'SSR waits for the authenticated lazy reader before creating an image request');
 });
 
 test('registered Markdown images use the viewer button while ordinary web links keep their navigation semantics', () => {
@@ -30,11 +31,14 @@ test('registered Markdown images use the viewer button while ordinary web links 
   assert.match(html, /<a href="https:\/\/example.org\/reference" target="_blank"/);
 });
 
-test('an image attachment opens in-page and retains its small preview before viewing', () => {
+test('an image attachment retains an accessible preview placeholder without fetching private pixels during SSR', () => {
   const html = render(AttachmentList, { attachments: [attachment] });
   assert.match(html, /<button\b/);
   assert.match(html, /aria-label="[^"]*合成图片.png"/);
-  assert.ok(html.includes(`src="${attachment.previewUrl}"`));
+  assert.ok(html.includes(`data-attachment-id="${attachment.id}"`));
+  assert.match(html, /class="attachment-placeholder" aria-hidden="true"/);
+  assert.match(html, /aria-haspopup="dialog"/);
+  assert.doesNotMatch(html, /<img\b|<link\b|\ssrc=/);
   assert.doesNotMatch(html, /<a\b|href=|target="_blank"/);
 });
 

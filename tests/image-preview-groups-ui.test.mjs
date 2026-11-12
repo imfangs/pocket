@@ -26,8 +26,10 @@ test('message image grouping renders on the server without a document or an extr
   assert.match(html, /<\/article>$/);
   assert.match(html, /aria-label="查看大图：Body image"/);
   assert.match(html, /aria-label="查看大图：Attached original.png"/);
-  assert.ok(html.includes(`src="${imageSrc}"`));
-  assert.ok(html.includes(`src="${upload.previewUrl}"`));
+  assert.ok(html.includes(`data-registered-source="${imageSrc}"`));
+  assert.ok(html.includes(`data-attachment-id="${uploadId}"`));
+  assert.match(html, /class="attachment-placeholder" aria-hidden="true"/);
+  assert.doesNotMatch(html, /<img\b|<link\b|\ssrc=/, 'SSR does not start private body or attachment image reads');
   assert.doesNotMatch(html, /<dialog\b|data-reading-overlay|data-image-preview-group/);
   assert.ok(html.indexOf('Body image') < html.indexOf(`data-attachment-id="${uploadId}"`));
 });
@@ -42,7 +44,9 @@ test('a registered image file joins the message boundary as a compact card witho
   assert.match(html, /aria-label="预览文件：page-preview.jpg"/);
   assert.match(html, /aria-label="下载文件：page-preview.jpg"/);
   assert.equal((html.match(/aria-haspopup="dialog"/g) ?? []).length, 3);
-  assert.equal((html.match(/<img\b/g) ?? []).length, 2, 'Only the existing body and attachment thumbnails render');
+  assert.equal((html.match(/data-registered-source=/g) ?? []).length, 1, 'The body keeps its canonical image grant for the lazy reader');
+  assert.match(html, /class="attachment-placeholder" aria-hidden="true"/);
+  assert.doesNotMatch(html, /<img\b|<link\b|\ssrc=/, 'Image views wait for authenticated client reads');
   assert.doesNotMatch(html, /\/files\/[a-f0-9]{64}\/image|\/synthetic\/|<dialog\b/);
   assert.ok(html.indexOf('Body image') < html.indexOf('page-preview.jpg'));
   assert.ok(html.indexOf('page-preview.jpg') < html.indexOf(`data-attachment-id="${uploadId}"`));

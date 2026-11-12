@@ -12,6 +12,13 @@
 .submitted-query-primary-actions button, .submitted-query-actions button, .submitted-query-disclosure { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; border: 0; padding: 4px 0; background: none; color: var(--accent); font-size: 12px; }
 .submitted-query-primary-actions .submitted-query-copy { width: 44px; padding: 0; }
 .submitted-query-primary-actions button:disabled, .submitted-query-actions button:disabled { opacity: .5; }
+.submitted-upload-details { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.submitted-upload-details > summary { display: list-item; width: fit-content; max-width: 100%; min-height: 44px; align-content: center; cursor: pointer; color: var(--accent); }
+.submitted-upload-details > ul { display: grid; gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
+.submitted-upload-details li { display: flex; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.submitted-upload-name { flex: 1 1 140px; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.submitted-upload-status { flex: 0 1 auto; overflow-wrap: anywhere; }
+.submitted-upload-error { flex-basis: 100%; overflow-wrap: anywhere; }
 .receipt-action-error { margin: 5px 0 0; color: var(--danger); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .submitted-query[data-feedback-state="pending"] { border-color: var(--send-blue-line); background: var(--send-blue-bg); }
 .submitted-query[data-feedback-state="pending"] .submitted-query-heading > span { color: var(--send-blue); }

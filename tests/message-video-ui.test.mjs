@@ -77,7 +77,8 @@ test('linked video images remain labels even when the same source has a grant el
 test('normal image grants and code/user/truncated-message boundaries are preserved', () => {
   const image = `/api/tasks/${threadId}/images/${'e'.repeat(64)}`;
   const html = markdown('![picture](/figure.png)', { images: { '/figure.png': image } });
-  assert.match(html, /查看大图：picture/); assert.ok(html.includes(`src="${image}"`)); assert.equal(count(html), 0);
+  assert.match(html, /查看大图：picture/); assert.ok(html.includes(`data-registered-source="${image}"`)); assert.equal(count(html), 0);
+  assert.doesNotMatch(html, /<img\b|<link\b|\ssrc=/, 'Normal images defer private reads while retaining their registered viewer');
   assert.equal(count(markdown('```md\n' + `![clip](<${path}>)` + '\n```')), 0);
   for (const flags of [{ role: 'user' }, { role: 'assistant', truncated: true }]) {
     assert.equal(count(render(Message, { threadId, message: { id: 'media', text: `![clip](<${path}>)`, files: { [path]: file }, ...flags } })), 0);

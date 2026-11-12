@@ -28,10 +28,13 @@
   opacity: .45;
 }
 .outbox .outbox-item.queue-feedback[data-feedback-state="queued"],
+.outbox .outbox-item.queue-feedback[data-feedback-state="uploading"],
 .outbox .outbox-item.queue-feedback[data-feedback-state="pending"] { background: var(--send-blue-bg); border-color: var(--send-blue-line); }
 .outbox .outbox-item.queue-feedback[data-feedback-state="queued"]::before,
+.outbox .outbox-item.queue-feedback[data-feedback-state="uploading"]::before,
 .outbox .outbox-item.queue-feedback[data-feedback-state="pending"]::before { background: linear-gradient(115deg, var(--send-blue-glow), transparent 80%); }
 .outbox .outbox-item.queue-feedback[data-feedback-state="queued"] .outbox-actions > small,
+.outbox .outbox-item.queue-feedback[data-feedback-state="uploading"] .outbox-actions > small,
 .outbox .outbox-item.queue-feedback[data-feedback-state="pending"] .outbox-actions > small { color: var(--send-blue); }
 .outbox .outbox-item.queue-feedback[data-feedback-state="accepted"] { color: var(--send-green); background: var(--send-green-bg); border-color: var(--send-green-line); }
 .outbox .outbox-item.queue-feedback[data-feedback-state="accepted"] .outbox-actions > small { color: var(--send-green); }

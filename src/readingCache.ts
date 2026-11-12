@@ -80,6 +80,7 @@ function sanitizeTranscript(value: unknown, scope: string): SavedTranscript | nu
       ...(typeof item.turnDurationMs === "number" ? { turnDurationMs: finite(item.turnDurationMs) } : {}),
       ...(identity(item.clientMessageId) ? { clientMessageId: item.clientMessageId } : {}),
       ...(item.role === "user" && item.origin === "codex_delegation" ? { origin: "codex_delegation" as const } : {}),
+      ...(item.role === "user" && item.attachmentEnvelope === true ? { attachmentEnvelope: true } : {}),
     });
   }
   const failures = turnFailures(value.turnFailures);

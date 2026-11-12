@@ -24,6 +24,7 @@ import { createAccessCheck } from "./accessCheck";
 import { holdReload, useReloadGuard } from "./updateSafety";
 import { SettingsDialog } from "./Dialogs";
 import { bindMachineUnloadGuard, changeMachine, currentMachineId, needsPublicMachine } from "./machineScope";
+import { authorizeImageReadCache } from "./imageReadCache";
 
 function AccessSettings() {
   useLocale();
@@ -83,6 +84,7 @@ export default function AccessGate() {
     },
     onResult(authenticated) {
       if (!authenticated && machine) void purgeCache();
+      if (authenticated && machine) void authorizeImageReadCache(machine, null);
       setState(authenticated ? "authenticated" : "locked");
     },
     onFailure() {
@@ -140,6 +142,7 @@ export default function AccessGate() {
     try {
       const result = await api<{ authenticated: boolean }>("/api/auth/login", "POST", { passphrase });
       if (!result.authenticated) throw new Error("登录未完成");
+      if (machine) void authorizeImageReadCache(machine, null);
       await cachePurge.current;
       setPassphrase("");
       setState("authenticated");

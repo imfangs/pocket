@@ -50,6 +50,7 @@ function listen() {
   try {
     if (typeof BroadcastChannel !== "undefined") {
       channel = new BroadcastChannel(channelName);
+      (channel as BroadcastChannel & { unref?: () => void }).unref?.();
       channel.onmessage = event => {
         if (event.data?.type === "invalidate" && (event.data.machine === null || typeof event.data.machine === "string"))
           notify({ machine: event.data.machine });

@@ -111,12 +111,12 @@ test('audio references retain thread, cwd, lifetime and realpath boundaries with
   now += 3600000; await assert.rejects(f.audio(), error => error.status === 404);
 });
 
-test('audio and video share one 16-stream budget while HEAD and 416 hold no slot', async t => {
+test('audio and video share one 32-stream budget while HEAD and 416 hold no slot', async t => {
   const tracked = tracker(), f = fixture(t, { openFile: tracked.openFile }), streams = [];
   const videoPath = join(f.cwd, 'video.mp4'); writeFileSync(videoPath, m4a(8192, 'isom')); const videoKey = f.grant(videoPath);
   t.after(async () => { for (const result of streams) await result.close(); });
-  for (let index = 0; index < 8; index++) { streams.push(await f.audio()); streams.push(await f.service.openVideo(f.thread, videoKey)); }
-  assert.equal(f.service.activeVideoStreams, 16);
+  for (let index = 0; index < 16; index++) { streams.push(await f.audio()); streams.push(await f.service.openVideo(f.thread, videoKey)); }
+  assert.equal(f.service.activeVideoStreams, 32);
   await assert.rejects(f.audio(), error => error.status === 503); await assert.rejects(f.service.openVideo(f.thread, videoKey), error => error.status === 503);
   assert.equal((await f.audio({ method: 'HEAD' })).status, 200); assert.equal((await f.audio({ range: 'bytes=999999-' })).status, 416);
   for (const result of streams) await result.close();

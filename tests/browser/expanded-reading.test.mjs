@@ -164,11 +164,12 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) {
   flow(engine, locale, 390, 'inline image and viewer failures retry, zoom reset and nested Escape restore the reader', async (h, evidence) => {
     const imagePath = '/synthetic/card.png', src = `/api/tasks/${ids.regular}/images/${'a'.repeat(64)}`;
     const attachmentId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', attachmentUrl = `/api/tasks/${ids.regular}/attachments/${attachmentId}`;
-    const attachment = { id: attachmentId, name: 'Synthetic image.png', size: png.length, mime: 'image/png', kind: 'image', sha256: 'b'.repeat(64), url: attachmentUrl, previewUrl: attachmentUrl + '?preview=1' };
+    const attachment = { id: attachmentId, name: 'Synthetic image.png', size: png.length, mime: 'image/png', kind: 'image', sha256: createHash('sha256').update(png).digest('hex'), url: attachmentUrl, previewUrl: attachmentUrl + '?preview=1', previewSha256: createHash('sha256').update(png).digest('hex'), previewMime: 'image/png', previewSize: png.length };
     h.patchHistory(ids.regular, { messages: [message('picture', 'Synthetic image:\n\n![Reading card](<' + imagePath + '>)', { images: { [imagePath]: src }, attachments: [attachment] })] });
     const page = await h.open(null); let attempts = 0, failInline = true, failViewer = true;
-    await page.route('**/images/' + 'a'.repeat(64), route => { attempts++; return route.fulfill({ status: failInline ? 503 : 200, contentType: 'image/png', headers: { 'Cache-Control': 'no-store' }, body: failInline ? '' : png }); });
-    await page.route('**/attachments/' + attachmentId + '*', route => { attempts++; const failed = !new URL(route.request().url()).search && failViewer; return route.fulfill({ status: failed ? 503 : 200, contentType: 'image/png', headers: { 'Cache-Control': 'no-store' }, body: failed ? '' : png }); });
+    await page.route(/^blob:https:\/\/pocket\.test\//, route => route.continue());
+    await page.route('**/images/' + 'a'.repeat(64), route => { attempts++; return route.fulfill({ status: failInline ? 503 : 200, contentType: 'image/png', headers: { 'Cache-Control': 'no-store', 'X-Pocket-Machine': 'ged' }, body: failInline ? '' : png }); });
+    await page.route('**/attachments/' + attachmentId + '*', route => { attempts++; const failed = !new URL(route.request().url()).search && failViewer; return route.fulfill({ status: failed ? 503 : 200, contentType: 'image/png', headers: { 'Cache-Control': 'no-store', 'X-Pocket-Machine': 'ged' }, body: failed ? '' : png }); });
     await page.goto(page.url() + '&task=' + ids.regular); const picture = page.locator('.message-image');
     const retry = picture.getByRole('button', { name: words[locale].retry, exact: true }); await retry.waitFor(); failInline = false;
     await retry.click(); const opener = page.locator('.attachment-card[aria-haspopup="dialog"]');

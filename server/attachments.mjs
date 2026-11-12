@@ -5,10 +5,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { AppError } from "./store.mjs";
+import { MAX_ATTACHMENTS, MAX_ATTACHMENT_UPLOADS, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TOTAL_BYTES } from "../shared/attachment-limits.mjs";
+import { userAttachmentEnvelope } from "../shared/user-attachment-envelope.mjs";
+
+export { MAX_ATTACHMENTS, MAX_ATTACHMENT_UPLOADS, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TOTAL_BYTES } from "../shared/attachment-limits.mjs";
 
 const exec = promisify(execFile);
-export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-export const MAX_ATTACHMENTS = 6;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const MESSAGE_UPLOAD_MANIFEST = ".message-upload.json";
 const MAX_MESSAGE_MANIFEST_BYTES = 65536;
@@ -50,7 +52,7 @@ export class Attachments {
     this.maxBytes = options.maxBytes ?? MAX_ATTACHMENT_BYTES;
     this.maxPreviewBytes = Math.min(this.maxBytes, 2 * 1024 * 1024);
     this.reservationBytes = this.maxBytes * 2 + this.maxPreviewBytes;
-    this.maxTotalBytes = options.maxTotalBytes ?? 1024 * 1024 * 1024;
+    this.maxTotalBytes = options.maxTotalBytes ?? MAX_ATTACHMENT_TOTAL_BYTES;
     this.inspectImage = options.inspectImage || inspectImage;
     this.convertImage = options.convertImage || ((source, target) => exec("/usr/bin/sips", ["-s", "format", "jpeg", source, "--out", target], { timeout: 30000, maxBuffer: 65536 }));
     this.root = join(store.directory, "attachments");
@@ -60,12 +62,17 @@ export class Attachments {
     this.root = realpathSync(this.root);
     this.uploads = new Map();
     this.messageUploads = new Map();
+    this.newUploads = new Set();
+    this.uploadMetadata = new Map();
     this.pendingPaths = new Set();
     store.db.exec(`CREATE TABLE IF NOT EXISTS attachments(id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,data TEXT NOT NULL,stored_bytes INTEGER NOT NULL,created_at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS attachments_thread ON attachments(thread_id);
       CREATE TABLE IF NOT EXISTS attachment_dispatches(request_id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,data TEXT NOT NULL,text TEXT NOT NULL,message_id TEXT);
       CREATE INDEX IF NOT EXISTS attachment_dispatches_thread ON attachment_dispatches(thread_id);
-      CREATE TABLE IF NOT EXISTS attachment_links(attachment_id TEXT NOT NULL REFERENCES attachments(id),request_id TEXT NOT NULL,PRIMARY KEY(attachment_id,request_id));`);
+      CREATE TABLE IF NOT EXISTS attachment_links(attachment_id TEXT NOT NULL REFERENCES attachments(id),request_id TEXT NOT NULL,PRIMARY KEY(attachment_id,request_id));
+      CREATE TABLE IF NOT EXISTS attachment_upload_messages(request_id TEXT PRIMARY KEY,thread_id TEXT NOT NULL,intent_hash TEXT NOT NULL,descriptors TEXT NOT NULL,status TEXT NOT NULL,code TEXT);
+      CREATE TABLE IF NOT EXISTS attachment_upload_claims(attachment_id TEXT PRIMARY KEY,request_id TEXT NOT NULL REFERENCES attachment_upload_messages(request_id),thread_id TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS attachment_upload_claims_request ON attachment_upload_claims(request_id);`);
     this.cleanup();
   }
   validateId(threadId, id) {
@@ -81,7 +88,8 @@ export class Attachments {
   public(data) {
     return { id: data.id, name: data.name, size: data.size, mime: data.mime, kind: data.kind,
       url: `/api/tasks/${data.threadId}/attachments/${data.id}`, sha256: data.sha256,
-      ...(data.kind === "image" && data.preview ? { previewUrl: `/api/tasks/${data.threadId}/attachments/${data.id}?preview=1` } : {}),
+      ...(data.kind === "image" && data.preview ? { previewUrl: `/api/tasks/${data.threadId}/attachments/${data.id}?preview=1`,
+        previewSha256: data.preview.sha256, previewMime: data.preview.mime, previewSize: data.preview.size } : {}),
       sourceSha256: data.sourceSha256, sourceSize: data.sourceSize };
   }
   metadata(threadId, id) {
@@ -92,7 +100,7 @@ export class Attachments {
   list(threadId) {
     this.store.thread(threadId);
     this.cleanup();
-    return { attachments: this.store.db.prepare("SELECT data FROM attachments WHERE thread_id=? AND json_extract(data,'$.internalRequestId') IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links WHERE attachment_id=attachments.id) ORDER BY created_at,id LIMIT 6").all(threadId).map(row => this.public(JSON.parse(row.data))) };
+    return { attachments: this.store.db.prepare("SELECT data FROM attachments WHERE thread_id=? AND json_extract(data,'$.internalRequestId') IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links WHERE attachment_id=attachments.id) AND NOT EXISTS(SELECT 1 FROM attachment_upload_claims c JOIN attachment_upload_messages m ON m.request_id=c.request_id WHERE c.attachment_id=attachments.id AND m.status<>'cancelled') ORDER BY created_at,id LIMIT ?").all(threadId, MAX_ATTACHMENTS).map(row => this.public(JSON.parse(row.data))) };
   }
   // Internal durable jobs reserve files to their fixed request before making
   // them visible. Ownership survives removal of a cancelled message's link;
@@ -101,13 +109,27 @@ export class Attachments {
     if (!UUID.test(requestId)) throw new AppError("附件请求编号无效");
     return this.upload(threadId, id, name, declaredType, stream, { requestId });
   }
-  async upload(threadId, id, name, declaredType, stream, { requestId } = {}) {
+  uploadReserved(threadId, requestId, id, name, declaredType, stream) {
+    if (!this.reservations) throw new AppError("待发附件暂不可用", 503);
+    return this.upload(threadId, id, name, declaredType, stream, { uploadRequestId: requestId }).catch(error => {
+      // Admission can fail before a stream owns a slot (quota, busy, or name).
+      // Retain the durable message so the user can repair or cancel it.
+      try {
+        const claimed = this.reservations.claim(id);
+        if (claimed?.thread_id === threadId && claimed.request_id === requestId) this.reservations.uploaded(threadId, id, error);
+      } catch { /* A receipt remains readable after a missed notification. */ }
+      throw error;
+    });
+  }
+  async upload(threadId, id, name, declaredType, stream, { requestId, uploadRequestId } = {}) {
     this.validateId(threadId, id);
     const thread = this.store.thread(threadId);
     if (thread.archived || thread.missing) throw new AppError("请先恢复会话", 409);
     if (typeof name !== "string" || !name.trim() || name.length > 180 || /[\\/\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(name) || name === "." || name === "..")
       throw new AppError("附件名称无效");
-    if (this.uploads.has(id) || this.uploads.size >= 4) throw new AppError("附件正在上传，请稍后核对", 409);
+    if (this.uploads.has(id) || this.uploads.size >= MAX_ATTACHMENT_UPLOADS) throw new AppError("附件正在上传，请稍后核对", 409);
+    const userClaim = this.reservations?.validateUpload(threadId, id, name, uploadRequestId);
+    if (requestId && userClaim) throw new AppError("附件编号已用于另一请求", 409);
     this.cleanup();
     const existing = this.store.db.prepare("SELECT data,thread_id FROM attachments WHERE id=?").get(id);
     if (existing && existing.thread_id !== threadId) throw new AppError("附件编号已用于另一会话", 409);
@@ -118,21 +140,24 @@ export class Attachments {
       if (linked) throw new AppError("附件编号已用于另一请求", 409);
       const count = this.store.db.prepare("SELECT COUNT(*) AS n FROM attachments WHERE id<>? AND (json_extract(data,'$.internalRequestId')=? OR EXISTS(SELECT 1 FROM attachment_links WHERE attachment_id=attachments.id AND request_id=?))").get(id, requestId, requestId).n;
       if (count + [...this.messageUploads.values()].filter(value => value === requestId).length >= MAX_ATTACHMENTS)
-        throw new AppError("每条消息最多添加6个附件", 409);
-    } else if (!existing) {
-      const draftCount = this.store.db.prepare("SELECT COUNT(*) AS n FROM attachments WHERE thread_id=? AND json_extract(data,'$.internalRequestId') IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links WHERE attachment_id=attachments.id)").get(threadId).n;
-      if (draftCount + [...this.uploads].filter(([key, value]) => value === threadId && !this.messageUploads.has(key)).length >= MAX_ATTACHMENTS)
-        throw new AppError("每条消息最多添加 6 个附件", 409);
+        throw new AppError(`每条消息最多添加${MAX_ATTACHMENTS}个附件`, 409);
+    } else if (!existing && !userClaim) {
+      const draftCount = this.store.db.prepare("SELECT COUNT(*) AS n FROM attachments WHERE thread_id=? AND json_extract(data,'$.internalRequestId') IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links WHERE attachment_id=attachments.id) AND NOT EXISTS(SELECT 1 FROM attachment_upload_claims c JOIN attachment_upload_messages m ON m.request_id=c.request_id WHERE c.attachment_id=attachments.id AND m.status<>'cancelled')").get(threadId).n;
+      if (draftCount + [...this.uploads].filter(([key, value]) => value === threadId && !this.messageUploads.has(key) && !this.reservations?.claim(key)).length >= MAX_ATTACHMENTS)
+        throw new AppError(`每条消息最多添加 ${MAX_ATTACHMENTS} 个附件`, 409);
     }
     const total = this.store.db.prepare("SELECT COALESCE(SUM(stored_bytes),0) AS bytes,COUNT(*) AS n FROM attachments").get();
     const manifestReservation = (this.messageUploads.size + (requestId ? 1 : 0)) * MAX_MESSAGE_MANIFEST_BYTES;
-    if (total.bytes + this.untrackedBytes() + (this.uploads.size + 1) * this.reservationBytes + manifestReservation > this.maxTotalBytes || (!existing && total.n >= 2000))
+    const rowSlots = this.reservations ? this.reservations.rowSlots() + Number(!existing && !userClaim) : total.n + this.newUploads.size + Number(!existing);
+    if (total.bytes + this.untrackedBytes() + (this.uploads.size + 1) * this.reservationBytes + manifestReservation > this.maxTotalBytes || (!existing && rowSlots > 2000))
       throw new AppError("附件空间已满，请先删除未发送的附件", 413);
     this.uploads.set(id, threadId);
     if (requestId) this.messageUploads.set(id, requestId);
+    if (!existing) this.newUploads.add(id);
+    this.uploadMetadata.set(id, { threadId, name, internalRequestId: requestId });
     const temporary = join(this.root, `.pending-${randomUUID()}`);
     this.pendingPaths.add(temporary);
-    let file;
+    let file, failure;
     try {
       await mkdir(temporary, { mode: 0o700 });
       const extension = extname(name).toLowerCase();
@@ -154,6 +179,7 @@ export class Attachments {
         const saved = JSON.parse(existing.data);
         if (saved.name !== name || saved.sourceSha256 !== sourceSha256 || saved.sourceSize !== size)
           throw new AppError("附件编号已用于另一文件", 409);
+        this.reservations?.validateCandidate(saved);
         if (requestId) this.store.db.prepare("INSERT OR IGNORE INTO attachment_links VALUES(?,?)").run(id, requestId);
         return this.public(saved);
       }
@@ -216,6 +242,7 @@ export class Attachments {
         path: join(destination, path.slice(temporary.length + 1)), sourceSha256, sourceSize: size,
         ...(preview ? { preview: { ...preview, path: join(destination, preview.path.slice(temporary.length + 1)) } } : {}),
         sourcePath: join(destination, original.slice(temporary.length + 1)) };
+      this.reservations?.validateCandidate(data);
       let storedBytes = size + (path === original ? 0 : canonical.length) + (preview?.size || 0);
       if (requestId) {
         // Private durable jobs cannot choose a different asset ID after a
@@ -240,6 +267,8 @@ export class Attachments {
         try {
           this.store.db.prepare("INSERT INTO attachments VALUES(?,?,?,?,?)").run(id, threadId, JSON.stringify(data), storedBytes, Date.now());
           if (requestId) this.store.db.prepare("INSERT INTO attachment_links VALUES(?,?)").run(id, requestId);
+          const claimed = this.reservations?.validateCandidate(data);
+          if (claimed) this.store.db.prepare("INSERT OR IGNORE INTO attachment_links VALUES(?,?)").run(id, claimed.request_id);
           this.store.db.exec("COMMIT");
         } catch (error) { this.store.db.exec("ROLLBACK"); throw error; }
       } catch (error) {
@@ -249,12 +278,17 @@ export class Attachments {
         throw error;
       }
       return this.public(data);
+    } catch (error) {
+      failure = error; throw error;
     } finally {
       await file?.close();
       await rm(temporary, { recursive: true, force: true });
       this.uploads.delete(id);
       this.messageUploads.delete(id);
+      this.newUploads.delete(id);
+      this.uploadMetadata.delete(id);
       this.pendingPaths.delete(temporary);
+      try { this.reservations?.uploaded(threadId, id, failure); } catch { /* A durable queue tick recovers a missed wakeup. */ }
     }
   }
   async recoverMessageUpload(destination, requestId, expected) {
@@ -343,6 +377,7 @@ export class Attachments {
   remove(threadId, id) {
     this.validateId(threadId, id);
     if (this.uploads.has(id)) throw new AppError("附件正在上传", 409);
+    if (this.reservations?.claim(id)) throw new AppError("附件已绑定到待发消息，不能删除", 409);
     const row = this.store.db.prepare("SELECT data FROM attachments WHERE id=? AND thread_id=?").get(id, threadId);
     if (!row) return { deleted: true };
     if (JSON.parse(row.data).internalRequestId) throw new AppError("内部附件不能从草稿删除", 409);
@@ -352,9 +387,15 @@ export class Attachments {
     rmSync(join(this.root, id), { recursive: true, force: true });
     return { deleted: true };
   }
-  resolve(threadId, ids = [], requestId) {
+  validateIds(ids) {
     if (!Array.isArray(ids) || ids.length > MAX_ATTACHMENTS || ids.some(id => typeof id !== "string" || !UUID.test(id)) || new Set(ids).size !== ids.length)
-      throw new AppError("每条消息最多附加 6 个有效附件");
+      throw new AppError(`每条消息最多附加 ${MAX_ATTACHMENTS} 个有效附件`);
+  }
+  validateSnapshot(attachments) {
+    this.validateIds(Array.isArray(attachments) ? attachments.map(attachment => attachment?.id) : attachments);
+  }
+  resolve(threadId, ids = [], requestId) {
+    this.validateIds(ids);
     const saved = requestId && this.store.db.prepare("SELECT data FROM attachment_dispatches WHERE request_id=? AND thread_id=?").get(requestId, threadId);
     if (saved) {
       const attachments = JSON.parse(saved.data);
@@ -366,9 +407,12 @@ export class Attachments {
   forRequest(data, requestId) {
     if (data.internalRequestId !== undefined && data.internalRequestId !== requestId)
       throw new AppError("附件已属于另一请求", 409);
+    const claimed = this.reservations?.claim(data.id);
+    if (claimed && claimed.request_id !== requestId) throw new AppError("附件已属于另一请求", 409);
     return data;
   }
   bind(threadId, requestId, text, attachments) {
+    this.validateSnapshot(attachments);
     if (!attachments.length) return;
     for (const attachment of attachments) this.forRequest(this.row(threadId, attachment.id), requestId);
     this.store.db.prepare("INSERT INTO attachment_dispatches(request_id,thread_id,data,text) VALUES(?,?,?,?)")
@@ -389,6 +433,7 @@ export class Attachments {
     return row ? JSON.parse(row.data) : [];
   }
   async prepare(attachments) {
+    this.validateSnapshot(attachments);
     for (const attachment of attachments) {
       const bytes = await this.readFile(attachment.path);
       if (bytes.length !== attachment.size || hash(bytes) !== attachment.sha256) throw new AppError("附件已变化，请重新上传", 409);
@@ -399,13 +444,23 @@ export class Attachments {
     const rows = this.store.db.prepare("SELECT a.*,d.status FROM attachment_dispatches a JOIN dispatches d ON d.id=a.request_id WHERE a.thread_id=? AND d.status IN('pending','accepted','unknown') ORDER BY a.rowid DESC LIMIT 200").all(threadId)
       .map(row => ({ ...row, attachments: JSON.parse(row.data) }));
     return { ...history, messages: (history.messages || []).map(message => {
-      const { attachmentPaths, ...clean } = message;
+      const { attachmentPaths, attachmentEnvelope: _untrustedEnvelope, ...clean } = message;
       if (message.role !== "user") return clean;
+      const envelope = !message.truncated && userAttachmentEnvelope(message.text);
+      const exactPaths = row => Array.isArray(attachmentPaths) && attachmentPaths.length === row.attachments.length &&
+        attachmentPaths.every((attachment, index) => attachment.path === row.attachments[index].path);
+      const provenEnvelope = ["desktop", "rollout"].includes(history.source) && envelope && Array.isArray(attachmentPaths) && attachmentPaths.length === envelope.attachments.length &&
+        attachmentPaths.every((attachment, index) => attachment.path === envelope.attachments[index].path &&
+          attachment.kind === envelope.attachments[index].kind);
       const match = rows.find(row => row.request_id === message.clientMessageId || (row.message_id && row.message_id === message.id)) ||
         rows.find(row => message.text === wrappedText(row.text, row.attachments)) ||
-        (history.source === "desktop" && Array.isArray(attachmentPaths) && rows.find(row => message.text === row.text &&
-          attachmentPaths.length === row.attachments.length && attachmentPaths.every((a, i) => a.path === row.attachments[i].path)));
+        (history.source === "desktop" && rows.find(row => message.text === row.text && exactPaths(row))) ||
+        (provenEnvelope && rows.find(row => envelope.query === row.text && exactPaths(row) &&
+          envelope.attachments.length === row.attachments.length && envelope.attachments.every((attachment, index) =>
+            attachment.path === row.attachments[index].path && attachment.name === row.attachments[index].name &&
+            attachment.kind === row.attachments[index].kind)));
       if (!match) {
+        if (envelope) return { ...clean, ...(provenEnvelope ? { attachmentEnvelope: true } : {}) };
         if (!Array.isArray(attachmentPaths) || !attachmentPaths.length) return clean;
         const placeholder = attachmentPaths.length === 1 ? "[附件需在 Mac 中查看]" : `[${attachmentPaths.length} 个附件需在 Mac 中查看]`;
         return { ...clean, text: clean.text ? `${clean.text}\n\n${placeholder}` : placeholder };
@@ -414,7 +469,7 @@ export class Attachments {
           (Array.isArray(attachmentPaths) && attachmentPaths.length === match.attachments.length && attachmentPaths.every((a, i) => a.path === match.attachments[i].path))))
         this.store.db.prepare("UPDATE attachment_dispatches SET message_id=? WHERE request_id=?").run(message.id, match.request_id);
       const text = message.text === wrappedText(match.text, match.attachments) ? match.text : message.text;
-      return { ...clean, text, attachments: match.attachments.map(a => this.public(a)) };
+      return { ...clean, text, ...(provenEnvelope ? { attachmentEnvelope: true } : {}), attachments: match.attachments.map(a => this.public(a)) };
     }) };
   }
   cleanup() {
@@ -424,6 +479,7 @@ export class Attachments {
     // starts their separate grace period. Unknown jobs remain recoverable.
     const rows = this.store.db.prepare(`SELECT id FROM attachments
       WHERE NOT EXISTS(SELECT 1 FROM attachment_links WHERE attachment_id=attachments.id)
+      AND NOT EXISTS(SELECT 1 FROM attachment_upload_claims c JOIN attachment_upload_messages m ON m.request_id=c.request_id WHERE c.attachment_id=attachments.id AND m.status<>'cancelled')
       AND ((json_extract(data,'$.internalRequestId') IS NULL AND created_at<?)
         OR (json_extract(data,'$.internalRequestId') IS NOT NULL AND json_extract(data,'$.internalReleasedAt')<?))
       LIMIT 100`).all(cutoff, cutoff);
