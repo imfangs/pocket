@@ -6,10 +6,11 @@ import { join, resolve } from 'node:path';
 export const publicSourceDocumentationPaths = new Set([
   'docs/SELF_HOSTING.md', 'docs/SELF_HOSTING.zh-CN.md', 'docs/COMPATIBILITY.md',
   'docs/UPGRADING.md', 'docs/PUBLIC_HISTORY.md',
-  'docs/OPEN_SOURCE_READINESS.md', 'docs/DEVELOPMENT.md',
+  'docs/OPEN_SOURCE_READINESS.md', 'docs/DEVELOPMENT.md', 'docs/ALTERNATIVES.md',
   'docs/assets/pocket-architecture.svg', 'docs/assets/pocket-architecture.html',
   'docs/assets/pocket-architecture.json', 'docs/assets/README.md',
   'docs/assets/pocket-preview.png',
+  ...['zh', 'en'].flatMap(locale => ['overview', 'workspace', 'reading', 'decisions'].map(view => `docs/assets/pocket-${view}-${locale}.png`)),
   'docs/assets/ARCHIFY-LICENSE.txt', 'docs/assets/JetBrainsMono-OFL.txt',
 ]);
 

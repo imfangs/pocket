@@ -2,13 +2,62 @@
 
 [简体中文](README.md) · English
 
-**Bring your Mac's Codex conversations to your phone.** Pocket is a self-hosted web app/PWA for reading replies away from your desk, continuing work, sending attachments, and handling supported approvals and questions. It connects to your existing Codex desktop app and preserves the conversation's model, working directory, permissions and execution owner.
+> **Your Codex. In your pocket.**
+>
+> Work keeps running on your Mac. Keep the conversation moving from your phone.
 
-For people who already use Codex on a Mac and are comfortable maintaining a local service and their own HTTPS entry. This is **0.1.0-alpha.1** experimental source under the [MIT license](LICENSE), unofficial and unaffiliated with OpenAI. As of 2026-11-12, the repository is private and no public release has been published.
+Pocket brings **existing Codex conversations on your Mac** to a browser and phone PWA: follow progress, read results, add instructions, send attachments, and handle supported questions and approvals. The original desktop owner keeps execution, model, working directory and permissions.
 
-![Pocket interface illustration using synthetic content.](docs/assets/pocket-preview.png)
+[See it running](#runtime-screenshots) · [Why Pocket exists](#why-pocket-exists) · [Compare alternatives](#choosing-between-solutions) · [Get started](#start-on-your-mac)
+
+![Actual Pocket interface with synthetic conversations: browse work and continue on a phone.](docs/assets/pocket-overview-en.png)
+
+## Why Pocket exists
+
+Codex has become a place for more than a short coding prompt: ongoing development, research, documents and files can span long conversations. Away from the desk, we still want to see what happened, add a direction or answer a question, then return to the same work.
+
+Pocket grew from that everyday need. Its starting point is **the Mac Codex desktop workflow you already use**. It organizes conversation discovery, long-form reading, Markdown/code/diagrams, file previews, input and supported actions for a phone. You own the web/API/HTTPS entry, can inspect the source and can adapt the interface to your habits.
+
+Its reasons to choose come as a focused combination:
+
+- **Keep your existing workbench:** read original conversations, resolve the original desktop owner by thread ID and retain model, directory and permissions. Mobile continuation starts from your current desktop routine.
+- **Use a browser as the entry:** open your self-hosted app from a phone, tablet or another computer; install the phone PWA to the home screen. You manage its entry and maintenance.
+- **Read and continue ongoing work:** project/follow/status views help find a task; structured text and file previews help understand results; draft, selection and reading-position protections reduce interruptions.
+- **Keep receipts distinct from execution:** acceptance is separate from model completion; uncertain outcomes are checked by the original request instead of replayed, and late responses must not replace newer input.
+
+These are design priorities and implementation choices, not claims of exclusive capabilities. Official Remote and other open-source tools also continue existing work. If one already meets your needs, using it avoids an extra self-hosted service.
+
+## Runtime screenshots
+
+These are **screenshots of the actual compiled application**, using synthetic conversations and example questions. They are not design mockups or private chats. English and Simplified Chinese use the same features.
+
+**Desktop: find conversations by project, see activity and continue the same work from your phone.**
+
+![Pocket desktop runtime: projects, conversations, status filters and original conversation reading.](docs/assets/pocket-workspace-en.png)
+
+| Read and write on your phone | Answer questions on your phone |
+| --- | --- |
+| ![Pocket phone runtime: Markdown, code, conversation replies and composer.](docs/assets/pocket-reading-en.png) | ![Pocket phone runtime: choose an answer inside the current conversation and continue.](docs/assets/pocket-decisions-en.png) |
+
+## Choosing between solutions
+
+Checked against **official documentation and source on 2026-11-13**. This is a workflow comparison, not a hands-on ranking; features continue to evolve.
+
+| Solution | Workflow it emphasizes | Where Pocket fits |
+| --- | --- | --- |
+| [Official ChatGPT / Codex apps and Remote](https://learn.chatgpt.com/docs/remote-connections) | Official Chat, Work and Codex; Remote already continues existing conversations on connected hosts, handles approvals and reviews outputs/diffs. Availability depends on rollout/workspace settings | Consider Pocket for a self-hosted browser/PWA service, your own entry and editable interface centered on Mac Codex conversations. The official route is less maintenance when it fits |
+| [HAPI](https://github.com/tiann/hapi) | Official-agent wrappers with a Hub/Runner, terminal-to-phone/Web/native continuation; Codex desktop-history discovery, import, sync and resume already exist | Pocket starts directly from the existing Mac Codex Desktop catalog and desktop execution owner; it does not claim HAPI lacks existing conversations |
+| [Happy](https://github.com/slopus/happy) | Original CLI plus Desktop/Agent, native mobile/Web, multiple models, shared agents and content E2EE | Pocket focuses on one owner's Mac Codex browser experience. Native apps, multi-model/multi-user workflows and E2EE are different requirements, outside its current promises |
+| [T3 Code](https://github.com/pingdotgg/t3code) | Unified coding-agent workbench with server/provider execution, Git/worktrees and desktop/Web/native mobile; importing and continuing existing conversations is supported | Pocket adds reading/continuation to an existing Codex Desktop routine; compare T3 Code when you want a unified coding workbench |
+| [Codex Mobile Bridge](https://github.com/try2love/codex-mobile-bridge) | Original-client continuation, now spanning multiple clients, a desktop gateway, native mobile and Web; directly overlaps Pocket | The closest open-source alternative to compare. Pocket deliberately chooses the narrower Mac Codex + browser/PWA scope; its value needs actual reading, input and recovery feedback |
+| [CodexMonitor](https://github.com/Dimillian/CodexMonitor) | Tauri multi-workspace/agent workbench, per-workspace app-servers, Git/files and optional remote daemon | More desktop orchestration; Pocket primarily adds phone/browser access to the original desktop workflow |
+| Remote desktop / SSH + tmux | Operate the whole computer or continue terminal work; useful for complete desktop or headless environments | Pocket lays out conversations and results for touch. Full desktop operation and CLI/SSH remain valid alternatives |
+
+Seeing old history, resuming the same thread and continuing its currently running desktop owner are different layers. HAPI, Happy and T3 Code already have import/resume paths; importing is not synonymous with starting a brand-new native thread. Pocket also does not promise complete desktop queue/read-state sync or superiority in every environment. See the [detailed comparison and sources](docs/ALTERNATIVES.md).
 
 ## What it does and where it works
+
+This is experimental **0.1.0-alpha.1** source under [MIT](LICENSE), unofficial and unaffiliated with OpenAI. No public release has been published as of 2026-11-13.
 
 - Read and search original conversations, browse projects, and sort by smart rank, creation or activity. Pocket following/hiding is independent of Codex pinning/archiving.
 - Continue original conversations, upload images/files, and respond to supported approvals and questions, retaining request identities and handling queued or unconfirmed results.

@@ -19,7 +19,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 // A browser adapter around a small synthetic Pocket service. All browser
 // requests are intercepted; no HTTP server, real API, credentials or native
 // desktop operation is involved. Unknown endpoints are test failures.
-export async function createHarness(engine, { history = false, width = 390, visibility = false, archivedHidden = false, locale = 'zh-CN', clientConfiguration = clientProfile, safeFrameServiceWorkers = false, feedbackEnabled = false,
+export async function createHarness(engine, { history = false, width = 390, visibility = false, archivedHidden = false, locale = 'zh-CN', projectName = '合成项目', clientConfiguration = clientProfile, safeFrameServiceWorkers = false, feedbackEnabled = false,
   directory = process.env.POCKET_BROWSER_DIST || '.local/qa/browser-dist', launch = options => ({ chromium, webkit })[engine].launch(options) } = {}) {
   const dist = realpathSync(directory);
   const manifest = JSON.parse(readFileSync(resolve(dist, 'pocket-version.json')));
@@ -66,7 +66,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
     const content = (thread, machine) => ({ known: true, scope: 'smoke-' + machine, revision: thread.messages.length,
       version: createHash('sha256').update(JSON.stringify(thread.messages)).digest('hex'), messageId: thread.messages.at(-1)?.id ?? null });
     const projectThread = (thread, machine) => ({
-      id: thread.id, hostId: 'local', title: thread.title, titleRevision: 0, cwd: '/synthetic', projectId: 'fixture', projectName: '合成项目',
+      id: thread.id, hostId: 'local', title: thread.title, titleRevision: 0, cwd: '/synthetic', projectId: 'fixture', projectName,
       archived: thread.archived, pinned: thread.codexPinned, pinnedOrder: 0, pinRevision: 0,
       codexPinned: thread.codexPinned, pocketPriority: thread.pocketPriority,
       pocketHidden: thread.pocketHidden, hiddenRevision: hiddenRevisions.get(machine), separator: false,
@@ -76,7 +76,7 @@ export async function createHarness(engine, { history = false, width = 390, visi
       pocketContent: content(thread, machine),
     });
     const catalog = machine => ({ threads: [...machines.get(machine).values()].map(thread => projectThread(thread, machine)),
-      groups: [], projects: [{ id: 'fixture', name: '合成项目', paths: ['/synthetic'], order: 0, separator: false }],
+      groups: [], projects: [{ id: 'fixture', name: projectName, paths: ['/synthetic'], order: 0, separator: false }],
       sourceInfo: { syncedAt: now, active: [...machines.get(machine).values()].filter(thread => !thread.archived).length,
         archived: [...machines.get(machine).values()].filter(thread => thread.archived).length, total: 2,
         scope: 'synthetic', pocketRead: { available: true, scope: 'smoke-' + machine } },
