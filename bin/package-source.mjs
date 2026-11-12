@@ -5,12 +5,10 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isMain } from './is-main.mjs';
-import { privateSourceMarkers, privateSourcePathReason, sourcePrivacyFindings } from './source-privacy.mjs';
+import { privateSourceMarkers, privateSourcePathReason, sourcePrivacyFindings, publicSourceDocumentationPaths } from './source-privacy.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const top=new Set(['package.json','package-lock.json','.npmrc','.gitignore','.node-version','tsconfig.json','vite.config.ts','index.html','LICENSE','CONTRIBUTING.md','SECURITY.md','PRIVACY.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_DEPENDENCIES.json','THIRD_PARTY_LICENSES.txt']);
-const docs=new Set(['docs/SELF_HOSTING.md','docs/SELF_HOSTING.zh-CN.md','docs/COMPATIBILITY.md','docs/UPGRADING.md','docs/PUBLIC_HISTORY.md',
-  'docs/assets/pocket-architecture.svg','docs/assets/pocket-architecture.html','docs/assets/pocket-architecture.json','docs/assets/README.md',
-  'docs/assets/ARCHIFY-LICENSE.txt','docs/assets/JetBrainsMono-OFL.txt']);
+const docs=publicSourceDocumentationPaths;
 const prefixes=['src/','server/','shared/','bin/','edge/','public/','vendor/','packages/','.github/','tests/'];
 const digest=value=>createHash('sha256').update(value).digest('hex');
 function readSource(name) {
@@ -44,7 +42,7 @@ export function packageSource(directory) {
     if(!realpathSync(source).startsWith(realpathSync(root)+'/')) throw new Error('Source file escapes the repository');
     entries.set(name,readSource(name));
   }
-  for(const name of ['client','desktop-bridge','relay']) {
+  for(const name of ['client','desktop-bridge','relay','usage-analytics']) {
     const source=readSource(`config/${name}.example.json`);
     entries.set(`config/${name}.example.json`,source);
     if(name==='desktop-bridge') entries.set('config/desktop-bridge.json',source);

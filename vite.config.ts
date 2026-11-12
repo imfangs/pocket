@@ -3,7 +3,10 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync } from "node:fs";
 import { frontendVersion, versionManifest } from "./bin/build-version.mjs";
-const version = frontendVersion(fileURLToPath(new URL(".", import.meta.url)));
+import { readUsageAnalyticsConfig, resolveUsageAnalyticsPath } from "./bin/usage-analytics-config.mjs";
+const root = fileURLToPath(new URL(".", import.meta.url));
+readUsageAnalyticsConfig(root);
+const version = frontendVersion(root);
 function pdfSupportAssets() {
   const assets = new Map<string, URL>();
   const collect = (directory: URL, output: string) => {
@@ -18,6 +21,10 @@ function pdfSupportAssets() {
   return assets;
 }
 export default defineConfig({
+  resolve: { alias: [{
+    find: /^\.\.\/config\/usage-analytics\.example\.json$/,
+    replacement: resolveUsageAnalyticsPath(root),
+  }] },
   plugins: [react(), versionManifest(version), {
     name: "feedback-third-party-notices",
     apply: "build",

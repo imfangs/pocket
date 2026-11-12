@@ -13,12 +13,27 @@ test('source release guards recognize private paths even if they were tracked', 
   for (const path of ['bin/.env','src/.env.production','tests/.local/private.json','tests/private-data/user.md',
     'tests/fake.sqlite-wal','data/submission.json','src/initial-passphrase.txt','bin/web-push-keys.json',
     'config/machine.private.json','packages/feedback-assets/image.png','config/pages-site.json',
-    'src/relay-registration.json','tests/navigator-123456-private.json']) {
+    'src/relay-registration.json','tests/navigator-123456-private.json','CURRENT.md','HISTORY.md',
+    'docs/research/operator-notes.md','docs/design/feedback.md','wrangler.jsonc']) {
     assert.ok(privateSourcePathReason(path), path);
   }
   for (const path of ['bin/source-privacy.mjs','server/auth.mjs','tests/fixtures/catalog.json','config/relay.example.json','docs/assets/pocket-architecture.svg']) {
     assert.equal(privateSourcePathReason(path), null, path);
   }
+});
+
+test('local private deny values automatically protect short Chinese names without printing them', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pocket-private-local-deny-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, '.local/privacy'), { recursive: true });
+  const name = '\u7532\u4e59\u4e19', id = randomUUID();
+  writeFileSync(join(root, '.local/privacy/deny.private.json'), JSON.stringify({ values: [name, id] }));
+  const markers = privateSourceMarkers(root, null);
+  const findings = sourcePrivacyFindings('src/example.ts', Buffer.from(`${name} ${id}`), markers);
+  assert.deepEqual(findings, [{ path: 'src/example.ts', rule: 'operator_denied_value' }]);
+  assert.ok(!JSON.stringify(findings).includes(name) && !JSON.stringify(findings).includes(id));
+  writeFileSync(join(root, '.local/privacy/deny.private.json'), JSON.stringify({ values: ['xy'] }));
+  assert.throws(() => privateSourceMarkers(root, null), /values array/);
 });
 
 test('known private markers are taken from local files and findings never reveal their values', t => {

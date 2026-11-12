@@ -5,19 +5,20 @@ import https from 'node:https';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, copyFile, readFile, writeFile, rm } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { publicCheckGet } from '../bin/public-check-http.mjs';
+import { readUsageAnalyticsConfig } from '../bin/usage-analytics-config.mjs';
 
 const execute = promisify(execFile);
 const script = fileURLToPath(new URL('../bin/verify-public.mjs', import.meta.url));
 const policy = readFileSync(new URL('../public/_headers', import.meta.url), 'utf8')
   .match(/Content-Security-Policy: (.+)/)[1];
-const analyticsEnabled = JSON.parse(readFileSync(new URL('../config/usage-analytics.json', import.meta.url), 'utf8')).enabled === true;
+const analyticsEnabled = readUsageAnalyticsConfig(fileURLToPath(new URL('../', import.meta.url))).enabled === true;
 
 async function serve(t, handler, tls) {
   const requests = [];
@@ -42,6 +43,43 @@ function validResponse(req, res) {
 }
 
 const verify = (base, env = process.env) => execute(process.execPath, [script, base], { env, timeout: 10_000 });
+
+async function isolatedVerifier(t) {
+  const root = await mkdtemp(join(tmpdir(), 'pocket-public-config-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  for (const directory of ['bin', 'config', 'public']) await mkdir(join(root, directory));
+  for (const path of ['bin/verify-public.mjs', 'bin/public-check-http.mjs', 'bin/usage-analytics-config.mjs', 'config/usage-analytics.example.json', 'public/_headers'])
+    await copyFile(new URL(`../${path}`, import.meta.url), join(root, path));
+  return { root, verify: base => execute(process.execPath, [join(root, 'bin/verify-public.mjs'), base], { timeout: 10_000 }) };
+}
+
+test('a checkout without private analytics configuration verifies with collection disabled', async t => {
+  const cli = await isolatedVerifier(t);
+  const fixture = await serve(t, validResponse);
+  const { stdout } = await cli.verify(fixture.base);
+  assert.deepEqual(JSON.parse(stdout), { ok: true, anonymousProtected: true, manifest: true, documentCsp: true, analyticsConnections: 'disabled' });
+  assert.deepEqual(fixture.requests.map(r => r.path), ['/', '/api/catalog', '/api/export', '/manifest.webmanifest']);
+});
+
+test('legacy analytics configuration still enforces its configured ingestion host', async t => {
+  const cli = await isolatedVerifier(t);
+  const config = { ...readUsageAnalyticsConfig(cli.root), enabled: true, projectKey: 'phc_Fixture', origins: ['https://pocket.example.com'] };
+  await writeFile(join(cli.root, 'config/usage-analytics.json'), JSON.stringify(config));
+  const fixture = await serve(t, validResponse);
+  assert.equal(JSON.parse((await cli.verify(fixture.base)).stdout).analyticsConnections, 'allowed');
+  await writeFile(join(cli.root, 'config/usage-analytics.json'), JSON.stringify({ ...config, apiHost: 'https://blocked.example.com' }));
+  await assert.rejects(cli.verify(fixture.base), error => /CSP blocks the configured PostHog/.test(error.stderr));
+  assert.equal(fixture.requests.length, 5, 'the second check must stop at the document policy');
+});
+
+test('invalid existing analytics JSON fails without falling back, quoting contents or making requests', async t => {
+  const cli = await isolatedVerifier(t);
+  await writeFile(join(cli.root, 'config/usage-analytics.json'), 'private-canary: invalid JSON');
+  const fixture = await serve(t, validResponse);
+  await assert.rejects(cli.verify(fixture.base), error =>
+    /Invalid usage analytics JSON \(usage-analytics\.json\)/.test(error.stderr) && !error.stderr.includes('private-canary'));
+  assert.equal(fixture.requests.length, 0);
+});
 
 test('the real CLI reads four anonymous GETs, ignores curlrc credentials, and decodes compressed JSON', async t => {
   const temp = await mkdtemp(join(tmpdir(), 'pocket-public-curlrc-'));

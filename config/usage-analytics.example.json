@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "projectKey": "",
+  "apiHost": "https://us.i.posthog.com",
+  "uiHost": "https://us.posthog.com",
+  "origins": [],
+  "environment": "self-hosted"
+}

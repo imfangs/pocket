@@ -1,5 +1,0 @@
-{
-  "query": "SELECT timestamp, event, properties.environment AS environment, properties.reason AS reason, properties.note AS note, properties.feedback_id AS feedback_id, properties.thread_id AS thread_id, properties.visit_id AS visit_id, `$session_id` AS session_id, properties.$browser AS browser, properties.display_mode AS display_mode FROM events WHERE event IN ('pocket_feedback_marked', 'pocket_feedback_details') AND properties.environment = 'production' AND timestamp >= now() - INTERVAL 24 HOUR ORDER BY timestamp DESC LIMIT 20",
-  "context": "Inspect recent individual Pocket feedback records in production. This is a bounded lookup, not a count or pain-point metric. Pair marker and optional details by feedback_id; distinguish deliberate verification submissions from actual usability reports.",
-  "truncate": false
-}

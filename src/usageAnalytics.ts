@@ -1,4 +1,4 @@
-import configuredAnalytics from "../config/usage-analytics.json";
+import configuredAnalytics from "../config/usage-analytics.example.json";
 import { currentMachineId } from "./machineScope";
 import { createUsageJournal, type UsageProperties } from "./usageJournal";
 import type { PostHog } from "posthog-js";

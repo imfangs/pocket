@@ -1,5 +1,7 @@
 # Upgrade, backup and rollback
 
+Existing maintainer checkouts may still track local configuration or maintenance notes from older versions. Before the first update that removes those paths from Git, make a protected copy of the actual local files outside the checkout and verify its contents. Git can delete a clean tracked file when applying its removal, even when the new version ignores that path. Preserve the machine's `config/` files, `wrangler.jsonc`, `CURRENT.md`, `HISTORY.md` and private maintenance documents; restore the needed files at their original ignored paths after updating. Do not restore them to the index or replace them with generic examples. The privacy cleanup keeps these files in place when performed locally, but it does not run on another machine merely because that machine pulls the commit.
+
 A JSON metadata export is not a complete service backup. It excludes authentication, queued/dispatch request identities, attachments and notification state. For a complete local recovery point, snapshot the whole protected Pocket data directory and its explicit config/bridge files after quiescing all Pocket writers.
 
 1. Wait for active submissions to finish or become explicitly unconfirmed. Do not erase an unknown request or resubmit it with a different ID.

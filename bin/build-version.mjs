@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
+import { resolveUsageAnalyticsPath } from './usage-analytics-config.mjs';
 
 // Hash only explicitly public frontend inputs. No environment, credentials,
 // working history or local state enters the version file.
@@ -23,7 +24,9 @@ export function frontendVersion(root) {
   if (existsSync(join(root, 'packages/feedback-kit/THIRD_PARTY_NOTICES.md'))) add('packages/feedback-kit/THIRD_PARTY_NOTICES.md');
   if (existsSync(join(root, 'packages/feedback-kit/licenses'))) walk('packages/feedback-kit/licenses');
   for (const path of ['index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'bin/build-version.mjs']) add(path);
-  if (existsSync(join(root, 'config/usage-analytics.json'))) add('config/usage-analytics.json');
+  if (existsSync(join(root, 'bin/usage-analytics-config.mjs'))) add('bin/usage-analytics-config.mjs');
+  const analyticsPath = resolveUsageAnalyticsPath(root);
+  if (existsSync(analyticsPath)) add(relative(root, analyticsPath));
   return hash.digest('hex');
 }
 

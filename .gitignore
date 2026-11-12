@@ -39,3 +39,26 @@ connection.json.tmp
 *.local.json
 navigator-*.json
 codex-navigator-*.json
+
+# Existing operator files stay at these paths for running services and builds.
+# Commit portable examples instead of machine configuration.
+/config/desktop-bridge.json
+/config/local-service.json
+/config/pages-site.json
+/config/relay.json
+/config/tunnel-service.json
+/config/usage-analytics.json
+/wrangler.jsonc
+
+# Private continuation, research, feedback and deployment evidence.
+/CURRENT.md
+/HISTORY.md
+/.impeccable/
+/design/brand/README.md
+/docs/*
+!/docs/SELF_HOSTING.md
+!/docs/SELF_HOSTING.zh-CN.md
+!/docs/COMPATIBILITY.md
+!/docs/UPGRADING.md
+!/docs/PUBLIC_HISTORY.md
+!/docs/assets/

@@ -69,6 +69,8 @@ Cloudflare relay source is provided as an optional advanced adapter, not an acco
 
 For the legacy Quick Tunnel connector, provide your own `NAVIGATOR_RELAY_CONFIG` using `config/relay.example.json`, set `NAVIGATOR_MACHINE_ID`, and find `cloudflared` on PATH or set `CLOUDFLARED` to its exact executable. `NAVIGATOR_API_ORIGIN` can select a different bare loopback HTTP port. Registration credentials remain in the protected data directory; deployment credentials and relay namespaces are yours to provision.
 
+Machine configuration is local and ignored by Git. Existing `config/desktop-bridge.json`, `config/usage-analytics.json` and deployment files can remain at their original paths; updates must preserve them. A clean checkout uses bundled bridge discovery and the disabled `config/usage-analytics.example.json` defaults. To opt into your own browser analytics, copy that example to the ignored `config/usage-analytics.json` and configure your own project and allowed origins. Never commit this local file or enable another operator's project by default.
+
 ## User-level background service
 
 After validating the foreground service, stop it before installing the user service. No root daemon or `sudo` is needed. Commands without `--apply` show the owned installation plan.
