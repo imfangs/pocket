@@ -1,6 +1,6 @@
 # Pocket 当前状态
 
-维护日期：2026-11-12。独立CR与生命周期重构完成：2635整仓测试、146同build浏览器流程通过，核心修复均经其他审查者复验。格得API已一次保护切换到a6af18c/PID44982，原2queued及凭据／偏好保持，Codex／connector未重启。共享网页仍为上轮f5aae23／e753f4a6／Pages91deec47；本轮在上传前遇Cloudflare401，正在续期，尚未上传。豌豆本次SSH仍超时，未更新；Documents权限仍待本人。
+维护日期：2026-11-12。独立CR与生命周期重构已上线：认证App持有上传所有者，明确拒绝／unknown／ready取消恢复分开；前后台共享版本地板，读取取消贯通Mac Worker；直发与队列共用准备门槛和accepted完成政策。2635全测、146同版浏览器、409不可变API＋6临时HTTP及独立复核通过。格得APIa6af18c/PID44982，网页f532021/build4f13d753/Pagesfad7ae04；单次上传，网络失败沿原部署续验，243资源和功能通过。原2queued及凭据／偏好保持，Codex／connector未重启。豌豆SSH本次超时，最新完整包保留；Documents权限仍待本人。
 
 ## 下一次先看
 
@@ -24,13 +24,13 @@
 | 范围 | 已核对记录 |
 | --- | --- |
 | 公网与本机 | [x.fangs.cc](https://x.fangs.cc) / [threads.local](https://threads.local)；API loopback4397、连接器健康4399，配置在 `config/` |
-| 公网前端/网关源码 | 仍为上轮`f5aae23515e9d2098bb56997b556d0c46cf06a65`；本轮前端4f13d753待发布 |
+| 公网前端/网关源码 | `f532021b63d0b3cf3566abd724b00dc0f62a2efe`；本轮生命周期重构，原视觉／输入／消息身份和网络预算保持 |
 | 两机API源码 | 格得`a6af18c8ce79eeb2e22c6341d3ce69c255d3a3ad`/PID44982；豌豆最后确认`fc86637f601cc2e7024c5b80eae9250322341139`，本轮SSH超时未重新核验或切换；格得connector12894/Codex不动 |
-| 前端build | 共享公网/本地dist及格得API内置 `e753f4a697c5b869697fdaa1530d7266738292c28cbf135ca67bf334581b1d08`；豌豆内置最后确认`f9ac7165…` |
-| Pages部署 | 网页源`f5aae23515e9d2098bb56997b556d0c46cf06a65`；`91deec47-9575-4be4-9708-73e58b17a833`；单次上传exit0/ready、243/243资源/功能、独立三资源SHA一致 |
-| 本次验证 | 2577完整全绿、94同版浏览器、356不可变API与6临时HTTP；真实上传包装/PNG200与原SHA；预取/提交/存储独立CR。iPhone实际吞吐、挂起和Documents授权另验 |
-| 本次证据 | `.local/qa/upload-flow-2026-11-12/verification.json`，private-image-cache／transcript-prefetch-parallel／uploaded-envelope同日证据及原红例/设施修正；API、Pages、独立回读和清理分层保留 |
-| 本次数据与运行 | 格得API一次保护切换及网页单次上传；旧2queued/凭据/偏好/订阅保持，Codex/connector未重启，无模型发送/归档/原数据/目录授权修改。豌豆SSH超时，最新完整接续包保留；OAuth单次28scope续期，原权限不变、目标200，无未决 |
+| 前端build | 共享公网/正式dist及格得API内置 `4f13d75334e1d2ae37f4d3afab04c9cc43d42c2facda133959895ea351eeaaac`；豌豆最后确认f9ac7165…，未重新核验 |
+| Pages部署 | `fad7ae04-d873-4dcd-8d2f-fd001e38302b`；单次上传exit0，首次两项network_error后原部署resume复用241项，最终243/243与功能通过；独立version/config/App JS三资源SHA一致 |
+| 本次验证 | 2635全测、146同版浏览器、409不可变API＋6临时HTTP；前台版本／派发／session独立复验，真实Worker及HTTP取消与来源哈希保持。物理iPhone和长期弱网另验 |
+| 本次证据 | `.local/qa/architecture-cr-2026-11-12/verification.json`；standards/spec/server/reads固定hash、原红例、API与Pages回执。两个旧browser oracle的诊断和契约纠正分别保留 |
+| 本次数据与运行 | 格得API一次保护切换、网页单次上传；原2queued/凭据/偏好/订阅保持，Codex/connector不动，无真实模型发送／归档／原数据／系统权限写入。OAuth单次原28scope续期、目标200；豌豆SSH超时，无未决Pages |
 
 上述最新发布已回读完成，不重复上传。后续涉及运行维护时再查实际进程、服务配置和公网；旧发布与详细描述沿对应设计记录及[整理前快照](HISTORY.md#2026-10-23-接续整理前快照)回溯。
 
@@ -72,7 +72,7 @@
 
 - 本机项目是 `/Users/fangs/workspace/side/codex-navigator`；API用稳定`config/local-service.json`（指向不可变release）和FBT local。个人Pages更新必须用`.local/compatibility/oss-preparation-2026-11-04/pages-site-compatible.json`，它显式引导ged/wandou profile；不要裸用通用build默认local覆盖现有站点。源代码内公开模板不含私人profile。
 - 豌豆已验证SSH配置为 `/Users/fangs/.ssh/ged-yuzu.conf`，目标 `wandou`；远端根为 `/Users/fangs/workspace/projects/codex-navigator`。当前`.local/current`、私有API配置working_directory和launchd实际命令均已回读；具体版本以本页版本表为准。机器私有配置在 `.local/config/`。远端脚本用已验证 `/opt/homebrew/bin/python3.13`，测试也从bridge配置取解释器。
-- 格得当前553834b release复用原不可变依赖，324个生产包无更动；直接回退e9a5529及依赖祖先继续保留。豌豆版本本次未重新核验，最后确认fc86637。本轮切换／停机备份／逐条保护和最新远端接续包在`upload-flow-2026-11-12/api-deploy/`，旧e9转移包由新包替代，旧回执保持；清理前按实际软链重新核验，不按日期删除。
+- 格得当前a6af18c release复用原不可变依赖，324个生产包无更动；直接回退553834b及依赖祖先保留。豌豆本次未重新核验，最后确认fc86637；最新完整包从`architecture-cr-2026-11-12/api-deploy/wandou-continuation.json`接续，旧553转移包已替代。停机快照和逐条保护保留，不重复切换；清理前按实际软链核验。
 - Pages认证失败先按[FBT认证恢复](/Users/fangs/workspace/fbt/workflows/pages-site/docs/auth-recovery.md)识别生效来源与未决记录，恢复后核对上传阶段；已上传但验证未过使用原部署 `resume --resume-verification`。不要用可能隐式续期的whoami试探未知refresh。
 - 10-25历史清理：当时的临时浏览器、fixture、两次传输tar、重复baseline/fixed-dist及未启用的失败release `fa1168d…` 已清理。当时的当前/回退`0dbdf39…`、依赖与连接器release曾保留；后续引用以版本表和实际软链核验，旧清理回执在 `wandou-update-2026-10-25/final/`。旧脚本中的已删tar不是现成恢复包，继续发布须重新准备。
 - 仅文档维护检查事实、链接和diff后本地commit；不跑产品部署。功能改动的验证与受控真实发送范围遵循[QUALITY](docs/QUALITY.md)。

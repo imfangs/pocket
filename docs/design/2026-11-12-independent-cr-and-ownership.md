@@ -52,3 +52,13 @@ flowchart TB
 负例／固定源码／独立probe留在 `.local/qa/architecture-cr-2026-11-12/` 的standards、spec、server和reads目录。自动测试采用临时数据库、文件和mock原生IPC；浏览器采用正式CSP与实际App，禁止真实模型、原会话操作或系统权限修改。旧版本负例、设施时序问题、模型回归、浏览器与公网证据分开记录。
 
 最终源码、整仓／浏览器结果、发布和未决项以CURRENT及本轮verification.json为准。本轮不增加依赖、不重新设计UI、不统一清理CSS覆盖层。文件句柄授权验证去重、inline portal焦点回交的重复可在下一次相关能力修改时重开，避免同时扩大控制、读取和视觉范围。
+
+## 同日最终验证与发布
+
+完整2635项测试通过；146个同build浏览器流程由102阅读／输入／导航、38既有上传／图片缓存及6新增认证／ready取消组成。前台地板62、派发142、读取83及session78项各经非作者独立复核，真实Worker单飞／8请求取消／保cursor和真实HTTP断连均覆盖，未动来源文件／数据库。两个旧browser oracle分别要求普通queued阶段不存在的核对按钮、以及给不同body使用同revision；诊断保留，改为真实原ID GET200/accepted与生产内容签名／单调revision，再完整复验受影响场景，未降低原partial／IME／滚动断言。
+
+格得API源a6af18c一次保护切换，原2queued、凭据／偏好／订阅保持，Codex／connector不动。网页源f532021／build4f13d753／Pagesfad7ae04仅上传一次，首次241/243中两项PDF资源network_error，原部署resume复用241后243/243与功能通过；正式重build246文件与已测API内置产物逐字节一致。认证401在上传前，单次原28scope续期并核验目标200。总证据`.local/qa/architecture-cr-2026-11-12/verification.json`，源码身份和独立公网回读以CURRENT为准。
+
+豌豆本次SSH banner超时，未上传或切换，最新22,097,920字节包与SHA保留接续；Documents许可仍待本人。未测试物理iPhone吞吐／挂起／长期使用，不据合成验证宣称全部架构问题已经消失。当前入口缩到必要状态和指针，之前完整接续流水原样归档HISTORY，保留SHA与历史边界。
+
+独立公网version／config／实际App JS三资源最终200与完整字节SHA一致；App JS首次TLS握手失败0字节保留原回执，仅重试同一GET成功，未重部署。重复候选build及被替代的旧豌豆tar已清理约32MB；当前／回退API、依赖、正式dist、最新接续包和必要证据保持。
