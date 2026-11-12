@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · English
 
-> **Your Codex. In your pocket.**
+> **Your Codex, in your pocket.**
 >
 > Work keeps running on your Mac. Keep the conversation moving from your phone.
 
