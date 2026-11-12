@@ -26,6 +26,15 @@ export default defineConfig({
     replacement: resolveUsageAnalyticsPath(root),
   }] },
   plugins: [react(), versionManifest(version), {
+    name: "application-third-party-notices",
+    apply: "build",
+    generateBundle() {
+      for (const [source, fileName] of [
+        ["THIRD_PARTY_NOTICES.md", "third-party-notices.txt"],
+        ["THIRD_PARTY_LICENSES.txt", "third-party-licenses.txt"],
+      ]) this.emitFile({ type: "asset", fileName, source: readFileSync(new URL(`./${source}`, import.meta.url)) });
+    },
+  }, {
     name: "feedback-third-party-notices",
     apply: "build",
     generateBundle() {

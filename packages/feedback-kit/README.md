@@ -64,7 +64,7 @@ The names above are host-supplied values, not additional SDK exports. The defaul
 
 ## Pocket adapter and verification
 
-Pocket's host adapters live in `src/PocketFeedback.tsx`, `src/feedbackClient.ts`, and `server/feedback.mjs`, outside this module. They bind its existing authentication, PostHog notification, optional signed relay, attachments, and Codex queue. The current release/enablement state belongs to [CURRENT.md](../../CURRENT.md); source presence does not prove a running deployment or accepted feedback.
+Pocket's host adapters live in `src/PocketFeedback.tsx`, `src/feedbackClient.ts`, and `server/feedback.mjs`, outside this module. They bind its existing authentication, PostHog notification, optional signed relay, attachments, and Codex queue. Pocket's public scope and remaining verification are described in [open-source preparation](../../docs/OPEN_SOURCE_READINESS.md). Deployment-specific enablement is private maintainer state; source presence does not prove a running deployment or accepted feedback.
 
 The first integration has synthetic Chromium/WebKit mobile-size checks for capture, rectangular drawing, scrolling, draft recovery, exact retry payloads, and lifecycle races. The React fixture also runs in StrictMode. Physical iPhone motion permission, shaking, keyboard return, and long-term weak-network behavior require device checks; browser automation is not evidence for them.
 

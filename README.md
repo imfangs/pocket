@@ -2,59 +2,28 @@
 
 简体中文 · [English](README.en.md)
 
-**把自己 Mac 上的 Codex 会话带到手机。** Pocket 是可自行部署的网页/PWA：阅读对话、继续提问、发送附件，以及执行受支持的会话操作。它连接正在使用的 Codex 桌面端，沿用原会话的模型、权限和执行归属。
+**把自己 Mac 上的 Codex 会话带到手机。** Pocket 是可自行部署的网页/PWA：离开电脑后阅读回复、继续提问、发送附件，处理受支持的审批和问题。它连接已有 Codex 桌面端，沿用原会话的模型、工作目录、权限和执行归属。
 
-这是非官方项目，与 OpenAI 没有隶属或背书关系。当前源码候选为 **0.1.0-alpha.1**，采用 [MIT 许可证](LICENSE)；面向一个拥有者使用自己的 Mac 和手机，尚未正式公开发布。新 Mac 首装与实体手机的独立验收仍是发布门槛，已有部署不代表你的环境已经兼容。
+适合已经在 Mac 上使用 Codex、愿意维护自己的本机服务和 HTTPS 入口的人。当前为 **0.1.0-alpha.1** 实验源码，采用 [MIT 许可证](LICENSE)；这是非官方项目，与 OpenAI 没有隶属或背书关系。截至 2026-11-12，仓库尚未公开，未发布公共 release。
 
-## 系统怎样运转
+![Pocket 界面示意，使用合成内容展示。](docs/assets/pocket-preview.png)
 
-![Pocket 架构：手机通过用户自有 HTTPS 入口访问 Mac 上的本机 API；API 读取历史，通过桥接连接原 Codex 会话；用户数据与源码分开保存。](docs/assets/pocket-architecture.svg)
+## 能做什么，支持到哪里
 
-[可探索的架构图](docs/assets/pocket-architecture.html)可下载后在浏览器打开。
+- 阅读和搜索原会话，按项目浏览，按智能、创建或活动排序；Pocket 的关注和隐藏独立于 Codex 的置顶与归档。
+- 继续原会话、上传图片/文件，对受支持的审批与提问作答；保留原请求编号，处理待发和未知结果。
+- 查看模型设置，执行受支持的新建、改名、归档和恢复。操作是否可用取决于原桌面协议与会话占用。
+- 英文和简体中文默认跟随系统，可添加到手机主屏幕；阅读缓存和界面状态按电脑与来源隔离。
 
-1. **手机**打开 Pocket，HTTPS 入口把请求转发给你的 Mac。网页和 API 使用同一来源，登录、Host、Origin 与 CSRF 校验保护私人接口。
-2. **Mac 上的 Pocket API**只监听 `127.0.0.1`，读取本机 Codex 历史，维护自己的偏好、待发消息和附件。源码自带 Python 桥接，不依赖维护者的工具工作区。
-3. **原 Codex 桌面端**执行模型请求。Pocket 通过原会话的桌面连接发送消息；新建、改名等受支持操作使用桌面内置 CLI。Pocket 不另起模型执行器接管会话。
-4. **数据分开保存**：Codex 保留原会话，Pocket 保留自己的运行数据，浏览器缓存阅读副本。自有 HTTPS 代理是推荐入口；Cloudflare 中继属于可选高级部署，并非必需服务。
+当前支持目标是 **macOS、一个拥有者、自己的 Mac 和手机**，原生验证以 Apple Silicon 为主。Pocket 不提供模型账号或订阅，也不提供多用户权限隔离。它的待发队列与桌面队列独立，原生已读写回尚不稳定，跨手机已读同步未实现；桌面持有会话时，归档等操作可能等待。
 
-HTTPS 保护传输，但这不是应用层端到端加密：TLS 终止代理可看到经过它的内容。模型请求仍按你原本的 Codex 账号与提供方规则处理。
+独立新 Mac 首装、Intel 和实体手机上的键盘、锁屏通知及长期切网仍待验证。已有部署与合成测试提供局部证据，不能证明任意环境即装即用；这些缺口明确限定 Alpha 的支持承诺，不妨碍公开和试用实验源码。完整边界见[兼容范围](docs/COMPATIBILITY.md)。
 
-## 搭建前需要什么
+## 先在 Mac 上运行
 
-| 条件 | 要求 |
-| --- | --- |
-| Mac | macOS，保持当前用户登录、Mac 在线；原会话控制需要 Codex 桌面端运行 |
-| Codex | 已安装签名的 Codex.app，完成本人登录，并产生兼容的本机会话数据；Pocket 不提供模型账号或订阅 |
-| 运行时 | **Node.js 26.x + npm、Python 3.11+**；Python 标准库即可 |
-| 源码与网络 | 经审查的源码目录或发布包，能够从公开 npm registry 安装锁定依赖；使用 Git 克隆时需要 Git |
-| 手机入口 | 自己管理的 HTTPS 域名/反向代理，或可从手机访问的私有 Tailnet HTTPS 入口；本机试运行可以先不准备 |
-| 私人存储 | Mac 上源码目录之外的可写数据目录；代理配置、密钥和备份也按私人资料保存 |
+需要 macOS、**Node.js 26.x + npm、Python 3.11+**、已安装并登录的签名 Codex.app，以及兼容的本机会话数据。Mac 需保持在线；原会话控制需要桌面端运行。桥接代码随源码提供，无需维护者的 FBT 工作区。
 
-当前原生验证以 Apple Silicon 为主；Intel、未来 Codex 协议及其他系统的支持边界见[兼容范围](docs/COMPATIBILITY.md)。安装与构建可以由 Agent 完成；账号登录、没有现成授权的域名/网络权限和手机主屏幕安装需要本人配合。
-
-## 复制给 Agent，让它搭建
-
-把下面这段连同源码地址或本地目录交给在目标 Mac 上工作的 Agent。默认先完成本机部署；有自己的 HTTPS 入口时，再完成手机连接。
-
-```text
-请在我的 Mac 上搭建这个 README 对应的 Pocket 项目。使用我提供的仓库/发布包或本地源码目录；若缺少源码位置，先确认，不编造仓库地址。
-
-先读 README、docs/SELF_HOSTING.md、docs/COMPATIBILITY.md、PRIVACY.md 和 SECURITY.md。检查 macOS、Node.js 26.x、npm、Python 3.11+、签名 Codex 桌面端、本人登录和兼容的本机会话来源；缺少本人登录时说明必要的一步，其余可独立工作继续。
-
-使用公开 registry 执行 npm ci。核对已有 Pocket 服务与配置：保留原数据、机器 ID、来源和请求编号，不重置账号，不覆盖已有配置，不启动第二个数据写入者。新安装运行 npm run setup，数据留在默认的源码外私人目录；然后 npm run build、npm run doctor。setup 是幂等的，已有配置时新参数不会生效；更换 HTTPS 入口应明确更新 client.publicOrigin 与 deployment.publicOrigin 并保持一致。
-
-选定配置后，全程使用同一份配置：非默认配置在 npm run doctor/start 后追加 -- --config /绝对路径/config.json，service 命令也传 --config；口令维护使用同一路径的 POCKET_CONFIG。只停止自己确认归属的 Pocket 进程，保留 Codex 和其他服务。
-
-先前台启动，验证 /api/health 可用、未登录访问 /api/catalog 返回 401，并通过本人本机登录核对列表和消息读取。口令只留在本机受保护文件；回复、Git、截图和日志中只给文件位置，不给值。doctor 不验证真实发送或手机连接，分别报告结果。
-
-如我已有授权的 HTTPS 域名、反代或 Tailnet 入口，请接入同源网页/API，保持 API 的 127.0.0.1 监听与认证、Host、Origin、CSRF 校验，核对实际手机 URL 与 PWA 安装流程。缺少 DNS/证书/网络权限时只暂停该分支，交付可用的本机入口和准确待办。
-
-测试先只读；需要实际发送时使用我明确授权的测试会话和文本，结果未知先查原编号回执，不能换编号重发。前台验收后如需常驻，先用 Ctrl+C 停止前台进程，再执行 node bin/pocket.mjs service install --apply 并回读 service status；自有后台服务用 service uninstall --apply 停止并卸载，数据保留。最后报告版本、入口、配置/数据/口令文件位置、已验证与未验证项，以及停止、卸载和恢复方式；检查私人数据与配置未被 Git 跟踪。
-```
-
-## 手动快速开始
-
-在经审查的源码目录运行：
+在你取得并审查的源码目录中运行（已有安装先读[升级指南](docs/UPGRADING.md)）：
 
 ```sh
 npm ci --registry=https://registry.npmjs.org
@@ -64,48 +33,59 @@ npm run doctor
 npm start
 ```
 
-服务默认位于 `http://127.0.0.1:4397`，启动输出受保护口令文件的路径。这个地址只能在 Mac 本机使用；手机上的 `127.0.0.1` 指的是手机。
+在 **Mac 本机**打开 `http://127.0.0.1:4397`。启动输出受保护口令文件的路径；在本机读取并登录，勿将口令粘贴进公开反馈。`doctor` 检查环境与来源，不验证真实发送或手机连接。用 Ctrl+C 停止前台服务。
 
-新安装已有 HTTPS 入口时，在首次 setup 就指定它：
+默认配置保存在被 Git 忽略的 `.local/pocket/`，数据在源码外的 `~/Library/Application Support/CodexNavigator/`，原 Codex 来源为 `~/.codex/`。`setup` 不覆盖已有配置；已有配置时新参数不会生效。
+
+## 再接入手机 HTTPS
+
+手机上的 `127.0.0.1` 指的是手机。你需要自己的 HTTPS 域名/反向代理，或手机可访问的私有 Tailnet HTTPS 入口，转发到 Mac 的 `127.0.0.1:4397`。
+
+新安装已有 HTTPS 入口时，将上面的 setup 一步改为：
 
 ```sh
 npm run setup -- --public-origin https://pocket.example.com
 ```
 
-已有配置不会被这个命令覆盖。完整的反代、配置、用户级后台服务与诊断步骤见[安装指南](docs/SELF_HOSTING.zh-CN.md)及[英文完整指南](docs/SELF_HOSTING.md)。每台 Mac 使用自己的配置、数据与认证；高级多机中继需要另外配置。
+已有安装则编辑所选私人配置中的 `client.publicOrigin` 与 `deployment.publicOrigin`，使它们一致，再重启自己确认归属的 Pocket 服务。保留认证、Host、Origin、CSRF 校验及 loopback 监听。
 
-## 私人数据放在哪里
+手机打开自己的 HTTPS URL，登录后通过 Safari 的“分享 → 添加到主屏幕”或浏览器支持的安装入口使用。可复制的 Caddy 配置、验证顺序、后台服务和排障见[中文自部署指南](docs/SELF_HOSTING.zh-CN.md)／[English guide](docs/SELF_HOSTING.md)。每台 Mac 使用自己的配置、数据和认证；Cloudflare 多机中继是额外配置的高级选项。
 
-| 内容 | 默认位置 | 是否属于公开源码 |
-| --- | --- | --- |
-| Codex 原会话、历史与账号资料 | `~/.codex/` 及 Codex 自己的存储 | 否；Pocket 不将它复制成源码 |
-| Pocket 偏好、队列、回执、附件、认证与备份 | `~/Library/Application Support/CodexNavigator/` | 否；位于源码目录之外 |
-| 本机 Pocket/桥接配置与服务日志 | `.local/pocket/` | 否；整个 `.local/` 被 Git 忽略 |
-| 手机阅读缓存、界面偏好及可选反馈草稿 | 当前浏览器/PWA 的站点存储 | 否；阅读缓存可能含私人消息 |
-| 可选通知、中继、反馈或分析配置 | 自己的私人配置/数据位置 | 否；按启用服务另有传输边界 |
+## 系统怎样运转
 
-可以通过 setup 的 `--data-dir`、`--codex-home`、`--config` 选择其他位置。**自定义数据、凭据与备份应放在源码目录之外**，发布构建只包含公开资源和非秘密客户端配置。公开源码导出默认关闭分析，不带维护者部署配置或地址。
+![Pocket 架构：手机通过自有 HTTPS 入口访问 Mac 上的本机 API；API 读取历史并连接原 Codex 会话，私人数据与源码分开。](docs/assets/pocket-architecture.svg)
 
-普通未发送 Query 保留在当前页面内存；提交到待发队列之后才在 Mac 持久化。它不属于浏览器的持久阅读缓存。
+[可探索的架构图](docs/assets/pocket-architecture.html)可下载后在浏览器打开。
 
-`.gitignore` 保护常规暂存，但不能撤回已提交历史，也不能阻止 `git add -f`。分享源码应使用白名单导出，复核隐私检查和文件清单后，在新的公共仓库建立干净历史；不要把含个人运维记录的维护仓库直接设为公开。详细数据留存、浏览器缓存和第三方边界见 [PRIVACY.md](PRIVACY.md)，升级备份见 [UPGRADING.md](docs/UPGRADING.md)。
+手机 → 自有 HTTPS 入口 → Mac 上的 Pocket API → 原 Codex 桌面会话。API 只监听 loopback，读取本机历史，保存自己的偏好、待发消息和附件；模型请求仍由原 Codex 执行。Pocket 不直接改写 Codex SQLite、全局状态或 rollout，不另起执行器接管会话。
 
-## 使用与维护
+HTTPS 保护传输；TLS 终止代理可以看到经过它的内容。Pocket 没有额外的应用层端到端加密或数据静态加密，模型请求沿用原 Codex 账号与提供方规则。
 
-- 阅读、继续原会话，上传图片/文件；对受支持的审批和提问作答。
-- 搜索、项目分类、智能/创建/活动排序；Pocket 的关注和隐藏独立于 Codex 的置顶与归档。
-- 查看模型设置，执行受支持的重命名、归档和恢复；实际能力随原桌面协议与会话占用而变化。
-- 英文和简体中文，默认跟随系统；手机添加主屏幕，界面保留草稿与阅读位置。
+## 私人数据与维护
 
-开发、合成测试与审查见 [CONTRIBUTING.md](CONTRIBUTING.md)；问题报告遵循 [SECURITY.md](SECURITY.md)，只提供脱敏资料。
+| 内容 | 默认位置 |
+| --- | --- |
+| Codex 原会话、历史与账号资料 | `~/.codex/` 及 Codex 自己的存储 |
+| Pocket 偏好、队列、回执、附件和认证 | `~/Library/Application Support/CodexNavigator/` |
+| Pocket/桥接配置与服务日志 | `.local/pocket/` |
+| 阅读缓存、界面偏好及可选反馈草稿 | 当前浏览器/PWA 的站点存储 |
 
-原维护仓库保留完整迭代记录；可公开的历史副本保留代码演进与提交时间，身份、私人资料和 SHA 的变化见[历史说明](docs/PUBLIC_HISTORY.md)。旧版本用于回顾演进，安装请使用当前文档所支持的版本。
+以上均不属于公开源码。自定义数据、凭据和备份放在源码之外；已有私有配置按原路径保留，勿用 example 覆盖。普通未发送 Query 留在页面内存，提交到待发队列后才在 Mac 持久化。分析和反馈默认关闭；启用自己的服务前阅读 [PRIVACY.md](PRIVACY.md)。
 
-维护者准备可再分发源码时：
+安装与图片权限排障见[自部署指南](docs/SELF_HOSTING.zh-CN.md)，备份与恢复见[UPGRADING.md](docs/UPGRADING.md)。历史可能保留姓名、会话标识和开发记录，公开范围与旧版本边界见[PUBLIC_HISTORY.md](docs/PUBLIC_HISTORY.md)。源码导出不包含 Git 历史，也不等于全面历史匿名化或已经发布。
 
-```sh
-npm run package:source -- --out /absolute/new/pocket-source
-npm run privacy:check -- --root /absolute/new/pocket-source
+普通问题可在你有访问权限的仓库中通过 **Issues → New issue** 报告；仓库目前私有。提供版本、复现步骤和合成样本。安全问题按 [SECURITY.md](SECURITY.md) 请求私下反馈渠道，勿公开秘密或完整聊天。开发与贡献见 [CONTRIBUTING.md](CONTRIBUTING.md)，许可与依赖说明见[第三方声明](THIRD_PARTY_NOTICES.md)。
+
+## 交给 Agent 搭建
+
+将这段和你取得的源码地址或本地目录交给目标 Mac 上的 Agent：
+
+```text
+请搭建 Pocket。先读 README、docs/SELF_HOSTING.zh-CN.md、docs/COMPATIBILITY.md、PRIVACY.md 和 SECURITY.md。检查 macOS、Node.js 26.x、Python 3.11+、签名 Codex 桌面端、本人登录及来源布局。使用我提供的源码；缺少源码位置或本人登录时说明所需输入，其余独立工作继续。
+
+先核对已有服务与配置，保留原数据、认证、机器 ID、来源和请求编号，不覆盖配置或启动第二个写入者。新安装依次执行 npm ci --registry=https://registry.npmjs.org、npm run setup、npm run build、npm run doctor、npm start。非默认配置的 setup、doctor、start 全程传 -- --config /绝对路径/config.json；service 命令传 --config，口令维护使用同一路径的 POCKET_CONFIG。setup 不更新已有配置。
+
+先验证本机 /api/health、未登录 /api/catalog 返回401及登录后列表/正文读取。口令只在本机使用，对话和日志只给文件位置。如有我的既有 HTTPS 授权，完成同源反代和手机登录；保持 loopback 与认证、Host、Origin、CSRF 校验。真实发送只用我授权的测试会话，未知结果先查原回执，不能换编号重发。
+
+需要后台服务时先停止前台进程，再用 node bin/pocket.mjs service install --apply，回读 service status；停止并卸载自有后台服务用 service uninstall --apply，数据保留。最后报告版本、入口、配置/数据/口令文件位置、已验证与未验证项，以及停止、备份和恢复方式。
 ```
-
-输出目录必须尚不存在。核对输出的 `source-manifest.json`、隐私检查与[第三方声明](THIRD_PARTY_NOTICES.md)。导出成功不等于已经公开发布或完成新设备验收。

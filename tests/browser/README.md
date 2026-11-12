@@ -18,7 +18,7 @@ POCKET_TEST_BROWSERS=chromium npm run test:browser
 POCKET_BROWSER_OUTPUT=.local/qa/my-check npm run test:browser
 ```
 
-Fourteen flows run in each engine:
+The suite includes these core flows in Chromium and WebKit:
 
 - list → conversation → return, and new-query autofocus;
 - information loading geometry and repeated-open caching;
@@ -34,6 +34,8 @@ Fourteen flows run in each engine:
 - editing, cancelled swipes and neutral touch return under both motion preferences;
 - keyboard return focus and immediate reopening of another conversation;
 - return callbacks that do not steal focus from newly opened search or dialogs.
+
+Additional scenarios cover authentication ownership, version floors, current questions, attachment recovery, file/image/HTML previews and newer cached-source handoffs. The runner selects the current test files; this guide does not freeze the suite to an old scenario count.
 
 The send scenarios keep one DOM row through pending, accepted, exact echo and an old queue snapshot. History tests keep the same scroll root and ensure prepared results do not override newer reading/input intent. Return-focus scenarios use Chromium native CDP touch input and WebKit synthetic touch events; the other touch scenarios use synthetic events. These exercise the actual event bindings without establishing physical iPhone keyboard, inertia or PWA behavior.
 

@@ -2,59 +2,28 @@
 
 [简体中文](README.md) · English
 
-**Bring your Mac's Codex conversations to your phone.** Pocket is a self-hosted web app/PWA for reading conversations, continuing work, sending attachments and using supported conversation actions. It connects to your existing Codex desktop app and preserves the original conversation's model, permissions and execution owner.
+**Bring your Mac's Codex conversations to your phone.** Pocket is a self-hosted web app/PWA for reading replies away from your desk, continuing work, sending attachments, and handling supported approvals and questions. It connects to your existing Codex desktop app and preserves the conversation's model, working directory, permissions and execution owner.
 
-This is an unofficial project, unaffiliated with and not endorsed by OpenAI. The source candidate is **0.1.0-alpha.1**, under the [MIT license](LICENSE), for one owner using their own Mac and phone. It has not been publicly released. Independent first-install and physical-phone acceptance remain release requirements; an existing deployment does not certify yours.
+For people who already use Codex on a Mac and are comfortable maintaining a local service and their own HTTPS entry. This is **0.1.0-alpha.1** experimental source under the [MIT license](LICENSE), unofficial and unaffiliated with OpenAI. As of 2026-11-12, the repository is private and no public release has been published.
 
-## How it works
+![Pocket interface illustration using synthetic content.](docs/assets/pocket-preview.png)
 
-![Pocket architecture: the phone reaches a loopback Mac API through your HTTPS entry; the API reads history and bridges to the original Codex desktop conversation, with private data separate from source.](docs/assets/pocket-architecture.svg)
+## What it does and where it works
 
-Download the [interactive architecture diagram](docs/assets/pocket-architecture.html) and open it in a browser to explore it.
+- Read and search original conversations, browse projects, and sort by smart rank, creation or activity. Pocket following/hiding is independent of Codex pinning/archiving.
+- Continue original conversations, upload images/files, and respond to supported approvals and questions, retaining request identities and handling queued or unconfirmed results.
+- Inspect model settings and use supported creation, rename, archive and restore actions. Availability depends on the original desktop protocol and conversation ownership.
+- English and Simplified Chinese follow your system by default. Add Pocket to your phone's home screen; reading caches and UI state are scoped by computer and source.
 
-1. **Your phone** opens Pocket. Your HTTPS entry forwards same-origin web and API requests to your Mac. Login, Host, Origin and CSRF checks protect private endpoints.
-2. **The Pocket API on your Mac** listens only on `127.0.0.1`, reads local Codex history, and stores its own preferences, pending messages and attachments. Python bridge modules are included; the maintainer's tool workspace is unnecessary.
-3. **Your original Codex desktop app** executes model requests. Pocket sends through the conversation's desktop connection; supported creation and metadata actions use the app's bundled CLI. It does not start a second model executor to take over your conversations.
-4. **Storage stays separate**: Codex owns original conversations, Pocket owns its runtime data, and the browser holds reading copies. Your HTTPS proxy is the recommended entry. The optional Cloudflare relay is an advanced deployment adapter, not a required service.
+The current target is **macOS, one owner, their own Mac and phone**. Native evidence is primarily Apple Silicon. Pocket provides no model account or subscription and no multi-user permission isolation. Its outbox is separate from the desktop queue; native read-state writeback is not reliable, and cross-phone read synchronization is unavailable. Desktop-held conversations can leave operations such as archiving waiting.
 
-HTTPS secures transport, but this is not application-level end-to-end encryption: the TLS-terminating proxy can see content passing through it. Model requests follow your existing Codex account and provider policies.
+Independent first installation on a new Mac, Intel support, and physical-phone keyboard, lock-screen notification and long-running network recovery checks remain unverified. Existing deployments and synthetic tests provide partial evidence, not universal installability. These gaps limit the Alpha support claim; they do not prevent publishing or trying experimental source. See [compatibility](docs/COMPATIBILITY.md).
 
-## Prerequisites
+## Start on your Mac
 
-| Requirement | What you need |
-| --- | --- |
-| Mac | macOS, an active user login and a reachable, awake Mac; original-owner control needs the Codex desktop app running |
-| Codex | A signed Codex.app, your own completed login and compatible local conversation data; Pocket provides no model account or subscription |
-| Runtime | **Node.js 26.x + npm, Python 3.11+**; Python's standard library is sufficient |
-| Source and network | A reviewed source directory or release package, plus access to the public npm registry for locked dependencies; Git if cloning |
-| Phone route | Your HTTPS domain/reverse proxy or phone-accessible private Tailnet HTTPS entry; optional for initial Mac-only setup |
-| Private storage | A writable data directory outside the source checkout; keep proxy configuration, credentials and backups private too |
+You need macOS, **Node.js 26.x + npm, Python 3.11+**, a signed, installed and signed-in Codex.app, and compatible local conversation data. Keep the Mac online; original-owner controls require the desktop app running. Bridge code is included; the maintainer's FBT workspace is unnecessary.
 
-Current native evidence is primarily Apple Silicon. See [compatibility](docs/COMPATIBILITY.md) for Intel, future desktop protocols and other platform boundaries. An Agent can install and build; account login, unavailable DNS/network permissions and home-screen installation require your participation.
-
-## Copy this to your Agent
-
-Give this prompt and the source URL or local path to an Agent working on the target Mac. It should complete local setup first, then phone access when your HTTPS entry is available.
-
-```text
-Set up the Pocket project described by this README on my Mac. Use the repository, reviewed release package or local source directory I provide. If the source location is missing, ask for it; do not invent a repository URL.
-
-Read README, docs/SELF_HOSTING.md, docs/COMPATIBILITY.md, PRIVACY.md and SECURITY.md first. Check macOS, Node.js 26.x, npm, Python 3.11+, the signed Codex desktop app, my completed login and compatible local conversation data. If my login is required, identify that step and continue independent work.
-
-Run npm ci against the public registry. Inspect existing Pocket services and configuration first: preserve data, machine IDs, origins and request identities, retain credentials, and avoid overwriting configuration or starting a second data writer. For a new installation, run npm run setup with its default private data directory outside source, then npm run build and npm run doctor. Setup is idempotent: new flags do not update existing configuration. For a changed HTTPS entry, explicitly update client.publicOrigin and deployment.publicOrigin together.
-
-Use the same selected configuration throughout: append -- --config /absolute/config.json to npm run doctor/start for a nondefault config, pass --config to service commands, and use the same path in POCKET_CONFIG for password maintenance. Stop only Pocket processes whose ownership you have verified; preserve Codex and other services.
-
-Start in the foreground. Verify /api/health, confirm an unauthenticated /api/catalog request returns 401, then verify list and message reads after my local login. Keep the passphrase in its protected local file; provide only its location in replies, Git, screenshots or logs. Doctor does not test real sending or phone connectivity; report those separately.
-
-If I have an authorized HTTPS domain, proxy or private Tailnet entry, connect same-origin web and API routes, retaining loopback binding, authentication and Host/Origin/CSRF checks. Verify the actual phone URL and PWA installation flow. If DNS, certificate or network permissions are missing, pause only that branch and deliver the working local entry plus the exact remaining step.
-
-Use read-only acceptance first. Send only to a test conversation with text I explicitly authorize; if the result is unknown, check the original receipt before any retry and never resubmit with a new ID. If a background service is needed after foreground acceptance, stop the foreground process with Ctrl+C, run node bin/pocket.mjs service install --apply, and read back service status. Use service uninstall --apply to stop and remove its owned background service while retaining data. Report the version, URLs, config/data/passphrase-file paths, verified and unverified checks, and stop/uninstall/recovery instructions. Verify that private data and configuration are not Git-tracked.
-```
-
-## Manual quick start
-
-From your reviewed source directory:
+From source you have obtained and reviewed (existing installations should read [the upgrade guide](docs/UPGRADING.md) first):
 
 ```sh
 npm ci --registry=https://registry.npmjs.org
@@ -64,48 +33,59 @@ npm run doctor
 npm start
 ```
 
-The default service is `http://127.0.0.1:4397`. Startup reports the protected local passphrase-file path. This address works on the Mac; on a phone, `127.0.0.1` refers to the phone itself.
+Open `http://127.0.0.1:4397` **on the Mac**. Startup reports the protected passphrase-file location; read it locally and sign in. Keep its value out of public reports. `doctor` checks the environment and source, not real sending or phone connectivity. Stop the foreground process with Ctrl+C.
 
-For a new installation with an existing HTTPS entry, specify it during the first setup:
+Configuration is written to Git-ignored `.local/pocket/`, data defaults to the source-external `~/Library/Application Support/CodexNavigator/`, and original Codex source defaults to `~/.codex/`. `setup` preserves existing configuration; new flags do not update it.
+
+## Connect your phone over HTTPS
+
+On a phone, `127.0.0.1` refers to the phone. Use your own HTTPS domain/reverse proxy or a phone-accessible private Tailnet HTTPS entry forwarding to the Mac's `127.0.0.1:4397`.
+
+If your HTTPS entry is ready for a new installation, replace the setup step above with:
 
 ```sh
 npm run setup -- --public-origin https://pocket.example.com
 ```
 
-This command does not overwrite existing configuration. See [the self-hosting guide](docs/SELF_HOSTING.md) for proxies, configuration, user services and diagnostics. Each Mac owns its configuration, data and authentication; the advanced multi-machine relay requires additional setup.
+For an existing installation, edit the selected private config so `client.publicOrigin` and `deployment.publicOrigin` agree, then restart the Pocket service whose ownership you have verified. Retain authentication, Host, Origin, CSRF checks and loopback binding.
 
-## Where private data lives
+Open your HTTPS URL on the phone, sign in, and use Safari's Share → Add to Home Screen or the browser's supported install action. The [self-hosting guide](docs/SELF_HOSTING.md) / [中文指南](docs/SELF_HOSTING.zh-CN.md) provides a Caddy example, verification steps, background-service commands and troubleshooting. Each Mac owns its configuration, data and authentication; the optional Cloudflare multi-machine relay requires additional setup.
 
-| Data | Default location | Part of public source? |
-| --- | --- | --- |
-| Original Codex conversations, history and account material | `~/.codex/` and Codex's own storage | No; Pocket does not package it as source |
-| Pocket preferences, outbox, receipts, attachments, authentication and backups | `~/Library/Application Support/CodexNavigator/` | No; outside the source directory |
-| Local Pocket/bridge configuration and service logs | `.local/pocket/` | No; all of `.local/` is Git-ignored |
-| Phone reading cache, UI preferences and optional feedback drafts | The browser/PWA's site storage | No; reading caches may contain private messages |
-| Optional push, relay, feedback or analytics configuration | Your private configuration/data locations | No; enabled integrations have separate transmission boundaries |
+## How it works
 
-Setup accepts `--data-dir`, `--codex-home` and `--config` overrides. **Keep custom data, credentials and backups outside the source checkout.** Public builds contain public assets and non-secret client configuration. Source export disables analytics by default and excludes the maintainer's deployment configuration and addresses.
+![Pocket architecture: a phone reaches a loopback Mac API through the owner's HTTPS entry; the API reads history and connects to the original Codex conversation, with private data separate from source.](docs/assets/pocket-architecture.svg)
 
-Ordinary unsent Query text stays in the current page's memory; once queued, it is persisted on the Mac. It is separate from the browser's persistent reading cache.
+Download the [interactive architecture diagram](docs/assets/pocket-architecture.html) and open it in a browser.
 
-`.gitignore` protects routine staging; it cannot erase committed history or prevent `git add -f`. Redistribute through the source allowlist, review the privacy check and manifest, then create a fresh public repository. Do not make a maintenance repository containing personal operations history public. See [PRIVACY.md](PRIVACY.md) for retention, browser storage and third-party boundaries, and [UPGRADING.md](docs/UPGRADING.md) for backups and rollback.
+Phone → your HTTPS entry → Pocket API on the Mac → original Codex desktop conversation. The loopback API reads local history and stores its own preferences, outbox and attachments; Codex still executes model requests. Pocket does not directly rewrite Codex SQLite, global state or rollouts, or start a replacement executor to take over a conversation.
 
-## Use and maintain
+HTTPS protects transport; the TLS-terminating proxy can see content passing through it. Pocket adds no application-level end-to-end or at-rest encryption. Model requests follow your existing Codex account and provider policies.
 
-- Read and continue original conversations, upload images/files, and respond to supported approvals and questions.
-- Search, browse projects and sort by smart rank, creation or activity. Pocket following/hiding remains independent of Codex pinning/archiving.
-- Inspect model settings and use supported rename/archive/restore actions; availability depends on the original desktop protocol and conversation ownership.
-- English and Simplified Chinese follow your system by default. Install to your phone's home screen while retaining drafts and reading position.
+## Private data and maintenance
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development, synthetic tests and review. Follow [SECURITY.md](SECURITY.md) for issue reporting and supply sanitized evidence only.
+| Data | Default location |
+| --- | --- |
+| Original Codex conversations, history and account material | `~/.codex/` and Codex's own storage |
+| Pocket preferences, outbox, receipts, attachments and authentication | `~/Library/Application Support/CodexNavigator/` |
+| Pocket/bridge configuration and service logs | `.local/pocket/` |
+| Reading cache, UI preferences and optional feedback drafts | Browser/PWA site storage |
 
-The private maintenance repository retains the complete original history. The prepared public-history copy preserves code evolution and dates; see [the history notice](docs/PUBLIC_HISTORY.md) for changed identities, private content and hashes. Older revisions document evolution; install the version supported by the current guide.
+None of these belongs in public source. Keep custom data, credentials and backups outside the checkout. Preserve existing private configuration at its original paths; do not overwrite it with examples. Ordinary unsent Query text stays in page memory; queued submissions persist on the Mac. Analytics and feedback are disabled by default; read [PRIVACY.md](PRIVACY.md) before configuring your own integrations.
 
-To prepare redistributable source:
+See [self-hosting](docs/SELF_HOSTING.md) for installation and image-permission troubleshooting, and [UPGRADING.md](docs/UPGRADING.md) for backups and recovery. History may retain names, conversation identifiers and development records; [PUBLIC_HISTORY.md](docs/PUBLIC_HISTORY.md) explains the disclosure and older-version boundaries. Source export contains no Git history and is not comprehensive historical anonymization or publication.
 
-```sh
-npm run package:source -- --out /absolute/new/pocket-source
-npm run privacy:check -- --root /absolute/new/pocket-source
+Report ordinary bugs through the repository’s **Issues → New issue** when you have access; the repository is currently private. Include the version, reproduction steps and synthetic examples. Follow [SECURITY.md](SECURITY.md) to request a private channel for security reports; keep secrets and full conversations out of public issues. See [CONTRIBUTING.md](CONTRIBUTING.md) for development and [third-party notices](THIRD_PARTY_NOTICES.md) for dependencies.
+
+## Give setup to an Agent
+
+Give this prompt and your source URL or local path to an Agent working on the target Mac:
+
+```text
+Set up Pocket. Read README, docs/SELF_HOSTING.md, docs/COMPATIBILITY.md, PRIVACY.md and SECURITY.md. Check macOS, Node.js 26.x, Python 3.11+, the signed Codex desktop app, my login and compatible source layout. Use the source I provide. Identify missing source access or account login while continuing independent work.
+
+Inspect existing services and configuration first. Preserve data, authentication, machine IDs, origins and request identities; do not overwrite config or start a second writer. For a new installation run npm ci --registry=https://registry.npmjs.org, npm run setup, npm run build, npm run doctor, then npm start. Carry -- --config /absolute/config.json through nondefault setup, doctor and start commands, --config through service commands, and the same POCKET_CONFIG through password maintenance. Setup does not update an existing config.
+
+Verify local /api/health, unauthenticated /api/catalog returning 401, and authenticated list/message reads. Use the passphrase locally; report only its file location. If I have authorized HTTPS access, configure the same-origin proxy and phone login, retaining loopback, authentication, Host, Origin and CSRF checks. Real sends use only a test conversation I authorize. Check the original receipt for unknown results; never replay with a new ID.
+
+If a background service is needed, stop the foreground instance, run node bin/pocket.mjs service install --apply and read back service status. Use service uninstall --apply to stop/remove the owned background instance while retaining data. Report version, URLs, config/data/passphrase-file locations, verified and unverified results, and stop/backup/recovery instructions.
 ```
-
-The output directory must not already exist. Review `source-manifest.json`, the privacy check and [third-party notices](THIRD_PARTY_NOTICES.md). Export success is not a public release or clean-device acceptance.

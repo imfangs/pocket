@@ -1,0 +1,3 @@
+# License evidence includes original CRLF and trailing bytes referenced by SHA.
+THIRD_PARTY_LICENSES.txt -text -whitespace
+vendor/license-evidence/*.txt -text -whitespace

@@ -12,7 +12,7 @@ Source contracts: `docs/SELF_HOSTING.md`, `PRIVACY.md`, `bin/pocket.mjs`, `serve
 
 Generated with [Archify 2.17](https://github.com/tt-a1i/archify). Its viewer/runtime is covered by the included [MIT license](ARCHIFY-LICENSE.txt). HTML and SVG embed JetBrains Mono subsets with their complete [SIL OFL 1.1 license](JetBrainsMono-OFL.txt); they need no external font server. The diagram uses semantic icons rather than third-party brand marks.
 
-With the matching Archify version installed, validate then deliver the JSON as an architecture diagram with `--quality showcase`. Export SVG through the delivered viewer's Export → SVG action, which cleans runtime interaction state and includes its styles/fonts. The checked-in SVG additionally normalizes CSS line-ending whitespace; its DOM and all non-whitespace CSS content remain identical to the canonical export. Recheck generated files before committing; do not publish screenshots, local paths, service receipts or unreviewed exports.
+With the matching Archify version installed, validate then deliver the JSON as an architecture diagram with `--quality showcase`. Export SVG through the delivered viewer's Export → SVG action, which cleans runtime interaction state and includes its styles/fonts. The checked-in SVG additionally normalizes CSS line-ending whitespace; its DOM and all non-whitespace CSS content remain identical to the canonical export. Recheck generated files before committing; do not publish screenshots of private user content, local paths, service receipts or unreviewed exports. Product previews may use the actual application with synthetic conversations and a generic single-Mac profile, without real user session or account data.
 
 ## Verification · 2026-11-04
 
@@ -23,3 +23,7 @@ Deterministic validation passed all 9 showcase checks with zero composition erro
 | JSON | `c6373066bd8b130b446b209ba7f9e3fc9fdd14a50108d243d41df5b78b979da9` |
 | HTML | `512fe48b9d523000f02f1ad7e31c0c71095a223471f8b5dfd351ac779bff2f80` |
 | SVG | `d6a811a7f7392618bd2a1b2a1c01cc1ebd36011b2edbb0cb852a4eca36e481f7` |
+
+## Product preview · 2026-11-12
+
+[pocket-preview.png](pocket-preview.png) shows the compiled Pocket UI on a generic single-Mac profile, with synthetic task IDs, questions and replies. No real conversation, account, feedback or model request is used. Reproduce with a built application by setting `POCKET_BROWSER_DIST` to its absolute directory and running `node bin/capture-preview.mjs`; the existing Playwright Chromium engine is required. The illustration is interface evidence, not proof of an independent phone installation or external adoption.

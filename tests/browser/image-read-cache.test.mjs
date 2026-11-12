@@ -258,7 +258,10 @@ for (const engine of engines) {
       if (record.query) return false; record.status = 401; await route.fulfill({ status: 401, contentType: 'application/json', headers: { 'X-Pocket-Machine': record.machine }, body: JSON.stringify({ error: 'Synthetic auth expired' }) }); return true;
     });
     await readyImage(page, '.attachment-preview img', 160); await until(() => readDisk(page), values => values.length === 1);
-    await openUpload(page); await page.locator('.access-screen input[type="password"]').waitFor(); assert.equal(await viewer(page).count(), 0);
+    // A fast 401 can remove the viewer before it ever becomes visible. Verify
+    // the final authentication boundary, not that transient dialog state.
+    await page.locator('.attachment-card[aria-haspopup="dialog"]').first().click();
+    await page.locator('.access-screen input[type="password"]').waitFor(); assert.equal(await viewer(page).count(), 0);
     assert.deepEqual(await until(() => readDisk(page), values => values.length === 0), []);
     const receipts = await page.evaluate(() => window.imageCacheUrls); assert.ok(receipts.created.every(value => receipts.revoked.includes(value.url)));
     evidence.originalStatus = reads.at(-1).status; evidence.diskAfter401 = 0; evidence.allUrlsRevoked = true;

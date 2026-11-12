@@ -1,0 +1,15 @@
+{
+  "packages": [
+    {
+      "name": "http_ece",
+      "version": "1.2.0",
+      "file": "vendor/license-evidence/http_ece-1.2.0-LICENSE.txt",
+      "sha256": "717363ac0c7f0883042868db171cfed1f4b423119249eac9bce5131291017ea8",
+      "evidence": {
+        "kind": "immutable upstream repository license",
+        "url": "https://raw.githubusercontent.com/martinthomson/encrypted-content-encoding/0562510a30819f52424724a6fd5504becacd98a1/LICENSE",
+        "gitHead": "0562510a30819f52424724a6fd5504becacd98a1"
+      }
+    }
+  ]
+}

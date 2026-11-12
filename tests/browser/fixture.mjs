@@ -181,6 +181,11 @@ export async function createHarness(engine, { history = false, width = 390, visi
       addInitScript: (script, argument) => context.addInitScript(script, argument),
       count: action => calls.filter(call => call.action === action).length,
       metadata(threadId = ids.regular, machine = clientConfiguration.defaultMachine) { return { ...projectThread(state(threadId, machine), machine), runtime: state(threadId, machine).runtime }; },
+      seedThread(threadId, { title, messages }, machine = clientConfiguration.defaultMachine) {
+        const thread = state(threadId, machine);
+        if (title !== undefined) thread.title = title;
+        if (messages !== undefined) thread.messages = messages;
+      },
       setRuntime(threadId, runtime, machine = clientConfiguration.defaultMachine) {
         assert.ok(['idle', 'running', 'waiting_input', 'waiting_approval', 'unknown'].includes(runtime));
         state(threadId, machine).runtime = runtime;

@@ -37,9 +37,12 @@ test('the exported source bootstraps without private configuration, FBT or autho
   assert.deepEqual(JSON.parse(readFileSync(join(source,'config/desktop-bridge.json'),'utf8')),{python:'python3'});
   assert.ok(!existsSync(join(source,'config/pages-site.json')) && !existsSync(join(source,'CURRENT.md')));
   const config=join(directory,'config','pocket.json'), data=join(directory,'data'), codex=join(directory,'codex');mkdirSync(codex);
+  // This child is a fresh installation; the caller's machine/CI bridge is
+  // deliberately outside the exported source being verified.
+  const env={...process.env};delete env.NAVIGATOR_BRIDGE_CONFIG;
   const args=[join(source,'bin/pocket.mjs'),'setup','--config',config,'--data-dir',data,'--codex-home',codex,'--public-origin','https://pocket.example.com'];
-  const first=JSON.parse(execFileSync(process.execPath,args,{cwd:source,encoding:'utf8'}));assert.equal(first.created,true);
-  const next=JSON.parse(execFileSync(process.execPath,args,{cwd:source,encoding:'utf8'}));assert.equal(next.created,false);
+  const first=JSON.parse(execFileSync(process.execPath,args,{cwd:source,env,encoding:'utf8'}));assert.equal(first.created,true);
+  const next=JSON.parse(execFileSync(process.execPath,args,{cwd:source,env,encoding:'utf8'}));assert.equal(next.created,false);
   const value=JSON.parse(readFileSync(config,'utf8')), bridge=JSON.parse(readFileSync(value.bridgeConfig,'utf8'));
   assert.equal(value.client.defaultMachine,'local');assert.equal(value.deployment.minimumPassphraseLength,12);
   assert.ok(bridge.ipcModuleDirectory.startsWith(realpathSync(source)) && bridge.metadataModuleDirectory.startsWith(realpathSync(source)));

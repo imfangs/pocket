@@ -25,6 +25,8 @@ export function frontendVersion(root) {
   if (existsSync(join(root, 'packages/feedback-kit/licenses'))) walk('packages/feedback-kit/licenses');
   for (const path of ['index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'bin/build-version.mjs']) add(path);
   if (existsSync(join(root, 'bin/usage-analytics-config.mjs'))) add('bin/usage-analytics-config.mjs');
+  for (const path of ['THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_LICENSES.txt'])
+    if (existsSync(join(root, path))) add(path);
   const analyticsPath = resolveUsageAnalyticsPath(root);
   if (existsSync(analyticsPath)) add(relative(root, analyticsPath));
   return hash.digest('hex');

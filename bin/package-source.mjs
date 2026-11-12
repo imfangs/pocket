@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { isMain } from './is-main.mjs';
 import { privateSourceMarkers, privateSourcePathReason, sourcePrivacyFindings, publicSourceDocumentationPaths } from './source-privacy.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
-const top=new Set(['package.json','package-lock.json','.npmrc','.gitignore','.node-version','tsconfig.json','vite.config.ts','index.html','LICENSE','CONTRIBUTING.md','SECURITY.md','PRIVACY.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_DEPENDENCIES.json','THIRD_PARTY_LICENSES.txt']);
+const top=new Set(['package.json','package-lock.json','.npmrc','.gitignore','.gitattributes','.node-version','tsconfig.json','vite.config.ts','index.html','LICENSE','CONTRIBUTING.md','SECURITY.md','PRIVACY.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_DEPENDENCIES.json','THIRD_PARTY_LICENSES.txt']);
 const docs=publicSourceDocumentationPaths;
 const prefixes=['src/','server/','shared/','bin/','edge/','public/','vendor/','packages/','.github/','tests/'];
 const digest=value=>createHash('sha256').update(value).digest('hex');

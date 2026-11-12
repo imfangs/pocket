@@ -1,22 +1,25 @@
-# About the sanitized history candidate
+# Source and history disclosure
 
-Pocket's public-history candidate preserves the project's code evolution while removing private deployment and operational material. It is a local preparation artifact, not evidence that a GitHub repository or release is already public. The original maintenance repository and its complete history remain private and intact.
+As of **2026-11-12**, Pocket is in open-source preparation. The repository is private and no public release has been published. Local exports, review receipts and earlier filtered-history experiments are preparation artifacts, not publication evidence.
 
-The initial import keeps all 365 existing commits in their original chronological chain. Author and committer timestamps are retained. Identities are generalized to `Pocket contributors <contributors@example.invalid>`; commit hashes change because file trees, metadata and parent hashes change.
+## Current source and local files
 
-Of those initial commits, 178 have an unchanged public file tree after filtering. They preserve iteration events whose changes belonged to private documentation or operations; they are not 178 additional public code changes.
+Current source excludes private maintenance documents and machine deployment configuration. Those files can remain on a maintainer's disk at their original ignored paths for existing services. A file existing locally does not mean it is tracked or exported. Public documentation is selected by `publicSourceDocumentationPaths` in `bin/source-privacy.mjs`; runtime data, credentials and `.local/` stay outside source packages.
 
-The history transformation:
+`npm run package:source -- --out /absolute/new/pocket-source` exports an allowlisted snapshot with generic configuration and disabled analytics. It does not copy `.git`, push a remote or change repository visibility. The manifest identifies the source commit and whether the checkout had changes; it is not a history sanitization certificate.
 
-- keeps historical source paths, including code that was later renamed or deleted;
-- removes private configuration, operational notes, working data and evidence;
-- substitutes known private domains, paths, infrastructure identifiers and internal registry references;
-- disables historical telemetry configuration instead of directing it to the maintainer's project;
-- preserves third-party license texts and checks retained archives and image metadata;
-- retains commits that become empty after private material is removed, rather than silently deleting their place in the timeline.
+Existing installations must preserve local files before pulling a revision that removes previously tracked paths. See [UPGRADING.md](UPGRADING.md).
 
-A separate preparation commit aligns the current tree with the reviewed self-hosted source, including generic configuration, bundled bridges, installation documentation and this notice. That does not imply older commits were independently installable or had these capabilities. Use the current documented version to install; historical versions are an account of evolution, not a supported installation matrix.
+## Historical material
 
-The private old-to-new commit map and exact replacement rules are not distributed. Only the rewritten public history belongs in a public remote. Local filter receipts, old refs, reflogs and original objects must be excluded from that distribution; the original repository must never be pushed to the new public remote.
+Removing a file from the current tree does not remove it from older commits. Historical commits may retain contributor names/email addresses, local paths, deployment identifiers, real conversation IDs/links, development feedback, internal platform URLs and older registry references. These known historical disclosures were accepted during preparation; comprehensive historical anonymization or a full history rewrite is not a requirement for sharing experimental source.
 
-Verification covers known private markers, file boundaries, commit metadata and Git object retention. It is not a certification that every possible private fact or arbitrary secret can be detected automatically. Release acceptance, original desktop compatibility, real-phone installation and unresolved license checks remain separate requirements.
+That acceptance does not include live credentials, complete private conversations or unrelated company/customer material. New findings outside the accepted scope require their own review. Known-value/path checks do not detect every possible secret, and `.gitignore` cannot erase committed bytes.
+
+Older documents and commit messages describe decisions at their original dates. References to personal deployments, internal systems, earlier release plans or stricter historical cleanup proposals do not promise that those services or procedures are available to readers now. Historical revisions are an account of development, not a supported installation matrix; use current installation and compatibility documentation.
+
+## Earlier filtered-history experiments
+
+Earlier local candidates generalized commit identities, filtered private paths and substituted selected values while retaining chronological events, including commits whose public trees became unchanged. Rewriting trees, metadata or parents changes commit hashes. Those experiments remain distinct artifacts; do not assume they are the eventual published history or claim all histories were fully anonymized.
+
+A source snapshot and a repository with history are different deliverables. A future distribution should state which one it contains and review that actual artifact. Publishing, pushing and changing visibility require a separate authorized action; none is performed by this preparation document.

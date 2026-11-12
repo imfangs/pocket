@@ -13,7 +13,9 @@
     "setup": "node bin/pocket.mjs setup",
     "doctor": "node bin/pocket.mjs doctor",
     "package:source": "node bin/package-source.mjs",
-    "privacy:check": "node bin/privacy-check.mjs"
+    "privacy:check": "node bin/privacy-check.mjs",
+    "licenses:check": "node bin/dependency-notices.mjs --check",
+    "licenses:update": "node bin/dependency-notices.mjs --update"
   },
   "dependencies": {
     "@annotorious/annotorious": "3.9.5",

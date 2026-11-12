@@ -2,7 +2,7 @@
 
 Pocket is a mobile and browser continuation surface for the original Codex desktop owner. The repository and on-device data retain the `codex-navigator` / `CodexNavigator` compatibility names.
 
-Read `README.md`, `SECURITY.md`, `PRIVACY.md` and `docs/SELF_HOSTING.md` before changing installation or data boundaries. On an existing maintainer checkout, also read `.local/maintenance/AGENTS.md` and `CURRENT.md` when present: they hold private continuation notes, the last verified deployment and unresolved operational work. Those local notes are not required for a fresh source checkout.
+Read `README.md`, `SECURITY.md`, `PRIVACY.md`, `docs/DEVELOPMENT.md`, `docs/OPEN_SOURCE_READINESS.md` and `docs/SELF_HOSTING.md` before changing installation or data boundaries. On an existing maintainer checkout, also read `.local/maintenance/AGENTS.md` and `CURRENT.md` when present: they hold private continuation notes, the last verified deployment and unresolved operational work. Those local notes are not required for a fresh source checkout.
 
 ## Ownership and data
 
@@ -20,4 +20,4 @@ Read `README.md`, `SECURITY.md`, `PRIVACY.md` and `docs/SELF_HOSTING.md` before 
 - Use `node .github/scripts/test-synthetic.mjs` for a checkout without an installed supported desktop. Read `docs/COMPATIBILITY.md` before claiming native or real-phone acceptance.
 - Preserve existing local services and configuration while working. Use temporary fixtures for experiments; do not restart Codex or production services merely to make tests pass.
 - Inspect the exact diff, keep unrelated changes out, and create a local completion commit after necessary verification. Publishing the website, pushing Git or changing repository visibility are separate actions.
-- This working tree can be cleaned while older private information remains in Git history. Do not make the maintenance repository public without separately reviewing and sanitizing that history.
+- Review Git history separately from the working tree. Apply the owner's accepted disclosure boundary to previously reviewed identifiers and development notes; sanitize credentials or material outside that boundary. Historical anonymization is not an unconditional publication requirement.

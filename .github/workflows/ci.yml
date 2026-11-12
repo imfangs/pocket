@@ -35,6 +35,8 @@ jobs:
           python-version: '3.14'
       - name: Install the public locked dependency graph
         run: npm ci --registry=https://registry.npmjs.org --audit=false --fund=false
+      - name: Check the locked dependency license inventory
+        run: npm run licenses:check
       - name: Check the public source privacy boundary
         run: |
           npm run package:source -- --out .local/ci/public-source
@@ -50,17 +52,20 @@ jobs:
           const config = readBridgeConfig();
           config.python = execFileSync('python3', ['-c', 'import sys;print(sys.executable)'], { encoding: 'utf8' }).trim();
           if (!existsSync(config.ipcModuleDirectory)) throw new Error('The public desktop IPC module is not present');
+          config.appPath = resolve('.local/ci/no-installed-desktop.app');
+          if (existsSync(config.appPath)) throw new Error('Synthetic CI must not use an installed desktop');
           mkdirSync('.local/ci', { recursive: true });
           const target = resolve('.local/ci/bridge.json');
           writeFileSync(target, JSON.stringify(config), { mode: 0o600 });
           appendFileSync(process.env.GITHUB_ENV, `NAVIGATOR_BRIDGE_CONFIG=${target}\n`);
           JS
+      # The synthetic PDF/SVG contract also launches Chromium.
+      - name: Install the locked browser engines
+        run: ./node_modules/.bin/playwright install chromium webkit
       - name: Synthetic Node and Python contracts
         run: node .github/scripts/test-synthetic.mjs
       - name: Build the frontend
         run: npm run build
-      - name: Install the locked browser engines
-        run: ./node_modules/.bin/playwright install chromium webkit
       - name: Browser interactions on synthetic data
         env:
           POCKET_BROWSER_DIST: ${{ github.workspace }}/dist

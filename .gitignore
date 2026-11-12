@@ -61,4 +61,6 @@ codex-navigator-*.json
 !/docs/COMPATIBILITY.md
 !/docs/UPGRADING.md
 !/docs/PUBLIC_HISTORY.md
+!/docs/OPEN_SOURCE_READINESS.md
+!/docs/DEVELOPMENT.md
 !/docs/assets/
