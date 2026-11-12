@@ -69,7 +69,9 @@ test('linked video images remain labels even when the same source has a grant el
   const linked = `[![linked clip](<${path}>)](https://example.test/article)`;
   const html = markdown(`![standalone](<${path}>)\n\n${linked}`);
   assert.equal(count(html), 1);
-  assert.match(html, /href="https:\/\/example.test\/article"[^>]*><span>linked clip<\/span><\/a>/);
+  const anchor = html.match(/<a href="https:\/\/example.test\/article"[^>]*>([\s\S]*?)<\/a>/)?.[1];
+  assert.ok(anchor); assert.match(anchor, /^<span>linked clip<\/span>/);
+  assert.match(anchor, /message-link-host">example.test/); assert.doesNotMatch(anchor, /<video|<button/);
   assert.equal(count(markdown(linked)), 0);
   assert.equal(count(markdown(linked, { files: {} })), 0);
 });

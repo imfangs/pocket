@@ -2,7 +2,9 @@ import { t, useLocale } from "./i18n";
 import MarkdownCode from "./MarkdownCode";
 import MessageImage from "./MessageImage";
 import MessageFile, { registeredMessageFile } from "./MessageFile";
-import { createContext, Fragment, memo, useContext, useMemo, type ReactNode } from "react";
+import { createContext, Fragment, isValidElement, memo, useContext, useMemo, type ReactNode } from "react";
+import { ArrowUpRight } from "lucide-react";
+import { AppIcon } from "./ui/AppIcon";
 import { localFileReference } from "../shared/codex-directives.mjs";
 import { isMessageAudio, isMessageVideo } from "../shared/message-media.mjs";
 import type { MessageFileReference, MessageFiles } from "./conversationFeed";
@@ -14,6 +16,7 @@ import remarkMermaid from "./mermaidMarkdown";
 import { messageDetailsParts, messageReferenceDefinitions } from "./messageDetails";
 import { displayMessageMarkdown } from "./messageEnvelope";
 import "./message-details.css";
+import "./message-links.css";
 
 const plugins = [remarkGfm, remarkMermaid];
 const imageRoute = /^\/api\/tasks\/[a-f0-9-]{36}\/images\/[a-f0-9]{64}$/i;
@@ -34,6 +37,19 @@ function publicUrl(value: string) {
   }
 }
 
+function linkText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(linkText).join("");
+  return isValidElement<{ children?: ReactNode }>(node) ? linkText(node.props.children) : "";
+}
+
+function linkHost(href: string | undefined) {
+  try {
+    const url = new URL(href || "");
+    return ["http:", "https:"].includes(url.protocol) ? url.host : "";
+  } catch { return ""; }
+}
+
 function MarkdownLink({ href, children }: { href?: string; children?: ReactNode }) {
   useLocale();
   const { links, threadId } = useContext(FileLinksContext);
@@ -45,9 +61,16 @@ function MarkdownLink({ href, children }: { href?: string; children?: ReactNode 
   }
   const taskUrl = href && pocketTaskUrl(href);
   if (taskUrl) return <a className="pocket-task-link" href={taskUrl} onClick={event => navigateTaskReference(event, taskUrl)}>{content}</a>;
+  const host = linkHost(href);
+  const label = linkText(children).trim();
+  const showHost = host && label.toLowerCase() !== host.toLowerCase() && linkHost(label) !== host;
   return href ? (
-    <a href={href} target="_blank" rel="noopener noreferrer">
+    <a href={href} target="_blank" rel="noopener noreferrer" title={host ? href : undefined}>
       {content}
+      {host && <span className="message-link-destination" aria-hidden="true">
+        {showHost && <span className="message-link-host">{host}</span>}
+        <AppIcon icon={ArrowUpRight} kind="marker" size={12} strokeWidth={1.75} />
+      </span>}
     </a>
   ) : (
     <span>{content}</span>

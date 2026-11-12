@@ -19,6 +19,17 @@ after(() => vite.close());
 const { default: MessageMarkdown } = await vite.ssrLoadModule("/src/MessageMarkdown.tsx");
 const render = (text) => renderToStaticMarkup(createElement(MessageMarkdown, { text }));
 
+test('external labelled links show their destination without changing navigation or repeating a visible URL', () => {
+ const url='https://metrics.example.test/dashboard?chart=17';
+ const html=render(`[打开原图](${url})`);
+ assert.match(html,/class="message-link-destination"/);assert.match(html,/>metrics.example.test<\/span>/);
+ assert.ok(html.includes(`href="${url}"`));assert.ok(html.includes(`title="${url}"`));assert.match(html,/target="_blank" rel="noopener noreferrer"/);
+ const raw=render(`<${url}>`);assert.equal((raw.match(/metrics.example.test/g)||[]).length,3,'href, title and original text only');
+ assert.doesNotMatch(raw,/class="message-link-host"/);
+ assert.doesNotMatch(render('[Mail](mailto:hello@example.test)'),/message-link-destination/);
+ assert.doesNotMatch(render('[继续](codex:\/\/threads\/aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa)'),/message-link-destination/);
+});
+
 test('Codex memory metadata is hidden without swallowing adjacent prose', () => {
  const html=render('正文。\n<oai-mem-citation>\n<citation_entries>\nMEMORY.md:10-12|note=[private provenance]\n</citation_entries>\n<rollout_ids>\n11111111-1111-7111-8111-111111111111\n</rollout_ids>\n</oai-mem-citation>\n\n后文。');
  assert.doesNotMatch(html,/citation_entries|rollout_ids|private provenance|MEMORY.md/);
