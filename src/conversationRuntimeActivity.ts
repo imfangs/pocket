@@ -38,6 +38,7 @@ export type RuntimeFeedbackInput = {
   now: number;
   available?: boolean;
   allowUnconfirmed?: boolean;
+  includeRecent?: boolean;
 };
 export const runtimeTextSilenceMs = 120000;
 export const runtimeObservationFreshMs = 60000;
@@ -136,15 +137,15 @@ export function conversationRuntimeFeedback(input: RuntimeFeedbackInput): Runtim
   const messageAge = minAge(since(observation.waitBaselineAt), visibleAge);
   const fresh = conversationRuntimeIsCurrent(input);
   if (!fresh && !working && !allowUnconfirmed) return null;
-  if (messageAge !== null && messageAge < runtimeTextSilenceMs) return null;
+  if (!input.includeRecent && messageAge !== null && messageAge < runtimeTextSilenceMs) return null;
   // Missing event/turn start evidence alone cannot manufacture a long wait.
-  if (messageAge === null && fresh) return null;
+  if (messageAge === null && fresh && !input.includeRecent) return null;
   if (!fresh) return { state: "unconfirmed", turnId: observation.turnId, operation: null,
     detail: "confirmed", ageMs: elapsed, confirmedAgeMs: elapsed };
   const operation = observation.activeOperation;
   const operationAge = since(operation?.startedAt ?? null);
   const eventAge = minAge(since(observation.lastEventAt), visibleAge);
   return { state: "working", turnId: observation.turnId, operation: operation?.kind ?? null,
-    detail: operationAge !== null ? "operation" : eventAge !== null ? "activity" : "messages",
+    detail: operationAge !== null ? "operation" : eventAge !== null ? "activity" : messageAge !== null ? "messages" : "confirmed",
     ageMs: operationAge ?? eventAge ?? messageAge, confirmedAgeMs: elapsed };
 }

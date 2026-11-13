@@ -286,5 +286,7 @@
   "正在执行命令": "Running command",
   "工具处理中": "Using a tool",
   "正在修改文件": "Editing files",
-  "子会话处理中": "Subchat working"
+  "子会话处理中": "Subchat working",
+  "展开运行详情": "Show run details",
+  "收起运行详情": "Hide run details"
 }

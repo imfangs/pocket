@@ -9,8 +9,26 @@
   color: var(--ink);
   pointer-events: none;
 }
+.conversation-activity-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.conversation-activity-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.conversation-activity-details { display: inline-flex; align-items: center; min-width: 0; gap: 8px; }
+.conversation-activity-unconfirmed .conversation-working-dot { animation: none; transform: none; opacity: .55; }
 .conversation-working[data-detail],
-.conversation-activity-unconfirmed {
+.conversation-activity-unconfirmed[data-detail] {
   height: 44px;
   gap: 8px;
   color: var(--muted);

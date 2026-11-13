@@ -10,6 +10,19 @@ const active = { source: 'desktop', resumeState: 'resumed', runtime: 'active', l
 const capture = (history = active, previous = null, receivedAt = mono) => observeConversationRuntime(history, { scope, receivedAt, previous });
 const feedback = (observation = capture(), extra = {}) => conversationRuntimeFeedback({ scope, history: active, observation, working: true, now: mono, ...extra });
 
+test('explicit disclosure can inspect a short run without inventing a new event or renewing authority', () => {
+  const short = { ...active, turnTiming: { ...active.turnTiming, startedAt: mac - 30000 },
+    runtimeActivity: { ...active.runtimeActivity, lastMessageAt: mac - 20000, lastEventAt: mac - 4000 } };
+  const observation = capture(short);
+  assert.equal(feedback(observation, { history: short }), null);
+  const expanded = feedback(observation, { history: short, includeRecent: true });
+  assert.equal(expanded.ageMs, 4000);
+  assert.equal(expanded.state, 'working');
+  const stale = feedback(observation, { history: short, includeRecent: true, now: mono + 61000 });
+  assert.equal(stale.state, 'unconfirmed');
+  assert.equal(stale.confirmedAgeMs, 61000);
+});
+
 test('text silence and real tool events have separate clocks, independent of the phone wall clock', () => {
   const result = feedback();
   assert.deepEqual(result, { state: 'working', turnId: 'current', operation: null, detail: 'activity', ageMs: 4000, confirmedAgeMs: 0 });

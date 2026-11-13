@@ -424,7 +424,7 @@ export default function Conversation({
   const activityAvailable = targetAvailable && !compatibilityCode && !showingDiskPreview && !earlier.active && !recordedRunEnded;
   const activityInput = { scope: runScope, history, observation: observedRun, working, available: activityAvailable,
     allowUnconfirmed: !online || !!historyError || !activityObserved || connecting || connectionFailed || history?.source !== "desktop" };
-  const activityFeedbackAt = (now: number) => conversationRuntimeFeedback({ ...activityInput, now });
+  const activityFeedbackAt = (now: number) => conversationRuntimeFeedback({ ...activityInput, now, includeRecent: true });
   const activityAuthorityAt = (now: number) => conversationRuntimeIsCurrent({ ...activityInput, now });
   const receiveRunAuthority = useCallback((current: boolean) => {
     if (activityKeyRef.current !== activityKey) return;

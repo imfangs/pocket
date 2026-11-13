@@ -12,6 +12,21 @@ after(() => {
   writeFileSync(path, JSON.stringify({ scenarios: results }, null, 2) + '\n');
 });
 
+const toggle = page => page.locator('.conversation-activity-toggle');
+const summary = page => page.locator('.conversation-activity-summary');
+const readonlyCalls = h => h.calls.filter(call => call.action === 'history' || call.action === 'transcript').length;
+const openDetails = async page => {
+  await toggle(page).waitFor();
+  assert.equal(await toggle(page).getAttribute('aria-expanded'), 'false');
+  assert.equal(await summary(page).count(), 0);
+  const hit = await toggle(page).evaluate(node => { const rect = node.getBoundingClientRect(); return [rect.width, rect.height]; });
+  assert.deepEqual(hit, [44, 44]);
+  await toggle(page).click();
+  assert.equal(await toggle(page).getAttribute('aria-expanded'), 'true');
+  await summary(page).waitFor();
+  assert.equal(await toggle(page).getAttribute('aria-controls'), await page.locator('.conversation-activity-details').getAttribute('id'));
+};
+
 for (const engine of engines) test(`${engine}: a long text silence exposes the actual native operation and keeps rechecking read-only`, { timeout: 30000 },
   () => runScenario({ engine, name: 'long native operation remains observable',
     create: () => createHarness(engine),
@@ -29,16 +44,38 @@ for (const engine of engines) test(`${engine}: a long text silence exposes the a
       });
       const page = await h.open();
       await page.locator('.conversation-working-dots').waitFor();
-      assert.equal(await page.locator('.conversation-activity-summary').count(), 1,
-        'Long native work needs actual operation feedback, rather than only an indefinite three-dot animation');
+      assert.equal(await summary(page).count(), 0, 'Even long native work leaves details hidden until requested');
+      const beforeToggle = readonlyCalls(h);
+      await openDetails(page);
+      await toggle(page).click(); assert.equal(await toggle(page).getAttribute('aria-expanded'), 'false');
+      assert.equal(await summary(page).count(), 0);
+      await openDetails(page);
+      assert.equal(readonlyCalls(h), beforeToggle, 'Toggling is a local disclosure, not a status request');
       await page.getByText('正在执行命令', { exact: true }).waitFor();
       assert.ok((await page.locator('.conversation-activity-summary').textContent()).includes('8分钟'));
       const input = page.locator('.conversation-composer textarea');
       await input.focus(); await input.fill('Keep this draft.');
-      await input.evaluate(node => { window.runtimeInput = node; });
-      await page.getByRole('button', { name: '核对进展', exact: true }).click();
+      await input.evaluate(node => { window.runtimeInput = node; node.setSelectionRange(2, 9); });
+      const control = page.getByRole('button', { name: '核对进展', exact: true });
+      assert.equal((await control.textContent()).trim(), '', 'The refresh action is icon-only');
+      const icon = await control.locator('svg').getAttribute('class');
+      const gate = h.pause('history');
+      await control.click();
+      await control.locator('.conversation-activity-spinner').waitFor();
+      assert.equal(await control.getAttribute('aria-busy'), 'true');
+      assert.equal(await control.isDisabled(), true);
+      assert.ok((await control.locator('svg').getAttribute('class')).includes('lucide-refresh-cw'));
+      assert.equal(await toggle(page).getAttribute('aria-expanded'), 'true', 'Refreshing never collapses the disclosure');
+      assert.equal((await control.textContent()).trim(), '');
+      gate.release();
+      await control.locator('.conversation-activity-spinner').waitFor({ state: 'detached' });
+      assert.equal(await control.isDisabled(), false);
+      assert.ok(icon.includes('lucide-refresh-cw'));
       assert.equal(await input.inputValue(), 'Keep this draft.');
       assert.equal(await page.evaluate(() => window.runtimeInput === document.querySelector('.conversation-composer textarea')), true);
+      assert.equal(await page.evaluate(() => window.runtimeInput === document.activeElement), true);
+      assert.deepEqual(await input.evaluate(node => [node.selectionStart, node.selectionEnd]), [2, 9]);
+      assert.equal(await toggle(page).getAttribute('aria-expanded'), 'true');
       assert.equal(h.calls.filter(call => call.method !== 'GET' && call.path !== '/api/sync').length, 0);
     }, record: result => results.push(result),
   }));
@@ -58,10 +95,13 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) test(`${e
         runtimeActivity: { turnId: 'initial', lastMessageAt: at - 14 * 60000, lastEventAt: at - 4000, activeOperation: null },
       });
       const page = await h.open();
-      await page.locator('.conversation-activity-summary').waitFor();
-      const summary = await page.locator('.conversation-activity-summary').textContent();
-      assert.ok(locale === 'zh-CN' ? summary.includes('最近活动：刚刚') : /activity.*(now|just)/i.test(summary), summary);
-      assert.ok(!summary.includes('14分钟'), 'Real recent tool activity is distinct from the last prose message');
+      await openDetails(page);
+      const text = await summary(page).textContent();
+      assert.ok(locale === 'zh-CN' ? text.includes('刚刚') : /(now|just)/i.test(text), text);
+      assert.ok(!text.includes('最近活动：') && !/activity:/i.test(text), 'Visible prose drops the activity prefix');
+      const semantics = await page.locator('.conversation-activity-detail').getAttribute('aria-label');
+      assert.ok(locale === 'zh-CN' ? semantics.includes('最近活动：刚刚') : /activity/i.test(semantics), semantics);
+      assert.ok(!text.includes('14分钟'), 'Real recent tool activity is distinct from the last prose message');
       for (const theme of ['light', 'dark']) {
         await page.emulateMedia({ colorScheme: theme });
         const geometry = await page.locator('.conversation-working').evaluate(node => {
@@ -105,6 +145,8 @@ for (const engine of engines) test(`${engine}: a frozen short sample stops dots 
       const page = await h.open();
       await page.locator('.conversation-working-dots').waitFor();
       assert.equal(await page.locator('.conversation-activity-summary').count(), 0);
+      await openDetails(page);
+      assert.ok((await summary(page).textContent()).includes('now'), 'Short work can be explicitly inspected without waiting two minutes');
       const gate = h.pause('history', { repeat: true });
       const root = page.locator('.conversation-messages');
       await root.evaluate(node => { node.scrollTop = 300; });
@@ -117,11 +159,17 @@ for (const engine of engines) test(`${engine}: a frozen short sample stops dots 
         window.runtimeMonoOffset = 65000;
         Object.defineProperty(performance, 'now', { configurable: true, value: () => original() + window.runtimeMonoOffset });
       });
-      await page.locator('.conversation-working-dots').waitFor({ state: 'detached' });
-      assert.equal(await page.locator('.conversation-activity-summary').count(), 0, 'Silence caption has its own longer threshold');
+      await page.locator('.conversation-activity-unconfirmed').waitFor();
+      assert.equal(await page.locator('.conversation-working').count(), 0, 'Unconfirmed state cannot retain an animated current-work claim');
+      const staticDots = await page.locator('.conversation-activity-unconfirmed .conversation-working-dot').evaluateAll(nodes => nodes.map(node => ({
+        animation: getComputedStyle(node).animationName, transform: getComputedStyle(node).transform,
+      })));
+      assert.equal(staticDots.length, 3);
+      assert.ok(staticDots.every(dot => dot.animation === 'none' && dot.transform === 'none'));
+      assert.equal(await toggle(page).getAttribute('aria-expanded'), 'true');
       await page.evaluate(() => { window.runtimeMonoOffset = 130000; });
       await page.locator('.conversation-activity-unconfirmed').waitFor();
-      assert.equal(await page.locator('.conversation-working-dots').count(), 0);
+      assert.equal(await page.locator('.conversation-working-dots').count(), 1, 'Unknown keeps its disclosure control, with static dots');
       assert.equal(await page.locator('.conversation-activity-unconfirmed').evaluate(node => node.scrollWidth > node.clientWidth), false);
       assert.ok(Math.abs(await root.evaluate(node => node.scrollTop) - top) <= 1);
       assert.equal(await input.inputValue(), 'A selected draft stays here.');
@@ -143,14 +191,47 @@ for (const engine of engines) test(`${engine}: a genuine legacy commentary appen
       h.seedThread(ids.regular, { messages: [first] }); h.setRuntime(ids.regular, 'running');
       h.patchHistory(ids.regular, { turnTiming: timing });
       const page = await h.open();
-      await page.locator('.conversation-activity-summary').waitFor();
+      await openDetails(page);
       const second = { ...first, id: 'legacy-second', text: '刚刚追加的新合成进展' };
       h.seedThread(ids.regular, { messages: [first, second] });
       h.patchHistory(ids.regular, { turnTiming: { ...timing, observedAt: at + 2000 } });
       await refresh(page);
       await page.getByText(second.text, { exact: true }).waitFor();
-      await page.locator('.conversation-activity-summary').waitFor({ state: 'detached' });
+      assert.equal(await toggle(page).getAttribute('aria-expanded'), 'true', 'New same-turn visible progress does not close a manual disclosure');
+      await page.locator('.conversation-activity-detail').filter({ hasText: '刚刚' }).waitFor();
       await page.locator('.conversation-working-dots').waitFor();
+      assert.equal(h.calls.filter(call => call.method !== 'GET' && call.path !== '/api/sync').length, 0);
+    }, record: result => results.push(result),
+  }));
+
+for (const engine of engines) test(`${engine}: short running work has a keyboard disclosure without an extra read`, { timeout: 30000 },
+  () => runScenario({ engine, name: 'keyboard short-work disclosure',
+    create: () => createHarness(engine),
+    run: async h => {
+      const at = Date.now();
+      h.seedThread(ids.regular, { messages: [{ id: 'keyboard-progress', role: 'assistant', phase: 'commentary',
+        text: '可由键盘检查的合成进展', timestamp: at, turnId: 'initial' }] });
+      h.setRuntime(ids.regular, 'running');
+      h.patchHistory(ids.regular, {
+        turnTiming: { turnId: 'initial', status: 'inProgress', startedAt: at, durationMs: null, observedAt: at },
+        runtimeActivity: { turnId: 'initial', lastMessageAt: at, lastEventAt: at,
+          activeOperation: { kind: 'tool', startedAt: at } },
+      });
+      const page = await h.open();
+      await toggle(page).waitFor();
+      assert.equal(await toggle(page).getAttribute('aria-expanded'), 'false');
+      assert.equal(await summary(page).count(), 0);
+      const before = readonlyCalls(h);
+      await toggle(page).focus(); await toggle(page).press('Enter');
+      await page.getByText('工具处理中', { exact: true }).waitFor();
+      assert.equal(await toggle(page).getAttribute('aria-expanded'), 'true');
+      assert.equal(await toggle(page).getAttribute('aria-label'), '收起运行详情');
+      assert.equal(await toggle(page).evaluate(node => node === document.activeElement), true);
+      await toggle(page).press('Enter');
+      assert.equal(await toggle(page).getAttribute('aria-expanded'), 'false');
+      assert.equal(await toggle(page).getAttribute('aria-label'), '展开运行详情');
+      assert.equal(await summary(page).count(), 0);
+      assert.equal(readonlyCalls(h), before);
       assert.equal(h.calls.filter(call => call.method !== 'GET' && call.path !== '/api/sync').length, 0);
     }, record: result => results.push(result),
   }));
