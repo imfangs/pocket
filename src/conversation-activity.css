@@ -1,6 +1,7 @@
 .conversation-working,
 .conversation-activity-unconfirmed {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 20px;
@@ -25,16 +26,18 @@
   pointer-events: auto;
 }
 .conversation-activity-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
-.conversation-activity-details { display: inline-flex; align-items: center; min-width: 0; gap: 8px; }
+.conversation-activity-details { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; gap: 20px; }
 .conversation-activity-unconfirmed .conversation-working-dot { animation: none; transform: none; opacity: .55; }
 .conversation-working[data-detail],
 .conversation-activity-unconfirmed[data-detail] {
-  height: 44px;
-  gap: 8px;
+  height: 64px;
+  gap: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
 }
+.conversation-working[data-detail] .conversation-activity-toggle,
+.conversation-activity-unconfirmed[data-detail] .conversation-activity-toggle { margin-block: -12px; }
 .conversation-activity-summary {
   display: inline-flex;
   align-items: center;

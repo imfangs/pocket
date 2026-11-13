@@ -15,16 +15,40 @@ after(() => {
 const toggle = page => page.locator('.conversation-activity-toggle');
 const summary = page => page.locator('.conversation-activity-summary');
 const readonlyCalls = h => h.calls.filter(call => call.action === 'history' || call.action === 'transcript').length;
+const belowDotsGeometry = async page => {
+  const value = await toggle(page).evaluate(button => {
+    const node = button.closest('.conversation-working,.conversation-activity-unconfirmed');
+    const box = target => { const r = target.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+      width: r.width, height: r.height, centerX: (r.left + r.right) / 2, centerY: (r.top + r.bottom) / 2 }; };
+    const parent = box(node), dots = box(node.querySelector('.conversation-working-dots')), hit = box(button),
+      details = box(node.querySelector('.conversation-activity-details')), text = box(node.querySelector('.conversation-activity-summary')),
+      check = box(node.querySelector('.conversation-activity-check'));
+    return { parent, dots, hit, details, text, check, overflow: node.scrollWidth > node.clientWidth,
+      overlap: hit.left < check.right && hit.right > check.left && hit.top < check.bottom && hit.bottom > check.top };
+  });
+  assert.equal(value.parent.height, 64, JSON.stringify(value));
+  assert.ok(value.text.top >= value.dots.bottom + 4, 'Details belong below the visible dots: ' + JSON.stringify(value));
+  assert.ok(value.details.top >= value.dots.bottom + 4, JSON.stringify(value));
+  assert.ok(Math.abs(value.text.centerY - value.check.centerY) <= 1, 'Text and refresh share the lower row: ' + JSON.stringify(value));
+  assert.ok(Math.abs(value.details.centerX - value.parent.centerX) <= 1, 'The lower row remains centred: ' + JSON.stringify(value));
+  assert.deepEqual([value.hit.width, value.hit.height], [44, 44]);
+  assert.ok(value.check.width >= 44 && value.check.height >= 44, JSON.stringify(value));
+  assert.equal(value.overlap, false, 'Interactive rectangles must not intersect: ' + JSON.stringify(value));
+  assert.equal(value.overflow, false, JSON.stringify(value));
+  return value;
+};
 const openDetails = async page => {
   await toggle(page).waitFor();
   assert.equal(await toggle(page).getAttribute('aria-expanded'), 'false');
   assert.equal(await summary(page).count(), 0);
+  assert.equal(await toggle(page).evaluate(node => node.parentElement.getBoundingClientRect().height), 20);
   const hit = await toggle(page).evaluate(node => { const rect = node.getBoundingClientRect(); return [rect.width, rect.height]; });
   assert.deepEqual(hit, [44, 44]);
   await toggle(page).click();
   assert.equal(await toggle(page).getAttribute('aria-expanded'), 'true');
   await summary(page).waitFor();
   assert.equal(await toggle(page).getAttribute('aria-controls'), await page.locator('.conversation-activity-details').getAttribute('id'));
+  await belowDotsGeometry(page);
 };
 
 for (const engine of engines) test(`${engine}: a long text silence exposes the actual native operation and keeps rechecking read-only`, { timeout: 30000 },
@@ -110,10 +134,11 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) test(`${e
             contained: children.every(child => { const rect = child.getBoundingClientRect(); return rect.left >= parent.left - 1 && rect.right <= parent.right + 1; }),
             control: node.querySelector('button').getBoundingClientRect().height };
         });
-        assert.equal(geometry.height, 44);
+        assert.equal(geometry.height, 64);
         assert.equal(geometry.control, 44);
         assert.equal(geometry.overflow, false, JSON.stringify(geometry));
         assert.equal(geometry.contained, true, JSON.stringify(geometry));
+        await belowDotsGeometry(page);
       }
       h.patchHistory(ids.regular, {
         turnTiming: { turnId: 'initial', status: 'inProgress', startedAt: at - 20 * 60000, durationMs: null, observedAt: at },
@@ -124,7 +149,12 @@ for (const engine of engines) for (const locale of ['zh-CN', 'en-US']) test(`${e
       await page.locator('.conversation-activity-label').filter({ hasText: locale === 'zh-CN' ? '正在执行命令' : /command/i }).waitFor();
       const commandGeometry = await page.locator('.conversation-working').evaluate(node => ({ height: node.getBoundingClientRect().height,
         overflow: node.scrollWidth > node.clientWidth }));
-      assert.deepEqual(commandGeometry, { height: 44, overflow: false });
+      assert.deepEqual(commandGeometry, { height: 64, overflow: false });
+      await belowDotsGeometry(page);
+      await toggle(page).click();
+      assert.equal(await summary(page).count(), 0);
+      assert.equal(await toggle(page).evaluate(node => node.parentElement.getBoundingClientRect().height), 20);
+      await openDetails(page);
     }, record: result => results.push(result),
   }));
 
@@ -167,10 +197,12 @@ for (const engine of engines) test(`${engine}: a frozen short sample stops dots 
       assert.equal(staticDots.length, 3);
       assert.ok(staticDots.every(dot => dot.animation === 'none' && dot.transform === 'none'));
       assert.equal(await toggle(page).getAttribute('aria-expanded'), 'true');
+      await belowDotsGeometry(page);
       await page.evaluate(() => { window.runtimeMonoOffset = 130000; });
       await page.locator('.conversation-activity-unconfirmed').waitFor();
       assert.equal(await page.locator('.conversation-working-dots').count(), 1, 'Unknown keeps its disclosure control, with static dots');
       assert.equal(await page.locator('.conversation-activity-unconfirmed').evaluate(node => node.scrollWidth > node.clientWidth), false);
+      await belowDotsGeometry(page);
       assert.ok(Math.abs(await root.evaluate(node => node.scrollTop) - top) <= 1);
       assert.equal(await input.inputValue(), 'A selected draft stays here.');
       assert.equal(await page.evaluate(() => window.runtimeFrozenInput === document.activeElement), true);
