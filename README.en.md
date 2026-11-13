@@ -44,6 +44,8 @@ The [detailed comparison and sources](docs/ALTERNATIVES.md) also cover Codex Mob
 Have Codex Desktop installed and signed in, Node.js 26.x and Python 3.11+. Keep the Mac online and the desktop app running.
 
 ```sh
+git clone https://github.com/imfangs/pocket.git
+cd pocket
 npm ci --registry=https://registry.npmjs.org
 npm run setup
 npm run build

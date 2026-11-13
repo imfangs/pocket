@@ -44,6 +44,8 @@
 准备已登录的 Codex 桌面端、Node.js 26.x、Python 3.11+。Mac 保持在线，Codex 桌面端保持运行。
 
 ```sh
+git clone https://github.com/imfangs/pocket.git
+cd pocket
 npm ci --registry=https://registry.npmjs.org
 npm run setup
 npm run build

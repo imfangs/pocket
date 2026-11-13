@@ -1,6 +1,6 @@
 # Source and history disclosure
 
-As of **2026-11-12**, Pocket is in open-source preparation. The repository is private and no public release has been published. Local exports, review receipts and earlier filtered-history experiments are preparation artifacts, not publication evidence.
+On **2026-11-13**, the existing repository was renamed to [imfangs/pocket](https://github.com/imfangs/pocket) and made public with its development history. The current source is experimental Alpha; no GitHub release tag or binary release was created by this publication.
 
 ## Current source and local files
 
@@ -22,4 +22,4 @@ Older documents and commit messages describe decisions at their original dates. 
 
 Earlier local candidates generalized commit identities, filtered private paths and substituted selected values while retaining chronological events, including commits whose public trees became unchanged. Rewriting trees, metadata or parents changes commit hashes. Those experiments remain distinct artifacts; do not assume they are the eventual published history or claim all histories were fully anonymized.
 
-A source snapshot and a repository with history are different deliverables. A future distribution should state which one it contains and review that actual artifact. Publishing, pushing and changing visibility require a separate authorized action; none is performed by this preparation document.
+The public repository preserves the existing development history under the owner's accepted disclosure scope. Source snapshots and earlier filtered-history candidates remain separate artifacts. The visibility change publishes source; personal deployments and runtime data remain maintained independently.

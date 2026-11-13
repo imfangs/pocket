@@ -1,6 +1,6 @@
 # Open-source preparation
 
-Status: **2026-11-12**, experimental `0.1.0-alpha.1` source. This document records preparation and remaining evidence, not a published repository, release tag, hosted offering or verified new-user installation.
+Status: **2026-11-13**. Experimental `0.1.0-alpha.1` source is public at [imfangs/pocket](https://github.com/imfangs/pocket), with its existing development history. A tagged/binary release and independent new-user installation remain separate next steps.
 
 ## What a reader can expect
 
@@ -20,7 +20,7 @@ Pocket is for one owner who already uses Codex on a Mac and wants to read and co
 
 ## Remaining work, by actual scope
 
-**Experimental source publication:** choose the actual repository/history or source snapshot being shared, inspect that artifact, and describe its tested scope. Publishing, pushing, enabling a reporting channel and creating a tag are explicit release actions; this preparation does none of them. The owner's acceptance of reviewed historical identifiers does not extend to new credentials or unrelated private/company content.
+**Experimental source:** the reviewed current source and existing history are public. Preserve the owner's accepted historical disclosure scope when updating it; check new credentials or unrelated private/company content separately. Formal tags, binary packaging and new-user acceptance are follow-up work.
 
 **Remote automation:** current workflow configuration and local checks are distinct from a successful GitHub run. All nine inspected runs failed at startup with no jobs. The latest run's annotation specifically reports a recent account-payment failure or spending-limit restriction; the other eight were not individually attributed. The four pinned Actions were verified against their tags. Two local CI defects were repaired: Chromium must be available before synthetic PDF/SVG tests, and a fresh source-bootstrap child must not inherit another checkout's bridge configuration. Record remote CI evidence after the account permits a run and an authorized push/run; do not claim a remote green result from local tests.
 

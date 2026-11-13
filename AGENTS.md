@@ -1,6 +1,6 @@
 # Pocket development
 
-Pocket is a mobile and browser continuation surface for the original Codex desktop owner. The repository and on-device data retain the `codex-navigator` / `CodexNavigator` compatibility names.
+Pocket is a mobile and browser continuation surface for the original Codex desktop owner. The public repository is `imfangs/pocket`. Existing local checkouts, service identifiers and on-device data retain `codex-navigator` / `CodexNavigator` compatibility names.
 
 Read `README.md`, `SECURITY.md`, `PRIVACY.md`, `docs/DEVELOPMENT.md`, `docs/OPEN_SOURCE_READINESS.md` and `docs/SELF_HOSTING.md` before changing installation or data boundaries. On an existing maintainer checkout, also read `.local/maintenance/AGENTS.md` and `CURRENT.md` when present: they hold private continuation notes, the last verified deployment and unresolved operational work. Those local notes are not required for a fresh source checkout.
 

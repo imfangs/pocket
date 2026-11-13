@@ -4,7 +4,7 @@ Pocket is a macOS companion for reading and continuing conversations in an exist
 
 ## Where to contribute
 
-As of 2026-11-12 this repository remains private; Issues are enabled for people with access. This document does not announce a public repository or release. Once you have access, use **Issues → New issue** for bugs and proposals and **Pull requests** for focused fixes. No response-time commitment is advertised.
+Pocket is open source at [imfangs/pocket](https://github.com/imfangs/pocket). Use [Issues](https://github.com/imfangs/pocket/issues) for bugs and proposals and [Pull requests](https://github.com/imfangs/pocket/pulls) for focused fixes.
 
 For a bug, include the Pocket version/build, macOS and Codex versions, browser, reproduction steps, expected/actual behavior and relevant checks. Prefer a synthetic conversation or a minimal redacted example. Keep passwords, tokens, cookies, real conversation contents, feedback screenshots and raw support archives out of public reports. Suspected vulnerabilities follow [SECURITY.md](SECURITY.md).
 
