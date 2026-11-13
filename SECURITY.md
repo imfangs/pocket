@@ -53,9 +53,9 @@ Fresh setup selects a minimum of 12 characters, including before an HTTPS origin
 
 ## Reporting a vulnerability
 
-As of **2026-11-12**, this repository is private and its Issues feature is enabled. A read-only check of GitHub's private-vulnerability-reporting endpoint returned 404, so **no working private reporting channel is currently confirmed**. There is no advertised security email address, supported-release branch or response-time guarantee.
+Private vulnerability reporting is enabled for [imfangs/pocket](https://github.com/imfangs/pocket). Use [Security → Report a vulnerability](https://github.com/imfangs/pocket/security/advisories/new) for suspected security issues. Ordinary bugs and proposals go to [Issues](https://github.com/imfangs/pocket/issues).
 
-If the repository's Security page offers a working **Report a vulnerability** action when you report, use that private channel. Otherwise, if you have repository access, use **Issues → New issue** to request private contact with a title such as “Request a private security reporting channel.” Include only that request and an optional non-sensitive affected version. Wait for a private contact route before sharing the vulnerability details. Do not post passwords, cookies, tokens, private keys, conversation contents, raw logs or an exploit involving real data in that issue. Readers without repository access currently have no verified reporting route; this preparation document does not imply public availability.
+Keep passwords, cookies, tokens, private keys, conversation contents and raw private logs out of public issues. No response-time guarantee is advertised.
 
 Once a private route is established, include the affected source/build, deployment profile, synthetic reproduction steps, expected boundary and observed failure. Maintainers should separate confirmed failures from deployment assumptions, preserve unknown-result safety and verify a fix with relevant regression coverage.
 
