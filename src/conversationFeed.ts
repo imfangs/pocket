@@ -3,6 +3,7 @@ import type { ReadObservation } from "./readObservation";
 import type { PocketContent } from "./pocketReadState";
 import type { PublicAttachment } from "./attachments";
 import type { AttachmentUploadDescriptor, AttachmentUploadProgress } from "./submittedQueries";
+import type { RuntimeActivity } from "./conversationRuntimeActivity";
 
 export type MessageFileReference = { url: string; name: string };
 export type MessageFiles = Record<string, MessageFileReference>;
@@ -54,6 +55,7 @@ export type History = {
   recentTurns?: { id: string; status: string }[];
   pocketContent?: PocketContent | null;
   turnTiming?: TurnTiming | null;
+  runtimeActivity?: RuntimeActivity | null;
   stopRequest?: StopReceipt | null;
   queuePaused?: { stopId: string } | null;
   pendingRequests?: PendingRequest[];

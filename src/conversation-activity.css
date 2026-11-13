@@ -1,4 +1,5 @@
-.conversation-working {
+.conversation-working,
+.conversation-activity-unconfirmed {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8,6 +9,48 @@
   color: var(--ink);
   pointer-events: none;
 }
+.conversation-working[data-detail],
+.conversation-activity-unconfirmed {
+  height: 44px;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.conversation-activity-summary {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+  white-space: nowrap;
+}
+.conversation-activity-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.conversation-activity-detail { flex-shrink: 0; }
+.conversation-activity-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.conversation-activity-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.conversation-activity-check:disabled { cursor: default; }
+.conversation-activity-spinner { animation: conversation-activity-spin .9s linear infinite; }
+@keyframes conversation-activity-spin { to { transform: rotate(360deg); } }
 .conversation-working-dots {
   display: inline-flex;
   align-items: center;
@@ -29,4 +72,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .conversation-working-dot { animation: none; transform: none; opacity: .7; }
+  .conversation-activity-spinner { animation: none; }
 }

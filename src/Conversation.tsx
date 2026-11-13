@@ -18,6 +18,7 @@ import type { Thread } from "./types";
 import ConversationMessage from "./ConversationMessage";
 import ConversationActivity from "./ConversationActivity";
 import { conversationIsWorking } from "./conversationWorking";
+import { observeConversationRuntime, conversationRuntimeFeedback, conversationRuntimeIsCurrent, type RuntimeObservation } from "./conversationRuntimeActivity";
 import ProgressDisclosure from "./ProgressDisclosure";
 import { isMessageReadingProtected, useProgressMessages } from "./useProgressMessages";
 import { rememberHistory, rememberTranscript, startConnectionFeed, startConversationFeed, startTranscriptFeed } from "./conversationFeed";
@@ -151,6 +152,16 @@ export default function Conversation({
   const networkObserved = useRef({ history: false, transcript: false });
   const previewReadingTouched = useRef(false);
   const activityEpoch = useRef(0);
+  const runScope = `${currentMachineId() ?? "local"}:${readingScope ?? "unscoped"}:${thread.id}`;
+  const runScopeRef = useRef(runScope); runScopeRef.current = runScope;
+  const [runObservation, setRunObservation] = useState<RuntimeObservation | null>(null);
+  const [runAuthority, setRunAuthority] = useState<{ key: string; current: boolean } | null>(null);
+  const activityLayoutFrame = useRef<number | null>(null);
+  useEffect(() => {
+    activityEpoch.current++;
+    setActivityObserved(false); setRunObservation(null); setRunAuthority(null);
+    return () => { if (activityLayoutFrame.current !== null) cancelAnimationFrame(activityLayoutFrame.current); };
+  }, [runScope]);
   useEffect(() => {
     const machine = currentMachineId(); let active = true;
     if (!machine || !readingScope || !readingCache) return;
@@ -404,6 +415,40 @@ export default function Conversation({
     online, available: targetAvailable && !compatibilityCode && !showingDiskPreview && !earlier.active,
     connectionPending: connecting || connectionFailed, readFailed: !!historyError,
     recordedTiming: transcript?.turnTiming });
+  const observedRun = runObservation?.scope === runScope ? runObservation : null;
+  const activityTurn = observedRun?.turnId ?? (working ? history?.activeTurnId : null);
+  const activityKey = `${runScope}:${activityTurn ?? ""}`;
+  const activityKeyRef = useRef(activityKey); activityKeyRef.current = activityKey;
+  const recordedRunEnded = !!observedRun && transcript?.turnTiming?.turnId === observedRun.turnId &&
+    ["completed", "failed", "interrupted"].includes(transcript.turnTiming.status);
+  const activityAvailable = targetAvailable && !compatibilityCode && !showingDiskPreview && !earlier.active && !recordedRunEnded;
+  const activityInput = { scope: runScope, history, observation: observedRun, working, available: activityAvailable,
+    allowUnconfirmed: !online || !!historyError || !activityObserved || connecting || connectionFailed || history?.source !== "desktop" };
+  const activityFeedbackAt = (now: number) => conversationRuntimeFeedback({ ...activityInput, now });
+  const activityAuthorityAt = (now: number) => conversationRuntimeIsCurrent({ ...activityInput, now });
+  const receiveRunAuthority = useCallback((current: boolean) => {
+    if (activityKeyRef.current !== activityKey) return;
+    setRunAuthority(previous => previous?.key === activityKey && previous.current === current ? previous : { key: activityKey, current });
+  }, [activityKey]);
+  const runUnconfirmed = activityAvailable && !!observedRun && runAuthority?.key === activityKey && !runAuthority.current;
+  const prepareActivityLayout = useCallback(() => {
+    const element = messages.current;
+    if (!element || earlierWindow.isActive()) return;
+    const key = activityKeyRef.current, scrollTop = element.scrollTop;
+    const atLatest = nearBottom.current;
+    liveReadingAnchor.prepare();
+    if (activityLayoutFrame.current !== null) cancelAnimationFrame(activityLayoutFrame.current);
+    activityLayoutFrame.current = requestAnimationFrame(() => {
+      activityLayoutFrame.current = null;
+      if (messages.current !== element || activityKeyRef.current !== key || earlierWindow.isActive()) return;
+      liveReadingAnchor.updateReading();
+      const focused = element.ownerDocument.activeElement;
+      const editing = focused instanceof Element && !!focused.closest("textarea,input,[contenteditable=true]");
+      if (atLatest && nearBottom.current && Math.abs(element.scrollTop - scrollTop) <= 2 && !editing && !progress.readingProtected())
+        element.scrollTop = element.scrollHeight;
+      else liveReadingAnchor.restore();
+    });
+  }, [earlierWindow.isActive, liveReadingAnchor, progress.readingProtected]);
   const connectionLabel = !online ? "离线" : connecting ? "连接中…"
     : compatibilityCode ? connectionFailureHint(compatibilityCode)
     : connectionFailed ? connectionFailureHint(connectionFailureCode)
@@ -412,7 +457,7 @@ export default function Conversation({
     ? shownMessages.length ? "正在同步状态…" : "正在读取历史…"
     : historyError ? "" : history?.pendingRequests?.length ? "等待确认"
     : history?.latestTurnStatus === "interrupted" && history?.runtime === "idle" ? "已中断"
-    : history?.compaction?.active ? "" : statuses[history?.runtime || ""] || "";
+    : history?.compaction?.active ? "" : runUnconfirmed ? "状态待核对" : statuses[history?.runtime || ""] || "";
   // Queue storage only needs the Mac API; a stale desktop read is not a reason
   // to reject the user's next instruction. Dispatch still checks fresh state.
   const enqueue = shouldEnqueueNewMessage(autoDirect, history, !!compatibilityCode || !!historyError);
@@ -517,6 +562,7 @@ export default function Conversation({
   useEffect(() => {
     if (managementBlocked) { setLoading(false); return; }
     let readingActivityEpoch = activityEpoch.current;
+    let readingRunScope = runScopeRef.current;
     let readingListObserver = nativeListObserver.current;
     let readingListStartedAt = performance.now();
     const subscription = startConversationFeed({
@@ -525,6 +571,7 @@ export default function Conversation({
         // pageshow queued its successor may still supply reading context, but
         // cannot renew the running animation for the restored page.
         readingActivityEpoch = activityEpoch.current;
+        readingRunScope = runScopeRef.current;
         readingListObserver = nativeListObserver.current;
         readingListStartedAt = performance.now();
         return api<History>(`/api/tasks/${thread.id}/history`, "GET", undefined, { signal });
@@ -533,6 +580,11 @@ export default function Conversation({
         liveReadingAnchor.prepare();
         networkObserved.current.history = true;
         setActivityObserved(readingActivityEpoch === activityEpoch.current);
+        if (readingActivityEpoch === activityEpoch.current && readingRunScope === runScopeRef.current && data.source === "desktop") {
+          const receivedScope = readingRunScope, receivedEpoch = readingActivityEpoch, receivedAt = performance.now();
+          setRunObservation(previous => receivedScope === runScopeRef.current && receivedEpoch === activityEpoch.current
+            ? observeConversationRuntime(data, { scope: receivedScope, receivedAt, previous }) : previous);
+        }
         if (readingActivityEpoch === activityEpoch.current) readingListObserver?.(thread.id, data, readingListStartedAt);
         receivedHistory.current = true;
         if (data.messages.length || receivedTranscript.current) setCachedPreview(null);
@@ -925,7 +977,9 @@ export default function Conversation({
           disabled={loading || !!historyError || !targetAvailable || !history?.canSend} drafts={drafts} refresh={load} presentationStore={questionStore} />}
         <SubmittedQueryCards items={visibleSubmissions} inlineTargets={earlier.active ? emptyQueryTargets : queryTargets} connecting={connecting || history?.source !== "desktop"} paused={!!history?.queuePaused}
           disabled={!online || managementBlocked} suppressNetworkErrors={!!historyError || connectionFailed || !online} check={checkSubmitted} dismiss={requestId => uploadSubmissions.dismiss(thread.id, requestId)} restore={restoreSubmitted} uploadActions={uploadActions} />
-        {working && <ConversationActivity turnId={history!.activeTurnId!} />}
+        {activityTurn && activityAvailable && <ConversationActivity key={activityKey} turnId={activityTurn} working={working}
+          feedbackAt={activityFeedbackAt} authorityAt={activityAuthorityAt} refresh={load}
+          onLayoutChange={prepareActivityLayout} onAuthorityChange={receiveRunAuthority} />}
         </div>
         {earlier.active && <div className="earlier-history-messages">
           {earlier.messages.map(message => <EarlierHistoryMessage key={message.id} threadId={thread.id} message={message} />)}
@@ -962,8 +1016,8 @@ export default function Conversation({
         onSubmit={(e) => void submit(e)}>
         <div className="composer-overview">
           <div className="runtime-summary">
-            {!showConnectionState && runtimeLabel && <span role="status" className={!loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>{t(runtimeLabel)}</span>}
-            <TurnDuration timing={toolbarTiming} live={!loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
+            {!showConnectionState && runtimeLabel && <span role="status" className={!runUnconfirmed && working && !loading && !historyError && !history?.pendingRequests?.length && history?.runtime === "active" ? "runtime-active" : ""}>{t(runtimeLabel)}</span>}
+            <TurnDuration timing={toolbarTiming} live={!runUnconfirmed && !loading && !historyError && history?.source === "desktop" && history.runtime === "active"} />
           </div>
           <StopExecution threadId={thread.id} history={history} disabled={loading || !!historyError || thread.archived || thread.missing || managementBlocked}
             refresh={load} notify={setNotice} onInteractionChange={setStopInteraction} />

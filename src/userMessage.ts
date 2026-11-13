@@ -46,7 +46,8 @@ function presentUserMessageBody(text: string, translate: DisplayTranslator): Use
   const response = parseResponseAnnotations(text);
   if (response) {
     const query = readableQuestionReply(response.query, translate);
-    return { text: query, copyText: readableAnnotationMessage(query, response.annotations, translate), annotations: response.annotations };
+    return { text: query, copyText: readableAnnotationMessage(query, response.annotations, translate), annotations: response.annotations,
+      ...(response.envelopeAttachments ? { envelopeAttachments: response.envelopeAttachments } : {}) };
   }
   const readable = readableQuestionReply(text, translate);
   return { text: displayMessageMarkdown(readable), copyText: readable, annotations: [] };

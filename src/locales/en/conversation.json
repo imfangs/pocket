@@ -270,5 +270,21 @@
   "首条发送未完成，请先处理": "The first message was not sent. Resolve it first.",
   "首条已暂停": "First message paused",
   "首条结果待核对，队列已暂停": "First message unconfirmed; queue paused",
-  "首条编辑中，队列已暂停": "First message being edited; queue paused"
+  "首条编辑中，队列已暂停": "First message being edited; queue paused",
+  "时间未知": "Time unknown",
+  "不到1分钟": "<1m",
+  "{{count}}分钟": "{{count}}m",
+  "{{count}}小时": "{{count}}h",
+  "{{time}}前": "{{time}} ago",
+  "状态待核对": "Unconfirmed",
+  "最近活动：{{time}}": "Activity {{time}}",
+  "暂无新消息：{{time}}": "No new message for {{time}}",
+  "上次确认：{{time}}": "Last check {{time}}",
+  "最近核对：{{time}}": "Checked {{time}}",
+  "核对进展": "Check status",
+  "核对": "Check",
+  "正在执行命令": "Running command",
+  "工具处理中": "Using a tool",
+  "正在修改文件": "Editing files",
+  "子会话处理中": "Subchat working"
 }
