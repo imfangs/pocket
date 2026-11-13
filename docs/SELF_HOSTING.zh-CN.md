@@ -143,3 +143,22 @@ POCKET_CONFIG="$PWD/.local/pocket/config.json" node bin/access.mjs set --stdin
 `POCKET_CLIENT_CONFIG=/absolute/public-profile.json npm run build:pages` 使用经校验的公共 profile 构建。旧 Quick Tunnel 连接器使用基于 `config/relay.example.json` 的自有 `NAVIGATOR_RELAY_CONFIG`、`NAVIGATOR_MACHINE_ID`，并从 PATH 找到 cloudflared 或通过 `CLOUDFLARED` 指定。`NAVIGATOR_API_ORIGIN` 可选择另一个裸 loopback HTTP 端口。登记秘密留在私人存储；提供源码不代表已有托管中继服务。
 
 已有 `config/desktop-bridge.json`、`config/usage-analytics.json` 和部署/服务配置可继续留在原来的忽略路径。保留内容和显式环境/配置覆盖，不用 example 覆盖。新 checkout 使用内置桥接发现，分析默认关闭；需要自己的分析时，将 `config/usage-analytics.example.json` 复制到被忽略的 `config/usage-analytics.json`，配置自己的项目和允许 origin，并先读 [PRIVACY.md](../PRIVACY.md)。
+
+## 让 Agent 帮你搭建
+
+将下面的指令和源码地址交给目标 Mac 上的 Agent。
+
+<details>
+<summary>复制给 Agent</summary>
+
+```text
+请搭建 Pocket。先读 README、docs/SELF_HOSTING.zh-CN.md、docs/COMPATIBILITY.md、PRIVACY.md 和 SECURITY.md。检查 macOS、Node.js 26.x、Python 3.11+、签名 Codex 桌面端、本人登录及来源布局。使用我提供的源码；缺少源码位置或本人登录时说明所需输入，其余独立工作继续。
+
+先核对已有服务与配置，保留原数据、认证、机器 ID、来源和请求编号，不覆盖配置或启动第二个写入者。新安装依次执行 npm ci --registry=https://registry.npmjs.org、npm run setup、npm run build、npm run doctor、npm start。非默认配置的 setup、doctor、start 全程传 -- --config /绝对路径/config.json；service 命令传 --config，口令维护使用同一路径的 POCKET_CONFIG。setup 不更新已有配置。
+
+先验证本机 /api/health、未登录 /api/catalog 返回401及登录后列表/正文读取。口令只在本机使用，对话和日志只给文件位置。如有我的既有 HTTPS 授权，完成同源反代和手机登录；保持 loopback 与认证、Host、Origin、CSRF 校验。真实发送只用我授权的测试会话，未知结果先查原回执，不能换编号重发。
+
+需要后台服务时先停止前台进程，再用 node bin/pocket.mjs service install --apply，回读 service status；停止并卸载自有后台服务用 service uninstall --apply，数据保留。最后报告版本、入口、配置/数据/口令文件位置、已验证与未验证项，以及停止、备份和恢复方式。
+```
+
+</details>

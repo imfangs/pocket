@@ -145,3 +145,22 @@ Direct HTTPS is the shortest self-host path. Cloudflare relay source is an optio
 `POCKET_CLIENT_CONFIG=/absolute/public-profile.json npm run build:pages` builds a validated public profile. The legacy Quick Tunnel connector uses your own `NAVIGATOR_RELAY_CONFIG` based on `config/relay.example.json`, `NAVIGATOR_MACHINE_ID`, and `cloudflared` on PATH or `CLOUDFLARED`. `NAVIGATOR_API_ORIGIN` can select a different bare loopback HTTP port. Keep registration secrets in private storage. These adapters need their own deployment verification; their source is not a hosted service.
 
 Existing `config/desktop-bridge.json`, `config/usage-analytics.json` and deployment/service config files may remain at their original ignored paths. Preserve their contents and explicit environment/config overrides; do not copy examples over them. A clean checkout discovers the bundled bridge and defaults to disabled analytics. To enable your own analytics, copy `config/usage-analytics.example.json` to the ignored `config/usage-analytics.json` and set your own project and allowed origins. Read [PRIVACY.md](../PRIVACY.md) first.
+
+## Set up with an Agent
+
+Give the following prompt and the source location to an Agent on the target Mac.
+
+<details>
+<summary>Copy to an Agent</summary>
+
+```text
+Set up Pocket. Read README, docs/SELF_HOSTING.md, docs/COMPATIBILITY.md, PRIVACY.md and SECURITY.md. Check macOS, Node.js 26.x, Python 3.11+, the signed Codex desktop app, my login and compatible source layout. Use the source I provide. Identify missing source access or account login while continuing independent work.
+
+Inspect existing services and configuration first. Preserve data, authentication, machine IDs, origins and request identities; do not overwrite config or start a second writer. For a new installation run npm ci --registry=https://registry.npmjs.org, npm run setup, npm run build, npm run doctor, then npm start. Carry -- --config /absolute/config.json through nondefault setup, doctor and start commands, --config through service commands, and the same POCKET_CONFIG through password maintenance. Setup does not update an existing config.
+
+Verify local /api/health, unauthenticated /api/catalog returning 401, and authenticated list/message reads. Use the passphrase locally; report only its file location. If I have authorized HTTPS access, configure the same-origin proxy and phone login, retaining loopback, authentication, Host, Origin and CSRF checks. Real sends use only a test conversation I authorize. Check the original receipt for unknown results; never replay with a new ID.
+
+If a background service is needed, stop the foreground instance, run node bin/pocket.mjs service install --apply and read back service status. Use service uninstall --apply to stop/remove the owned background instance while retaining data. Report version, URLs, config/data/passphrase-file locations, verified and unverified results, and stop/backup/recovery instructions.
+```
+
+</details>
