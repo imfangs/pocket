@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { createComposerToolsMotion } from "./composerToolsMotion";
 
 const mobileQuery = "(max-width: 760px) and (hover: none) and (pointer: coarse)";
 export type ComposerState = {
@@ -21,7 +22,13 @@ export function useReadingComposer(content: Pick<ComposerState, "hasContent" | "
   const [keyboardOwnedElsewhere, setKeyboardOwnedElsewhere] = useState(false);
   const [picking, setPicking] = useState(false), [keyboardOpen, setKeyboardOpen] = useState(false);
   const interaction = useRef({ composing, picking });
+  const toolsMotion = useRef<ReturnType<typeof createComposerToolsMotion> | null>(null);
   interaction.current = { composing, picking };
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const owner = createComposerToolsMotion(ref.current); toolsMotion.current = owner;
+    return () => { owner.dispose(); if (toolsMotion.current === owner) toolsMotion.current = null; };
+  }, []);
   useLayoutEffect(() => {
     const form = ref.current, panel = form?.closest(".inspector"), media = window.matchMedia(mobileQuery);
     if (!form) return;
@@ -94,7 +101,9 @@ export function useReadingComposer(content: Pick<ComposerState, "hasContent" | "
     body?.focus({ preventScroll: true });
     setFocused(false);
   };
-  return { ref, compact: compactComposer({ ...content, mobile, focused, composing, picking, keyboardOpen, keyboardOwnedElsewhere }), canCollapse, collapse,
+  const compact = compactComposer({ ...content, mobile, focused, composing, picking, keyboardOpen, keyboardOwnedElsewhere });
+  useLayoutEffect(() => { toolsMotion.current?.observe(compact, mobile && focused && !composing && !picking && !keyboardOpen); }, [compact, mobile, focused, composing, picking, keyboardOpen]);
+  return { ref, compact, canCollapse, collapse,
     canDismissKeyboard, dismissKeyboard, expand: () => setFocused(true), composing, setPicking,
     onCompositionStart: () => { interaction.current.composing = true; setComposing(true); },
     onCompositionEnd: () => { interaction.current.composing = false; setComposing(false); } };

@@ -233,9 +233,23 @@ for (const engine of engines) {
       await readyImage(page, '.message-image-frame img'); await page.locator('.message-image-frame').first().click(); await readyImage(page);
       await viewer(page).evaluate(dialog => { window.cacheGalleryDialog = dialog; window.oldCachePicture = dialog.querySelector('img'); });
       await page.keyboard.press('ArrowRight'); await until(() => numberReads(reads, bodyB));
+      evidence.oldEventsAtDispatch = await page.evaluate(() => ({ connected: window.oldCachePicture.isConnected,
+        current: window.oldCachePicture.hasAttribute('data-image-viewer-current'), source: window.oldCachePicture.getAttribute('data-registered-source'),
+        requested: document.querySelector('dialog[data-image-viewer]').getAttribute('data-gallery-requested-index') }));
       await page.evaluate(() => { window.oldCachePicture.dispatchEvent(new Event('error')); window.oldCachePicture.dispatchEvent(new Event('load')); });
       assert.equal(await viewer(page).evaluate(dialog => dialog === window.cacheGalleryDialog), true); assert.equal(await viewer(page).locator('[role="alert"]').count(), 0);
-      release(); await readyImage(page); assert.equal(await viewer(page).locator('img').getAttribute('data-registered-source'), bodyB);
+      await page.waitForTimeout(30);
+      evidence.retainedAfterOldEvents = await page.evaluate(() => {
+        const image = document.querySelector('dialog[data-image-viewer] img[data-image-viewer-current]');
+        return image ? { source: image.getAttribute('data-registered-source'), visible: image.style.visibility, decoded: image.complete && image.naturalWidth > 0 } : null;
+      });
+      assert.deepEqual(evidence.retainedAfterOldEvents, { source: bodyA, visible: 'visible', decoded: true }, 'Late events cannot remove the decoded retained picture while the next image is still loading');
+      release();
+      await page.waitForFunction(source => {
+        const image = document.querySelector('dialog[data-image-viewer] img[data-image-viewer-current]');
+        return image?.getAttribute('data-registered-source') === source && image.complete && image.naturalWidth > 0 && image.style.visibility === 'visible';
+      }, bodyB);
+      assert.equal(await viewer(page).locator('img[data-image-viewer-current]').getAttribute('data-registered-source'), bodyB);
       assert.equal(numberReads(reads, bodyB), 1); evidence.oldEventsIgnored = true; evidence.secondImageGets = 1;
     } finally { release(); }
   });

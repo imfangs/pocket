@@ -304,6 +304,7 @@ export default function App({
     },
     onPendingChange(pending) { catalogReadHealthStore.observe({ type: pending ? "pending" : "settled" }); setCatalogReading(pending); if (pending) setReadError(""); },
     onSettled(error) {
+      if (!error) catalogReadHealthStore.observe({ type: "applied" });
       catalogReadHealthStore.observe({ type: error ? "failed" : "reachable", error });
       if (error) { prefetchCatalogAt.current = 0; transcriptReader.current?.wake(true); }
       setLoading(false); setReadError(error ? catalogError(error) : "");
@@ -855,6 +856,9 @@ export default function App({
           <TaskListPanel busy={busy || loading} onRefresh={syncTasks} scrollRef={listPanel} inert={narrow && !!current}
             feedback={<CollectionReadFeedback hasCatalog={hasCatalog} pending={busy || !hasCatalog && (loading || catalogReading)}
               syncPending={catalogReading || taskStatuses.runtimeReadHealth.pending} readHealth={[catalogReadHealth, taskStatuses.runtimeReadHealth]}
+              motionScope={pocketReadScope ? `${currentMachineId()}:${pocketReadScope}` : null}
+              completions={[catalogReadHealthStore.getCompletionSnapshot(), taskStatuses.runtimeCompletion]}
+              currentData={!taskStatuses.runtimeUnavailable && !taskStatuses.runtimeLoading}
               error={catalogReadError} stale={taskStatuses.listRuntimeStale}
               cachedStatus={taskStatuses.listRuntimeCached} cachedList={catalogFromDisk}
               retry={() => { void syncTasks().catch(() => {}); void taskStatuses.refresh(); }} />}>

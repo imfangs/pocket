@@ -37,5 +37,5 @@ export default function useTaskStatuses(context: TaskHotsetContext & { machine: 
     if (latestOwner.current === owner && listCache.observeNativeHistory(id, history, requestedAt))
       setObserved(previous => previous.owner === owner ? { ...previous } : { owner, view: initialTaskStatuses() });
   }, [owner, listCache]);
-  return { ...view, ...listCache.project(view), runtimeReadHealth, refresh, observeNativeHistory };
+  return { ...view, ...listCache.project(view), runtimeReadHealth, runtimeCompletion: owner.readHealth.getCompletionSnapshot(), refresh, observeNativeHistory };
 }

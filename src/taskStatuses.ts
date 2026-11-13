@@ -104,12 +104,13 @@ export function startTaskStatusPolling(options: Options) {
         if (now() - operation.startedAt >= timeoutMs) { unavailable(); failed(new DOMException("读取运行状态超时", "TimeoutError")); return; }
         options.onReadHealth?.({ type: "reachable" });
         const states = taskStatusMap(response);
-        if (!states) { unavailable(); return; }
+        if (!states) { options.onReadHealth?.({ type: "unavailable" }); unavailable(); return; }
         receivedAt = now();
         clearExpiry();
         expiryTimer = browser.setTimeout(expire, ttlMs);
         options.onObservation?.(response as TaskStatusResponse);
         options.onChange({ runtimeStates: states, runtimeUnavailable: false, runtimeLoading: false });
+        options.onReadHealth?.({ type: "applied" });
       } catch (error) {
         if (!stopped && pending === operation && !operation.controller.signal.aborted) { unavailable(); failed(error); }
       } finally {

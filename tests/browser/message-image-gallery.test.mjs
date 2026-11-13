@@ -159,9 +159,13 @@ for (const engine of engines) {
       await route.fulfill({ status: 503, contentType: 'application/json', headers: { 'X-Pocket-Machine': 'ged' }, body: JSON.stringify({ error: 'Synthetic unavailable image' }) }); return true;
     } });
     await row(page).locator('.message-image-failed').waitFor(); await openGallery(page, 0); await position(page, 1);
-    await page.keyboard.press('ArrowRight'); await position(page, 2); await viewer(page).locator('[role="alert"]').waitFor();
+    await page.keyboard.press('ArrowRight'); await viewer(page).locator('[role="alert"]').waitFor();
+    assert.equal(await viewer(page).getAttribute('data-gallery-requested-index'), '1');
+    await position(page, 1);
+    assert.equal(await viewer(page).locator('img[data-image-viewer-current]').getAttribute('data-registered-source'), sources.a, 'A failed candidate keeps the last decoded picture and its own count');
     assert.equal(await row(page).locator('.message-image').count(), 2, 'The failed inline registration survives replacement of its button');
-    const before = retryReads; await pointer(page, { target: '.image-viewer-message button' }); await position(page, 2);
+    const before = retryReads; await pointer(page, { target: '.image-viewer-message button' }); await position(page, 1);
+    assert.equal(await viewer(page).getAttribute('data-gallery-requested-index'), '1');
     assert.equal(retryReads, before, 'A control drag is neither navigation nor an explicit Retry click');
     await pointer(page, { target: '.image-viewer-message p' }); await position(page, 3); await ready(page); await sameDialog(page);
   });
