@@ -1,6 +1,6 @@
 export type SubmissionReceipt = {
   requestId: string;
-  status: "accepted" | "queued" | "editing" | "cancelled" | "pending" | "unknown" | "rejected" | "not_found";
+  status: import("../shared/submission-contracts").SubmissionStatus;
   code?: string;
   queueRevision?: number;
   uploadProgress?: import("./submittedQueries").AttachmentUploadProgress;

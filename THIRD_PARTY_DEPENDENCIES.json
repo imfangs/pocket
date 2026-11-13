@@ -1,6 +1,6 @@
 {
-  "generatedOn": "2026-11-12",
-  "lockfileSha256": "c7b057e00bd3578e834c7e26d08e4d7ebf477bbd71006db00f102533d79e6e27",
+  "generatedOn": "2026-11-13",
+  "lockfileSha256": "161b7d5c3c7a6c99aa57b99cef2242dca8dba3065af4eaf5d0ec6e1c6f308ac1",
   "packages": [
     {
       "path": "node_modules/@annotorious/annotorious",
@@ -4096,6 +4096,25 @@
       "optional": false,
       "source": "https://registry.npmjs.org/@types/ms/-/ms-2.1.0.tgz",
       "integrity": "sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==",
+      "licenseTexts": [
+        {
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "evidence": {
+            "kind": "installed package; exact version checked",
+            "file": "LICENSE"
+          }
+        }
+      ]
+    },
+    {
+      "path": "node_modules/@types/node",
+      "name": "@types/node",
+      "version": "26.6.6",
+      "licenseDeclared": "MIT",
+      "dev": true,
+      "optional": false,
+      "source": "https://registry.npmjs.org/@types/node/-/node-26.6.6.tgz",
+      "integrity": "sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==",
       "licenseTexts": [
         {
           "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
@@ -11162,6 +11181,25 @@
       "licenseTexts": [
         {
           "sha256": "92905fb54f5d168a27e6d5dc7c2197020add11842be4c70689d084bae3bfe37a",
+          "evidence": {
+            "kind": "installed package; exact version checked",
+            "file": "LICENSE"
+          }
+        }
+      ]
+    },
+    {
+      "path": "node_modules/undici-types",
+      "name": "undici-types",
+      "version": "8.9.0",
+      "licenseDeclared": "MIT",
+      "dev": true,
+      "optional": false,
+      "source": "https://registry.npmjs.org/undici-types/-/undici-types-8.9.0.tgz",
+      "integrity": "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==",
+      "licenseTexts": [
+        {
+          "sha256": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27",
           "evidence": {
             "kind": "installed package; exact version checked",
             "file": "LICENSE"

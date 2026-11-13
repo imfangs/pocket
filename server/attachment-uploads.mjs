@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { AppError } from './store.mjs';
 import { messageFingerprint } from './attachments.mjs';
-import { MAX_ATTACHMENTS } from '../shared/attachment-limits.mjs';
+import { validateAttachmentUploadManifest } from './attachment-upload-validation.mjs';
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -17,23 +17,7 @@ export class AttachmentUploadReservations {
     attachments.reservations = this;
   }
   validate(descriptors) {
-    if (!Array.isArray(descriptors) || !descriptors.length || descriptors.length > MAX_ATTACHMENTS)
-      throw new AppError(`每条消息最多添加 ${MAX_ATTACHMENTS} 个附件`);
-    const seen = new Set();
-    return descriptors.map(value => {
-      if (!value || typeof value !== 'object' || Array.isArray(value) ||
-          Object.keys(value).some(key => !['id', 'name', 'size', 'mime', 'sourceSha256'].includes(key)) ||
-          typeof value.id !== 'string' || !uuid.test(value.id) || seen.has(value.id) ||
-          typeof value.name !== 'string' || !value.name.trim() || value.name.length > 180 ||
-          /[\\/\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(value.name) || ['.', '..'].includes(value.name) ||
-          !Number.isSafeInteger(value.size) || value.size < 1 || value.size > this.attachments.maxBytes ||
-          typeof value.mime !== 'string' || value.mime.length > 128 || /[\x00-\x20\x7f-\x9f\u2028\u2029]/.test(value.mime) ||
-          value.sourceSha256 !== undefined && (typeof value.sourceSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.sourceSha256)))
-        throw new AppError('附件上传清单无效');
-      seen.add(value.id);
-      return { id: value.id, name: value.name, size: value.size, mime: value.mime,
-        ...(value.sourceSha256 === undefined ? {} : { sourceSha256: value.sourceSha256 }) };
-    });
+    return validateAttachmentUploadManifest(descriptors, this.attachments.maxBytes);
   }
   intent(text, descriptors, input) {
     return hash(JSON.stringify(['pocket-upload-intent-v1', text, descriptors, input.autoDirect === true, input.enqueue === true]));

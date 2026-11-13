@@ -230,14 +230,10 @@ export type PendingRequest = {
   response?: { responseId: string; status: string } | null;
 };
 
-export type StopReceipt = {
-  requestId: string;
-  targetTurnId?: string;
-  status: "pending" | "accepted" | "unknown" | "rejected" | "stopped" | "ended" | "not_found";
-  code?: string;
-};
+export type { StopReceipt } from "../shared/submission-contracts";
 
 export type AsyncQuestion = {
   id: string; key: string; turnId?: string | null; sourceMessageId: string; title: string; options: string[];
   response?: { requestId: string; status: string } | null;
 };
+import type { StopReceipt } from "../shared/submission-contracts";

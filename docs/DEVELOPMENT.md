@@ -24,6 +24,16 @@ Run focused tests for the behavior you change, `npm run build` for frontend chan
 
 Keep request IDs, owner/turn identity, version floors, input selection/IME and reading anchors intact. Unknown results are checked by their original receipt, not retried under a new ID. Test setup should use fixture data and temporary directories; changing an API's tests must not remove production identity or permission checks to make CI green.
 
+## Incremental type checking
+
+Run `npm run typecheck` to check both the frontend and the backend pilot. Use `typecheck:client` or `typecheck:server` for a focused loop. CI runs both. Node.js 26 types are an explicit development dependency; browser types stay separate from Node globals.
+
+The backend still runs `.mjs` directly, without a new compilation step. `tsconfig.server.json` uses strict checking with `checkJs: false`; the pilot modules opt in with `// @ts-check`. The current scope is the bounded dispatch response, stop/queue-pause receipts, and upload-manifest admission. Imported legacy JavaScript remains outside the checked implementation scope. Do not describe this pilot as complete backend type coverage.
+
+`shared/submission-contracts.ts` contains only shared types. The frontend reuses its receipt/status and upload presentation types; checked backend implementations use JSDoc imports. Upload admission entries are separate from UI progress descriptors. External JSON remains `unknown` until validated, and a read/cached projection never authorizes execution. SQLite row assertions are limited to Pocket-owned tables and their known writes; they do not validate arbitrary bridge data.
+
+`tests/types/server-contracts.ts` includes positive contracts and `@ts-expect-error` cases for missing request/turn identity, incorrect status fields, and premature turn claims. These samples fail compilation if a previously rejected shape becomes accepted. Keep runtime race, cancellation, upload-original verification and unknown-receipt tests: static types cannot establish those behaviors.
+
 ## Source and notice checks
 
 ```sh

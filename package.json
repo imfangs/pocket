@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "typecheck": "npm run typecheck:client && npm run typecheck:server",
+    "typecheck:client": "tsc --noEmit",
+    "typecheck:server": "tsc -p tsconfig.server.json",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "build:pages": "npm run build && node bin/prepare-pages.mjs",
@@ -39,6 +42,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@types/node": "26.6.6",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.5.0",

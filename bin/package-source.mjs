@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { isMain } from './is-main.mjs';
 import { privateSourceMarkers, privateSourcePathReason, sourcePrivacyFindings, publicSourceDocumentationPaths } from './source-privacy.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
-const top=new Set(['package.json','package-lock.json','.npmrc','.gitignore','.gitattributes','.node-version','tsconfig.json','vite.config.ts','index.html','LICENSE','CONTRIBUTING.md','SECURITY.md','PRIVACY.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_DEPENDENCIES.json','THIRD_PARTY_LICENSES.txt']);
+const top=new Set(['package.json','package-lock.json','.npmrc','.gitignore','.gitattributes','.node-version','tsconfig.json','tsconfig.server.json','vite.config.ts','index.html','LICENSE','CONTRIBUTING.md','SECURITY.md','PRIVACY.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','THIRD_PARTY_DEPENDENCIES.json','THIRD_PARTY_LICENSES.txt']);
 const docs=publicSourceDocumentationPaths;
 const prefixes=['src/','server/','shared/','bin/','edge/','public/','vendor/','packages/','.github/','tests/'];
 const digest=value=>createHash('sha256').update(value).digest('hex');
@@ -51,7 +51,7 @@ export function packageSource(directory) {
   const readme=readSource('README.en.md').toString('utf8').replace(/\]\(README\.md\)/g,'](README.zh-CN.md)');
   entries.set('README.md',readme);entries.set('README.en.md',readme);
   entries.set('README.zh-CN.md',readSource(existsSync(join(root,'README.zh-CN.md')) ? 'README.zh-CN.md' : 'README.md'));
-  entries.set('AGENTS.md','# Pocket development\n\nRead README.md, SECURITY.md and docs/SELF_HOSTING.md. Keep user data, credentials, logs and screenshots outside Git. Use synthetic fixtures for tests; never write Codex SQLite or replay unknown requests. Preserve request identity, owner/model permissions, and input/reading state. For portable checks run node .github/scripts/test-synthetic.mjs and npm run build; run npm run test:browser for UI changes. For release acceptance run npm test on a supported isolated Mac, including the seven installed-desktop suites, and report native controls separately. Desktop control requires the supported macOS/Codex combination described in docs/COMPATIBILITY.md.\n');
+  entries.set('AGENTS.md','# Pocket development\n\nRead README.md, SECURITY.md and docs/SELF_HOSTING.md. Keep user data, credentials, logs and screenshots outside Git. Use synthetic fixtures for tests; never write Codex SQLite or replay unknown requests. Preserve request identity, owner/model permissions, and input/reading state. For portable checks run npm run typecheck, node .github/scripts/test-synthetic.mjs and npm run build; run npm run test:browser for UI changes. Incremental backend type scope is documented in docs/DEVELOPMENT.md. For release acceptance run npm test on a supported isolated Mac, including the seven installed-desktop suites, and report native controls separately. Desktop control requires the supported macOS/Codex combination described in docs/COMPATIBILITY.md.\n');
   // Scan exact outgoing bytes before creating any output. Findings name the
   // file and category only; private markers never enter the release receipt.
   const findings=[...entries].flatMap(([name,bytes])=>sourcePrivacyFindings(name,Buffer.from(bytes),markers));

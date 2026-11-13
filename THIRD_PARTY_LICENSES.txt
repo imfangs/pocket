@@ -1,6 +1,6 @@
 Third-party license texts
 
-Generated for the current public lockfile on 2026-11-12. Original license and copyright bytes are retained. Installed package versions were checked; archives were not independently re-downloaded by this command. Unresolved notices and other-platform packages are recorded in THIRD_PARTY_DEPENDENCIES.json.
+Generated for the current public lockfile on 2026-11-13. Original license and copyright bytes are retained. Installed package versions were checked; archives were not independently re-downloaded by this command. Unresolved notices and other-platform packages are recorded in THIRD_PARTY_DEPENDENCIES.json.
 
 ========================================================================
 Packages: url@0.11.4
@@ -5932,6 +5932,34 @@ SOFTWARE.
 
 
 ========================================================================
+Packages: undici-types@8.9.0
+Text SHA256: a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27
+Text bytes: 1090
+
+MIT License
+
+Copyright (c) Matteo Collina and Undici contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+========================================================================
 Packages: vite@7.3.7
 Text SHA256: a77a1c089806b39ad339535bdf3677f636c91d96693e8ad7b11fe733f650ea64
 Text bytes: 101176
@@ -8993,7 +9021,7 @@ SOFTWARE.
 
 
 ========================================================================
-Packages: @types/babel__core@7.20.5, @types/babel__generator@7.27.0, @types/babel__template@7.4.4, @types/babel__traverse@7.28.0, @types/css-font-loading-module@0.0.12, @types/debug@4.1.13, @types/earcut@2.1.4, @types/estree-jsx@1.0.5, @types/estree@1.0.9, @types/hast@3.0.5, @types/mdast@4.0.4, @types/ms@2.1.0, @types/node@14.18.63, @types/react-dom@19.3.0, @types/react@19.3.0, @types/trusted-types@2.0.7, @types/unist@2.0.11, @types/unist@3.0.3
+Packages: @types/babel__core@7.20.5, @types/babel__generator@7.27.0, @types/babel__template@7.4.4, @types/babel__traverse@7.28.0, @types/css-font-loading-module@0.0.12, @types/debug@4.1.13, @types/earcut@2.1.4, @types/estree-jsx@1.0.5, @types/estree@1.0.9, @types/hast@3.0.5, @types/mdast@4.0.4, @types/ms@2.1.0, @types/node@14.18.63, @types/node@26.6.6, @types/react-dom@19.3.0, @types/react@19.3.0, @types/trusted-types@2.0.7, @types/unist@2.0.11, @types/unist@3.0.3
 Text SHA256: c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383
 Text bytes: 1141
 

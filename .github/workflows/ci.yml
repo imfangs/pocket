@@ -37,6 +37,8 @@ jobs:
         run: npm ci --registry=https://registry.npmjs.org --audit=false --fund=false
       - name: Check the locked dependency license inventory
         run: npm run licenses:check
+      - name: Check frontend and incremental backend types
+        run: npm run typecheck
       - name: Check the public source privacy boundary
         run: |
           npm run package:source -- --out .local/ci/public-source

@@ -1,11 +1,8 @@
 import type { Message, QueuedMessage } from "./conversationFeed";
 import { sameAttachments, validateAttachment, type PublicAttachment } from "./attachments.ts";
 
-export type AttachmentUploadProgress = Readonly<{ total: number; uploaded: number; status: "uploading" | "ready" | "failed"; code?: string }>;
-export type AttachmentUploadDescriptor = Readonly<{
-  id: string; name: string; size: number; mime: string;
-  status?: "missing" | "queued" | "uploading" | "uploaded" | "failed" | "unknown"; error?: string;
-}>;
+import type { AttachmentUploadProgress, AttachmentUploadDescriptor } from "../shared/submission-contracts";
+export type { AttachmentUploadProgress, AttachmentUploadDescriptor } from "../shared/submission-contracts";
 export type SubmittedUploadActions = {
   owns?: (requestId: string) => boolean;
   retry: (requestId: string) => Promise<void> | void;

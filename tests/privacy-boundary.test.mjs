@@ -97,6 +97,8 @@ test('export excludes nested private files and rejects a known private byte befo
   assert.ok(existsSync(join(source,'edge/worker.mjs')),'The optional relay implementation is part of the source');
   assert.ok(existsSync(join(source,'README.zh-CN.md')));
   assert.ok(existsSync(join(source,'docs/PUBLIC_HISTORY.md')),'The public history notice follows its README link into the source package');
+  for (const path of ['tsconfig.server.json', 'shared/submission-contracts.ts', 'server/attachment-upload-validation.mjs', 'tests/types/server-contracts.ts'])
+    assert.ok(existsSync(join(source, path)), `The backend type pilot is portable: ${path}`);
   assert.match(readFileSync(join(source,'README.en.md'),'utf8'), /README\.zh-CN\.md/);
   const manifestPath = join(source,'source-manifest.json'), manifest = JSON.parse(readFileSync(manifestPath,'utf8'));
   for (const path of ['bin/.env','src/web-push-keys.json','tests/private-data/query.md','tests/fake.sqlite-wal']) {

@@ -16,6 +16,7 @@ Read `README.md`, `SECURITY.md`, `PRIVACY.md`, `docs/DEVELOPMENT.md`, `docs/OPEN
 ## Verification and maintenance
 
 - Use synthetic fixtures by default. Run relevant tests for a change, `npm run build` for frontend changes, and `npm run test:browser` for interaction changes. The seven installed-desktop suites remain part of full `npm test`; synthetic CI does not replace their native checks.
+- Run `npm run typecheck` when changing shared contracts or checked backend modules. The strict `.mjs` pilot uses JSDoc and `@ts-check`; scope and compile-time samples are documented in `docs/DEVELOPMENT.md`. Types do not replace runtime validation or receipt reconciliation.
 - Run `npm run privacy:check` and `npm run privacy:check -- --staged` before publishing or committing source. These checks cover tracked/index bytes and known local private values; Git history and unknown secrets require separate review.
 - Use `node .github/scripts/test-synthetic.mjs` for a checkout without an installed supported desktop. Read `docs/COMPATIBILITY.md` before claiming native or real-phone acceptance.
 - Preserve existing local services and configuration while working. Use temporary fixtures for experiments; do not restart Codex or production services merely to make tests pass.
