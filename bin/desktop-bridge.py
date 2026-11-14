@@ -626,7 +626,7 @@ def main():
                 shown = next((r for r in pending_requests(fresh) if r["key"] == data.get("requestKey")), None)
                 if fresh_owner != owner or fresh.get("resumeState") != "resumed" or not shown:
                     return {"ok": False, "code": "request_changed", "sent": False}
-                prepared = prepare_response(fresh, ordered_turns(fresh), data.get("requestKey"), data.get("decision"), data.get("answers"))
+                prepared = prepare_response(fresh, ordered_turns(fresh), data.get("requestKey"), data.get("decision"), data.get("answers"), option_id=data.get("optionId"))
                 if not prepared:
                     return {"ok": False, "code": "invalid_decision", "sent": False}
                 method, params = prepared

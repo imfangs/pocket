@@ -34,6 +34,14 @@ The backend still runs `.mjs` directly, without a new compilation step. `tsconfi
 
 `tests/types/server-contracts.ts` includes positive contracts and `@ts-expect-error` cases for missing request/turn identity, incorrect status fields, and premature turn claims. These samples fail compilation if a previously rejected shape becomes accepted. Keep runtime race, cancellation, upload-original verification and unknown-receipt tests: static types cannot establish those behaviors.
 
+## Native approval choices
+
+Approval responses belong to the original desktop request. `bin/request_actions.py` projects only known native choices into `approvalOptions`, with an opaque ID bound to the conversation, host, full request fingerprint and exact native response. The frontend submits `{responseId, optionId}`; it cannot author a command policy or permission profile. The bridge re-reads the original owner, regenerates the choices and resolves that exact ID before responding. Reused response IDs retain their original selection, and unknown outcomes are checked rather than replayed.
+
+Explicit native decision lists take precedence, including empty lists. Installed native defaults are used only where their behavior has been verified. Session command approvals, exact command prefixes, network rules, future changes to the same files, directory requests and turn/session permission profiles retain their distinct scopes. A tool's refusal and cancellation are separate decisions. These choices do not change the global access mode. The native `grantRoot` contract retains its upstream uncertainty about actual enforcement; passing the original response does not claim broader behavior has been proven.
+
+Legacy clients keep their once-only `choices`/`decision` path and normal request keys remain byte compatible so accepted/unknown receipts survive an update. A present empty or malformed `approvalOptions` list never falls back to an invented grant. Missing file review data, oversized content or ambiguous/unencodable text removes grants while preserving available refusals. Keep rules, hosts, directories and permission scopes fully reviewable; test approvals with synthetic peers, not real user requests.
+
 ## Source and notice checks
 
 ```sh

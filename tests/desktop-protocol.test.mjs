@@ -19,7 +19,7 @@ const idle = {
   requests: [],
   turns: [],
 };
-async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0, errors = {} } = {}) {
+async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0, errors = {}, conversationId = id } = {}) {
   const home = mkdtempSync("/tmp/navigator-ipc-");
   mkdirSync(join(home, "ipc"), { mode: 0o700 });
   const calls = [];
@@ -77,7 +77,7 @@ async function fakeDesktop(t, states, { ownerDelay = 0, snapshotDelay = 0, error
             targetClientIds: ["navigator-fixture"],
             params: {
               hostId: "local",
-              conversationId: id,
+              conversationId,
               change: {
                 type: "snapshot",
                 conversationState:
@@ -692,10 +692,12 @@ test("in-progress native compaction blocks sends, queue drain and duplicate comp
 });
 
 const approval = { method:'item/commandExecution/requestApproval',id:0,params:{threadId:id,turnId:'t',itemId:'command-1',command:'git status',cwd:'/fixture',reason:'Read repository state',availableDecisions:['accept',{acceptWithExecpolicyAmendment:{execpolicy_amendment:['git']}},'cancel']} };
-test('approval display includes the full command and offers only one-time decisions', async t => {
+test('approval display preserves legacy one-time choices and exposes exact native rule options', async t => {
   const f = await fakeDesktop(t,[{...idle,requests:[approval]}]);
   const h = await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
   assert.deepEqual(h.pendingRequests[0].choices,['accept','cancel']);
+  assert.deepEqual(h.pendingRequests[0].approvalOptions.map(option=>option.kind),['accept','execpolicy','cancel']);
+  assert.deepEqual(h.pendingRequests[0].approvalOptions[1].rule,['git']);
   assert.equal(h.pendingRequests[0].command,'git status');
   assert.equal(h.canSend,false);
   const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,decision:'accept'});
@@ -710,10 +712,86 @@ test('a reused request id with a changed command cannot receive an old approval'
  assert.equal(r.sent,false);assert.equal(r.code,'request_changed');
  assert.equal(f.calls.some(c=>c.method==='thread-follower-command-approval-decision'),false);
 });
-test('native approval rejects persistent permission changes',async t=>{
+test('native approval rejects raw persistent decisions instead of resolving a projected option ID',async t=>{
  const f=await fakeDesktop(t,[{...idle,requests:[approval]}]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
  const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,decision:'acceptForSession'});
  assert.equal(r.sent,false);assert.equal(r.code,'invalid_decision');
+});
+
+test('opaque command approval options forward exact original session and policy decisions over fixture IPC', async t=>{
+ const decisions=['accept','acceptForSession',{acceptWithExecpolicyAmendment:{execpolicy_amendment:['git','status']}},
+  {applyNetworkPolicyAmendment:{network_policy_amendment:{host:'example.test',action:'allow'}}},
+  {applyNetworkPolicyAmendment:{network_policy_amendment:{host:'example.test',action:'deny'}}},'decline','cancel'];
+ const request={...approval,params:{...approval.params,availableDecisions:decisions}};
+ const f=await fakeDesktop(t,[{...idle,requests:[request]}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ for(const [index,option] of h.pendingRequests[0].approvalOptions.entries()) {
+  const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,optionId:option.id});
+  assert.equal(r.status,'accepted');
+  const call=f.calls.filter(c=>c.method==='thread-follower-command-approval-decision').at(-1);
+  assert.deepEqual(call.params,{conversationId:id,requestId:0,decision:decisions[index]});assert.equal(call.version,1);
+ }
+ assert.equal(f.calls.some(c=>c.method==='thread-follower-start-turn'||c.method==='thread-follower-steer-turn'),false);
+});
+
+test('native command rule empty arguments round trip through IPC without collapsing their prefix', async t=>{
+ const decision={acceptWithExecpolicyAmendment:{execpolicy_amendment:['python3','-c','']}};
+ const request={...approval,params:{...approval.params,command:"python3 -c ''",availableDecisions:[decision,'cancel']}};
+ const f=await fakeDesktop(t,[{...idle,requests:[request]}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home}),selected=h.pendingRequests[0].approvalOptions.find(o=>o.kind==='execpolicy');
+ assert.deepEqual(selected.rule,['python3','-c','']);
+ const result=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,optionId:selected.id});
+ assert.equal(result.status,'accepted');
+ assert.deepEqual(f.calls.find(c=>c.method==='thread-follower-command-approval-decision').params,{conversationId:id,requestId:0,decision});
+});
+
+test('command option IDs are rejected when a rule or host changes between owner snapshots', async t=>{
+ for(const changedDecision of [
+  {acceptWithExecpolicyAmendment:{execpolicy_amendment:['git','push']}},
+  {applyNetworkPolicyAmendment:{network_policy_amendment:{host:'other.test',action:'allow'}}},
+ ]) {
+  const original={...approval,params:{...approval.params,availableDecisions:[
+   {acceptWithExecpolicyAmendment:{execpolicy_amendment:['git','status']}},
+   {applyNetworkPolicyAmendment:{network_policy_amendment:{host:'example.test',action:'allow'}}},'cancel']}};
+  const current={...idle,requests:[original]},changed={...idle,requests:[{...original,params:{...original.params,availableDecisions:[changedDecision,'cancel']}}]};
+  const f=await fakeDesktop(t,[current,current,changed]);
+  const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+  const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,optionId:h.pendingRequests[0].approvalOptions[0].id});
+  assert.equal(r.sent,false);assert.equal(r.code,'request_changed');
+  assert.equal(f.calls.some(c=>c.method==='thread-follower-command-approval-decision'),false);
+ }
+});
+
+test('a command option IPC outcome lost after dispatch stays unknown and starts no replacement execution', async t=>{
+ const request={...approval,params:{...approval.params,availableDecisions:['acceptForSession','cancel']}};
+ const f=await fakeDesktop(t,[{...idle,requests:[request]}],{errors:{'thread-follower-command-approval-decision':'synthetic response lost'}});
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+ const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,optionId:h.pendingRequests[0].approvalOptions[0].id});
+ assert.equal(r.sent,null);assert.equal(r.code,'dispatch_unknown');
+ assert.equal(f.calls.filter(c=>c.method==='thread-follower-command-approval-decision').length,1);
+ assert.equal(f.calls.some(c=>c.method==='thread-follower-start-turn'||c.method==='thread-follower-steer-turn'),false);
+});
+
+test('foreign opaque approval IDs never reach a different followed conversation even with legacy missing thread metadata', async t=>{
+ const otherId='cccccccc-cccc-7ccc-8ccc-cccccccccccc';
+ for(const nativeThread of ['missing',null]) {
+  const request={...approval,params:{...approval.params,availableDecisions:['acceptForSession','cancel']}};
+  if(nativeThread==='missing')delete request.params.threadId;else request.params.threadId=null;
+  const a=await fakeDesktop(t,[{...idle,requests:[request]}]);
+  const b=await fakeDesktop(t,[{...idle,id:otherId,requests:[request]}],{conversationId:otherId});
+  const ha=await desktopRequest({operation:'history',threadId:id,codexHome:a.home});
+  const hb=await desktopRequest({operation:'history',threadId:otherId,codexHome:b.home});
+  assert.equal(ha.pendingRequests[0].key,hb.pendingRequests[0].key,'Original legacy ledger key survives upgrade');
+  const optionA=ha.pendingRequests[0].approvalOptions.find(o=>o.kind==='acceptForSession');
+  const optionB=hb.pendingRequests[0].approvalOptions.find(o=>o.kind==='acceptForSession');
+  assert.notEqual(optionA.id,optionB.id);
+  const foreign=await desktopRequest({operation:'respond',threadId:otherId,codexHome:b.home,requestKey:ha.pendingRequests[0].key,optionId:optionA.id});
+  assert.equal(foreign.sent,false);assert.equal(foreign.code,'invalid_decision');
+  assert.equal(b.calls.some(c=>c.method==='thread-follower-command-approval-decision'),false);
+  const own=await desktopRequest({operation:'respond',threadId:otherId,codexHome:b.home,requestKey:hb.pendingRequests[0].key,optionId:optionB.id});
+  assert.equal(own.status,'accepted');
+  assert.deepEqual(b.calls.find(c=>c.method==='thread-follower-command-approval-decision').params,{conversationId:otherId,requestId:0,decision:'acceptForSession'});
+ }
 });
 
 test('stop sends a conditional user interruption to the existing owner even while awaiting approval',async t=>{
@@ -793,6 +871,47 @@ test('file approval displays its exact patch and a changed patch rejects an old 
  const other=await fakeDesktop(t,[changed]);const denied=await desktopRequest({operation:'respond',threadId:id,codexHome:other.home,requestKey:h.pendingRequests[0].key,decision:'accept'});
  assert.equal(denied.code,'request_changed');
 });
+
+test('unloaded file approvals remain readable while incompatible native item structures stay fail closed',async t=>{
+ const request={id:9,method:'item/fileChange/requestApproval',params:{threadId:id,turnId:'t',itemId:'file'}};
+ const pending=await fakeDesktop(t,[{...idle,requests:[request],turns:[{turnId:'t',status:'inProgress'}]}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:pending.home});
+ assert.equal(h.ok,true);assert.equal(h.pendingRequests[0].kind,'file');
+ assert.deepEqual(h.pendingRequests[0].choices,['cancel']);
+ assert.deepEqual(h.pendingRequests[0].approvalOptions.map(o=>o.kind),['decline','cancel']);
+ const cancel=h.pendingRequests[0].approvalOptions.find(o=>o.kind==='cancel');
+ const r=await desktopRequest({operation:'respond',threadId:id,codexHome:pending.home,requestKey:h.pendingRequests[0].key,optionId:cancel.id});
+ assert.equal(r.status,'accepted');
+ assert.deepEqual(pending.calls.find(c=>c.method==='thread-follower-file-approval-decision').params,{conversationId:id,requestId:9,decision:'cancel'});
+ // These shapes fail the existing original-owner state contract before any
+ // approval adapter. Do not weaken it to make optional projection tests pass.
+ for(const items of [null,[null]]) {
+  const f=await fakeDesktop(t,[{...idle,requests:[request],turns:[{turnId:'t',status:'inProgress',items}]}]);
+  const invalid=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+  assert.equal(invalid.ok,false);assert.equal(invalid.code,'desktop_protocol_incompatible');assert.equal(invalid.sent,false);
+  const refused=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,optionId:cancel.id});
+  assert.equal(refused.sent,false);assert.equal(refused.code,'desktop_protocol_incompatible');
+  assert.equal(f.calls.some(c=>c.method==='thread-follower-file-approval-decision'),false);
+ }
+});
+
+test('ambiguous approval metadata stays readable over IPC and cannot resolve any grant',async t=>{
+ for(const reason of ['before\u202eafter','before\ud800after']) {
+  const request={...approval,params:{...approval.params,reason,availableDecisions:['accept','acceptForSession','decline','cancel']}};
+  const f=await fakeDesktop(t,[{...idle,requests:[request]}]);
+  const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
+  assert.equal(h.ok,true);const shown=h.pendingRequests[0];
+  assert.deepEqual(shown.choices,['cancel']);
+  assert.deepEqual(shown.approvalOptions.map(o=>o.kind),['decline','cancel']);
+  assert.equal(shown.reason.includes(reason),false);
+  const grant=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:shown.key,decision:'accept'});
+  assert.equal(grant.sent,false);assert.equal(grant.code,'invalid_decision');
+  assert.equal(f.calls.some(c=>c.method==='thread-follower-command-approval-decision'),false);
+  const denied=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:shown.key,optionId:shown.approvalOptions.find(o=>o.kind==='cancel').id});
+  assert.equal(denied.status,'accepted');
+  assert.deepEqual(f.calls.find(c=>c.method==='thread-follower-command-approval-decision').params,{conversationId:id,requestId:0,decision:'cancel'});
+ }
+});
 test('requested permissions are scoped only to the current turn and denial grants nothing',async t=>{
  const request={id:'permissions',method:'item/permissions/requestApproval',params:{threadId:id,turnId:'t',permissions:{network:{enabled:true},fileSystem:{read:['/fixture']}}}};
  const f=await fakeDesktop(t,[{...idle,requests:[request]}]);const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home});
@@ -801,6 +920,24 @@ test('requested permissions are scoped only to the current turn and denial grant
  }
  const calls=f.calls.filter(c=>c.method==='thread-follower-permissions-request-approval-response');
  assert.deepEqual(calls[0].params.response,{permissions:request.params.permissions,scope:'turn'});assert.deepEqual(calls[1].params.response,{permissions:{},scope:'turn'});
+});
+
+test('file directory scope and permission session options use original native responses without profile changes',async t=>{
+ const fileRequest={id:9,method:'item/fileChange/requestApproval',params:{threadId:id,turnId:'t',itemId:'file',grantRoot:'/fixture/project'}};
+ const f=await fakeDesktop(t,[{...idle,requests:[fileRequest],turns:[{turnId:'t',items:[{id:'file',type:'fileChange',changes:[{path:'/fixture/a.txt',kind:'update',diff:'-old\n+new'}]}]}]}]);
+ const h=await desktopRequest({operation:'history',threadId:id,codexHome:f.home}),option=h.pendingRequests[0].approvalOptions.find(o=>o.kind==='acceptForSession');
+ assert.equal(option.scope,'session');assert.equal(option.grantRoot,'/fixture/project');assert.deepEqual(h.pendingRequests[0].choices,['cancel']);
+ const r=await desktopRequest({operation:'respond',threadId:id,codexHome:f.home,requestKey:h.pendingRequests[0].key,optionId:option.id});
+ assert.equal(r.status,'accepted');
+ assert.deepEqual(f.calls.find(c=>c.method==='thread-follower-file-approval-decision').params,{conversationId:id,requestId:9,decision:'acceptForSession'});
+
+ const profile={network:{enabled:true},fileSystem:{entries:[{access:'write',path:{type:'path',path:'/fixture/output'}}],globScanMaxDepth:2}};
+ const request={id:'permission',method:'item/permissions/requestApproval',params:{threadId:id,turnId:'t',permissions:profile}};
+ const p=await fakeDesktop(t,[{...idle,requests:[request]}]),ph=await desktopRequest({operation:'history',threadId:id,codexHome:p.home});
+ const session=ph.pendingRequests[0].approvalOptions.find(o=>o.kind==='permissionSession');
+ const pr=await desktopRequest({operation:'respond',threadId:id,codexHome:p.home,requestKey:ph.pendingRequests[0].key,optionId:session.id});
+ assert.equal(pr.status,'accepted');
+ assert.deepEqual(p.calls.find(c=>c.method==='thread-follower-permissions-request-approval-response').params,{conversationId:id,requestId:'permission',response:{permissions:profile,scope:'session'}});
 });
 test('blocking question answers go through native response, never a new user turn',async t=>{
  const request={id:'question',method:'item/tool/requestUserInput',params:{threadId:id,turnId:'t',questions:[{id:'direction',question:'Choose',options:[{label:'A',description:'Option A'}]}]}};

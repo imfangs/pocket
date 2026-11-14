@@ -220,6 +220,15 @@ function startFeed<T>(options: FeedOptions<T>, nextDelay: (data: T) => number | 
   };
 }
 
+export type ApprovalOption = {
+  id: string;
+  kind: "accept" | "acceptForSession" | "execpolicy" | "networkPolicy" | "decline" | "cancel" | "permissionTurn" | "permissionSession";
+  scope: "once" | "session" | "rule" | "turn";
+  rule?: string[];
+  host?: string;
+  action?: "allow" | "deny";
+  grantRoot?: string;
+};
 export type PendingRequest = {
   key: string;
   kind: "command" | "file" | "permissions" | "questions" | "unsupported";
@@ -229,6 +238,7 @@ export type PendingRequest = {
   reason: string;
   cwd: string;
   choices: ("accept" | "cancel")[];
+  approvalOptions?: ApprovalOption[];
   response?: { responseId: string; status: string } | null;
 };
 

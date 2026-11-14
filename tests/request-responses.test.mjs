@@ -19,10 +19,36 @@ test('unknown approvals remain held across restart until the request disappears'
  assert.equal(state.calls.length,1);
  state.requests=[];next.cache.clear();await next.history(id);assert.equal(next.getResponseReceipt(id,rid).status,'resolved');
 });
-test('approval API rejects session-wide permission values and undeclared fields',async t=>{const {service:s,state}=fixture(t);
+test('approval API rejects unbound native permission values and undeclared fields',async t=>{const {service:s,state}=fixture(t);
  await assert.rejects(s.respond(id,key,{responseId:rid,decision:'acceptForSession'}),e=>e.status===400);
  await assert.rejects(s.respond(id,key,{responseId:rid,decision:'accept',permissions:'full'}),e=>e.status===400);
  assert.equal(state.calls.length,0);
+});
+test('opaque native choices keep exact identity without accepting a client-authored permission object',async t=>{
+ const {service:s,state,store}=fixture(t);const optionId='b'.repeat(64),input={responseId:rid,optionId};
+ assert.equal((await s.respond(id,key,input)).status,'accepted');
+ assert.equal((await s.respond(id,key,input)).status,'accepted');assert.equal(state.calls.length,1);
+ assert.equal(state.calls[0].optionId,optionId);assert.equal(Object.hasOwn(state.calls[0],'decision'),false);
+ assert.equal(store.db.prepare('SELECT decision FROM request_responses WHERE id=?').get(rid).decision,'option:'+optionId);
+ await assert.rejects(s.respond(id,key,{...input,optionId:'c'.repeat(64)}),e=>e.status===409);
+ await assert.rejects(s.respond(id,key,{responseId:rid,decision:'accept'}),e=>e.status===409);
+});
+test('native choice validation rejects mixtures, malformed IDs and authored policy payloads before dispatch',async t=>{
+ const {service:s,state}=fixture(t);const optionId='b'.repeat(64);
+ for(const extra of [{optionId:'wrong'},{optionId:null},{optionId},{optionId,decision:'accept'},{optionId,answers:{q:'answer'}},{optionId,permissions:{scope:'session'}},{optionId,nativeDecision:{acceptWithExecpolicyAmendment:{execpolicy_amendment:['*']}}}]){
+  const input={responseId:rid,...extra};
+  if(Object.keys(extra).length===1&&extra.optionId===optionId)input.answers=null;
+  await assert.rejects(s.respond(id,key,input),e=>e.status===400);
+ }
+ assert.equal(state.calls.length,0);
+});
+test('unknown native choices survive restart and only their original receipt can be checked',async t=>{
+ const {service:s,state,store,request}=fixture(t);state.result={ok:false,sent:null};const optionId='b'.repeat(64);
+ assert.equal((await s.respond(id,key,{responseId:rid,optionId})).status,'unknown');
+ const next=new DesktopService(store,'/fixture',request);next.startQueue();next.stopQueue();
+ assert.equal((await next.respond(id,key,{responseId:rid,optionId})).status,'unknown');
+ await assert.rejects(next.respond(id,key,{responseId:'cccccccc-cccc-7ccc-8ccc-cccccccccccc',optionId}),e=>e.status===409);
+ assert.equal(state.calls.length,1);
 });
 test('blocking answers are fingerprinted without storing the submitted text and cannot be changed on retry',async t=>{
  const {service:s,state,store}=fixture(t);const input={responseId:rid,answers:{a:'Private answer'}};

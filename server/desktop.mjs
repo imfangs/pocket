@@ -440,13 +440,16 @@ export class DesktopService {
     this.requireLifecycleOpen(id);
     const thread = this.store.thread(id);
     const hasAnswers = input?.answers && typeof input.answers === "object" && !Array.isArray(input.answers);
-    if (!input || Object.keys(input).some(k => !["responseId", "decision", "answers"].includes(k)) ||
-        (hasAnswers ? input.decision !== undefined || !Object.keys(input.answers).length || Object.keys(input.answers).length > 10 ||
+    const hasOption = input?.optionId !== undefined;
+    if (!input || Object.keys(input).some(k => !["responseId", "decision", "answers", "optionId"].includes(k)) ||
+        (hasAnswers ? input.decision !== undefined || hasOption || !Object.keys(input.answers).length || Object.keys(input.answers).length > 10 ||
           Object.values(input.answers).some(v => typeof v !== "string" || !v.trim() || v.length > 16000) || JSON.stringify(input.answers).length > 40000
+          : hasOption ? typeof input.optionId !== "string" || !/^[a-f0-9]{64}$/.test(input.optionId) || input.decision !== undefined || input.answers !== undefined
           : !["accept", "cancel"].includes(input.decision) || input.answers !== undefined) || typeof input.responseId !== "string" ||
         !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.responseId) || !/^[a-f0-9]{64}$/.test(requestKey))
       throw new AppError("审批响应参数无效", 400);
-    const recordedDecision = hasAnswers ? 'answers:' + createHash('sha256').update(JSON.stringify(Object.fromEntries(Object.entries(input.answers).sort(([a], [b]) => a.localeCompare(b))))).digest('hex') : input.decision;
+    const recordedDecision = hasAnswers ? 'answers:' + createHash('sha256').update(JSON.stringify(Object.fromEntries(Object.entries(input.answers).sort(([a], [b]) => a.localeCompare(b))))).digest('hex')
+      : hasOption ? 'option:' + input.optionId : input.decision;
     const old = this.store.db.prepare("SELECT * FROM request_responses WHERE id=?").get(input.responseId);
     if (old) {
       if (old.thread_id !== id || old.request_key !== requestKey || old.decision !== recordedDecision) throw new AppError("响应编号已用于其他操作", 409);
@@ -458,7 +461,8 @@ export class DesktopService {
     this.store.db.prepare("INSERT INTO request_responses VALUES(?,?,?,?,'pending',NULL,?)")
       .run(input.responseId, id, requestKey, recordedDecision, Date.now());
     let result;
-    try { result = await this.request({ operation: "respond", threadId: id, codexHome: this.codexHome, requestKey, decision: input.decision, ...(hasAnswers ? { answers: input.answers } : {}) }); }
+    try { result = await this.request({ operation: "respond", threadId: id, codexHome: this.codexHome, requestKey,
+      ...(hasOption ? { optionId: input.optionId } : hasAnswers ? { answers: input.answers } : { decision: input.decision }) }); }
     catch { result = { ok: false, sent: null, code: "dispatch_unknown" }; }
     const status = result.ok ? "accepted" : result.sent === false ? "rejected" : "unknown";
     this.store.db.prepare("UPDATE request_responses SET status=?,code=? WHERE id=? AND status='pending'")

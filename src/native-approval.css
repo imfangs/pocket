@@ -1,0 +1,7 @@
+.approval-buttons[data-native-options] { justify-content: flex-start; flex-wrap: wrap; align-items: flex-start; }
+.native-approval-option { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: 100%; gap: 4px; }
+.native-approval-option:has(.native-approval-scope-value) { flex-basis: 100%; }
+.native-approval-option > button { max-width: 100%; white-space: normal; text-align: start; overflow-wrap: anywhere; }
+.native-approval-option > button:not(.primary) { color: var(--ink); background: transparent; border: 1px solid var(--line); }
+.native-approval-scope { max-width: 100%; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.native-approval-scope-value { display: block; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
