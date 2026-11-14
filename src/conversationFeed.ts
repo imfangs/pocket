@@ -4,6 +4,7 @@ import type { PocketContent } from "./pocketReadState";
 import type { PublicAttachment } from "./attachments";
 import type { AttachmentUploadDescriptor, AttachmentUploadProgress } from "./submittedQueries";
 import type { RuntimeActivity } from "./conversationRuntimeActivity";
+import type { UnavailableAttachment } from "../shared/unavailable-attachments.mjs";
 
 export type MessageFileReference = { url: string; name: string };
 export type MessageFiles = Record<string, MessageFileReference>;
@@ -23,6 +24,8 @@ export type Message = {
   images?: Record<string, string>;
   files?: MessageFiles;
   attachments?: PublicAttachment[];
+  unavailableAttachments?: UnavailableAttachment[];
+  unavailableAttachmentPlaceholder?: boolean;
   attachmentEnvelope?: boolean;
 };
 export type TurnTiming = {

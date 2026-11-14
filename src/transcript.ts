@@ -10,7 +10,7 @@ function bounded(messages: Message[], hasMore = false) {
     const text = message.text.slice(0, available);
     remaining -= text.length;
     return text === message.text ? message : { ...message, text, truncated: true };
-  }).filter(message => message.text || message.attachments?.length).reverse();
+  }).filter(message => message.text || message.attachments?.length || message.unavailableAttachments?.length).reverse();
   return { messages: visible, hasMore: hasMore || budgetTruncated || visible.length < messages.length };
 }
 
@@ -73,7 +73,10 @@ export function displayConversation(history: History | null, transcript: SavedTr
     return { ...next, ...message, text: next.text, truncated: next.truncated,
       phase: next.phase ?? message.phase, turnDurationMs: next.turnDurationMs ?? message.turnDurationMs,
       images: next.images ?? message.images, files: next.truncated ? undefined : next.files ?? message.files,
-      attachments: next.attachments?.length ? next.attachments : message.attachments };
+      attachments: next.attachments?.length ? next.attachments : message.attachments,
+      unavailableAttachments: next.unavailableAttachments?.length ? next.unavailableAttachments : message.unavailableAttachments,
+      unavailableAttachmentPlaceholder: next.unavailableAttachments?.length ? next.unavailableAttachmentPlaceholder
+        : next.text === message.text ? message.unavailableAttachmentPlaceholder : undefined };
   });
   if (index.get(saved[anchor].id) === live.length - 1) merged.push(...saved.slice(anchor + 1));
   // Codex-created chats can expose the opening request only in their saved

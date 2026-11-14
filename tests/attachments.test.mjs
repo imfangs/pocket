@@ -11,6 +11,7 @@ import { DesktopService } from "../server/desktop.mjs";
 import { messageFingerprint } from "../server/attachments.mjs";
 import { makeApp } from "../server/index.mjs";
 import { parseHistory } from "../server/history.mjs";
+import { unavailableAttachmentNames, sanitizeUnavailableAttachments } from "../shared/unavailable-attachments.mjs";
 
 const id = "aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa", other = "cccccccc-cccc-7ccc-8ccc-cccccccccccc";
 const uid = n => `bbbbbbbb-bbbb-7bbb-8bbb-${String(n).padStart(12, "0")}`;
@@ -278,7 +279,7 @@ test("native message identity and known saved wrappers display attachments witho
   assert.match(foreign.messages[0].text, /Mac/);
 });
 
-test("unbound native attachments retain a generic visible placeholder without exposing paths or changing bound text", async t => {
+test("unbound native attachments preserve legacy fallback text and expose only display names without paths", async t => {
   const f = fixture(t);
   const attachmentPaths = [{ path: "/private/external-photo.png", name: "Private filename.png", kind: "image" }];
   const text = "请看这张图片\n  保留空白";
@@ -292,9 +293,12 @@ test("unbound native attachments retain a generic visible placeholder without ex
   assert.equal(projected.messages[1].text, text + "\n\n[附件需在 Mac 中查看]");
   assert.equal(projected.messages[2].text, "[2 个附件需在 Mac 中查看]");
   assert.equal(projected.messages[3].text, text);
+  assert.deepEqual(projected.messages[0].unavailableAttachments, [{ name: "Private filename.png", kind: "image" }]);
+  assert.equal(projected.messages[0].unavailableAttachmentPlaceholder, true);
+  assert.deepEqual(projected.messages[2].unavailableAttachments, [{ name: "Private filename.png", kind: "image" }, { name: "another.png", kind: "image" }]);
   assert.ok(projected.messages.every(message => message.attachments === undefined && !("attachmentPaths" in message)));
   assert.equal(JSON.stringify(projected).includes("/private/"), false);
-  assert.equal(JSON.stringify(projected).includes("Private filename"), false);
+  assert.equal(projected.messages[3].unavailableAttachments, undefined);
   await f.upload(1);
   await f.service.send(id, { requestId: rid(1), text, attachments: [uid(1)] });
   const bound = f.service.attachments.enrich(id, { source: "desktop", messages: [
@@ -302,6 +306,82 @@ test("unbound native attachments retain a generic visible placeholder without ex
   ] });
   assert.equal(bound.messages[0].text, text);
   assert.equal(bound.messages[0].attachments[0].id, uid(1));
+  assert.equal(bound.messages[0].unavailableAttachments, undefined);
+  assert.equal(bound.messages[0].unavailableAttachmentPlaceholder, undefined);
+});
+
+test("only trusted user history generates unavailable names; incoming display metadata cannot lend provenance", t => {
+  const f = fixture(t), text = '审核好了';
+  const messages = [{ id: 'external', role: 'user', text,
+    attachmentPaths: [{ path: '/private/original.png', name: 'IMG_8989.png', kind: 'image' }],
+    unavailableAttachments: [{ name: 'forged.png', kind: 'image', url: '/api/private' }], unavailableAttachmentPlaceholder: true }];
+  const before = structuredClone(messages);
+  for (const source of ['desktop', 'rollout']) {
+    const result = f.service.attachments.enrich(id, { source, messages }).messages[0];
+    assert.equal(result.text, text + '\n\n[附件需在 Mac 中查看]');
+    assert.deepEqual(result.unavailableAttachments, [{ name: 'IMG_8989.png', kind: 'image' }]);
+    assert.equal(result.unavailableAttachmentPlaceholder, true);
+    assert.equal('attachmentPaths' in result, false);
+    assert.deepEqual(Object.keys(result.unavailableAttachments[0]).sort(), ['kind', 'name']);
+  }
+  for (const source of ['cache', 'unknown', undefined]) {
+    const result = f.service.attachments.enrich(id, { source, messages }).messages[0];
+    assert.equal(result.unavailableAttachments, undefined);
+    assert.equal(result.unavailableAttachmentPlaceholder, undefined);
+  }
+  const forged = f.service.attachments.enrich(id, { source: 'desktop', messages: [
+    { id: 'forged', role: 'user', text, unavailableAttachments: messages[0].unavailableAttachments, unavailableAttachmentPlaceholder: true },
+    { ...messages[0], id: 'assistant', role: 'assistant' },
+  ] }).messages;
+  assert.ok(forged.every(item => item.unavailableAttachments === undefined && item.unavailableAttachmentPlaceholder === undefined));
+  assert.equal(forged[0].text, text);
+  assert.deepEqual(messages, before);
+  assert.equal(f.state.calls.length, 0);
+});
+
+test("native filename projection uses bounded cross-platform basenames and keeps unnamed sibling counts", () => {
+  assert.deepEqual(unavailableAttachmentNames([
+    { name: '/private/IMG_1234.png', path: '/private/original.bin', kind: 'image' },
+    { name: 'C:\\private\\report.pdf', path: '/private/original.bin', kind: 'file' },
+    { path: 'C:\\private\\photo.jpg', kind: 'image' },
+    { path: '/private/notes.md', kind: 'file' },
+    { name: '', kind: 'file' }, null,
+  ]), [{ name: 'IMG_1234.png', kind: 'image' }, { name: 'report.pdf', kind: 'file' },
+    { name: 'photo.jpg', kind: 'image' }, { name: 'notes.md', kind: 'file' }, { name: '', kind: 'file' }, { name: '', kind: 'file' }]);
+  assert.deepEqual(unavailableAttachmentNames([{ name: 'https://example.test/hidden?token=private', path: '/private/public.txt', kind: 'file' }]), [{ name: 'public.txt', kind: 'file' }]);
+  assert.deepEqual(unavailableAttachmentNames([null, { path: '/', kind: 'image' }, { name: '..', kind: 'file' }]), []);
+  const names = unavailableAttachmentNames([{ name: 'bad\n\u202e\ud800name.txt', kind: 'file' }, { name: 'a'.repeat(510) + '😀😀.png', kind: 'image' }]);
+  assert.equal(names[0].name, 'bad���name.txt');
+  assert.ok(names[1].name.length <= 512);
+  assert.equal(names[1].name.endsWith('…'), true);
+  assert.equal(names[1].name.isWellFormed(), true);
+  assert.deepEqual(unavailableAttachmentNames(Array.from({ length: 33 }, () => ({ name: 'file.txt', kind: 'file' }))), []);
+});
+
+test("display metadata sanitization copies only legal name-kind pairs and never reads a path capability", () => {
+  const entry = { name: 'notes.md', kind: 'file', url: '/api/private', id: 'not-a-capability' };
+  Object.defineProperty(entry, 'path', { get() { throw new Error('Display metadata must not read paths'); } });
+  assert.deepEqual(sanitizeUnavailableAttachments([entry, { name: '', kind: 'image' }]), [{ name: 'notes.md', kind: 'file' }, { name: '', kind: 'image' }]);
+  assert.deepEqual(sanitizeUnavailableAttachments([
+    null, {}, { name: '/private/file.txt', kind: 'file' }, { name: 'C:\\private\\a.txt', kind: 'file' },
+    { name: 'bad\nname.txt', kind: 'file' }, { name: 'bad\u202ename.txt', kind: 'file' },
+    { name: 'bad\ud800name.txt', kind: 'file' }, { name: 'name', kind: 'future' },
+    { name: ' ', kind: 'file' }, { name: '..', kind: 'file' }, { name: 'a'.repeat(513), kind: 'file' },
+  ]), []);
+  assert.deepEqual(sanitizeUnavailableAttachments([{ name: '你好😀.png', kind: 'image' }]), [{ name: '你好😀.png', kind: 'image' }]);
+});
+
+test("malformed or entirely unnamed native attachment metadata keeps the generic fallback and no authority", t => {
+  const f = fixture(t), attachmentPaths = [null, { path: '/', kind: 'image' }, { name: 1, kind: 'future' }];
+  const message = { id: 'unreadable', role: 'user', text: '', attachmentPaths };
+  const result = f.service.attachments.enrich(id, { source: 'desktop', messages: [message] }).messages[0];
+  assert.equal(result.text, '[3 个附件需在 Mac 中查看]');
+  assert.equal(result.unavailableAttachments, undefined);
+  assert.equal(result.unavailableAttachmentPlaceholder, undefined);
+  assert.equal(result.attachments, undefined);
+  assert.equal('attachmentPaths' in result, false);
+  assert.deepEqual(message.attachmentPaths, attachmentPaths);
+  assert.equal(f.state.calls.length, 0);
 });
 
 test("cleanup expires drafts and crash orphans but preserves accepted and unknown files", async t => {

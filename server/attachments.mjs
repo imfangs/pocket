@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { AppError } from "./store.mjs";
 import { MAX_ATTACHMENTS, MAX_ATTACHMENT_UPLOADS, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TOTAL_BYTES } from "../shared/attachment-limits.mjs";
 import { userAttachmentEnvelope } from "../shared/user-attachment-envelope.mjs";
+import { unavailableAttachmentNames } from "../shared/unavailable-attachments.mjs";
 
 export { MAX_ATTACHMENTS, MAX_ATTACHMENT_UPLOADS, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TOTAL_BYTES } from "../shared/attachment-limits.mjs";
 
@@ -444,29 +445,32 @@ export class Attachments {
     const rows = this.store.db.prepare("SELECT a.*,d.status FROM attachment_dispatches a JOIN dispatches d ON d.id=a.request_id WHERE a.thread_id=? AND d.status IN('pending','accepted','unknown') ORDER BY a.rowid DESC LIMIT 200").all(threadId)
       .map(row => ({ ...row, attachments: JSON.parse(row.data) }));
     return { ...history, messages: (history.messages || []).map(message => {
-      const { attachmentPaths, attachmentEnvelope: _untrustedEnvelope, ...clean } = message;
+      const { attachmentPaths, attachmentEnvelope: _untrustedEnvelope,
+        unavailableAttachments: _untrustedUnavailable, unavailableAttachmentPlaceholder: _untrustedPlaceholder, ...clean } = message;
       if (message.role !== "user") return clean;
       const envelope = !message.truncated && userAttachmentEnvelope(message.text);
       const exactPaths = row => Array.isArray(attachmentPaths) && attachmentPaths.length === row.attachments.length &&
-        attachmentPaths.every((attachment, index) => attachment.path === row.attachments[index].path);
+        attachmentPaths.every((attachment, index) => attachment?.path === row.attachments[index].path);
       const provenEnvelope = ["desktop", "rollout"].includes(history.source) && envelope && Array.isArray(attachmentPaths) && attachmentPaths.length === envelope.attachments.length &&
-        attachmentPaths.every((attachment, index) => attachment.path === envelope.attachments[index].path &&
-          attachment.kind === envelope.attachments[index].kind);
+        attachmentPaths.every((attachment, index) => attachment?.path === envelope.attachments[index].path &&
+          attachment?.kind === envelope.attachments[index].kind);
       const match = rows.find(row => row.request_id === message.clientMessageId || (row.message_id && row.message_id === message.id)) ||
         rows.find(row => message.text === wrappedText(row.text, row.attachments)) ||
         (history.source === "desktop" && rows.find(row => message.text === row.text && exactPaths(row))) ||
         (provenEnvelope && rows.find(row => envelope.query === row.text && exactPaths(row) &&
           envelope.attachments.length === row.attachments.length && envelope.attachments.every((attachment, index) =>
-            attachment.path === row.attachments[index].path && attachment.name === row.attachments[index].name &&
-            attachment.kind === row.attachments[index].kind)));
+            attachment?.path === row.attachments[index].path && attachment?.name === row.attachments[index].name &&
+            attachment?.kind === row.attachments[index].kind)));
       if (!match) {
         if (envelope) return { ...clean, ...(provenEnvelope ? { attachmentEnvelope: true } : {}) };
         if (!Array.isArray(attachmentPaths) || !attachmentPaths.length) return clean;
+        const names = ["desktop", "rollout"].includes(history.source) ? unavailableAttachmentNames(attachmentPaths) : [];
         const placeholder = attachmentPaths.length === 1 ? "[附件需在 Mac 中查看]" : `[${attachmentPaths.length} 个附件需在 Mac 中查看]`;
-        return { ...clean, text: clean.text ? `${clean.text}\n\n${placeholder}` : placeholder };
+        return { ...clean, text: clean.text ? `${clean.text}\n\n${placeholder}` : placeholder,
+          ...(names.length ? { unavailableAttachments: names, unavailableAttachmentPlaceholder: true } : {}) };
       }
       if (history.source === "desktop" && message.id && (message.clientMessageId === match.request_id ||
-          (Array.isArray(attachmentPaths) && attachmentPaths.length === match.attachments.length && attachmentPaths.every((a, i) => a.path === match.attachments[i].path))))
+          (Array.isArray(attachmentPaths) && attachmentPaths.length === match.attachments.length && attachmentPaths.every((a, i) => a?.path === match.attachments[i].path))))
         this.store.db.prepare("UPDATE attachment_dispatches SET message_id=? WHERE request_id=?").run(message.id, match.request_id);
       const text = message.text === wrappedText(match.text, match.attachments) ? match.text : message.text;
       return { ...clean, text, ...(provenEnvelope ? { attachmentEnvelope: true } : {}), attachments: match.attachments.map(a => this.public(a)) };

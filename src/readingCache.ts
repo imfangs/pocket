@@ -2,6 +2,7 @@ import type { Catalog, Group, PocketContent, Project, Thread } from "./types";
 import { hiddenFields } from "./hiddenThreads.ts";
 import type { Message, SavedTranscript } from "./conversationFeed";
 import { turnFailures } from "./turnFailures.ts";
+import { sanitizeUnavailableAttachments } from "../shared/unavailable-attachments.mjs";
 import {
   clearReadingCache, createReadingCacheStorage, readingCacheFence, readingCacheKey, readingCacheLimits, mergeReadingCatalogRecords,
   subscribeReadingCacheInvalidation, type ReadingCacheRecord, type ReadingCacheStorage,
@@ -73,6 +74,7 @@ function sanitizeTranscript(value: unknown, scope: string): SavedTranscript | nu
   const messages: Message[] = [];
   for (const item of value.messages) {
     if (!object(item) || !identity(item.id) || !["user", "assistant"].includes(item.role as string) || !string(item.text)) return null;
+    const unavailableAttachments = item.role === "user" ? sanitizeUnavailableAttachments(item.unavailableAttachments) : [];
     messages.push({ id: item.id, role: item.role as Message["role"], text: item.text,
       ...(identity(item.turnId) ? { turnId: item.turnId } : {}), ...(string(item.phase) ? { phase: item.phase } : {}),
       ...(item.isQuestion === true ? { isQuestion: true } : {}), ...(item.truncated === true ? { truncated: true } : {}),
@@ -81,6 +83,8 @@ function sanitizeTranscript(value: unknown, scope: string): SavedTranscript | nu
       ...(identity(item.clientMessageId) ? { clientMessageId: item.clientMessageId } : {}),
       ...(item.role === "user" && item.origin === "codex_delegation" ? { origin: "codex_delegation" as const } : {}),
       ...(item.role === "user" && item.attachmentEnvelope === true ? { attachmentEnvelope: true } : {}),
+      ...(unavailableAttachments.length ? { unavailableAttachments } : {}),
+      ...(unavailableAttachments.length && item.unavailableAttachmentPlaceholder === true ? { unavailableAttachmentPlaceholder: true } : {}),
     });
   }
   const failures = turnFailures(value.turnFailures);

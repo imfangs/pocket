@@ -42,6 +42,10 @@ Explicit native decision lists take precedence, including empty lists. Installed
 
 Legacy clients keep their once-only `choices`/`decision` path and normal request keys remain byte compatible so accepted/unknown receipts survive an update. A present empty or malformed `approvalOptions` list never falls back to an invented grant. Missing file review data, oversized content or ambiguous/unencodable text removes grants while preserving available refusals. Keep rules, hosts, directories and permission scopes fully reviewable; test approvals with synthetic peers, not real user requests.
 
+## Unavailable attachment names
+
+Unregistered native attachments expose `unavailableAttachments` with only a display name and `image`/`file` kind. Names come from the trusted desktop/recorded attachment metadata; directories, URLs and file capabilities are excluded. A missing name remains a generic attachment card. The existing generic text placeholder remains compatible with older clients; `unavailableAttachmentPlaceholder` identifies that generated suffix so newer clients replace it with named cards without removing authored text. The frontend retains only this descriptive metadata in its reading cache. Registered Pocket uploads and proven attachment envelopes keep their existing renderer paths, and submission identity remains intact.
+
 ## Source and notice checks
 
 ```sh
